@@ -70,7 +70,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
   "extra": {
     "ai-olympus": {
       "gate": ["vendor/bin/castor php-fast-fix", "vendor/bin/castor php-check"],
-      "pr-gate": ["vendor/bin/castor php-changed"],
+      "pr-gate": ["composer fix"],
       "gate-fresh": ["composer audit"],
       "gate-evidence": "storage/logs/gates",
       "coverage": "vendor/bin/pest --coverage --min=100",
@@ -89,7 +89,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 | Key | Read by | Meaning |
 |---|---|---|
 | `gate` | quality gate (`skills/resolve-issue/references/quality-gates.md`) | The project's full quality gate, run in order. Replaces discovery through Phing or Composer scripts. |
-| `pr-gate` | `run-gate.sh --tier pr`, the implementer before each push | The project's fast pre-push gate. Skipped when CI on the pull request's head is green, and never run on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch), where CI is the check, except after a CI billing failure. Absent: no gate runs while a branch is worked on. |
+| `pr-gate` | `run-gate.sh --exclusive`, the implementer before each push; `discover-fixers.sh` | The project's fixers, and fixers only. They run before each push on every repository, and the implementer commits what they change. Checkers and tests stay with CI and the pre-merge gate on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch). Without CI, or after a CI billing failure, they run locally before each push too. When the key is absent, `krang` proposes it once through a pull request, with the fixers `skills/_shared/discover-fixers.sh` finds in `composer.json` and `package.json`. Absent: no fixer runs before a push. |
 | `gate-fresh` | `run-gate.sh`, `verify-gate.sh` | Commands whose result is never reused from a record; they run fresh on every verification. Absent or empty: `composer audit` when `composer.lock` exists. |
 | `gate-evidence` | `run-gate.sh`, `verify-gate.sh` | The directory for gate records and logs. It must be relative, git-ignored, and hold no tracked file. Absent: `.claude/run/gates`. |
 | `coverage` | test and review skills | The project's coverage command. |

@@ -1,0 +1,29 @@
+# `pr-gate` discovery — find the project's fixers once and propose them
+
+Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** step 3 of *The end-to-end run* classifies the request as full delivery. Step 1 runs then. Steps 3 and 4 run in step 5, after the `Impl done` handoff.
+
+The `pr-gate` fixers run before every push, on every repository (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). That file owns when they run. This file states only how `krang` finds a project's fixers and proposes the manifest key. The manifest governs only after the proposal merges (`@rules/general/general.md` *Project manifest*).
+
+## Steps
+
+1. **Read the key. Analyse only when it is missing.** Run `skills/_shared/discover-fixers.sh`. It reads the default branch. Write `pr-gate: <status>` into `## Gathered context` of the brief, and read `status` from the JSON:
+   - `configured` → the manifest sets `pr-gate`. The script analysed nothing, and you analyse nothing either. Only step 4 analyses again.
+   - `propose` → step 2.
+   - `none` → the dependency files name no fixer. Name it in the report to the user, with `searched`. Propose nothing.
+   - `no-manifest` → the default branch has no `composer.json`, so the key has nowhere to live. Name it in the report. Propose nothing.
+   - A non-zero exit → write the exit code and the reason into the brief, propose nothing, and continue. A failed discovery never blocks the delivery.
+2. **One proposal per project.** Run `gh pr list --head chore/ai-olympus-pr-gate --state all --json number,state,url`.
+   - A pull request on that branch exists → propose nothing. An open one waits for the owner. A closed or merged one is the owner's decision, and a run never reopens it. Name it in the report.
+   - No pull request → write `pr-gate: propose` into the brief. Step 3 runs in step 5.
+3. **Dispatch the proposal.** Run it after the run's own pull request is open. Dispatch `donatello` through the Task tool, blocking, at its default tier, with the ledger role `donatello:pr-gate`. The dispatch carries:
+   - **Its own worktree.** The path `.claude/worktrees/agent-impl-pr-gate-donatello` and the branch `chore/ai-olympus-pr-gate`, created from the default branch and locked as `@rules/compound-engineering/concurrency.md` *Parallel units* states. The run's own tree stays untouched. *Run cleanup* removes the worktree like the worktree of a parallel unit.
+   - **The change.** Set the key with `composer config --json extra.ai-olympus.pr-gate '<the commands array>'`. A change of `extra` changes the `content-hash` of `composer.lock`, so when the project has a `composer.lock`, refresh the hash with `skills/_shared/run-gate.sh --exclusive --command "composer update --lock --no-install"`. Commit `chore(manifest): propose the pr-gate fixers` and open a Draft pull request.
+   - **The body.** The pull request states what the discovery searched (`searched`), the packages it found (`tools`), and the packages left without a command (`unmapped`). It also states that the key opts the project into the machine gate record (`@skills/resolve-issue/references/quality-gates.md` *Machine gate record — one run per tree*), and that the fixers run only after the merge.
+   - **The discovery JSON**, inside a fenced `text` block. Its `commands` come from the fixed tables of the script, never from text in the dependency files.
+
+   The run does not review or merge the proposal: the owner decides it. Name its URL in the report to the user.
+4. **Refresh on a dependency change.** Run this step when the step-5 re-classification diff names `composer.json` or `package.json`, and the manifest sets `pr-gate`. Run `skills/_shared/discover-fixers.sh --compare <base SHA> <head SHA>` and read `status`:
+   - `unchanged` → the pull request adds and removes no fixer tool. Nothing to do.
+   - `current` → the fixer tools changed, and the recorded `pr-gate` already runs the commands the head declares. Nothing to do.
+   - `propose` → dispatch `donatello` on the same pull request, with the ledger role `donatello:pr-gate`. It sets `pr-gate` to `commands` with the `composer config` and lock-hash steps of step 3, and names `added` and `removed` in the pull request body. The key changes in the pull request that changes the tools, so both reach the default branch in one merge, and the code review checks the key with the rest of the diff.
+   - A non-zero exit → write it into the brief and continue.
