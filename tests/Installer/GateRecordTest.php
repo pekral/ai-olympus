@@ -229,7 +229,10 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
 
-    expect($merge)->toContain('Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` (`references/trusted-record-parser.md`) on the checked-out head');
+    expect($merge)->toContain(
+        'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` '
+        . '(`references/trusted-record-parser.md`) on the checked-out head',
+    );
     expect($merge)->toContain(
         'It replaces **only** the acceptance of the textual `Quality gate:` line; on the full path CI must still be green on the merged head (step 2)',
     );
