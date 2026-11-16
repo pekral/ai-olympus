@@ -2,6 +2,6 @@
 
 return [
     'redis' => [
-        'default' => ['database' => 0, 'prefix' => 'app_'],
+        'default' => ['database' => 0, 'prefix' => 'app_', 'password' => env('REDIS_PASSWORD', 'fixture-redis-password-7f3a91')],
     ],
 ];

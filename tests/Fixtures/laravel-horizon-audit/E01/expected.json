@@ -1,0 +1,14 @@
+{
+    "scenario": "E1",
+    "description": "A '*' block listed before 'production' is the block Horizon 5.x deploys in production: its timeout 150 is above retry_after 120",
+    "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:FAIL",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
+    ],
+    "severity": [
+        "HIGH"
+    ],
+    "environment_key": "*"
+}

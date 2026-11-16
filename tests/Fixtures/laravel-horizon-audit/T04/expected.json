@@ -1,13 +1,15 @@
 {
     "scenario": "T4",
     "description": "Two Laravel connections share one Redis database, prefix, and queue, and differ in retry_after",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:WARN",
-        "HZ-002:FAIL"
+        "HZ-002:FAIL",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "HIGH",
         "CRITICAL"
-    ]
+    ],
+    "judgement": "CRITICAL instead of HIGH needs evidence that a duplicate run repeats a side effect; the agent judges it."
 }

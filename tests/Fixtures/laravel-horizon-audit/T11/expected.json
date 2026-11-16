@@ -1,11 +1,15 @@
 {
     "scenario": "T11",
     "description": "A job uses WithoutOverlapping and tries 2",
-    "evaluated": false,
     "outcomes": [
-        "HZ-003:WARN"
+        "HZ-001:PASS",
+        "HZ-002:PASS",
+        "HZ-003:WARN",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "MEDIUM"
-    ]
+    ],
+    "judgement": "Whether the finite tries value is low for the expected contention is the agent's judgement."
 }

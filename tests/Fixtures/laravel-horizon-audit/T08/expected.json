@@ -1,11 +1,15 @@
 {
     "scenario": "T8",
     "description": "balance is auto and the queue order is expected to set priority",
-    "evaluated": false,
     "outcomes": [
-        "HZ-004:WARN"
+        "HZ-001:PASS",
+        "HZ-002:PASS",
+        "HZ-004:WARN",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "MEDIUM"
-    ]
+    ],
+    "judgement": "Whether the project expects the queue order to set a strict priority (notes.txt) is the agent's judgement; the evaluator reports the configuration that makes the order meaningless."
 }

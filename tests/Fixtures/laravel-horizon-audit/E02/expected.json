@@ -1,0 +1,17 @@
+{
+    "scenario": "E2",
+    "description": "A supervisor that only defaults defines runs in production, and its timeout 200 is above retry_after 120; a supervisor with maxProcesses 0 is not deployed",
+    "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:FAIL",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
+    ],
+    "severity": [
+        "HIGH"
+    ],
+    "consumers": [
+        "horizon:supervisor-1",
+        "horizon:supervisor-mail"
+    ]
+}

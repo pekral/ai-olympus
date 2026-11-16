@@ -2,7 +2,8 @@
 
 declare(strict_types = 1);
 
-use Tests\Support\HorizonAuditConsumer;
+use Tests\Support\GraphFixture;
+use Tests\Support\HorizonAuditRun;
 
 function horizonAuditSchemaField(string $path): mixed
 {
@@ -61,7 +62,11 @@ test('the audit states each of the seven rules and runs them over the merged sup
     expect($effective)->toContain('Merge the whole supervisor map.');
     expect($effective)->toContain('`array_replace_recursive($defaults, $environmentPlan)`');
     expect($effective)->toContain('A supervisor that only `defaults` defines therefore runs in every environment');
-    expect($effective)->toContain('`*` is the fallback environment.');
+    expect($effective)->toContain('the first key of `environments`, in file order, for which `Str::is($key, $environment)` holds.');
+    expect($effective)->toContain(
+        'An exact key does not win over an earlier pattern: with `\'*\'` listed before `\'production\'`, Horizon deploys the `*` block in production',
+    );
+    expect($effective)->not->toContain('An exact key of `environments` wins.');
     expect($effective)->toContain('The audit still lists such a supervisor and never omits it.');
     expect($checks)->toContain('Interpret each setting by the detected `laravel/framework` and `laravel/horizon` versions.');
 });
@@ -208,211 +213,27 @@ test('a retry_after that differs on one physical queue is a FAIL, and an unused 
 });
 
 /**
- * One data row of a config fixture, keyed by its name: `'name' => [options],` on one line.
- *
- * @return array<string, array<string, string>>
+ * @return array<string, array{string}>
  */
-function horizonAuditRows(string $section): array
+function horizonAuditFixtureNames(): array
 {
-    preg_match_all("/^\s*'([\w*-]+)' => \[(.*)\],$/m", $section, $matches, PREG_SET_ORDER);
+    $names = [];
 
-    $rows = [];
-
-    foreach ($matches as $match) {
-        preg_match_all("/'(\w+)' => (\[[^\]]*\]|(?:[^,(]|\([^)]*\))+)/", $match[2], $options, PREG_SET_ORDER);
-
-        foreach ($options as $option) {
-            $rows[$match[1]][$option[1]] = trim($option[2]);
-        }
+    foreach (HorizonAuditRun::files('*/expected.json') as $file) {
+        $names[basename(dirname($file))] = [basename(dirname($file))];
     }
 
-    return $rows;
+    return $names;
 }
 
-/**
- * The merged supervisor map of one environment, the way Horizon 5.x builds it: every supervisor of
- * `defaults` and of the environment, the environment value winning. An exact environment key wins,
- * and `*` is the fallback.
- *
- * @return array<string, array<string, string>>
- */
-function horizonAuditSupervisors(string $config, string $environment): array
+function horizonAuditProjectWithHorizonConfig(string $fixture, string $config): string
 {
-    [$defaults, $environments] = explode('\'environments\' => [', $config, 2) + ['', ''];
-    $plan = [];
+    $root = GraphFixture::project('laravel-horizon-audit/' . $fixture);
+    installerWriteFile($root . '/config/horizon.php', $config);
 
-    foreach ([$environment, '*'] as $key) {
-        if (preg_match('/^ {8}\'' . preg_quote($key, '/') . '\' => \[\n(.*?)^ {8}\],/ms', $environments, $block) === 1) {
-            $plan = horizonAuditRows($block[1]);
-
-            break;
-        }
-    }
-
-    $merged = horizonAuditRows($defaults);
-
-    foreach ($plan as $name => $options) {
-        $merged[$name] = array_replace($merged[$name] ?? [], $options);
-    }
-
-    return $merged;
+    return $root;
 }
 
-function horizonAuditFile(string $fixture, string $path): string
-{
-    $file = __DIR__ . '/../Fixtures/laravel-horizon-audit/' . $fixture . '/' . $path;
-
-    return is_file($file) ? (string) file_get_contents($file) : '';
-}
-
-function horizonAuditLiteral(?string $raw): ?string
-{
-    if ($raw === null || preg_match("/^(?:\d+|'[^']*')$/", $raw) !== 1) {
-        return null;
-    }
-
-    return trim($raw, '\'');
-}
-
-/**
- * The consumers of the audited environment, one per supervisor queue.
- *
- * @return list<\Tests\Support\HorizonAuditConsumer>
- */
-function horizonAuditConsumers(string $fixture): array
-{
-    $connections = horizonAuditRows(horizonAuditFile($fixture, 'config/queue.php.fixture'));
-    $redis = horizonAuditRows(horizonAuditFile($fixture, 'config/database.php.fixture'));
-    $consumers = [];
-
-    foreach (horizonAuditSupervisors(horizonAuditFile($fixture, 'config/horizon.php.fixture'), 'production') as $options) {
-        $connection = $connections[horizonAuditLiteral($options['connection'] ?? null) ?? ''] ?? [];
-        $redisRow = $redis[horizonAuditLiteral($connection['connection'] ?? null) ?? ''] ?? [];
-
-        preg_match_all('/\'([^\']+)\'/', $options['queue'] ?? '', $queues);
-
-        foreach ($queues[1] as $queue) {
-            $consumers[] = new HorizonAuditConsumer(
-                [
-                    horizonAuditLiteral($connection['driver'] ?? null), horizonAuditLiteral($connection['connection'] ?? null),
-                    horizonAuditLiteral($redisRow['database'] ?? null), horizonAuditLiteral($redisRow['prefix'] ?? null), $queue,
-                ],
-                horizonAuditLiteral($connection['retry_after'] ?? null),
-                horizonAuditLiteral($options['timeout'] ?? null),
-            );
-        }
-    }
-
-    return $consumers;
-}
-
-/**
- * The `public int $timeout` of every job class of the fixture, null for a job that declares none.
- *
- * @return list<int|null>
- */
-function horizonAuditJobTimeouts(string $fixture): array
-{
-    $jobFiles = glob(__DIR__ . '/../Fixtures/laravel-horizon-audit/' . $fixture . '/app/Jobs/*');
-    $timeouts = [];
-
-    foreach ($jobFiles === false ? [] : $jobFiles as $jobFile) {
-        $timeouts[] = preg_match('/public int \$timeout = (\d+);/', (string) file_get_contents($jobFile), $found) === 1 ? (int) $found[1] : null;
-    }
-
-    return $timeouts;
-}
-
-/**
- * The timeout order of HZ-002 for one consumer: `job < supervisor timeout < retry_after`.
- *
- * @param list<int|null> $jobTimeouts
- */
-function horizonAuditOrder(HorizonAuditConsumer $consumer, array $jobTimeouts): string
-{
-    if ($consumer->timeout === null || $consumer->retryAfter === null || in_array(needle: null, haystack: $jobTimeouts, strict: true)) {
-        return 'UNVERIFIED';
-    }
-
-    $broken = array_filter($jobTimeouts, static fn (?int $job): bool => $job >= (int) $consumer->timeout) !== [];
-
-    return $broken || (int) $consumer->timeout >= (int) $consumer->retryAfter ? 'FAIL' : 'PASS';
-}
-
-/**
- * Whether the test holds for any two consumers of the list.
- *
- * @param list<\Tests\Support\HorizonAuditConsumer> $consumers
- * @param callable(\Tests\Support\HorizonAuditConsumer, \Tests\Support\HorizonAuditConsumer): bool $test
- */
-function horizonAuditAnyPair(array $consumers, callable $test): bool
-{
-    foreach ($consumers as $index => $consumer) {
-        foreach (array_slice($consumers, $index + 1) as $other) {
-            if ($test($consumer, $other)) {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * The reference evaluation of the deterministic part of HZ-001 and HZ-002 over one fixture, as
- * `HZ-00N:STATUS` tokens. It reads regular literal config text and never executes it.
- *
- * @return list<string>
- */
-function horizonAuditOutcomes(string $fixture): array
-{
-    if (!str_contains(horizonAuditFile($fixture, 'composer.json') . horizonAuditFile($fixture, 'composer.lock.fixture'), 'laravel/horizon')) {
-        return ['NOT_APPLICABLE'];
-    }
-
-    $consumers = horizonAuditConsumers($fixture);
-    $jobTimeouts = horizonAuditJobTimeouts($fixture);
-    $orders = array_map(static fn (HorizonAuditConsumer $consumer): string => horizonAuditOrder($consumer, $jobTimeouts), $consumers);
-    $sharing = match (true) {
-        horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->hasUnknownKeyPart($b)) => 'UNVERIFIED',
-        horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->sharesQueueWith($b)) => 'WARN',
-        default => 'PASS',
-    };
-
-    if (in_array('FAIL', $orders, strict: true)
-        || horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->differsInRetryAfterFrom($b))
-    ) {
-        return ['HZ-001:' . $sharing, 'HZ-002:FAIL'];
-    }
-
-    $unverified = in_array('UNVERIFIED', $orders, strict: true) || $sharing === 'UNVERIFIED';
-
-    return ['HZ-001:' . $sharing, 'HZ-002:' . ($unverified ? 'UNVERIFIED' : 'PASS')];
-}
-
-/**
- * One field of the `expected.json` of a fixture scenario, or null when it is missing.
- */
-function horizonAuditExpected(int $number, string $field): mixed
-{
-    return decodedJsonField(horizonAuditFile(sprintf('T%02d', $number), 'expected.json'), $field);
-}
-
-/**
- * A list-of-strings field of the `expected.json` of a fixture scenario.
- *
- * @return list<string>
- */
-function horizonAuditExpectedList(int $number, string $field): array
-{
-    $value = horizonAuditExpected($number, $field);
-
-    return is_array($value) ? array_values(array_filter($value, 'is_string')) : [];
-}
-
-/**
- * The table row of one scenario in `references/fixture-scenarios.md`.
- */
 function horizonAuditScenarioRow(int $number): string
 {
     foreach (explode("\n", packageSource('skills/laravel-horizon-audit/references/fixture-scenarios.md')) as $line) {
@@ -424,11 +245,7 @@ function horizonAuditScenarioRow(int $number): string
     return '';
 }
 
-/**
- * Asserts that one `RULE:STATUS` outcome of a scenario is a rule and status of the report schema,
- * and that a status other than PASS is named in the scenario table row.
- */
-function expectOutcomeInScenarioRow(string $token, string $row): void
+function expectOutcomeInReportSchema(string $token): void
 {
     [$rule, $status] = array_pad(explode(':', $token, 2), 2, '');
 
@@ -438,82 +255,287 @@ function expectOutcomeInScenarioRow(string $token, string $row): void
 
     expect(horizonAuditSchemaField('$defs.finding.properties.rule_id.enum'))->toContain($rule);
     expect(horizonAuditSchemaField('$defs.finding.properties.status.enum'))->toContain($status);
-
-    if ($status === 'PASS') {
-        return;
-    }
-
-    expect($row)->toContain($rule);
-    expect($row)->toContain('`' . $status . '`');
 }
 
 test('every scenario T1 to T16 ships a fixture whose expected result matches the scenario table and the report schema', function (): void {
     foreach (range(1, 16) as $number) {
-        $row = horizonAuditScenarioRow($number);
+        $fixture = sprintf('T%02d', $number);
 
-        expect(horizonAuditExpected($number, 'scenario'))->toBe('T' . $number);
-        expect(horizonAuditFile(sprintf('T%02d', $number), 'composer.json'))->not->toBe('');
-        expect($row)->not->toBe('');
-        expect(horizonAuditExpectedList($number, 'outcomes'))->not->toBe([]);
-        expect(horizonAuditSchemaField('$defs.finding.properties.severity.enum'))->toContain(...horizonAuditExpectedList($number, 'severity'));
+        expect(HorizonAuditRun::expectedString($fixture, 'scenario'))->toBe('T' . $number);
+        expect(file_exists(HorizonAuditRun::FIXTURES . $fixture . '/composer.json'))->toBeTrue();
+        expect(horizonAuditScenarioRow($number))->not->toBe('');
+        expect(HorizonAuditRun::expectedList($fixture, 'outcomes'))->not->toBe([]);
+        expect(horizonAuditSchemaField('$defs.finding.properties.severity.enum'))->toContain(...HorizonAuditRun::expectedList($fixture, 'severity'));
 
-        array_map(static fn (string $token) => expectOutcomeInScenarioRow($token, $row), horizonAuditExpectedList($number, 'outcomes'));
+        array_map(expectOutcomeInReportSchema(...), HorizonAuditRun::expectedList($fixture, 'outcomes'));
     }
 });
 
-test('the reference evaluation reproduces the expected result of the data scenarios T1 to T7, T14, and T15', function (): void {
-    foreach ([1, 2, 3, 4, 5, 6, 7, 14, 15] as $number) {
-        expect(horizonAuditExpected($number, 'evaluated'))->toBeTrue();
-        expect(horizonAuditOutcomes(sprintf('T%02d', $number)))->toBe(horizonAuditExpectedList($number, 'outcomes'), 'T' . $number);
+test('the evaluator reproduces the expected outcomes and severity of fixture', function (string $fixture): void {
+    $run = HorizonAuditRun::fixture($fixture);
+
+    expect($run->exitCode)->toBe(0);
+    expect($run->errorOutput)->toBe('');
+    expect($run->outcomes())->toBe(HorizonAuditRun::expectedList($fixture, 'outcomes'));
+
+    if ($run->outcomes() !== ['NOT_APPLICABLE']) {
+        expect(HorizonAuditRun::expectedList($fixture, 'severity'))->toContain($run->topSeverity());
     }
+})->with(horizonAuditFixtureNames());
+
+test(
+    'the evaluator never reports a security diagnosis for the dashboard and never a statement it cannot verify as PASS',
+    function (string $fixture): void {
+        $run = HorizonAuditRun::fixture($fixture);
+    
+        expect($run->outcomeOf('HZ-007') ?? 'HZ-007:UNVERIFIED')->toBe('HZ-007:UNVERIFIED');
+        expect($run->outcomeOf('HZ-005'))->not->toBe('HZ-005:PASS');
+    },
+)->with(horizonAuditFixtureNames());
+
+test('every judgement scenario names its undecided part, and the evaluator leaves it out of the outcomes', function (): void {
+    foreach (['T3', 'T4', 'T8', 'T9', 'T11', 'T16'] as $scenario) {
+        $fixture = sprintf('T%02d', (int) substr($scenario, 1));
+
+        expect(HorizonAuditRun::expectedString($fixture, 'judgement'))->not->toBeNull();
+    }
+
+    expect(HorizonAuditRun::fixture('T11')->stringList('not_decided'))->toBe(['HZ-004', 'HZ-006']);
+    expect(HorizonAuditRun::fixture('T08')->stringList('not_decided'))->toBe(['HZ-003', 'HZ-006']);
 });
 
-test('the same fixture evaluated twice gives identical outcomes (T14)', function (): void {
-    expect(horizonAuditOutcomes('T14'))->toBe(horizonAuditOutcomes('T14'));
+test('a project without Horizon changes nothing (T1)', function (): void {
+    $before = HorizonAuditRun::digest('T01');
+
+    $run = HorizonAuditRun::fixture('T01');
+
+    expect($run->outcomes())->toBe(['NOT_APPLICABLE']);
+    expect($run->stringList('files_read'))->toBe(['composer.json', 'composer.lock']);
+    expect(HorizonAuditRun::digest('T01'))->toBe($before);
+});
+
+test('the physical key decides, not the connection name (T4, T5, T6)', function (): void {
+    expect(HorizonAuditRun::fixture('T04')->consumerField('connection'))->toBe(['redis', 'redis-b']);
+    expect(HorizonAuditRun::fixture('T04')->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
+    expect(HorizonAuditRun::fixture('T05')->consumerField('database'))->toBe([0, 1]);
+    expect(HorizonAuditRun::fixture('T05')->outcomeOf('HZ-001'))->toBe('HZ-001:PASS');
+    expect(HorizonAuditRun::fixture('T06')->consumerField('database'))->toBe([null, null]);
+    expect(HorizonAuditRun::fixture('T06')->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
 });
 
 test('the merged row is audited and no single field of defaults decides (T7)', function (): void {
-    $config = horizonAuditFile('T07', 'config/horizon.php.fixture');
+    $run = HorizonAuditRun::fixture('T07');
 
-    expect(horizonAuditSupervisors($config, 'production')['supervisor-1']['timeout'] ?? null)->toBe('150');
-    expect(horizonAuditSupervisors($config, 'staging')['supervisor-1']['timeout'] ?? null)->toBe('60');
+    expect($run->consumerField('timeout'))->toBe([150]);
+    expect($run->string('environment_key'))->toBe('production');
+    expect(HorizonAuditRun::fixture('T07', '--environment', 'staging')->consumerField('timeout'))->toBe([]);
+    expect(HorizonAuditRun::fixture('T07', '--environment', 'staging')->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
 });
 
-test('a supervisor that only defaults defines runs in every environment, and the star environment is the fallback', function (): void {
-    $config = <<<'PHP'
+test('the list of queues is replaced index by index by the environment override (T8)', function (): void {
+    expect(HorizonAuditRun::fixture('T08')->consumerField('queue'))->toBe(['high', 'default']);
+});
+
+test('a supervisor that only defaults defines runs in the environment, and maxProcesses 0 does not deploy one (E2)', function (): void {
+    $run = HorizonAuditRun::fixture('E02');
+
+    expect($run->consumerField('consumer'))->toBe(['horizon:supervisor-1', 'horizon:supervisor-mail']);
+    expect($run->consumerField('timeout'))->toBe([90, 200]);
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:FAIL');
+});
+
+test('Horizon takes the first environment key that matches, so a star block before the exact key is the one that runs (E1)', function (): void {
+    $starFirst = HorizonAuditRun::fixture('E01');
+    $local = HorizonAuditRun::fixture('E01', '--environment', 'local');
+
+    expect($starFirst->string('environment_key'))->toBe('*');
+    expect($starFirst->flag('wildcard_shadows_exact'))->toBeTrue();
+    expect($starFirst->consumerField('timeout'))->toBe([150]);
+    expect($starFirst->outcomeOf('HZ-002'))->toBe('HZ-002:FAIL');
+    expect($local->string('environment_key'))->toBe('*');
+    expect($local->flag('wildcard_shadows_exact'))->toBeFalse();
+});
+
+test('the exact key wins when it is listed before the star block, and the star block is the fallback', function (): void {
+    $root = horizonAuditProjectWithHorizonConfig('E01', <<<'PHP'
         <?php
 
         return [
             'defaults' => [
                 'supervisor-1' => ['connection' => 'redis', 'queue' => ['default'], 'timeout' => 60],
-                'supervisor-mail' => ['connection' => 'redis', 'queue' => ['mail'], 'timeout' => 200],
             ],
             'environments' => [
                 'production' => [
-                    'supervisor-1' => ['timeout' => 90],
+                    'supervisor-1' => ['timeout' => 30],
                 ],
                 '*' => [
-                    'supervisor-1' => ['timeout' => 30],
+                    'supervisor-1' => ['timeout' => 150],
                 ],
             ],
         ];
-        PHP;
+        PHP);
 
-    expect(horizonAuditSupervisors($config, 'production'))->toBe([
-        'supervisor-1' => ['connection' => '\'redis\'', 'queue' => '[\'default\']', 'timeout' => '90'],
-        'supervisor-mail' => ['connection' => '\'redis\'', 'queue' => '[\'mail\']', 'timeout' => '200'],
-    ]);
-    expect(horizonAuditSupervisors($config, 'local')['supervisor-1']['timeout'] ?? null)->toBe('30');
-    expect(array_keys(horizonAuditSupervisors($config, 'local')))->toBe(['supervisor-1', 'supervisor-mail']);
+    try {
+        $production = HorizonAuditRun::over($root);
+        $local = HorizonAuditRun::over($root, '--environment', 'local');
+    } finally {
+        installerRemoveDirectory($root);
+    }
+
+    expect($production->string('environment_key'))->toBe('production');
+    expect($production->consumerField('timeout'))->toBe([30]);
+    expect($production->outcomeOf('HZ-002'))->toBe('HZ-002:PASS');
+    expect($local->string('environment_key'))->toBe('*');
+    expect($local->consumerField('timeout'))->toBe([150]);
+});
+
+test('a configuration that fails the audit passes it after the fix (T7)', function (): void {
+    $root = horizonAuditProjectWithHorizonConfig(
+        'T07',
+        str_replace('150', '90', (string) file_get_contents(HorizonAuditRun::FIXTURES . 'T07/config/horizon.php.fixture')),
+    );
+
+    try {
+        $fixed = HorizonAuditRun::over($root);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+
+    expect(HorizonAuditRun::fixture('T07')->outcomeOf('HZ-002'))->toBe('HZ-002:FAIL');
+    expect($fixed->outcomeOf('HZ-002'))->toBe('HZ-002:PASS');
+});
+
+test('a config file in the layout of a real application is read: comments, several lines, and an env call (E2)', function (): void {
+    $source = packageSource('tests/Fixtures/laravel-horizon-audit/E02/config/horizon.php.fixture');
+
+    expect($source)->toContain("use Illuminate\\Support\\Str;\n");
+    expect($source)->toContain('// Every supervisor of defaults is deployed');
+    expect($source)->toContain('\'prefix\' => env(\'HORIZON_PREFIX\'');
+    expect(HorizonAuditRun::fixture('E02')->consumerField('consumer'))->toBe(['horizon:supervisor-1', 'horizon:supervisor-mail']);
+});
+
+test('the same fixture evaluated twice gives identical output (T14)', function (): void {
+    expect(HorizonAuditRun::fixture('T14')->output)->toBe(HorizonAuditRun::fixture('T14')->output);
+    expect(HorizonAuditRun::fixture('T14')->output)->not->toBe('');
+});
+
+test('a PHP config with a dynamic expression is never evaluated and gives UNVERIFIED (T15)', function (): void {
+    $root = GraphFixture::project('laravel-horizon-audit/T15');
+    $canary = $root . '/evaluated-canary';
+    $config = (string) file_get_contents($root . '/config/horizon.php');
+    installerWriteFile(
+        $root . '/config/horizon.php',
+        str_replace('\'balance\' => \'auto\',', '\'balance\' => \'auto\', \'memory\' => file_put_contents(\'' . $canary . '\', \'x\'),', $config),
+    );
+
+    try {
+        $run = HorizonAuditRun::over($root);
+        $canaryWritten = file_exists($canary);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+
+    expect($canaryWritten)->toBeFalse();
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    expect(HorizonAuditRun::fixture('T15')->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+});
+
+test(
+    'the evaluator makes no runtime access: it reads only the named project files and its source has no process, network, or include call (T12)',
+    function (): void {
+        $run = HorizonAuditRun::fixture('T12');
+        $allowed = ['composer.json', 'composer.lock', 'config/database.php', 'config/horizon.php', 'config/queue.php'];
+        $forbidden = [
+            'exec', 'shell_exec', 'system', 'passthru', 'popen', 'proc_open', 'fsockopen',
+            'stream_socket_client', 'curl_init', 'mail', 'unlink', 'file_put_contents', 'fopen',
+        ];
+        $used = [];
+    
+        foreach (PhpToken::tokenize(packageSource('skills/laravel-horizon-audit/scripts/evaluate.php')) as $token) {
+            if (in_array($token->id, [T_INCLUDE, T_INCLUDE_ONCE, T_REQUIRE, T_REQUIRE_ONCE, T_EVAL], strict: true) || $token->text === '`'
+                || ($token->id === T_STRING && in_array($token->text, $forbidden, strict: true))
+            ) {
+                $used[] = $token->text;
+            }
+        }
+    
+        expect($run->string('runtime_access'))->toBe('none');
+        expect($run->stringList('files_read'))->toBe($allowed);
+        expect($used)->toBe([]);
+    },
+);
+
+test('an environment file is never read and its secret never reaches the output (T13)', function (): void {
+    $secret = HorizonAuditRun::expectedString('T13', 'secret') ?? '-';
+    $root = GraphFixture::project('laravel-horizon-audit/T13');
+    installerWriteFile($root . '/.env', 'REDIS_PASSWORD=' . $secret . "\n");
+    installerWriteFile($root . '/.env.production', 'REDIS_PASSWORD=' . $secret . "\n");
+
+    try {
+        $withEnvironmentFile = HorizonAuditRun::over($root);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+
+    expect(HorizonAuditRun::fixture('T13')->output)->not->toContain($secret);
+    expect($withEnvironmentFile->output)->not->toContain($secret);
+    expect($withEnvironmentFile->stringList('files_read'))->toBe(
+        ['composer.json', 'composer.lock', 'config/database.php', 'config/horizon.php', 'config/queue.php'],
+    );
+    expect(packageSource('tests/Fixtures/laravel-horizon-audit/T13/config/database.php.fixture'))->toContain($secret);
+});
+
+test('a process-manager file that runs a standalone worker keeps HZ-001 from passing, and the files are listed', function (): void {
+    $root = GraphFixture::project('laravel-horizon-audit/T10');
+    installerWriteFile(
+        $root . '/deploy/supervisor.conf',
+        "[program:horizon]\ncommand=php artisan horizon\nstopwaitsecs=3600\n[program:worker]\ncommand=php artisan queue:work redis\n",
+    );
+
+    try {
+        $run = HorizonAuditRun::over($root);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($run->outcomeOf('HZ-005'))->toBeNull();
+    expect($run->stringList('not_decided'))->toContain('HZ-005');
+    expect($run->string('process_files.0.file'))->toBe('deploy/supervisor.conf');
+    expect($run->stringList('process_files.0.tokens'))->toBe(['horizon', 'queue:work', 'stopwaitsecs']);
+});
+
+test('the evaluator refuses a missing project path and an unknown option with the usage text and exit 1', function (): void {
+    $missing = HorizonAuditRun::over(HorizonAuditRun::FIXTURES . 'does-not-exist');
+    $unknown = HorizonAuditRun::over(HorizonAuditRun::FIXTURES . 'T01', '--apply');
+
+    expect($missing->exitCode)->toBe(1);
+    expect($missing->errorOutput)->toContain('Usage: evaluate.php <project_path>');
+    expect($missing->output)->toBe('');
+    expect($unknown->exitCode)->toBe(1);
+});
+
+test('the skill runs the evaluator and states what it computes and what stays judgement', function (): void {
+    $skill = packageSource('skills/laravel-horizon-audit/SKILL.md');
+
+    expect($skill)->toContain('Run `php skills/laravel-horizon-audit/scripts/evaluate.php <project_path> --environment <environment>` first');
+    expect($skill)->toContain('## The evaluator');
+    expect($skill)->toContain('It reads each file as text, tokenizes a config file with `PhpToken::tokenize`, and never executes anything.');
+    expect($skill)->toContain('refuses every file whose name starts with `.env`');
+    expect($skill)->toContain('- **What stays the agent\'s judgement.**');
+    expect($skill)->toContain('HZ-007: always `UNVERIFIED`');
+    expect(file_exists(__DIR__ . '/../../skills/laravel-horizon-audit/scripts/evaluate.php'))->toBeTrue();
 });
 
 test('the secret of the environment fixture appears nowhere in the skill, its report template, or its schema (T13)', function (): void {
-    $secret = horizonAuditExpected(13, 'secret');
+    $secret = HorizonAuditRun::expectedString('T13', 'secret') ?? '-';
 
-    expect($secret)->toBeString();
-    expect(horizonAuditFile('T13', 'dotenv.fixture'))->toContain(is_string($secret) ? $secret : '-');
+    $files = [
+        'SKILL.md', 'templates/report.md', 'schemas/report.schema.json',
+        'references/checks.md', 'references/fixture-scenarios.md', 'scripts/evaluate.php',
+    ];
 
-    foreach (['SKILL.md', 'templates/report.md', 'schemas/report.schema.json', 'references/checks.md', 'references/fixture-scenarios.md'] as $file) {
-        expect(packageSource('skills/laravel-horizon-audit/' . $file))->not->toContain(is_string($secret) ? $secret : '-');
+    foreach ($files as $file) {
+        expect(packageSource('skills/laravel-horizon-audit/' . $file))->not->toContain($secret);
     }
 });

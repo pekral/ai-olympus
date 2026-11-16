@@ -1,9 +1,13 @@
 {
     "scenario": "T6",
     "description": "Redis database and prefix come only from environment variables",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:UNVERIFIED",
-        "HZ-002:UNVERIFIED"
+        "HZ-002:UNVERIFIED",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
+    ],
+    "severity": [
+        "INFO"
     ]
 }
