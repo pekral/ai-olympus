@@ -2,19 +2,9 @@
 
 declare(strict_types = 1);
 
-/**
- * @return array<string, mixed>
- */
-function horizonAuditSchema(): array
+function horizonAuditSchemaField(string $path): mixed
 {
-    $schema = json_decode(
-        packageSource('skills/laravel-horizon-audit/schemas/report.schema.json'),
-        associative: true,
-        depth: 512,
-        flags: JSON_THROW_ON_ERROR,
-    );
-
-    return is_array($schema) ? $schema : [];
+    return decodedJsonField(packageSource('skills/laravel-horizon-audit/schemas/report.schema.json'), $path);
 }
 
 test('laravel-horizon-audit ships as a layout A skill that other skills can invoke by name', function (): void {
@@ -116,7 +106,7 @@ test('a value the audit cannot read is UNVERIFIED and is never promoted to PASS 
 test('a finding carries an evidence basis instead of a confidence level', function (): void {
     $skill = packageSource('skills/laravel-horizon-audit/SKILL.md');
     $template = packageSource('skills/laravel-horizon-audit/templates/report.md');
-    $required = horizonAuditSchema()['$defs']['finding']['required'] ?? [];
+    $required = horizonAuditSchemaField('$defs.finding.required');
 
     expect($skill)->toContain('**Evidence basis** replaces a confidence level.');
     expect($template)->toContain('- **Evidence basis:** {{read|computed|not_verified}}');
@@ -127,22 +117,21 @@ test('a finding carries an evidence basis instead of a confidence level', functi
 
 test('the report is deterministic, redacted, and available as validated JSON (T13, T14)', function (): void {
     $skill = packageSource('skills/laravel-horizon-audit/SKILL.md');
-    $schema = horizonAuditSchema();
-    $findingProperties = $schema['$defs']['finding']['properties'] ?? [];
 
     expect($skill)->toContain('Order is deterministic: severity (`CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `INFO`), then rule id, then file path, then line.');
     expect($skill)->toContain('The same input gives the same findings in the same order, and the same JSON key order.');
     expect($skill)->toContain('No `.env` value, token, password, payload, or personal datum appears.');
-    expect($schema['required'] ?? [])->toContain('schema_version');
-    expect($schema['properties']['schema_version']['const'] ?? null)->toBe('1.0');
-    expect($schema['properties']['overall_result']['enum'] ?? [])->toBe(['PASS', 'WARN', 'FAIL', 'NOT_APPLICABLE', 'UNVERIFIED']);
-    expect($findingProperties['rule_id']['enum'] ?? [])->toBe(['HZ-001', 'HZ-002', 'HZ-003', 'HZ-004', 'HZ-005', 'HZ-006', 'HZ-007']);
-    expect($findingProperties['severity']['enum'] ?? [])->toBe(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']);
-    expect($findingProperties['status']['enum'] ?? [])->toBe(['PASS', 'FAIL', 'WARN', 'UNVERIFIED', 'NOT_APPLICABLE']);
-    expect($schema['$defs']['finding']['required'] ?? [])->toBe([
+    expect(horizonAuditSchemaField('required'))->toContain('schema_version');
+    expect(horizonAuditSchemaField('properties.schema_version.const'))->toBe('1.0');
+    expect(horizonAuditSchemaField('properties.overall_result.enum'))->toBe(['PASS', 'WARN', 'FAIL', 'NOT_APPLICABLE', 'UNVERIFIED']);
+    expect(horizonAuditSchemaField('$defs.finding.properties.rule_id.enum'))
+        ->toBe(['HZ-001', 'HZ-002', 'HZ-003', 'HZ-004', 'HZ-005', 'HZ-006', 'HZ-007']);
+    expect(horizonAuditSchemaField('$defs.finding.properties.severity.enum'))->toBe(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']);
+    expect(horizonAuditSchemaField('$defs.finding.properties.status.enum'))->toBe(['PASS', 'FAIL', 'WARN', 'UNVERIFIED', 'NOT_APPLICABLE']);
+    expect(horizonAuditSchemaField('$defs.finding.required'))->toBe([
         'rule_id', 'title', 'severity', 'status', 'evidence_basis', 'evidence', 'impact', 'recommendation', 'verification',
     ]);
-    expect($schema['additionalProperties'] ?? null)->toBeFalse();
+    expect(horizonAuditSchemaField('additionalProperties'))->toBeFalse();
 });
 
 test('the report is written in the language of the request', function (): void {
