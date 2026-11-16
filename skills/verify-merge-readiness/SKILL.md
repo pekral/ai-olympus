@@ -217,7 +217,8 @@ trusted record for the project-wide command required by
 content-changing commit, and record the command, result, head SHA, and coverage verdict.
 
 The machine gate record decides first, exactly as in `@skills/merge-github-pr/SKILL.md`
-*Pre-merge quality gate*: run `skills/_shared/verify-gate.sh --tier full <head SHA>` first. Exit
+*Pre-merge quality gate*: run the trusted copy of `skills/_shared/verify-gate.sh --tier full <head SHA>` first
+(`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check*). Exit
 `0` is the green, trusted record, and no gate runs. Exit `10`, `11`, or `12` dispatches
 `donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported
 ready on it. Exit `3` stops with the reason, and any other non-zero exit is handled like `3`.

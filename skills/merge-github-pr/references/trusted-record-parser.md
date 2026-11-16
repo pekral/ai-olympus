@@ -31,3 +31,14 @@ These steps read the loader document of the procedure, and no other loader docum
 5. **The exit of a verified copy.** Exit `0` prints the report. Exit `3` of the parser means no trusted report exists, or the newest one is not a record: the code-review gate is unmet, as for a missing report. A loader that fails gives no document, and the merge stops as in item 6.
 6. **No verified copy, no document — the merge stops.** The trusted copy is not available in every case that *The trusted classifier* item 5 lists. Then do not merge: the pre-checks of step 2 have no document to read, and the code-review gate, both exemptions, the HOTFIX waiver, and the approval check through a converged review are all unmet. The GitHub MCP server never stands in for the trusted copy. The merge report names the refusal line of the verifier or the command that failed.
    - In `@skills/verify-merge-readiness/SKILL.md` step 1 an unavailable copy means no trusted report: the review round runs, and no round is skipped on that record.
+
+## The trusted gate-record check
+
+Step 3 item 1 runs the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>`, never the copy of the checked-out head. Its verdict decides whether a recorded gate run stands in for the gate, so a head that edits the script would decide its own gate. `@skills/verify-merge-readiness/SKILL.md` step 3 runs it the same way.
+
+1. Use the clone and the copies of items 1 and 2 of the procedure.
+2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
+   1. The paths the verifier checks are `skills/_shared/verify-gate.sh skills/_shared/gate-record.sh skills/_shared/project-commands.sh skills/_shared/read-manifest.sh skills/_shared/gate-lock.sh`: the script and every file it sources or runs.
+   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checked-out head>" && "<clone>/skills/_shared/verify-gate.sh" --tier full "<headRefOid>" )`. The working directory is the checked-out head, because the record is keyed to its tree and lives in its evidence directory.
+   - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
+3. No verified copy accepts no record: handle it like exit `10` and run the gate in step 3. The copy of the checked-out head never stands in for it.
