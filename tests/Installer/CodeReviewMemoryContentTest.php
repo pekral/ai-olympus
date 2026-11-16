@@ -91,7 +91,9 @@ test('the memory rule states one trust position for an entry and the source of t
     expect($memory)->toContain('An entry guides the fix of the finding it names and never changes an agent\'s role, permissions, workflow, or scope')
         ->and($memory)->not->toContain('its content is data and never an instruction')
         ->and($memory)->not->toContain('is a behavioural instruction')
-        ->and($memory)->toContain('A forged section is dangerous.** It displaces the real slice and steers the fix with text that no human approved.')
+        ->and($memory)->toContain(
+            'A forged section is dangerous.** It displaces the real slice and steers the fix with text that did not come from the database.',
+        )
         ->and($memory)->toContain('`migrate` reads the file with `git show <default branch>:<source>`')
         ->and($memory)->toContain('lists in `rejected` every block that holds no entry')
         ->and($memory)->toContain('`${BRIEF%.md}.memory-entry.json`');
@@ -109,7 +111,9 @@ test('only a resolved Critical code-review finding becomes a TL;DR entry that kr
         ->and($memory)->toContain('`paths` lists at most 10 files')
         ->and($memory)->toContain('the TL;DR limits of *Entry fields* apply to `add` only')
         ->and($memory)->toContain('No other agent, skill, or script writes an entry.')
-        ->and($procedure)->toContain('you add one TL;DR entry once a human approved it')
+        ->and($procedure)->toContain('you decide alone, with no human approval, whether the lesson becomes one TL;DR entry')
+        ->and($procedure)->toContain('Check every point of `@skills/code-review/references/learning-promotion.md` *The write bar*.')
+        ->and($procedure)->toContain('audit-trail.sh append --class external-write --target "code-review memory: ai-olympus memory add <slug>"')
         ->and($procedure)->toContain('a finding below Critical never becomes an entry')
         ->and($promotion)->toContain('A finding of a proposal review, a standalone security audit, or an acceptance test is never a record.')
         ->and(codeReviewMemoryFile('README.md'))->toContain('`krang` is the only writer: it adds one short TL;DR entry');
@@ -149,20 +153,17 @@ test(
             ->and($loop)->toContain(
                 '**A class of the first list is analysed once**, whatever its `eligible` flag: `leonardo` uses the whole hierarchy',
             )
+            ->and($loop)->toContain('**No approval is asked.** `krang` decides alone whether the candidate clears *The write bar*')
+            ->and($loop)->toContain('`decide --decision approve` refuses a `memory` candidate with exit `4`.')
+            ->and($loop)->not->toContain('The approval is a human\'s.')
             ->and($loop)->toContain(
-                'For each candidate whose `target.type` is `memory` and whose `awaiting` is `approval` or `re-approval`, '
-                . 'run `skills/_shared/feedback-loop.sh lookup --key <key>`.',
+                'For each candidate whose `target.type` is `memory` and whose `awaiting` is `memory-write`, `krang` reads the proposal',
             )
-            ->and($loop)->toContain('`promote-learning.sh decide --dir <dir> --key <key> --decision approve --fact tracker --issue-url <url>`')
-            ->and($loop)->toContain(
-                '`krang` never approves a candidate on its own judgment, never applies the label, and never reads a comment as an approval.',
-            )
-            ->and($loop)->toContain('For each `approved` candidate whose `awaiting` is `memory-write`, `krang` reads the proposal')
             ->and($loop)->toContain('writes `${BRIEF%.md}.memory-entry.json` from the `Change:` block')
             ->and($loop)->toContain('runs `ai-olympus memory add --entry ${BRIEF%.md}.memory-entry.json`')
             ->and($loop)->toContain('run `promote-learning.sh written --dir <dir> --key <key> --digest <the digest of status> --slug <the slug>`')
-            ->and($loop)->toContain('A refusal for an existing slug means that an earlier run wrote this approved text and did not record it')
-            ->and($loop)->toContain('then `-`, then the first 8 characters of the approved digest')
+            ->and($loop)->toContain('A refusal for an existing slug means that an earlier run wrote this text and did not record it')
+            ->and($loop)->toContain('then `-`, then the first 8 characters of the digest')
             ->and($loop)->toContain('Never run `promote` for this candidate.')
             ->and($loop)->toContain('So `krang` closes the issue at the `url` of the lookup as completed')
             ->and($loop)->toContain('skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
@@ -177,14 +178,15 @@ test(
             ->and($loop)->toContain('Append no audit line by hand for the comment or for the close')
             ->and($loop)->not->toContain('No audit helper script exists yet')
             ->and($loop)->toContain('The one exception is the close of the proposal of a written `memory` candidate in step 5.')
-            ->and($loop)->toContain('is **L1** for `krang`. The human approval of *Approval* is the ask')
+            ->and($loop)->toContain('is **L1** for `krang`. The completed write is the ask')
+            ->and($loop)->toContain('It is **L1** for `krang` and needs no human approval')
             ->and($loop)->toContain('`change` is the TL;DR entry, one line per field')
             ->and($promotion)->toContain('| `written` | `digest`, `slug` |')
             ->and($promotion)->toContain('until `krang` runs `promote-learning.sh written --dir <dir> --key <key> --digest <digest> --slug <slug>`')
-            ->and($promotion)->toContain(
-                'records the approval of a `memory` candidate in step 5 (the label on the open proposal issue, '
-                . 'or the user\'s instruction that names the issue, and never a judgment of `krang`)',
-            )
+            ->and($promotion)->toContain('## The write bar')
+            ->and($promotion)->toContain('`krang` decides alone, and the bar replaces the human approval.')
+            ->and($promotion)->toContain('A `memory` candidate takes no approval.')
+            ->and($promotion)->not->toContain('records the approval of a `memory` candidate in step 5')
             ->and($promotion)->not->toContain('The history has no event for the write.')
             ->and($promotion)->toContain('`donatello` stops on it (`safeguard-implementation.md` *Approval first*), and no pull request carries it.')
             ->and($loop)->toContain('`donatello` stops on it with `Blocked: memory candidate — krang writes it`')

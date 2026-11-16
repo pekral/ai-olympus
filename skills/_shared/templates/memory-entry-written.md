@@ -1,7 +1,7 @@
 The proposal is applied: the memory entry `<slug>` is written.
 
 - **Entry:** `<slug>`
-- **Approved text digest:** `<digest>`
+- **Text digest:** `<digest>`
 - **Write:** `memory add`
 - **Source proposal:** <proposal issue URL>
 

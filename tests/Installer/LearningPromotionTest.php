@@ -307,7 +307,7 @@ test(
             'a Critical finding that is not resolved is refused for the memory target and nothing is written',
             'a single resolved Critical finding gives a memory candidate at its first occurrence, with the SQLite store as target',
             'a single resolved Critical finding is no candidate of another target than the memory',
-            'an approved memory candidate awaits the memory write, not a merge',
+            'a memory candidate needs no approval and the refusal says so',
             'a pull request never promotes a memory candidate and the refusal names krang',
             'the Markdown memory file is no write target of the lifecycle',
             'a recurring Moderate class stays eligible for the other targets and is refused for the memory target',

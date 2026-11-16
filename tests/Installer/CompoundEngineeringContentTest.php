@@ -575,32 +575,42 @@ test('context-efficient orchestration advertises no build reuse, since the build
     expect($section)->toContain('it skips no gate, changes no reviewer, and weakens no convergence criterion');
 });
 
-test('the memory rule has a Write protocol in which only krang writes, after a human approved (issue #343)', function (): void {
-    $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/memory.md');
-
-    $positions = array_map(
-        static fn (string $heading): int|false => strpos($rule, $heading),
-        [
-            '## Compound Memory (per project)',
-            '### Read protocol',
-            '### Write protocol (krang writes, a human approves)',
-            '### The legacy Markdown file (one-time migration)',
-        ],
-    );
-    $ordered = $positions;
-    sort($ordered);
-
-    expect(in_array(needle: false, haystack: $positions, strict: true))->toBeFalse();
-    expect($positions)->toBe($ordered);
-
-    expect($rule)->toContain('**`krang` is the only writer.**');
-    expect($rule)->toContain('only after the human approval step of `@skills/code-review/references/learning-promotion.md`');
-    expect($rule)->toContain('`ai-olympus memory add --entry <file> [--run-dir <dir>]`');
-    expect($rule)->toContain('The insert is one SQLite transaction, so a concurrent write is safe.');
-    expect($rule)->toContain('No compaction runs on the database: the limits keep every entry short at the write.');
-    expect($rule)->toContain('A secret and personal data never enter an entry.');
-    expect($rule)->not->toContain('This is an unconditional default, not an opt-in step.');
-});
+test(
+    'the memory rule has a Write protocol in which only krang writes, on its own judgment and with no human approval (issues #343, #559)',
+    function (): void {
+        $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/memory.md');
+    
+        $positions = array_map(
+            static fn (string $heading): int|false => strpos($rule, $heading),
+            [
+                '## Compound Memory (per project)',
+                '### Read protocol',
+                '### Write protocol (krang decides and writes, no human approval)',
+                '### The legacy Markdown file (one-time migration)',
+            ],
+        );
+        $ordered = $positions;
+        sort($ordered);
+    
+        expect(in_array(needle: false, haystack: $positions, strict: true))->toBeFalse();
+        expect($positions)->toBe($ordered);
+    
+        expect($rule)->toContain('**`krang` is the only writer.**');
+        expect($rule)->toContain(
+            '`krang` adds the entry itself when the lesson clears the write bar of `@skills/code-review/references/learning-promotion.md` *The write bar*',
+        );
+        expect($rule)->toContain('No human approval step stands in between');
+        expect($rule)->not->toContain('human approval step of `@skills/code-review/references/learning-promotion.md`');
+        expect($rule)->toContain('**Dedupe and supersede before the write.**');
+        expect($rule)->toContain('Neither does exploit detail.');
+        expect($rule)->toContain('**Every write leaves an audit line and a report line.**');
+        expect($rule)->toContain('`ai-olympus memory add --entry <file> [--run-dir <dir>]`');
+        expect($rule)->toContain('The insert is one SQLite transaction, so a concurrent write is safe.');
+        expect($rule)->toContain('No compaction runs on the database: the limits keep every entry short at the write.');
+        expect($rule)->toContain('A secret and personal data never enter an entry.');
+        expect($rule)->not->toContain('This is an unconditional default, not an opt-in step.');
+    },
+);
 
 test('the read protocol reads the memory only for an open Critical finding and builds the query from paths and symbols (issue #343)', function (): void {
     $rule = compoundEngineeringRuleContents();
