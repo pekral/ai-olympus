@@ -35,6 +35,10 @@ const HZ_PROCESS_TOKEN = '/\b(horizon:terminate|horizon|queue:work|queue:listen|
 
 const HZ_MAX_FILE_BYTES = 1048576;
 
+const HZ_MAX_CONSUMERS = 500;
+
+const HZ_OVER_CAP_REASON = 'The configuration declares more than 500 consumers (one per supervisor and queue name), so the comparison of the consumers is not run.';
+
 enum HzKind: string
 {
 
@@ -574,14 +578,14 @@ function hzQueueNames(?HzNode $node): array
     }
 
     if ($node->kind === HzKind::Scalar) {
-        return is_string($node->value) ? array_map('trim', explode(',', $node->value)) : [null];
+        return is_string($node->value) ? array_map('trim', explode(',', $node->value, HZ_MAX_CONSUMERS + 2)) : [null];
     }
 
     if ($node->kind !== HzKind::Collection) {
         return [null];
     }
 
-    $names = array_map(hzString(...), array_values($node->items));
+    $names = array_map(hzString(...), array_slice(array_values($node->items), 0, HZ_MAX_CONSUMERS + 1));
 
     return $names === [] ? [null] : $names;
 }
@@ -652,6 +656,25 @@ function hzSupervisors(?HzNode $horizon, string $environment): array
 }
 
 /**
+ * The host, port, and database that a literal Redis url sets, or null when the url is not a literal or cannot be parsed.
+ * A part the url does not name is left out of the result, so the literal key of the connection stays.
+ *
+ * @return array<string, int|string>|null
+ */
+function hzUrlParts(?string $url): ?array
+{
+    $parts = $url === null || $url === '' ? false : parse_url($url);
+
+    if (!is_array($parts)) {
+        return null;
+    }
+
+    $path = ltrim($parts['path'] ?? '', '/');
+
+    return array_filter(['host' => $parts['host'] ?? null, 'port' => $parts['port'] ?? null, 'database' => $path === '' ? null : (ctype_digit($path) ? (int) $path : $path)], static fn (int|string|null $part): bool => $part !== null);
+}
+
+/**
  * @return list<HzConsumer>
  */
 function hzConsumers(string $name, HzNode $row, ?HzNode $queueConfig, ?HzNode $databaseConfig, string $environment): array
@@ -663,7 +686,19 @@ function hzConsumers(string $name, HzNode $row, ?HzNode $queueConfig, ?HzNode $d
     $redis = $redisName === null ? null : hzItem($redisRoot, $redisName);
     $prefixLevels = [hzItem($redis, 'prefix'), hzItem(hzItem($redis, 'options'), 'prefix'), hzItem(hzItem($redisRoot, 'options'), 'prefix')];
     $prefixNode = current(array_filter($prefixLevels, static fn (?HzNode $level): bool => $level !== null)) ?: null;
+    $url = hzItem($redis, 'url');
+    $urlParts = $url === null ? [] : hzUrlParts(hzString($url));
     $database = $redis === null ? null : (hzItem($redis, 'database') === null ? 0 : hzKeyPart(hzItem($redis, 'database')));
+    $host = $redis === null ? null : hzKeyPart(hzItem($redis, 'host'));
+    $port = $redis === null ? null : hzKeyPart(hzItem($redis, 'port'));
+
+    if ($url !== null) {
+        // Laravel lets the url of a connection override its host, port, and database.
+        ['host' => $host, 'port' => $port, 'database' => $database] = $urlParts === null
+            ? ['host' => null, 'port' => null, 'database' => null]
+            : $urlParts + ['host' => $host, 'port' => $port, 'database' => $database];
+    }
+
     $prefix = $redis === null ? null : ($prefixNode === null ? '' : hzKeyPart($prefixNode));
     $consumers = [];
 
@@ -674,8 +709,8 @@ function hzConsumers(string $name, HzNode $row, ?HzNode $queueConfig, ?HzNode $d
             connection: $connectionName,
             driver: hzString(hzItem($connection, 'driver')),
             redisConnection: $redisName,
-            host: $redis === null ? null : hzKeyPart(hzItem($redis, 'host')),
-            port: $redis === null ? null : hzKeyPart(hzItem($redis, 'port')),
+            host: $host,
+            port: $port,
             database: $database,
             prefix: $prefix,
             queue: $queue,
@@ -808,27 +843,48 @@ function hzFinding(string $rule, string $status, string $reason, array $evidence
 }
 
 /**
+ * Groups the consumers by their full key tuple, so identical consumers cost one entry, then compares one
+ * representative per group. The number of consumers is capped, so the group comparison stays bounded.
+ *
  * @param list<HzConsumer> $consumers
  * @param list<string> $standalone
  */
-function hzQueueSharing(array $consumers, array $standalone, string $noSupervisorReason): HzFinding
+function hzQueueSharing(array $consumers, array $standalone, string $noSupervisorReason, bool $overCap): HzFinding
 {
-    $shared = [];
-    $potential = [];
+    if ($overCap) {
+        return hzFinding('HZ-001', 'UNVERIFIED', HZ_OVER_CAP_REASON, ['config/horizon.php:1']);
+    }
 
-    foreach ($consumers as $index => $consumer) {
-        foreach (array_slice($consumers, $index + 1) as $other) {
-            $relation = hzKeyRelation($consumer, $other);
+    $grouped = [];
 
-            if ($relation === 'shared') {
-                $shared[] = $consumer->source;
-                $shared[] = $other->source;
-            } elseif ($relation === 'potential') {
-                $potential[] = $consumer->source;
-                $potential[] = $other->source;
+    foreach ($consumers as $consumer) {
+        $key = json_encode([$consumer->driver, $consumer->redisConnection, $consumer->host, $consumer->port, $consumer->database, $consumer->prefix, $consumer->queue], JSON_THROW_ON_ERROR);
+        $grouped[$key] ??= ['representative' => $consumer, 'count' => 0, 'sources' => []];
+        $grouped[$key]['count']++;
+        $grouped[$key]['sources'][$consumer->source] = true;
+    }
+
+    $groups = array_values($grouped);
+    $sets = ['shared' => [], 'potential' => []];
+
+    foreach ($groups as $index => $group) {
+        $relation = $group['count'] > 1 ? hzKeyRelation($group['representative'], $group['representative']) : 'distinct';
+
+        if ($relation !== 'distinct') {
+            $sets[$relation] += $group['sources'];
+        }
+
+        foreach (array_slice($groups, $index + 1) as $other) {
+            $relation = hzKeyRelation($group['representative'], $other['representative']);
+
+            if ($relation !== 'distinct') {
+                $sets[$relation] += $group['sources'] + $other['sources'];
             }
         }
     }
+
+    $shared = array_map(strval(...), array_keys($sets['shared']));
+    $potential = array_map(strval(...), array_keys($sets['potential']));
 
     return match (true) {
         $shared !== [] => hzFinding('HZ-001', 'WARN', 'Two consumers share a physical queue with a fully known key (driver, host, port, database, prefix, queue).', $shared),
@@ -883,8 +939,12 @@ function hzOrder(HzConsumer $consumer, array $jobs, int $consumerCount): array
  * @param list<HzConsumer> $consumers
  * @param list<HzJob> $jobs
  */
-function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason): HzFinding
+function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason, bool $overCap): HzFinding
 {
+    if ($overCap) {
+        return hzFinding('HZ-002', 'UNVERIFIED', HZ_OVER_CAP_REASON, ['config/horizon.php:1']);
+    }
+
     $supervisors = count(array_unique(array_map(static fn (HzConsumer $consumer): string => $consumer->consumer, $consumers)));
     $status = $consumers === [] ? 'UNVERIFIED' : 'PASS';
     $reason = $consumers === [] ? $noSupervisorReason : 'job timeout < supervisor timeout < retry_after holds for every consumer.';
@@ -1039,13 +1099,20 @@ function hzEvaluate(HzProject $project, string $environment): HzEvaluation
 
     foreach ($plan['supervisors'] as $name => $row) {
         $consumers = array_merge($consumers, hzConsumers($name, $row, $queueConfig, $databaseConfig, $environment));
+
+        if (count($consumers) > HZ_MAX_CONSUMERS) {
+            break;
+        }
     }
+
+    $overCap = count($consumers) > HZ_MAX_CONSUMERS;
+    $consumers = array_slice($consumers, 0, HZ_MAX_CONSUMERS);
 
     $jobs = hzJobs($project);
     $process = hzProcessFiles($project);
     $findings = array_values(array_filter([
-        hzQueueSharing($consumers, $process['standalone'], $noSupervisorReason),
-        hzTimeouts($consumers, $jobs, $noSupervisorReason),
+        hzQueueSharing($consumers, $process['standalone'], $noSupervisorReason, $overCap),
+        hzTimeouts($consumers, $jobs, $noSupervisorReason, $overCap),
         hzRetries($jobs),
         hzSupervisorConfiguration($plan['supervisors']),
         $process['files'] === [] ? hzFinding('HZ-005', 'UNVERIFIED', 'No process-manager or deploy file that mentions Horizon or a queue worker is in the project, so the deployment is not shown.', ['composer.json:1']) : null,

@@ -28,7 +28,7 @@ One row for each consumer, with these columns, in this order:
 - A `queue:work` or `queue:listen` command in a tracked file gives its connection, `--queue`, `--timeout`, and `--tries` from the command line.
 - The driver comes from the `connections.<name>.driver` of `config/queue.php`. The Redis connection, database, and prefix come from `config/database.php` (`redis`). The queue key prefix is a Redis connection option. The Horizon `prefix` setting names Horizon's own keys and is not part of the queue key.
 - Fill a column with `unknown` when its value is dynamic or environment-driven. Never guess it.
-- A Redis connection that sets no `database` uses the server default `0`. The `prefix` is the `prefix` of the connection, else its `options.prefix`, else `redis.options.prefix`, and no prefix when none of them is set. An absent `host` or `port` is unknown, except between two consumers of the same Redis connection, which share its entry.
+- A `url` key of a Redis connection overrides its `host`, `port`, and `database`. A literal `url` gives those parts. A `url` that is not a literal (for example `env('REDIS_URL')`) makes the host, the port, and the database of that connection unknown. A Redis connection with no `url` that sets no `database` uses the server default `0`. The `prefix` is the `prefix` of the connection, else its `options.prefix`, else `redis.options.prefix`, and no prefix when none of them is set. An absent `host` or `port` is unknown, except between two consumers of the same Redis connection, which share its entry.
 - Different Laravel connection names are not different physical queues. Compare the key of HZ-001 instead.
 
 ## Consumer sources
