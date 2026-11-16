@@ -69,9 +69,9 @@ still never merges.
   A missing or malformed reference is a hard stop, and so is a list of references that reached a
   unit without the batch path splitting it. A GitHub reference to another
   repository is a hard stop too. Run the ownership check of
-  `@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted ownership check* (the
-  trusted copy of `skills/_shared/assert-current-repo.sh <URL>`, never the copy of the working tree) on the GitHub
-  issue or pull-request URL before any write. On a JIRA source, run it on the resolved pull-request
+  `@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted ownership check*
+  (the trusted copy of `skills/_shared/assert-current-repo.sh <URL>`, never the copy of the working tree)
+  on the GitHub issue or pull-request URL before any write. On a JIRA source, run it on the resolved pull-request
   URL.
 - Apply @rules/jira/general.md on a JIRA source.
 - An invocation explicitly authorizes the final TL;DR publish and deletion of qualifying

@@ -36,12 +36,17 @@ These steps read the loader document of the procedure, and no other loader docum
 
 Step 1 confirms that the pull request belongs to the current checkout. The check has two parts, and the first runs before any clone exists. `@skills/merge-github-pr-fast/SKILL.md` step 1 and `@skills/verify-merge-readiness/SKILL.md` run it the same way. `<URL>` is the URL of the pull request, or of the issue in `@skills/verify-merge-readiness/SKILL.md`.
 
-1. **Compare with the remotes of the checkout first, before any clone.** Use `git` only. Run no script of the repository, and no code of any other repository, in this item.
+1. **Compare with the remotes of the checkout first, before any clone.** Use `git` only, and the one `ssh -G` of item 3. Run no script of the repository, and no code of any other repository, in this item.
    1. Take `<owner>` and `<name>` from `<URL>`: a `github.com` URL (a `www.` prefix is allowed) whose path starts with `<owner>/<name>`. Accept each only when it matches `^[A-Za-z0-9_.-]+$`, after the `.git` suffix of `<name>` is dropped. A URL that gives no such pair stops the run as exit `5`.
    2. List the remotes of `<checkout>`, the checkout the run started in, with `git -C "<checkout>" remote`. For each remote, read every fetch URL with `git -C "<checkout>" remote get-url --all "<remote>"` and every push URL with `git -C "<checkout>" remote get-url --push --all "<remote>"`. Pass each remote name only in double quotes. Start each command with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` before the subcommand.
-   3. Compare every `github.com` URL that item 2 read with the pair of item 1, ignoring case, a trailing `.git`, and a trailing slash.
+      - **Strip the userinfo in the same shell call.** A remote URL can carry a credential (`https://<user>:<token>@github.com/...`), so no raw URL reaches the context of the run. Run each command as `set -o pipefail; <the git command> 2>/dev/null | sed -E 's#^([A-Za-z][A-Za-z0-9+.-]*://)?[^/]*@#\1#'`. The output keeps the scheme and drops the userinfo: an scp-style URL reads `<host>:<owner>/<name>`, and an `ssh://` URL keeps its port.
+      - A raw remote URL is never quoted in a report, a note, or a handoff, in the report of an exit `4` or `5` stop included. Name the remote and the `<owner>/<name>` pair.
+   3. Count a URL of item 2 when it is a `github.com` URL, or an ssh-style URL whose host `ssh -G` resolves to `github.com`, as `skills/_shared/assert-current-repo.sh` does. Compare the `<owner>/<name>` of each counted URL with the pair of item 1, ignoring case, a trailing `.git`, and a trailing slash.
+      - A URL is ssh-style when it has no scheme (`<host>:<path>`) or the scheme `ssh` (`ssh://<host>[:<port>]/<path>`). Drop the port from the host.
+      - Resolve a host that is not `github.com` only when it matches `^[A-Za-z0-9][A-Za-z0-9._-]*$`, so it never starts with a dash. Run `ssh -G -- "<host>" 2>/dev/null | awk '$1 == "hostname" { print tolower($2); exit }'`. The host is counted only when the output is exactly `github.com`.
+      - `ssh -G` prints the resolved configuration and opens no connection. A refused or failed `ssh -G`, a host that does not match the pattern, and any other output leave the URL uncounted. The item does not stop on them.
    4. No URL matches: the pull request belongs to another repository. Stop as exit `4`.
-   5. No remote, no `github.com` URL, or a `git` command that failed: the ownership is not resolved. Stop as exit `5`.
+   5. No remote, no counted URL, or a `git` command that failed: the ownership is not resolved. Stop as exit `5`.
 2. **Create the clone only after item 1 matched.** Create the clone of item 1 of the procedure. The `<owner>` and `<name>` of the clone and of `TIP` are the pair that item 1 proved equal to a remote of the checkout. Never create a clone for a pair that item 1 did not match.
 3. **Confirm with the verified copy.** Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
    1. The path the verifier checks is `skills/_shared/assert-current-repo.sh`.

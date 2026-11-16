@@ -137,7 +137,11 @@ test('the merge gate confirms the repository ownership only with the verified co
         expect(trustedRecordParserSource($file))->toContain('before any clone');
     }
 
-    foreach (['skills/merge-github-pr/SKILL.md', 'skills/merge-github-pr-fast/SKILL.md'] as $file) {
+    foreach ([
+        'skills/merge-github-pr/SKILL.md',
+        'skills/merge-github-pr-fast/SKILL.md',
+        'skills/verify-merge-readiness/SKILL.md',
+    ] as $file) {
         $content = trustedRecordParserSource($file);
 
         expect($content)->toContain('*The trusted ownership check*')
@@ -164,6 +168,39 @@ test('the ownership check compares the URL with the remotes of the checkout befo
         ->and($section)->toContain('or a `git` command that failed: the ownership is not resolved. Stop as exit `5`.')
         ->and($section)->toContain('Run no script of the repository, and no code of any other repository, in this item.')
         ->and($section)->toContain('Never create a clone for a pair that item 1 did not match.');
+});
+
+test('the remote comparison strips the userinfo of every URL and never quotes a raw URL', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted ownership check');
+    $read = strpos($section, '2. List the remotes of `<checkout>`');
+    $compare = strpos($section, '3. Count a URL of item 2');
+
+    expect($read)->toBeInt()
+        ->and($compare)->toBeInt()
+        ->and($section)->toContain('so no raw URL reaches the context of the run')
+        ->and($section)->toContain('set -o pipefail; <the git command> 2>/dev/null | sed -E')
+        ->and($section)->toContain('\'s#^([A-Za-z][A-Za-z0-9+.-]*://)?[^/]*@#\\1#\'')
+        ->and($section)->toContain('The output keeps the scheme and drops the userinfo')
+        ->and($section)->toContain(
+            'A raw remote URL is never quoted in a report, a note, or a handoff, in the report of an exit `4` or `5` stop included.',
+        )
+        ->and($read < $compare)->toBeTrue();
+});
+
+test('the remote comparison counts an ssh host alias that resolves to github.com, as the ownership script does', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted ownership check');
+    $script = trustedRecordParserSource('skills/_shared/assert-current-repo.sh');
+
+    expect($section)->toContain('Use `git` only, and the one `ssh -G` of item 3.')
+        ->and($section)->toContain('or an ssh-style URL whose host `ssh -G` resolves to `github.com`')
+        ->and($section)->toContain('`ssh -G -- "<host>" 2>/dev/null | awk \'$1 == "hostname" { print tolower($2); exit }\'`')
+        ->and($section)->toContain('`^[A-Za-z0-9][A-Za-z0-9._-]*$`, so it never starts with a dash')
+        ->and($section)->toContain('The host is counted only when the output is exactly `github.com`.')
+        ->and($section)->toContain('opens no connection. A refused or failed `ssh -G`')
+        ->and($section)->toContain('No remote, no counted URL, or a `git` command that failed: the ownership is not resolved.')
+        ->and($script)->toContain('ssh -G -- "$host"');
 });
 
 test('the fast merge loads the pull request and checks the gate record only with the verified copies', function (): void {
