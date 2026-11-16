@@ -966,6 +966,28 @@ test('a deploy file of a million bytes of matching lines is read in linear time 
     'queue:work lines' => ['queue:work', 'queue:work'],
 ]);
 
+test(
+    'ten files of a million bytes of matching lines keep a bounded evidence list in bounded memory and state the full count (splinter)',
+    function (string $directory, string $line, string $rule): void {
+        $content = str_repeat($line . "\n", intdiv(1_048_576, strlen($line) + 1));
+        $files = [];
+
+        for ($index = 0; $index < 10; $index++) {
+            $files[$directory . "/File{$index}" . ($directory === 'app' ? '.php' : '.sh')] = $content;
+        }
+
+        [$seconds, $exitCode, $output] = horizonAuditBoundedRun('<?php return [\'defaults\' => [], \'environments\' => [\'production\' => []]];', $files);
+
+        expect($exitCode)->toBe(0);
+        expect($seconds)->toBeLessThan(10.0);
+        expect(count((new HorizonAuditRun($output, '', $exitCode))->evidenceOf($rule)))->toBe(100);
+        expect($output)->toContain('The evidence lists the first 100 of ' . (10 * intdiv(1_048_576, strlen($line) + 1)) . ' locations.');
+    },
+)->with([
+    'queue:work lines in deploy files' => ['deploy', 'php artisan queue:work', 'HZ-001'],
+    'viewHorizon lines in app/' => ['app', '$gate = viewHorizon();', 'HZ-007'],
+]);
+
 test('over the consumer cap HZ-006 is UNVERIFIED and never reports a waits key as orphaned (leonardo M13)', function (): void {
     $supervisors = '';
     $waits = '';

@@ -662,11 +662,6 @@ function hzSupervisors(?HzNode $horizon, string $environment): array
 }
 
 /**
- * The host, port, and database that a literal Redis url sets, or null when the url is not a literal, cannot be parsed,
- * or carries a query string. Laravel merges the query string of a url last, so `?database=` and `?prefix=` override
- * every other part, and a url with a query makes the whole key unknown.
- * A part the url does not name is left out of the result, so the literal key of the connection stays.
- *
  * @return array<string, int|string>|null
  */
 function hzUrlParts(?string $url): ?array
@@ -701,7 +696,6 @@ function hzConsumers(string $name, HzNode $row, ?HzNode $queueConfig, ?HzNode $d
     $port = $redis === null ? null : hzKeyPart(hzItem($redis, 'port'));
 
     if ($url !== null) {
-        // Laravel lets the url of a connection override its host, port, and database.
         ['host' => $host, 'port' => $port, 'database' => $database] = $urlParts === null
             ? ['host' => null, 'port' => null, 'database' => null]
             : $urlParts + ['host' => $host, 'port' => $port, 'database' => $database];
@@ -761,8 +755,6 @@ function hzKeyRelation(HzConsumer $first, HzConsumer $second): string
 }
 
 /**
- * Reads at most HZ_MAX_JOBS job files, so the work and the memory stay bounded on a crafted project.
- *
  * @return array{jobs: list<HzJob>, overCap: bool}
  */
 function hzJobs(HzProject $project): array
@@ -803,12 +795,13 @@ function hzJobs(HzProject $project): array
 }
 
 /**
- * @return array{files: list<HzProcessFile>, standalone: list<string>}
+ * @return array{files: list<HzProcessFile>, standalone: list<string>, standaloneTotal: int}
  */
 function hzProcessFiles(HzProject $project): array
 {
     $files = [];
     $standalone = [];
+    $standaloneTotal = 0;
 
     foreach ($project->list() as $path) {
         if (preg_match(HZ_PROCESS_FILE_NAME, basename($path)) !== 1 || str_ends_with($path, '.php')) {
@@ -825,7 +818,11 @@ function hzProcessFiles(HzProject $project): array
             }
 
             if (preg_match('/\bqueue:(?:work|listen)\b/', $text) === 1) {
-                $standalone[] = $path . ':' . ($index + 1);
+                $standaloneTotal++;
+
+                if (count($standalone) < HZ_MAX_EVIDENCE) {
+                    $standalone[] = $path . ':' . ($index + 1);
+                }
             }
         }
 
@@ -836,18 +833,18 @@ function hzProcessFiles(HzProject $project): array
         }
     }
 
-    return ['files' => $files, 'standalone' => $standalone];
+    return ['files' => $files, 'standalone' => $standalone, 'standaloneTotal' => $standaloneTotal];
 }
 
 /**
  * @param list<string> $evidence
  */
-function hzFinding(string $rule, string $status, string $reason, array $evidence): HzFinding
+function hzFinding(string $rule, string $status, string $reason, array $evidence, int $found = 0): HzFinding
 {
     sort($evidence);
 
     $locations = array_values(array_unique($evidence));
-    $total = count($locations);
+    $total = max(count($locations), $found);
 
     return new HzFinding(
         ruleId: $rule,
@@ -860,13 +857,10 @@ function hzFinding(string $rule, string $status, string $reason, array $evidence
 }
 
 /**
- * Groups the consumers by their full key tuple, so identical consumers cost one entry, then compares one
- * representative per group. The number of consumers is capped, so the group comparison stays bounded.
- *
  * @param list<HzConsumer> $consumers
  * @param list<string> $standalone
  */
-function hzQueueSharing(array $consumers, array $standalone, string $noSupervisorReason, bool $overCap): HzFinding
+function hzQueueSharing(array $consumers, array $standalone, int $standaloneTotal, string $noSupervisorReason, bool $overCap): HzFinding
 {
     if ($overCap) {
         return hzFinding('HZ-001', 'UNVERIFIED', HZ_OVER_CAP_REASON, ['config/horizon.php:1']);
@@ -906,7 +900,7 @@ function hzQueueSharing(array $consumers, array $standalone, string $noSuperviso
     return match (true) {
         $shared !== [] => hzFinding('HZ-001', 'WARN', 'Two consumers share a physical queue with a fully known key (driver, host, port, database, prefix, queue).', $shared),
         $potential !== [] => hzFinding('HZ-001', 'UNVERIFIED', 'Two consumers may share a physical queue: every known part of the key is equal and a part is unknown, so only a comparison of the effective configuration confirms it.', $potential),
-        $standalone !== [] => hzFinding('HZ-001', 'UNVERIFIED', 'A standalone queue:work or queue:listen command is not in the parsed consumer map.', $standalone),
+        $standalone !== [] => hzFinding('HZ-001', 'UNVERIFIED', 'A standalone queue:work or queue:listen command is not in the parsed consumer map.', $standalone, $standaloneTotal),
         $consumers === [] => hzFinding('HZ-001', 'UNVERIFIED', $noSupervisorReason, ['config/horizon.php:1']),
         default => hzFinding('HZ-001', 'PASS', 'No two consumers share a physical queue.', array_map(static fn (HzConsumer $consumer): string => $consumer->source, $consumers)),
     };
@@ -1087,6 +1081,7 @@ function hzWaits(?HzNode $horizon, array $consumers, bool $overCap): ?HzFinding
 function hzDashboard(HzProject $project): HzFinding
 {
     $evidence = [];
+    $found = 0;
 
     foreach ($project->list('app') as $file) {
         $source = str_ends_with($file, '.php') ? $project->read($file) : null;
@@ -1096,7 +1091,11 @@ function hzDashboard(HzProject $project): HzFinding
             $isComment = str_starts_with($code, '//') || str_starts_with($code, '*') || str_starts_with($code, '#') || str_starts_with($code, '/*');
 
             if (!$isComment && (str_contains($text, 'viewHorizon') || str_contains($text, 'Horizon::auth'))) {
-                $evidence[] = $file . ':' . ($index + 1);
+                $found++;
+
+                if (count($evidence) < HZ_MAX_EVIDENCE) {
+                    $evidence[] = $file . ':' . ($index + 1);
+                }
             }
         }
     }
@@ -1106,6 +1105,7 @@ function hzDashboard(HzProject $project): HzFinding
         'UNVERIFIED',
         $evidence === [] ? 'No Horizon::auth callback or viewHorizon gate is defined in app/, so the default gate of Horizon applies and it decides at runtime.' : 'The dashboard authorization is a callback that runs at request time and is never evaluated, so no security diagnosis follows from it.',
         $evidence === [] ? ['composer.json:1'] : $evidence,
+        $found,
     );
 }
 
@@ -1141,7 +1141,7 @@ function hzEvaluate(HzProject $project, string $environment): HzEvaluation
     ['jobs' => $jobs, 'overCap' => $jobsOverCap] = hzJobs($project);
     $process = hzProcessFiles($project);
     $findings = array_values(array_filter([
-        hzQueueSharing($consumers, $process['standalone'], $noSupervisorReason, $overCap),
+        hzQueueSharing($consumers, $process['standalone'], $process['standaloneTotal'], $noSupervisorReason, $overCap),
         hzTimeouts($consumers, $jobs, $noSupervisorReason, $overCap, $jobsOverCap),
         hzRetries($jobs, $jobsOverCap),
         hzSupervisorConfiguration($plan['supervisors']),
