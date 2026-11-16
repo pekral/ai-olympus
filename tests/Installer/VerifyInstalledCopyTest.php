@@ -116,7 +116,18 @@ test('the installed reference replaces only a missing default-branch blob, and t
         expect($script)->toContain($label);
     }
 
-    // The merge gate never passes the option, so its classifier still needs a default-branch blob.
+    // The classifier of the merge gate never passes the option, so it still needs a default-branch blob.
     expect(verifyInstalledCopySource('skills/merge-github-pr/references/merge-exemptions.md'))->not->toContain('--installed-reference')
         ->and(verifyInstalledCopySource('skills/merge-github-pr/references/low-risk-path.md'))->not->toContain('--installed-reference');
+
+    // The fast-merge security check runs review-mode steps 2 and 3, so it is a deliberate caller of the option.
+    expect(verifyInstalledCopySource('skills/merge-github-pr-fast/SKILL.md'))
+        ->toContain('run `@skills/git-history-exposure-audit/SKILL.md` *Review mode* steps 2 and 3 only');
+    expect($script)->toContain('#            default-branch tip wrote the copy and the reference. Its callers are the code review and the security check')
+        ->and($script)->toContain(
+            '#            of `skills/merge-github-pr-fast/SKILL.md` step 2, which runs steps 2 and 3 of that mode. The classifier of',
+        );
+    expect(verifyInstalledCopySource('CHANGELOG.md'))
+        ->toContain('The security check of `skills/merge-github-pr-fast/SKILL.md` step 2 runs steps 2 and 3 of the review mode')
+        ->not->toContain('and the merge gate does not pass the option');
 });

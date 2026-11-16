@@ -266,7 +266,8 @@ test('review mode runs the installed copy of a project whose default branch does
         ->and($step)->toContain('Run the dependency install and the package install of `TIP` in the clone before the first scan command, as item 2')
         ->and($step)->toContain('`<clone>/.claude/skills/git-history-exposure-audit/scripts/history-scan.sh` on Claude Code')
         ->and($step)->toContain('`<clone>/.agents/skills/git-history-exposure-audit/scripts/history-scan.sh` on Codex')
-        ->and($step)->toContain('`bash "<clone>/.claude/skills/_shared/verify-installed-copy.sh"`')
+        ->and($step)->toContain('`bash "<clone>/.claude/skills/_shared/verify-installed-copy.sh"` on Claude Code')
+        ->and($step)->toContain('`bash "<clone>/.agents/skills/_shared/verify-installed-copy.sh"` on Codex')
         ->and($step)->toContain('It takes `--installed-reference`')
         ->and($step)->toContain(
             'A copy that differs from it, a missing reference, and a path that the reference does not list are refused, and the scan fails.',
@@ -278,9 +279,15 @@ test('review mode runs the installed copy of a project whose default branch does
         ->and($step)->toContain('On Codex every path starts with `.agents/skills/`.')
         ->and($step)->toContain('for each fetch, and for the dependency install');
 
+    // The install in the untouched clone runs no Composer plugin and never resolves versions the default branch did not pin.
     expect(historyExposureSource('skills/merge-github-pr/references/merge-exemptions.md'))->toContain(
-        '`skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts"`, then `vendor/bin/ai-olympus install`.',
-    );
+        '`skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts --no-plugins"`, '
+        . 'then `vendor/bin/ai-olympus install`.',
+    )
+        ->toContain('The installs run only when `TIP` carries a `composer.lock`')
+        ->toContain('so the trusted copy is not available (item 5)')
+        ->toContain('a `TIP` with no `composer.lock` when item 2 needs the installs.')
+        ->not->toContain('"composer install --no-interaction --no-scripts"');
 
     foreach (['agents/leonardo.md', 'agents/splinter.md'] as $agent) {
         expect(historyExposureSource($agent))->toContain(
@@ -290,5 +297,9 @@ test('review mode runs the installed copy of a project whose default branch does
 
     expect(historyExposureSource('rules/compound-engineering/orchestration.md'))->toContain(
         'fetch the pull-request commits into it by object id, run the installs of its item 2 in it, read only in it',
-    );
+    )
+        ->toContain('installing a new package (two exceptions exist: `raphael` running a dependency install')
+        ->toContain('*The trusted classifier* item 2 in the untouched clone of the second named exception below')
+        ->toContain('the second install exception above.')
+        ->not->toContain('the one exception is `raphael`');
 });

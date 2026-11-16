@@ -21,7 +21,10 @@
 #            nor tracks the file, the recorded hash of check 3 is the trusted reference, and check 4 is skipped. It changes
 #            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Only the review
 #            mode of `skills/git-history-exposure-audit/SKILL.md` passes it, in a clone where the package install of the
-#            default-branch tip wrote the copy and the reference.
+#            default-branch tip wrote the copy and the reference. Its callers are the code review and the security check
+#            of `skills/merge-github-pr-fast/SKILL.md` step 2, which runs steps 2 and 3 of that mode. The classifier of
+#            the merge gate never passes it, so the low-risk path, which needs that classifier, takes the full path in
+#            such a project before its security check runs.
 #   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
 #
 #   The script reads no file beside itself, so a caller runs it from the default-branch blob:
