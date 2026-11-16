@@ -2,13 +2,6 @@
 
 declare(strict_types = 1);
 
-function prWorkflowJobBlock(string $workflow, string $job): string
-{
-    expect(preg_match('/^  ' . preg_quote($job, '/') . ':\n((?:    .*\n|\n)+)/m', $workflow, $block))->toBe(1);
-
-    return $block[1] ?? '';
-}
-
 test('CI runs composer-normalize-check, shell-self-tests, and skill-check, so a green CI covers composer check', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
@@ -82,13 +75,13 @@ test('every composer check step runs in a quality job group on every PHP version
     $packageDir = dirname(__DIR__, 2);
     /** @var array{scripts: array<string, list<string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-    $job = prWorkflowJobBlock((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'), 'quality-checks');
+    $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
+    $job = prWorkflowJobBlock($workflow, 'quality-checks');
 
     // The PHP matrix is the only version list: no exclude and no include entry drops or adds a version.
     expect(preg_match_all('/^\s+(?:- )?php:/m', $job))->toBe(1);
     expect($job)->not->toContain('exclude:');
-    expect(preg_match('/^        group: \\[([^\\]]+)\\]/m', $job, $groupList))->toBe(1);
-    $groups = array_map(static fn (string $group): string => trim($group, ' \''), explode(',', $groupList[1] ?? ''));
+    $groups = prWorkflowMatrixList($workflow, 'quality-checks', 'group');
 
     $steps = [];
 
