@@ -2,6 +2,13 @@
 
 declare(strict_types = 1);
 
+function prWorkflowJobBlock(string $workflow, string $job): string
+{
+    expect(preg_match('/^  ' . preg_quote($job, '/') . ':\n((?:    .*\n|\n)+)/m', $workflow, $block))->toBe(1);
+
+    return $block[1] ?? '';
+}
+
 test('CI runs composer-normalize-check, shell-self-tests, and skill-check, so a green CI covers composer check', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $workflow = (string) file_get_contents($packageDir . '/.github/workflows/pr.yml');
@@ -69,4 +76,65 @@ test('the CI skill-check job reuses the composer script and caches npm on the lo
     expect($workflow)->toContain('cache: npm');
     expect($workflow)->toContain('cache-dependency-path: package-lock.json');
     expect($workflow)->not->toContain('npx');
+});
+
+test('every composer check step runs in a quality job group on every PHP version of the matrix', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    /** @var array{scripts: array<string, list<string>>} $composer */
+    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+    $job = prWorkflowJobBlock((string) file_get_contents($packageDir . '/.github/workflows/pr.yml'), 'quality-checks');
+
+    // The PHP matrix is the only version list: no exclude and no include entry drops or adds a version.
+    expect(preg_match_all('/^\s+(?:- )?php:/m', $job))->toBe(1);
+    expect($job)->not->toContain('exclude:');
+    expect(preg_match('/^        group: \\[([^\\]]+)\\]/m', $job, $groupList))->toBe(1);
+    $groups = array_map(static fn (string $group): string => trim($group, ' \''), explode(',', $groupList[1] ?? ''));
+
+    $steps = [];
+
+    foreach (explode("\n      - name: ", $job) as $step) {
+        if (preg_match('/^        run: composer (\S+)$/m', $step, $run) !== 1) {
+            continue;
+        }
+
+        expect(preg_match('/^        if: (.+)$/m', $step, $condition))->toBe(1);
+        // A condition names groups only, so the step runs on every PHP version of those groups.
+        expect($condition[1] ?? '')->toMatch('/^matrix\\.group == \'[^\']+\'(?: \\|\\| matrix\\.group == \'[^\']+\')*$/');
+        preg_match_all('/matrix\\.group == \'([^\']+)\'/', $condition[1] ?? '', $named);
+        expect(array_diff($named[1], $groups))->toBe([]);
+        $steps[] = $run[1];
+    }
+
+    $checks = array_map(
+        static fn (string $command): string => substr($command, 1),
+        array_filter($composer['scripts']['check'], static fn (string $command): bool => str_starts_with($command, '@')),
+    );
+
+    // skill-check runs in its own job; every other step of composer check runs in the quality jobs.
+    expect(array_values(array_diff($checks, ['skill-check'])))->toEqualCanonicalizing($steps);
+});
+
+test('the shell self-test shards cover the whole script list on every PHP version', function (): void {
+    $job = prWorkflowJobBlock((string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/pr.yml'), 'quality-checks');
+
+    expect(preg_match_all("/^          - group: '([^']+)'\n            shard: '(\\d+)\\/(\\d+)'$/m", $job, $shards))->toBeGreaterThan(1);
+    $count = (int) $shards[3][0];
+
+    expect(array_unique($shards[3]))->toBe([(string) $count]);
+    expect(array_map(intval(...), $shards[2]))->toEqualCanonicalizing(range(1, $count));
+    expect($job)->toContain('SHELL_SELF_TESTS_SHARD: ${{ matrix.shard }}');
+
+    foreach ($shards[1] as $group) {
+        expect($job)->toContain('matrix.group == \'' . $group . '\'');
+    }
+});
+
+test('each required quality check passes only when every quality job passed', function (): void {
+    $job = prWorkflowJobBlock((string) file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/pr.yml'), 'quality-checks-result');
+
+    expect($job)->toContain('name: "🔍 Quality Checks (PHP ${{ matrix.php }})"');
+    expect($job)->toContain('needs: quality-checks');
+    expect($job)->toContain('if: always()');
+    expect($job)->toContain('RESULT: ${{ needs.quality-checks.result }}');
+    expect($job)->toContain('test "$RESULT" = success');
 });

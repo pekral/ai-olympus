@@ -7,13 +7,21 @@ on:
     branches: [ master ]
 
 jobs:
+  # Every check runs on every PHP version, split into parallel groups so the slowest group, not the
+  # sum of all checks, sets the wait. The shell self-tests run as two shards of one script list.
   quality-checks:
-    name: "🔍 Quality Checks (PHP ${{ matrix.php }})"
+    name: "🔍 Quality Checks (PHP ${{ matrix.php }}, ${{ matrix.group }})"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         php: ['8.4', '8.5', '8.6']
+        group: ['static analysis', 'ShellCheck and coverage', 'shell self-tests 1/2', 'shell self-tests 2/2']
+        include:
+          - group: 'shell self-tests 1/2'
+            shard: '1/2'
+          - group: 'shell self-tests 2/2'
+            shard: '2/2'
 
     steps:
       - name: Checkout code
@@ -41,31 +49,62 @@ jobs:
         run: composer install --prefer-dist --no-progress --no-interaction ${{ matrix.php == '8.6' && '--ignore-platform-req=php+' || '' }}
 
       - name: "🔒 Security Audit"
+        if: matrix.group == 'static analysis'
         run: composer security-audit
 
       - name: "📝 Composer Normalize"
+        if: matrix.group == 'static analysis'
         run: composer composer-normalize-check
 
       - name: "🔍 PHP CodeSniffer"
+        if: matrix.group == 'static analysis'
         run: composer phpcs-check
 
       - name: "🎨 Laravel Pint"
+        if: matrix.group == 'static analysis'
         run: composer pint-check
 
       - name: "🔄 Rector"
+        if: matrix.group == 'static analysis'
         run: composer rector-check
 
       - name: "🔎 PHPStan Analysis"
+        if: matrix.group == 'static analysis'
         run: composer analyse
 
       - name: "🐚 ShellCheck"
+        if: matrix.group == 'ShellCheck and coverage'
         run: composer shellcheck
 
       - name: "🧪 Shell Self-Tests"
+        if: matrix.group == 'shell self-tests 1/2' || matrix.group == 'shell self-tests 2/2'
+        env:
+          SHELL_SELF_TESTS_SHARD: ${{ matrix.shard }}
         run: composer shell-self-tests
 
       - name: "📊 Coverage Tests"
+        if: matrix.group == 'ShellCheck and coverage'
         run: composer test:coverage
+
+  # The required status checks name one quality check per PHP version. Each of them passes only
+  # when every quality job above passed; a failed, cancelled, or skipped job fails all three.
+  quality-checks-result:
+    name: "🔍 Quality Checks (PHP ${{ matrix.php }})"
+    needs: quality-checks
+    if: always()
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4', '8.5', '8.6']
+
+    steps:
+      - name: "✅ Every quality job passed"
+        env:
+          RESULT: ${{ needs.quality-checks.result }}
+        run: |
+          echo "The quality jobs finished with the result: $RESULT"
+          test "$RESULT" = success
 
   php-compatibility:
     name: "PHP ${{ matrix.php }} syntax lint"
