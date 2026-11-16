@@ -55,7 +55,7 @@ Done when the brief exists with the source, the language, and the context path o
 ### 2. Split the instructions into items
 
 1. Cut the instructions into independently deliverable items, as `@skills/create-issues-from-text/SKILL.md` *Split into vertical slices* defines and `@rules/compound-engineering/backlog.md` *Decomposition mode* steps 1 and 2 state.
-2. Draft each item as the issue it would become, as a business-only assignment (`@rules/compound-engineering/assignment.md`) with the structure of `@skills/create-issues-from-text/templates/issue-structure.md` and a conventional-commits title (`feat(...)`, `fix(...)`). The technical detail of the instructions stays in the verbatim text under `## Queue source`, never in the issue.
+2. Draft each item as the issue it would become, as a business-only assignment (`@rules/compound-engineering/assignment.md`) with the structure of `@skills/create-issues-from-text/templates/issue-structure.md` and a conventional-commits title (`feat(...)`, `fix(...)`). The technical detail of the instructions stays in the verbatim text under `## Queue source`, never in the issue, and a security requirement of the instructions is restated as a business rule in the issue.
 3. Give each item an id `item-<n>`, in the order of the instructions. Record the drafts under `## Items`.
 
 Done when every instruction line belongs to an item, and no item needs another item to deliver a working result unless its `## Dependencies` names it.
@@ -86,7 +86,7 @@ Record each key with its evidence under `## Ordering keys`.
 | Key | Method |
 | --- | --- |
 | priority | The `priority:` label of a reused issue. Otherwise the derivation of `@skills/github-issue-triage/SKILL.md` *Priority derivation* from the conventional-commits prefix of the title. A reused issue with neither is `low`, and the brief records `untriaged`. |
-| difficulty | The `tier` of `skills/_shared/classify-risk.sh --assignment <the text of the item>`, with `--files` when the item names files. Record the `signal=` lines. |
+| difficulty | The `tier` of `skills/_shared/classify-risk.sh --assignment <the text of the item>`, with `--files` from the item's *files* key when it is non-empty. Record the `signal=` lines. |
 | duration | Method `files-and-criteria`: the number of distinct files the instructions of the item name plus the number of its business rules (each rule of *The rules* and each behaviour of *What the user must be able to do*). It is a count read from the text, not a time. |
 | depends-on | The `## Dependencies` section of the item, mapped to item ids. A dependency outside the queue is already done. |
 | files | The paths the instructions of the item name (the issue text names none), each confirmed with `git ls-files`. An item whose instructions name no file keeps the list empty, which keeps it out of every parallel batch. |

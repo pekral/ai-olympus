@@ -283,7 +283,7 @@ CORE_RE="$INFRA_RE"'|serviceprovider|(^|/)bootstrap/|(^|/)routes/|kernel\.php$|(
 # languages are covered: the assignment is written in whatever language the
 # reporter used, and an English-only marker set would score every Czech
 # assignment as unclear.
-AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|- \[ \]'
+AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|the rules|what the user must be able to do|- \[ \]'
 
 # Rollback signals of the merge-risk mode. They are matched against the lower-cased
 # added lines of a unified diff, one line at a time, in documentation and test
@@ -1222,6 +1222,20 @@ self_test() {
     fi
   }
 
+  expect_no_line() {
+    local label="$1" needle="$2"
+    shift 2
+    local out
+    out="$("$script" "$@" 2>&1 || true)"
+    if grep -qF -- "$needle" <<<"$out"; then
+      printf 'FAIL  %-52s found %s\n' "$label" "$needle" >&2
+      printf '%s\n' "$out" >&2
+      failures=$((failures + 1))
+    else
+      printf 'ok    %-52s no %s\n' "$label" "$needle"
+    fi
+  }
+
   expect_exit() {
     local label="$1" expected="$2"
     shift 2
@@ -1407,6 +1421,9 @@ TEXT
   # --- Clarity and coverage signals ------------------------------------------
   expect_line 'a vague assignment scores the clarity point' 'unclear-acceptance-criteria' \
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/vague.txt"
+  printf '## What this is about\nA greeting needs the declined name.\n\n## What the user must be able to do\nThe admin edits a name.\n\n## The rules\nA name has at most 50 characters.\n' >"$tmp/business.txt"
+  expect_no_line 'a business-only assignment scores no clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/business.txt"
   expect_line 'a source change with no test is flagged' 'missing-relevant-tests' \
     --files "$(writefiles 'src/Formatter.php')" --assignment "$tmp/clear.txt"
   # Without this point an ordinary feature that ships its tests scored 1 and

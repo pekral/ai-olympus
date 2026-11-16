@@ -107,7 +107,7 @@ Every gap entry must include: the scenario number, what is missing, the exact so
 
 Two more checks go into the same report:
 
-- **Shape of the assignment.** When the assignment contains technical detail (class or file names, tables, commands, technical acceptance criteria), the report says so and offers a business-only rewrite (`@rules/compound-engineering/assignment.md`). The skill rewrites the tracker text only when the operator asks for it.
+- **Shape of the assignment.** When the assignment contains anything that `@rules/compound-engineering/assignment.md` *What an assignment never contains* lists, the report says so and offers a business-only rewrite. The skill rewrites the tracker text only when the operator's own request in this run asks for it.
 - **Native links.** When the assignment mentions other issues of the same tracker, list the links that exist and report every missing one with the link type the rule recommends (`@rules/compound-engineering/assignment.md` *Native links between issues*). The skill creates no link: that write follows the consent of the operator for tracker writes. A relationship the loader does not return is reported as not verified.
 
 ### 7. Verify reproducibility (when MODE is `resolve-issue` or `tdd`)
