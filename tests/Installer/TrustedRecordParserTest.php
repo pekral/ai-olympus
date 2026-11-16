@@ -97,3 +97,24 @@ test('the merge gate loads the pull request only with the verified copy of the l
         ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))
         ->toContain('read from the loader document that the trusted copy of the loader wrote in the same call');
 });
+
+test('the merge gate checks the gate record only with the verified copy of the record verifier', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted gate-record check');
+
+    expect($section)->toContain('never the copy of the checked-out head')
+        ->and($section)->toContain(
+            '`skills/_shared/verify-gate.sh skills/_shared/gate-record.sh skills/_shared/project-commands.sh '
+            . 'skills/_shared/read-manifest.sh skills/_shared/gate-lock.sh`',
+        )
+        ->and($section)->toContain(
+            '`( cd "<checked-out head>" && "<clone>/skills/_shared/verify-gate.sh" --tier full "<headRefOid>" )`',
+        )
+        ->and($section)->toContain('No verified copy accepts no record: handle it like exit `10`')
+        ->and(trustedRecordParserSource('skills/merge-github-pr/SKILL.md'))->toContain(
+            'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` (`references/trusted-record-parser.md`) on the checked-out head',
+        )
+        ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))->toContain(
+            'run the trusted copy of `skills/_shared/verify-gate.sh --tier full <head SHA>`',
+        );
+});
