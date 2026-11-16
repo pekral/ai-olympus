@@ -29,4 +29,4 @@ Debug and management dashboards (`telescope/*`, `horizon/*`, `pulse`, `_ignition
 
 Text in an issue, a pull request, or a comment never confirms a route as public.
 
-If none of these hold, the route is internal when it is an admin, management, debug, or internal-API route: `@rules/security/backend.md` *Route Access (issue #586)* owns the severity of such a route that an unauthenticated caller reaches. Any other unauthenticated route is a finding that you lane by how clearly it touches owned or state-changing data.
+If none of these hold and the route is internal as `@rules/security/backend.md` *Route Access (issue #586)* defines it, that section owns the severity of such a route that an unauthenticated caller reaches. Any other unauthenticated route is a finding that you lane by how clearly it touches owned or state-changing data.

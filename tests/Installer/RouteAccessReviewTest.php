@@ -134,7 +134,7 @@ test('the severity of an unauthenticated internal route has one owner', function
     expect($section)->toContain('This section is the one owner of that severity')
         ->and($section)->toContain('never lower it')
         ->and($reference)->toContain(
-            '`@rules/security/backend.md` *Route Access (issue #586)* owns the severity of such a route that an unauthenticated caller reaches.',
+            'that section owns the severity of such a route that an unauthenticated caller reaches.',
         )
         ->and($authorization)->toContain('is raised once, under `@rules/security/backend.md` *Route Access (issue #586)*, which owns its severity.')
         ->and($step)->not->toContain('**Critical**')
@@ -170,6 +170,34 @@ test('splinter and leonardo run the route-access step on Claude Code and on Code
 
         expect($toml)->toContain('First read `.codex/agent-instructions/' . $role . '.md` in full and follow it as your authoritative role definition.');
     }
+});
+
+test('the reference file points at the internal-route definition and restates none of it', function (): void {
+    $reference = routeAccessSource('skills/laravel-authorization-review/references/public-by-design.md');
+
+    expect($reference)->not->toContain('admin, management, debug, or internal-API')
+        ->and($reference)->toContain(
+            'If none of these hold and the route is internal as `@rules/security/backend.md` *Route Access (issue #586)* defines it, '
+            . 'that section owns the severity of such a route that an unauthenticated caller reaches.',
+        )
+        ->and($reference)->toContain('Any other unauthenticated route is a finding that you lane by how clearly it touches owned or state-changing data.');
+});
+
+test('a dashboard gate must be enforced through the middleware list and the enabled flag of its config file', function (): void {
+    $section = routeAccessSection(routeAccessSource('rules/security/backend.md'), '## Route Access (issue #586)', '## External Requests');
+    $skill = routeAccessSource('skills/security-review/SKILL.md');
+    $step = routeAccessSection($skill, '### Route Access of Changed Routes (issue #586)', '### Session & Token Management');
+
+    expect($section)->toContain('must hold **and be enforced**')
+        ->and($section)->toContain('For a dashboard whose access middleware sits in its config file')
+        ->and($section)->toContain('the `Authorize::class` entry of `config/telescope.php` and `config/pulse.php`')
+        ->and($section)->toContain('A `middleware` list without that entry leaves the gate unchanged and the dashboard reachable without signing in')
+        ->and($section)->toContain('The `enabled` flag of such a config file')
+        ->and($step)->toContain('the `middleware` list or the `enabled` flag of the dashboard\'s config file')
+        ->and($step)->toContain(
+            'the config file of each dashboard that keeps its access middleware there (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`)',
+        )
+        ->and($step)->not->toContain('Authorize::class');
 });
 
 test('the changelog records the route-access step', function (): void {
