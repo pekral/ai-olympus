@@ -24,7 +24,9 @@ test('the security review has a route-access step that runs in every review roun
             'each route the diff adds or changes, and each route whose middleware, route group, controller, or policy the diff changes',
         )
         ->and($step)->toContain('an unauthenticated caller, a signed-in user, or a privileged role')
-        ->and($step)->toContain('the authorization in the controller or policy, each with its `file:line`')
+        ->and($step)->toContain(
+            'the authorization in the controller or policy, and, for a dashboard, its gate definition and `::auth` callback as the rule describes them, each with its `file:line`',
+        )
         ->and($step)->toContain('`Route access: not applicable — the diff changes no route`')
         ->and($step)->toContain('goes under *Not verified* with the step that settles it');
 });
@@ -188,15 +190,22 @@ test('a dashboard gate must be enforced through the middleware list and the enab
     $skill = routeAccessSource('skills/security-review/SKILL.md');
     $step = routeAccessSection($skill, '### Route Access of Changed Routes (issue #586)', '### Session & Token Management');
 
-    expect($section)->toContain('must hold **and be enforced**')
+    expect($section)->toContain('must deny an unauthenticated caller and be enforced')
+        ->and($section)->not->toContain('must hold **and be enforced**')
+        ->and($section)->toContain('The gate is reached through a chain, and every link must deny a guest.')
+        ->and($section)->toContain('calls the `::auth` callback (`Telescope::auth`, `Horizon::auth`), and that callback calls the gate')
+        ->and($section)->toContain('A callback that does not deny a guest, for example one that returns true or skips the gate')
+        ->and($section)->toContain('a gate closure whose user parameter accepts null (`?User $user`, `$user = null`) and returns true for a guest')
         ->and($section)->toContain('For a dashboard whose access middleware sits in its config file')
         ->and($section)->toContain('the `Authorize::class` entry of `config/telescope.php` and `config/pulse.php`')
         ->and($section)->toContain('A `middleware` list without that entry leaves the gate unchanged and the dashboard reachable without signing in')
         ->and($section)->toContain('The `enabled` flag of such a config file')
         ->and($step)->toContain('the `middleware` list or the `enabled` flag of the dashboard\'s config file')
         ->and($step)->toContain(
-            'the config file of each dashboard that keeps its access middleware there (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`)',
+            'the config files of the dashboards (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`), the gate definition and the `::auth` callback of each dashboard',
         )
+        ->and($step)->not->toContain('keeps its access middleware there')
+        ->and($step)->toContain('for a dashboard, its gate definition and `::auth` callback as the rule describes them')
         ->and($step)->not->toContain('Authorize::class');
 });
 
