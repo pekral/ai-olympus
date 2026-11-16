@@ -38,6 +38,7 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
   Under a machine gate record, a `run-gate.sh` exit `4` counts as that shortfall only when both hold, and blocks otherwise:
   1. the record's `commands` hold every command of the tier, and only the last one has a non-zero `exit_code` — `run-gate.sh` stops at the first failing command, so an earlier failure leaves the later commands unproven;
   2. `skills/_shared/verify-gate.sh --tier full <sha>`, run after the gate, reports `fresh_exit_code` `0` — `run-gate.sh` skips `gate-fresh` after a failure, and the waiver never covers the dependency audit.
+     The merge takes this verdict from the trusted check that ran on the same head before the gate (`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check* item 4).
 - **The reproduction stays; the committed test becomes optional.** `@skills/resolve-issue/SKILL.md` *If bug* requires a failing test before the fix. Under HOTFIX that relaxes to: observe the failure before the fix and its absence after, by whatever is fastest — a test, a one-off script, or the running application — and state which was used in the handoff and the pull request.
 - **Write the regression test when it is cheap.** When it is not, say so in the pull request, so the gap is visible rather than assumed. Everything else in the bug branch is unchanged, the data repair included.
 

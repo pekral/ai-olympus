@@ -249,10 +249,11 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     );
 
     // HOTFIX waives coverage only: `run-gate.sh` stops at the first failure and then skips gate-fresh,
-    // so the waiver needs the last command as the only failure and a passing fresh verdict.
+    // so the waiver needs the last command as the only failure and a passing fresh verdict, which the
+    // trusted check took before the gate on the same head.
     expect($merge)->toContain(
         'only when the record shows the tier\'s last command as its only failing command'
-        . ' and `verify-gate.sh`, run afterwards, reports `fresh_exit_code` `0`',
+        . ' and the trusted check of item 1 reports `fresh_exit_code` `0` before the gate',
     );
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     expect($gates)->toContain(
