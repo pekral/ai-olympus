@@ -1,7 +1,7 @@
 ## Database report — critical optimizations (advisory)
 
 Advisory only: this report does not block the merge and is not part of the code review.
-Stores: <mysql | mariadb | pgsql | unresolved — the review's `Not verified:` entry; redis | mongodb | dynamodb | elasticsearch | …> · Head: <short SHA> · DB access: <the plain database client | static analysis only — <reason>>
+Stores: <mysql | mariadb | pgsql | unresolved — the review's `Not verified:` entry; redis | mongodb | dynamodb | elasticsearch | …> · Head: <short SHA> · DB access: <the plain database client | Laravel Tinker | static analysis only — <reason>>
 
 ### TL;DR
 
@@ -21,6 +21,6 @@ Stores: <mysql | mariadb | pgsql | unresolved — the review's `Not verified:` e
 
 <!-- The TL;DR has one entry per item, in the item order. Drop the Plan proposed line when the proposal was not tested, and drop the Not verified line when nothing is unverified. When EXPLAIN did not run, replace both Plan lines with one line: **Plan:** not read — the proposal rests on static analysis: <reason> -->
 
-<!-- DB access names one value for the whole report: the plain database client when any fact of the report was read through it, otherwise static analysis only with its reason. -->
+<!-- DB access names how the facts of the report were obtained: the plain database client or Laravel Tinker, joined with `+` when both supplied a fact, with `+ Laravel Boost` or `+ Laravel Telescope` added when one of them supplied a fact; otherwise static analysis only with its reason. -->
 
 <!-- When no item qualifies in any part that ran, keep the heading, the advisory line, and the stores line, and replace the TL;DR and the items with: No critical database item in this diff. A PostgreSQL diff without a local instance adds one line: PostgreSQL query plan not analysed — DB access: static analysis only — <reason> -->

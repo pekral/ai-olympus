@@ -32,12 +32,14 @@ Focus on:
 - **`MODE=cr-report`** — the code-review report the `casey` agent writes (`agents/casey.md`, `@skills/code-review/references/specialized-reviews.md` *Database report — the `casey` agent*). The review itself never runs this skill inline. In this mode the skill:
   - runs against a **locally started database only** — never a shared, staging, or production host. With no local database, it analyses statically and says so;
   - is **read-only** — it never writes a migration, an index, a query, or a configuration change, and never runs a statement that changes data or schema. Plain `EXPLAIN` and `SHOW` only; `EXPLAIN ANALYZE` (MariaDB `ANALYZE`) executes the statement, so run it on a `SELECT` only, inside `START TRANSACTION READ ONLY; … ROLLBACK;` — never on `INSERT` / `UPDATE` / `DELETE`. A `SELECT` that calls a stored or non-aggregate function can have side effects, so it gets plain `EXPLAIN`, never `ANALYZE`;
+  - **tests the query through `php artisan tinker` in a Laravel project** when `references/tinker-explain.md` allows it. That reference owns the trust rule (the application boots only in the checkout of a non-fork pull request whose author is trusted), the guard that runs before any connection, the closed list of snippet outputs, the statement accept rule, and the optional Laravel Boost and Laravel Telescope helpers. Where the rule, the guard, or the check refuses, the report analyses the query statically and names the reason in its `DB access:` line. A project without Laravel, without Laravel Tinker, or without a local database keeps the plain database client path;
   - is **diff-scoped** — every item anchors to a `file:line` the diff added or modified; a pre-existing query the diff does not touch is out of scope;
   - reports **critical items only** — a full scan, `filesort`, or `temporary` on a realistically large table on a hot path, a per-row query in a loop, an N+1 on a list, a DDL that blocks writes during a deploy, or a comparable outage or data-loss risk. A non-critical observation is omitted, never downgraded into the report;
   - gives each item its evidence (`file:line`, the reconstructed SQL, the `EXPLAIN` baseline when DB access exists, or the stated limitation when it does not) and one proposed optimization held against *Performance Non-Regression on Query Changes* in `@rules/sql/optimalize.md`;
   - answers `No critical database item in this diff.` when nothing qualifies. That answer carries no `TL;DR`.
   - **opens with a `TL;DR` that defends each proposal with facts.** A report with a critical item opens with it, and `templates/cr-report.md` owns its shape. Per item it states the proposal, the facts that support it, and the consequence of leaving the code as it is.
     A fact names its source, and the only sources are a `file:line`, a value read from the `EXPLAIN` output, and a table size the run read. On MySQL and MariaDB a table size is the `Cardinality` that `SHOW INDEX` prints for the `PRIMARY` index, on its row with the highest `Seq_in_index`, and the fact names it as an estimate; a table with no `PRIMARY` index has no table size. On PostgreSQL no statement that `agents/casey.md` *Bash boundary* allows prints a table size, so a fact about the size of a PostgreSQL table is a value read from the `EXPLAIN` output and names that source. A statement with no such source goes under *Not verified* with the step that settles it (`@rules/general/general.md` *Verified statements only*).
+    A fact read from a Laravel Telescope entry (the recorded `time`, the `slow` flag, or the number of entries with one `hash`) names that source, and the report never quotes the recorded statement with its bindings.
     The `DB access:` line of the report names how the facts were obtained, and `templates/cr-report.md` owns its values.
   - **explains the `EXPLAIN` result in plain language when `EXPLAIN` ran.** The `TL;DR` says which table the database reads, how it reads it, how many rows it examines against how many it keeps, and what an extra step such as a sort or a temporary table means for this query.
     Where the proposal was tested, it says the same for the proposed query. The raw output stays in the item's evidence. `references/explain-reading.md` owns which output forms get a reading, the reading of each MySQL / MariaDB column and value, and the reading of each PostgreSQL figure, node, and detail line.
@@ -52,6 +54,7 @@ The same division holds against the CR's latency lens. When `@skills/latency-cri
 
 ### 1. Identify the Query
 - Find the actual SQL or reconstruct it from Laravel/Eloquent/query builder code
+- In `MODE=cr-report`, a Laravel project that passes the trust rule of `references/tinker-explain.md` gets the statement from the application (`toSql()` and the bindings), and never reconstructs it by hand
 - Include filters, joins, ordering, grouping, pagination, and subqueries
 
 ### 2. Inspect Schema
@@ -63,6 +66,7 @@ The same division holds against the CR's latency lens. When `@skills/latency-cri
 
 ### 3. Run EXPLAIN
 - If MySQL access is available, run `EXPLAIN` on the query and read its plan.
+- In `MODE=cr-report` in a Laravel project, run it through the Tinker snippet of `references/tinker-explain.md` first, original query and proposal, and compare the two plans.
 
 ### 4. Diagnose the Problem
 Look for:

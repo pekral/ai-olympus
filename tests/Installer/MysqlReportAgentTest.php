@@ -252,8 +252,9 @@ test('the report template pins the full text of the line', function (string $tex
         '  - **If left as it is:** <the consequence for this query on this path>',
     ],
     'the DB access value comment' => [
-        '<!-- DB access names one value for the whole report: the plain database client when any fact of the '
-            . 'report was read through it, otherwise static analysis only with its reason. -->',
+        '<!-- DB access names how the facts of the report were obtained: the plain database client or Laravel '
+            . 'Tinker, joined with `+` when both supplied a fact, with `+ Laravel Boost` or `+ Laravel Telescope` '
+            . 'added when one of them supplied a fact; otherwise static analysis only with its reason. -->',
     ],
     'the evidence line with the raw EXPLAIN output' => [
         '- **Evidence:** <reconstructed SQL or NoSQL call, the raw `EXPLAIN` output of the baseline or the '
@@ -280,8 +281,8 @@ test('the report template pins the full text of the line', function (string $tex
     ],
     'the stores line with the DB access values' => [
         'Stores: <mysql | mariadb | pgsql | unresolved — the review\'s `Not verified:` entry; redis | mongodb '
-            . '| dynamodb | elasticsearch | …> · Head: <short SHA> · DB access: <the plain database client | static '
-            . 'analysis only — <reason>>',
+            . '| dynamodb | elasticsearch | …> · Head: <short SHA> · DB access: <the plain database client | Laravel '
+            . 'Tinker | static analysis only — <reason>>',
     ],
     'the TL;DR drop and replace comment' => [
         '<!-- The TL;DR has one entry per item, in the item order. Drop the Plan proposed line when the '
@@ -720,7 +721,7 @@ test(
     function (): void {
         $template = crReportTemplateContents();
 
-        expect($template)->toContain('DB access: <the plain database client | static analysis only — <reason>>')
+        expect($template)->toContain('DB access: <the plain database client | Laravel Tinker | static analysis only — <reason>>')
             ->and(substr_count(caseyReportSurfaceWithout('skills/mysql-problem-solver/templates/cr-report.md'), 'the plain database client |'))->toBe(0);
     },
 );
