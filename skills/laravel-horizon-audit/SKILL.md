@@ -78,7 +78,7 @@ Example requests:
 2. When `laravel/horizon` is absent from both files, return `NOT_APPLICABLE` with that evidence and stop. Change nothing.
 3. Read `config/horizon.php`, `config/queue.php`, `config/database.php` (the `redis` section), `app/Providers/HorizonServiceProvider.php`, and `.env.example`. Never read any other `.env*` file.
 4. List the process-manager and deployment files the repository tracks (`references/effective-configuration.md` *Consumer sources*).
-5. Compare the versions with the source in `vendor/laravel/horizon` when it exists. Read it only. A missing `vendor/` or an unknown version makes every behaviour that depends on the version `UNVERIFIED` (`references/checks.md` *Version rule*).
+5. Compare the versions with the source in `vendor/laravel/horizon` when it exists. Read it only. A missing `vendor/` is stated in the report and the evaluator still models a detected Horizon 5.x. An unknown version, no `composer.lock`, or another major version makes every behaviour that depends on the version `UNVERIFIED` (`references/checks.md` *Version rule*).
 
 The step is done when the report header names the two versions or states that they could not be read.
 
@@ -163,12 +163,12 @@ In a code review, map `CRITICAL` to Critical and `HIGH`, `MEDIUM`, `LOW` to Mode
 php skills/laravel-horizon-audit/scripts/evaluate.php <project_path> [--environment <name>]
 ```
 
-- **What it reads.** `composer.json`, `composer.lock`, `config/horizon.php`, `config/queue.php`, `config/database.php`, the job classes under `app/Jobs`, any PHP file under `app/` for the dashboard authorization, and the process-manager and deploy files of the project directory. It reads each file as text, tokenizes a config file with `PhpToken::tokenize`, and never executes anything. It runs no process, opens no connection, follows no symbolic link, and refuses every file whose name starts with `.env`.
+- **What it reads.** `composer.json`, `composer.lock`, `config/horizon.php`, `config/queue.php`, `config/database.php`, the job classes under `app/Jobs`, any PHP file under `app/` for the dashboard authorization, and the process-manager and deploy files of the project directory. It reads each file as text, tokenizes a config file with `PhpToken::tokenize`, and never executes anything. It runs no process, opens no connection, follows no symbolic link (also none in a parent directory: every path must resolve inside the project root), and refuses every file whose name starts with `.env`.
 - **What it prints.** One JSON document: `applicable`, `versions`, the audited `environment` and the `environment_key` Horizon selects, the `consumers` with their provenance lines, `findings` (rule, status, severity, `evidence_basis`, `file:line` evidence), the `outcomes` tokens (`HZ-002:FAIL`), `not_decided`, `process_files`, `files_read`, and `runtime_access`. The order is deterministic. It never prints a value of an `env()` call, so a credential in a fallback never reaches the output. The exit code is `0` for every evaluation, also for a `FAIL`, and `1` for a usage error.
 - **What it computes.**
   - Discovery: `NOT_APPLICABLE` without `laravel/horizon`, and the two versions from `composer.lock`.
-  - The environment key and the merged supervisor map of Horizon 5.x (`references/effective-configuration.md`). A supervisor with a literal `maxProcesses` of 0 is not deployed.
-  - HZ-001: the physical key (driver, host, port, database, prefix, queue) of each consumer. A fully known equal key is `WARN`. An equal key with an unknown part is `UNVERIFIED`, and a standalone `queue:work` or `queue:listen` command keeps `PASS` away.
+  - The environment key and the merged supervisor map of Horizon 5.x (`references/effective-configuration.md`), only when `composer.lock` shows a 5.x version. Without it the evaluator selects no supervisor, and HZ-001 and HZ-002 are `UNVERIFIED`. A supervisor with a literal `maxProcesses` of 0 is not deployed.
+  - HZ-001: the physical key (driver, host, port, database, prefix, queue) of each consumer, where an absent `database` is the server default `0` and the `prefix` is inherited from `options.prefix`. A fully known equal key is `WARN`. An equal key with an unknown part is `UNVERIFIED`, and a standalone `queue:work` or `queue:listen` command keeps `PASS` away.
   - HZ-002: `job timeout < supervisor timeout < retry_after`, and a differing `retry_after` on a shared queue. A job applies to a consumer when it is the only supervisor or the job names its queue. A value that is not a literal, a built-in default, and a driver other than `redis` give `UNVERIFIED`.
   - HZ-003: a job with a finite `$tries` and a middleware that releases it (`WithoutOverlapping` without `dontRelease()`, `RateLimited`, `RateLimitedWithRedis`) gives `WARN`.
   - HZ-004: `balance` `auto` with several literal queues gives `WARN`, and `minProcesses` above `maxProcesses` gives `FAIL`.
