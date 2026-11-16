@@ -25,6 +25,9 @@ test('the discovery script proves every acceptance scenario in its self-test', f
         'a removed fixer tool proposes the updated pr-gate',
         'a dependency change without a fixer change is unchanged',
         'a tool the recorded project script already covers is current',
+        'a refresh keeps a recorded fixer outside the tables and adds the new tool in run order',
+        'a refresh drops only the command of the removed tool',
+        'a manifest read-manifest.sh cannot read exits 3',
     ] as $label) {
         expect($script)->toContain('check \'' . $label . '\'');
     }
@@ -37,7 +40,14 @@ test('the discovery script reads git, never the working tree, and builds command
     $end = strpos($script, 'self_test() {');
     $code = (string) preg_replace('/^\s*#.*$/m', '', $end === false ? $script : substr($script, 0, $end));
 
-    expect($code)->toContain('git show "$ref:./$file"')
+    expect($code)->toContain('"$SCRIPT_DIR/read-manifest.sh" --ref "$1" --raw')
+        ->and($code)->toContain('"$SCRIPT_DIR/read-manifest.sh" --ref "$1" 2>/dev/null')
+        ->and($code)->toContain('git show "$1:./package.json"')
+        ->and($code)->toContain('{package: "eslint", command: "npx --no eslint --fix ."}')
+        ->and($code)->toContain('{package: "prettier", command: "npx --no prettier --write ."}')
+        ->and($code)->not->toContain('command: "npx eslint')
+        ->and($code)->not->toContain('command: "npx prettier')
+        ->and($code)->not->toContain('.extra // {}')
         ->and($code)->toContain('commands: (if $script != null then ["\($runner) \($script)"]')
         ->and($code)->toContain('{package: "laravel/pint", command: "vendor/bin/pint"}')
         ->and($code)->toContain('{package: "stylelint", command: null}')
@@ -63,6 +73,15 @@ test('the pre-push gate runs the pr-gate fixers on every repository and the chec
         ->and($gates)->toContain('On a repository without CI, and after a CI billing failure, they run locally too')
         ->and($gates)->toContain('The CI result decides whether the local checkers and tests run. The `pr-gate` fixers run in every case.')
         ->and($gates)->toContain('2. **CI → no local checker and no local test.** Run the `pr-gate` fixers before each push.');
+    expect($gates)->toContain('**`--tier pr` is not the pre-push path.** The `pr-gate` fixers run before a push through `run-gate.sh --exclusive`')
+        ->and($gates)->toContain('(the merge asks `--tier full`; no step asks `--tier pr`)');
+    expect(packageSource('docs/installation.md'))->toContain(
+        '(the `pr-gate` fixers run before a push through `run-gate.sh --exclusive` instead, because a fixer rewrite fails `--tier pr`)',
+    );
+    expect(packageSource('rules/compound-engineering/concurrency.md'))->toContain(
+        'The pre-push `pr-gate` fixers take it through `run-gate.sh --exclusive`.',
+    )
+        ->not->toContain('`run-gate.sh --tier pr` and `--tier full` hold it for the run.');
     expect($gates)->not->toContain('`skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`')
         ->and($gates)->not->toContain('Without `pr-gate` nothing runs before a push');
 });
@@ -82,7 +101,19 @@ test('krang discovers the fixers once, proposes the key through one pull request
         ->and($discovery)->toContain('The pull request states what the discovery searched (`searched`)')
         ->and($discovery)->toContain('The run does not review or merge the proposal: the owner decides it.')
         ->and($discovery)->toContain('`skills/_shared/discover-fixers.sh --compare <base SHA> <head SHA>`')
-        ->and($discovery)->toContain('The key changes in the pull request that changes the tools');
+        ->and($discovery)->toContain('the root session runs steps 1 to 3 once for the whole batch, never once per unit.')
+        ->and($discovery)->toContain(
+            '**Check again right before the dispatch:** run the `gh pr list` of step 2 and '
+            . '`git ls-remote --exit-code --heads origin chore/ai-olympus-pr-gate`.',
+        )
+        ->and($discovery)->toContain('**A proposal never stops the delivery.**')
+        ->and($discovery)->toContain('The run\'s own delivery continues.')
+        ->and($discovery)->toContain(
+            '`propose` → open the refresh as its own proposal pull request. Never write `pr-gate` into the run\'s own pull request',
+        )
+        ->and($discovery)->toContain('The branch is `chore/ai-olympus-pr-gate-<source-slug>`')
+        ->and($discovery)->toContain('Every other recorded entry stays.')
+        ->and($discovery)->not->toContain('dispatch `donatello` on the same pull request');
     expect(strlen($krang))->toBeLessThanOrEqual(135_000);
 });
 

@@ -14,7 +14,8 @@
 #   composer.json  `scripts` and `require-dev`
 #   package.json   `scripts` and `devDependencies`
 #   Both from a git ref, never from the working tree: the default branch by default, the same ref
-#   read-manifest.sh resolves.
+#   read-manifest.sh resolves. composer.json and its manifest come through read-manifest.sh (`--raw`
+#   and the manifest JSON), so this script reads `pr-gate` exactly as run-gate.sh does.
 #
 # What it prints
 #   The project's own fix script wins over the tools it wraps, per ecosystem: `composer fix` replaces
@@ -24,6 +25,8 @@
 #   command passes the allow-list of project-commands.sh, which run-gate.sh --exclusive applies.
 #   A tool with no command that the allow-list accepts (Stylelint needs a file glob) is listed under
 #   `unmapped`: the project needs its own fix script for it.
+#   An npm tool runs as `npx --no <tool>`: npx then runs only the locally installed version and fails
+#   when the package is missing, instead of installing the latest registry version without a prompt.
 #
 # Usage
 #   discover-fixers.sh [--ref <git-ref>]
@@ -43,18 +46,22 @@
 #     unmapped  fixer packages with no command the gate accepts (absent on `configured`)
 #     searched  per file: whether it exists, the script names and the packages that were looked for
 #   Compare (a change of the dependency files, for the refresh of `pr-gate`):
-#     status    unchanged   the fixer packages are the same on both refs
-#               current     the packages changed, and the commands on <head-ref> equal `pr-gate` on <base-ref>
-#               propose     the packages changed, and the commands on <head-ref> differ from that `pr-gate`
+#     status    unchanged   the fixer packages and the fixer commands are the same on both refs
+#               current     they changed, and `commands` equals `pr-gate` on <base-ref>
+#               propose     they changed, and `commands` differs from that `pr-gate`
 #     added, removed        the fixer packages that <head-ref> adds or removes
-#     commands              the fixer commands on <head-ref>
+#     commands              the proposed `pr-gate`: the recorded value without the commands that
+#                           <head-ref> no longer declares, plus the commands it newly declares, each
+#                           in the run order of the tables. Every other recorded entry stays, so a
+#                           fixer the owner added by hand is never dropped. Without a recorded
+#                           array: the fixer commands on <head-ref>.
 #     pr_gate               `pr-gate` on <base-ref>, or null
 #
 # Exit codes
 #   0  the result was printed
 #   1  usage error, or a ref that is not a valid commit
 #   2  missing required tool (git or jq)
-#   3  a dependency file on the ref is not valid JSON
+#   3  a dependency file or the manifest on the ref is not valid
 #   5  no default-branch ref (read-manifest.sh --default-ref found none)
 set -euo pipefail
 
@@ -77,8 +84,8 @@ def composer_tools: [
 ];
 def npm_scripts: ["fix", "lint:fix", "lint-fix", "format"];
 def npm_tools: [
-  {package: "eslint", command: "npx eslint --fix ."},
-  {package: "prettier", command: "npx prettier --write ."},
+  {package: "eslint", command: "npx --no eslint --fix ."},
+  {package: "prettier", command: "npx --no prettier --write ."},
   {package: "stylelint", command: null}
 ];
 def names($object): ($object // {}) | if type == "object" then keys_unsorted else [] end;
@@ -111,10 +118,19 @@ def analyse($composer; $package):
       unmapped: ($c.unmapped + $n.unmapped),
       searched: [$c.searched, $n.searched]
     };
-def manifest($composer):
-  ($composer.extra // {}) | (if type == "object" then .["ai-olympus"] else null end) // {}
-  | if type == "object" then . else {} end;
-def recorded($composer): if $composer == null then null else manifest($composer)["pr-gate"] end;
+def merge_order($kept; $added; $order):
+  reduce $added[] as $a ($kept;
+    ($order | index([$a])) as $ai
+    | (first(range(length) as $i
+        | select(.[$i] as $r | ($order | index([$r])) as $ri | $ri != null and $ri > $ai) | $i)
+       // length) as $pos
+    | .[:$pos] + [$a] + .[$pos:]);
+def refresh($recorded; $before; $after):
+  if ($recorded | type) == "array" then
+    ($before - $after) as $gone
+    | ($after - $before - $recorded) as $new
+    | merge_order($recorded - $gone; $new; $after)
+  else $after end;
 '
 
 usage() {
@@ -134,10 +150,11 @@ valid_ref() {
   git rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1
 }
 
-# Prints the file on the ref, or `null` when the ref has none. Returns 3 when the file is not JSON.
-read_json() {
-  local ref="$1" file="$2" content
-  if ! content="$(git show "$ref:./$file" 2>/dev/null)"; then
+# Prints the text as compact JSON, or `null` for an empty text (the ref has no such file). Returns 3
+# when the text is not a JSON object.
+json_object() {
+  local ref="$1" file="$2" content="$3"
+  if [[ -z "$content" ]]; then
     printf 'null'
     return 0
   fi
@@ -148,15 +165,38 @@ read_json() {
   printf '%s' "$content" | jq -c .
 }
 
-discover() {
-  local ref="$1" composer package
-  composer="$(read_json "$ref" composer.json)" || return 3
-  package="$(read_json "$ref" package.json)" || return 3
+# composer.json on the ref, read by read-manifest.sh, the one owner of that read.
+read_composer() {
+  local content
+  content="$("$SCRIPT_DIR/read-manifest.sh" --ref "$1" --raw 2>/dev/null)" || return 3
+  json_object "$1" composer.json "$content"
+}
 
-  jq -nc --arg ref "$ref" --argjson composer "$composer" --argjson package "$package" "$JQ_TABLES"'
-    recorded($composer) as $recorded
-    | if $composer != null and (manifest($composer) | has("pr-gate")) then
-        {status: "configured", ref: $ref, pr_gate: $recorded}
+# package.json on the ref. read-manifest.sh reads composer.json only.
+read_package() {
+  local content
+  content="$(git show "$1:./package.json" 2>/dev/null)" || content=''
+  json_object "$1" package.json "$content"
+}
+
+# The manifest on the ref, exactly as run-gate.sh reads it: `{}` when the ref has no composer.json.
+read_manifest_json() {
+  "$SCRIPT_DIR/read-manifest.sh" --ref "$1" 2>/dev/null || {
+    echo "$PROG: the manifest of composer.json on $1 is not readable" >&2
+    return 3
+  }
+}
+
+discover() {
+  local ref="$1" composer package manifest
+  composer="$(read_composer "$ref")" || return 3
+  package="$(read_package "$ref")" || return 3
+  manifest="$(read_manifest_json "$ref")" || return 3
+
+  jq -nc --arg ref "$ref" --argjson composer "$composer" --argjson package "$package" \
+    --argjson manifest "$manifest" "$JQ_TABLES"'
+    if $composer != null and ($manifest | has("pr-gate")) then
+        {status: "configured", ref: $ref, pr_gate: $manifest["pr-gate"]}
       else
         analyse($composer; $package) as $a
         | {
@@ -172,29 +212,31 @@ discover() {
 }
 
 compare() {
-  local base="$1" head="$2" base_composer base_package head_composer head_package
-  base_composer="$(read_json "$base" composer.json)" || return 3
-  base_package="$(read_json "$base" package.json)" || return 3
-  head_composer="$(read_json "$head" composer.json)" || return 3
-  head_package="$(read_json "$head" package.json)" || return 3
+  local base="$1" head="$2" base_composer base_package base_manifest head_composer head_package
+  base_composer="$(read_composer "$base")" || return 3
+  base_package="$(read_package "$base")" || return 3
+  base_manifest="$(read_manifest_json "$base")" || return 3
+  head_composer="$(read_composer "$head")" || return 3
+  head_package="$(read_package "$head")" || return 3
 
   jq -nc --arg base "$base" --arg head "$head" \
-    --argjson bc "$base_composer" --argjson bp "$base_package" \
+    --argjson bc "$base_composer" --argjson bp "$base_package" --argjson bm "$base_manifest" \
     --argjson hc "$head_composer" --argjson hp "$head_package" "$JQ_TABLES"'
     analyse($bc; $bp) as $b
     | analyse($hc; $hp) as $h
-    | recorded($bc) as $recorded
+    | $bm["pr-gate"] as $recorded
     | ($h.tools - $b.tools) as $added
     | ($b.tools - $h.tools) as $removed
+    | refresh($recorded; $b.commands; $h.commands) as $proposed
     | {
-        status: (if ($added + $removed | length) == 0 then "unchanged"
-                 elif $recorded == $h.commands then "current"
+        status: (if ($added + $removed | length) == 0 and $b.commands == $h.commands then "unchanged"
+                 elif $recorded == $proposed then "current"
                  else "propose" end),
         base: $base,
         head: $head,
         added: $added,
         removed: $removed,
-        commands: $h.commands,
+        commands: $proposed,
         pr_gate: $recorded
       }'
 }
@@ -280,7 +322,7 @@ self_test() {
 
   npm_tools="$(commit_files '{"require-dev": {}}' '{"devDependencies": {"prettier": "^3", "stylelint": "^16", "eslint": "^9"}}')"
   run --ref "$npm_tools"
-  check 'package.json tools are proposed, and stylelint without a script is unmapped' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .commands, .unmapped]')" == '["propose",["npx eslint --fix .","npx prettier --write ."],["package.json:stylelint"]]' ]] && echo pass)"
+  check 'package.json tools are proposed, and stylelint without a script is unmapped' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .commands, .unmapped]')" == '["propose",["npx --no eslint --fix .","npx --no prettier --write ."],["package.json:stylelint"]]' ]] && echo pass)"
   check 'every npm command passes the gate allow-list' "$(all_commands_valid && echo pass)"
 
   npm_script="$(commit_files '{"scripts": {"cs-fix": "x"}, "require-dev": {"laravel/pint": "^1"}}' '{"scripts": {"lint:fix": "eslint --fix ."}, "devDependencies": {"eslint": "^9", "stylelint": "^16"}}')"
@@ -341,6 +383,21 @@ self_test() {
   head="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["composer fix"]}}, "scripts": {"fix": "x"}, "require-dev": {"laravel/pint": "^1", "rector/rector": "^2"}}' -)"
   run --compare "$rescript" "$head"
   check 'a tool the recorded project script already covers is current' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .pr_gate]')" == '["current",["composer fix"]]' ]] && echo pass)"
+
+  local curated grown
+  curated="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["vendor/bin/pint", "vendor/bin/twig-cs-fixer"]}}, "require-dev": {"laravel/pint": "^1"}}' -)"
+  grown="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["vendor/bin/pint", "vendor/bin/twig-cs-fixer"]}}, "require-dev": {"laravel/pint": "^1", "rector/rector": "^2"}}' -)"
+  run --compare "$curated" "$grown"
+  check 'a refresh keeps a recorded fixer outside the tables and adds the new tool in run order' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .commands]')" == '["propose",["vendor/bin/rector process","vendor/bin/pint","vendor/bin/twig-cs-fixer"]]' ]] && echo pass)"
+  curated="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["vendor/bin/rector process", "vendor/bin/twig-cs-fixer", "vendor/bin/pint"]}}, "require-dev": {"laravel/pint": "^1", "rector/rector": "^2"}}' -)"
+  grown="$(commit_files '{"require-dev": {"laravel/pint": "^1"}}' -)"
+  run --compare "$curated" "$grown"
+  check 'a refresh drops only the command of the removed tool' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .commands]')" == '["propose",["vendor/bin/twig-cs-fixer","vendor/bin/pint"]]' ]] && echo pass)"
+
+  # read-manifest.sh is the one reader of the manifest: a manifest it refuses is refused here too.
+  commit_files '{"extra": "not an object", "require-dev": {"laravel/pint": "^1"}}' - >/dev/null
+  run --ref HEAD
+  check 'a manifest read-manifest.sh cannot read exits 3' "$([[ "$code" -eq 3 ]] && echo pass)"
 
   run --compare "$base"
   check 'compare needs two refs' "$([[ "$code" -eq 1 ]] && echo pass)"

@@ -6,6 +6,10 @@ The `pr-gate` fixers run before every push, on every repository (`@skills/resolv
 
 ## Steps
 
+**One discovery per batch.** In an operator batch (`skills/_shared/orchestration/batch-preparation.md`), the root session runs steps 1 to 3 once for the whole batch, never once per unit. It writes the step-1 result into the brief of every unit. Units that start in parallel then never race on one proposal branch. Step 4 runs per unit, because each unit changes its own dependency files.
+
+**A proposal never stops the delivery.** The proposal is a side change for the owner, not part of the run's assignment. A failed or `Blocked` proposal dispatch is written into the brief and named in the report to the user with its reason and remediation. The run's own delivery continues. The run never finishes a blocked proposal itself (`@rules/compound-engineering/general.md` *Blocked delegation is a hard stop*).
+
 1. **Read the key. Analyse only when it is missing.** Run `skills/_shared/discover-fixers.sh`. It reads the default branch. Write `pr-gate: <status>` into `## Gathered context` of the brief, and read `status` from the JSON:
    - `configured` → the manifest sets `pr-gate`. The script analysed nothing, and you analyse nothing either. Only step 4 analyses again.
    - `propose` → step 2.
@@ -15,7 +19,7 @@ The `pr-gate` fixers run before every push, on every repository (`@skills/resolv
 2. **One proposal per project.** Run `gh pr list --head chore/ai-olympus-pr-gate --state all --json number,state,url`.
    - A pull request on that branch exists → propose nothing. An open one waits for the owner. A closed or merged one is the owner's decision, and a run never reopens it. Name it in the report.
    - No pull request → write `pr-gate: propose` into the brief. Step 3 runs in step 5.
-3. **Dispatch the proposal.** Run it after the run's own pull request is open. Dispatch `donatello` through the Task tool, blocking, at its default tier, with the ledger role `donatello:pr-gate`. The dispatch carries:
+3. **Dispatch the proposal.** Run it after the run's own pull request is open. **Check again right before the dispatch:** run the `gh pr list` of step 2 and `git ls-remote --exit-code --heads origin chore/ai-olympus-pr-gate`. When either finds the pull request or the branch, another run proposed it in the meantime: propose nothing and name it in the report. Otherwise dispatch `donatello` through the Task tool, blocking, at its default tier, with the ledger role `donatello:pr-gate`. The dispatch carries:
    - **Its own worktree.** The path `.claude/worktrees/agent-impl-pr-gate-donatello` and the branch `chore/ai-olympus-pr-gate`, created from the default branch and locked as `@rules/compound-engineering/concurrency.md` *Parallel units* states. The run's own tree stays untouched. *Run cleanup* removes the worktree like the worktree of a parallel unit.
    - **The change.** Set the key with `composer config --json extra.ai-olympus.pr-gate '<the commands array>'`. A change of `extra` changes the `content-hash` of `composer.lock`, so when the project has a `composer.lock`, refresh the hash with `skills/_shared/run-gate.sh --exclusive --command "composer update --lock --no-install"`. Commit `chore(manifest): propose the pr-gate fixers` and open a Draft pull request.
    - **The body.** The pull request states what the discovery searched (`searched`), the packages it found (`tools`), and the packages left without a command (`unmapped`). It also states that the key opts the project into the machine gate record (`@skills/resolve-issue/references/quality-gates.md` *Machine gate record — one run per tree*), and that the fixers run only after the merge.
@@ -23,7 +27,10 @@ The `pr-gate` fixers run before every push, on every repository (`@skills/resolv
 
    The run does not review or merge the proposal: the owner decides it. Name its URL in the report to the user.
 4. **Refresh on a dependency change.** Run this step when the step-5 re-classification diff names `composer.json` or `package.json`, and the manifest sets `pr-gate`. Run `skills/_shared/discover-fixers.sh --compare <base SHA> <head SHA>` and read `status`:
-   - `unchanged` → the pull request adds and removes no fixer tool. Nothing to do.
-   - `current` → the fixer tools changed, and the recorded `pr-gate` already runs the commands the head declares. Nothing to do.
-   - `propose` → dispatch `donatello` on the same pull request, with the ledger role `donatello:pr-gate`. It sets `pr-gate` to `commands` with the `composer config` and lock-hash steps of step 3, and names `added` and `removed` in the pull request body. The key changes in the pull request that changes the tools, so both reach the default branch in one merge, and the code review checks the key with the rest of the diff.
+   - `unchanged` → the pull request adds and removes no fixer tool and no fix script. Nothing to do.
+   - `current` → the fixers changed, and the recorded `pr-gate` already runs the commands the head declares. Nothing to do.
+   - `propose` → open the refresh as its own proposal pull request. Never write `pr-gate` into the run's own pull request: no acceptance criterion of the run's assignment asks for it (`@rules/compound-engineering/general.md` *The assignment is the scope*).
+     - **Branch and worktree.** The branch is `chore/ai-olympus-pr-gate-<source-slug>`, and the worktree is `.claude/worktrees/agent-impl-pr-gate-<source-slug>-donatello`. Check that branch again right before the dispatch, as step 3 does. Then dispatch `donatello` with the ledger role `donatello:pr-gate` and the worktree, change, and lock-hash steps of step 3.
+     - **The value.** The change sets `pr-gate` to `commands`: the recorded entries without the commands the head no longer declares, plus the commands it newly declares. Every other recorded entry stays.
+     - **The body.** It names `added` and `removed`, and states that the proposal merges after the run's own pull request, because a command of an added tool exists only once that pull request merges.
    - A non-zero exit → write it into the brief and continue.
