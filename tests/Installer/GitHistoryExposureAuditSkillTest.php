@@ -175,9 +175,10 @@ test('review mode is an always-run security lens on a public repository wherever
             . '`api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`',
         )
         ->toContain('Two named exceptions exist. The first is the full audit of `@skills/git-history-exposure-audit/SKILL.md`')
-        ->toContain('| `leonardo`, `splinter`, the session that runs `@skills/merge-github-pr/SKILL.md` or '
-            . '`@skills/merge-github-pr-fast/SKILL.md` | Create the untouched clone of')
-        ->toContain('The review mode of that audit and the merge gate make it, read only in it, and remove it when the step ends.')
+        ->toContain('| `leonardo`, `splinter`, the session that runs `@skills/merge-github-pr/SKILL.md`, '
+            . '`@skills/merge-github-pr-fast/SKILL.md`, or `@skills/verify-merge-readiness/SKILL.md` | Create the untouched clone of')
+        ->toContain('The review mode of that audit, the merge gate, and the trusted record parser of merge preparation '
+            . '(`skills/merge-github-pr/references/trusted-record-parser.md`) make it, read only in it, and remove it when the step ends.')
         ->toContain('| top-level session | Run the full audit of `@skills/git-history-exposure-audit/SKILL.md`');
     expect(historyExposureSource('rules/compound-engineering/orchestration.md'))
         ->not->toContain('The one named exception is the full audit');

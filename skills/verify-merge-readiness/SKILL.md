@@ -170,6 +170,8 @@ Record in the shared brief:
 - the newest trusted code-review report (the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>`,
   `@skills/merge-github-pr/references/trusted-record-parser.md`: the hidden record of a pull-request
   review, or a legacy `cr-comment` comment), including reviewed SHA,
+  read from the loader document that the trusted copy of the loader wrote in the same call, never
+  from the document of the GitHub load above,
   effective diff fingerprint, finding counts, unresolved findings, and the `Quality gate:` exact-head
   evidence it carries.
 
