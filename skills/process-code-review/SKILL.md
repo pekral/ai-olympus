@@ -197,7 +197,7 @@ This step **assembles** the report; **Completion** publishes it. This skill publ
 - **`## Deferred to sub-issues`** — only when the Review loop deferred a Moderate at the cap round or a refactoring-only pull request carries over a discrepancy: one entry per finding with `file:line`, the original severity, the reason, and the sub-issue or follow-up issue URL (`references/round-three-deferral.md` *Reporting the deferral*).
 - **`## Pre-existing fixes`** — only when **Pre-fix phase** landed a security fix: each commit subject with a one-line rationale from the commit body. Omit when none landed.
 
-Never quote or reply to a previous CR report, and never copy a line from it — this run's publish posts a new pull-request review and leaves the earlier reports unchanged. The `Reviewed revision:` / `Reviewed diff fingerprint:` header lines of the newest trusted report carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
+Never quote, reply to, or copy a line from a previous CR report: this run's publish posts a new pull-request review and leaves earlier reports unchanged. The `Reviewed revision:` / `Reviewed diff fingerprint:` header lines of the newest trusted report carry the next round's baseline, and this skill holds the previous round's finding dispositions in its own loop state.
 
 
 #### Resolve addressed reviewer threads (GitHub)
@@ -219,13 +219,14 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 
 **Precondition:** Review loop has converged (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate).
 
+- **Publish nothing when the run only processed the owner's answers to open decisions, lands no commit, and runs no new review round:** skip every publish below (no pull-request review, comment, or tracker mirror), edit only the pull-request body or the assignment, and report each processed answer and that nothing was published (`@rules/code-review/general.md` *One published comment per review run*).
 - **Run the final publishing run inline,** unless `@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description* holds back AI text in the pull request's repository: then publish nothing there and put the review in the completion report. Invoke the appropriate CR wrapper directly in this skill's context with publishing enabled — this is the **only** review whose output reaches the PR / issue tracker, and it posts **one** report per destination. The invocation must include the PR URL, the converged state (`criticalCount == 0`, no undeferred Moderate),
   the `reviewedRevision` and `reviewedDiffFingerprint` baseline of the last iteration (per **Incremental review scope**, so the published comment carries the `Reviewed revision:`, `Reviewed diff fingerprint:`, and `Review scope:` header lines), the parts **PR update** assembled, and the instruction to post the final pull-request review + linked-issue / JIRA mirror per the CR wrapper's contract.
   When the caller passed `tracker-report: deferred`, pass it to the wrapper too: the final publish then writes the pull-request review only, and the caller publishes the one tracker report after every CR step finished (`@skills/code-review-github/references/cr-wrapper-contract.md` *Non-technical tracker summary*).
   Do not dispatch as a subagent — run it sequentially in the current context:
   - GitHub: `@skills/code-review-github/SKILL.md`
   - JIRA: `@skills/code-review-jira/SKILL.md`
-- **The published report is a TL;DR, never a systematic report.** A converged run carries the header block, `## TL;DR` (not on GitHub), `## Functional Review`, the conditional sections (`## Input consistency` and `## Reuse (DRY)` among them), and `## Interactive testing` / `## Database report` when their reports were passed — nothing else, and no `## Findings` over an empty body. Canonical shape: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
+- **The published report is a TL;DR, never a systematic report** — shape in `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 - Share a concise completion report (in-conversation, not on the tracker):
   - PR link
   - resolved items

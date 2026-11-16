@@ -647,6 +647,14 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **A run that has not converged publishes nothing to the pull request.** Its findings go back into the loop as fixes (`@skills/process-code-review/SKILL.md` *Review loop*). The one exception is a **standalone** review a person invoked directly, outside that loop: there the findings *are* the deliverable, so the run publishes the findings report of *Two-Part CR Output* above, still as one comment.
 
+**A run that only processes the owner's answers and lands no change publishes nothing.** The owner already has the answer, because the owner wrote it, so a comment that confirms it adds no fact. The run publishes no pull-request review, no pull-request comment, and no tracker mirror (a JIRA comment, a comment on the linked GitHub issue, a Bugsnag comment) when all of these hold:
+
+1. the only input is answers that the owner or a reviewer already gave to open decisions (an *Open decisions* entry of the pull-request body, or a question of a `Decisions before merge` section);
+2. the run lands no commit;
+3. no new review round runs (*When another review round runs at all* above).
+
+The run may still edit text that already exists: the pull-request body (for example *Open decisions* becomes *Owner decisions*), and the assignment on the tracker when the owner's decisions change it, under the consent of `@rules/compound-engineering/assignment.md`. An edit is never a new comment. The run states the outcome in its completion report to the user, naming each processed answer and stating that nothing was published (`@skills/process-code-review/SKILL.md` *Completion*). A run that lands a change, or runs a new review round, publishes as the rest of this section states. A reviewer flags a comment that only confirms processed answers (for example "owner answers processed" with one "no change" entry per answer) as a **Moderate** finding, and the Suggested Fix removes the comment.
+
 **The merge gate reads this one report** — on GitHub, the hidden record of the review. Every value `@skills/merge-github-pr/SKILL.md` needs — the `Counts:` line, the reviewed revision and diff fingerprint, the quality-gate command and SHA, and the deferral entries — is in it. Removing the second comment removed a duplicate, never a piece of evidence.
 
 **That one report is new on every run.** On GitHub every run posts a new pull-request review and never edits an earlier one. Every other code-review report — the tracker comment `@skills/pr-summary/SKILL.md` renders, and the linked GitHub issue mirror — is published through the helper with `--create`. The helper creates a new comment and never looks up, rewrites, or deletes the comment of an earlier run, so that comment stays unchanged. This applies to a review-only run (`/report-code-review`) and to every round of the review-and-fix loop.

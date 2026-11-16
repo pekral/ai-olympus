@@ -456,7 +456,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the project instruction sources are read through the default-branch ref that git alone resolves.
         // Re-baselined: the review gate reads the project manifest by git ref, and the accepted ref shape lives in `merge-exemptions.md` item 3.
         // Re-baselined: a name that an added or removed line of the change carries is the reviewed project's own text (issue #567).
-        'rules/code-review/general.md' => '5109dfb4495f65a9b05792babe95b99630ecd1ea93174899c1a66a395286d0a6',
+        // Re-baselined: a run that only processes the owner's answers and lands no change publishes nothing (issue #575).
+        'rules/code-review/general.md' => '308da28758b4a2005af1143eb05a6161d0d132dd7498801a80512780ce9c0c9c',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
