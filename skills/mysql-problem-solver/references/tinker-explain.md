@@ -34,7 +34,9 @@ The snippet runs the guard before it builds or runs any query. The guard compare
 1. The driver is `mysql` or `mariadb`.
 2. The environment name (`app()->environment()`) is `local` or `testing`.
 3. Every configured host is a loopback host (`localhost`, `127.0.0.1`, `::1`, `[::1]`). The guard checks `host`, every entry of a host list, `read.host`, `write.host`, and the host of a URL-style `url` (DSN). A connection with no host and no `unix_socket` is refused, and so is a URL with no readable host.
+   A `url` that carries a query string is refused with `refused:url`, because Laravel merges its parameters (`host`, `read[host]`, `write[0][host]`) over the host of the URL and over the connection. A `url` whose scheme is not `mysql` or `mariadb`, and a `url` that is not a string, are refused too, because Laravel takes the driver from the scheme.
 4. `read` and `write` are checked in both forms Laravel accepts: one section, and a list from which Laravel picks one entry at random. Like Laravel, the guard reads a `read` or `write` array with an entry at key `0` as a list. In a list every entry counts: the `host` of each connection array, and each host string. An entry that is neither a connection array nor a host string is refused, and so is a `url` inside a `read` or `write` section.
+5. No value that Laravel writes into the DSN adds a DSN key. `database`, `port`, and `unix_socket` of the connection and of every `read` or `write` entry, and the decoded database path of a `url`, are refused with `refused:dsn` when they contain `;` or `=`, or when they are not a scalar. Laravel builds `mysql:host=…;port=…;dbname=…` from them, and PDO takes the last `host=` of a DSN, so such a value moves the connection to another host.
 
 The snippet runs the same guard on the default connection (`config('database.default')`) and prints its verdict as `casey:default=ok` or `casey:default=refused`. Laravel Boost reads that connection (*Laravel Boost and Laravel Telescope* below).
 
@@ -58,7 +60,7 @@ The snippet takes the statement from the application (`toSql()` and `getBindings
 
 A statement is accepted when it is one statement that starts with `select` and every character belongs to a closed vocabulary: backtick-quoted identifiers, `?`, `*`, `,`, `.`, parentheses, the comparison operators, digits, whitespace, and the keywords `select distinct from where and or not in is null like between exists order by asc desc limit offset group having join inner left right on as true false count min max sum avg`. A semicolon, a quote, a comment, `into`, `union`, `for update`, and every other word make the statement refused: `casey:error=statement`. The rule accepts, and never lists what it refuses.
 
-The procedure runs plain `EXPLAIN` and never `EXPLAIN ANALYZE`, so it measures no latency. A statement that changes data or schema never runs, because the accept rule refuses it before any connection exists. Laravel Telescope records no query of the run: the command switches it off, and the guard refuses before any query when it is still on. *What the mechanism does not cover* names the one Telescope write that remains.
+The procedure runs plain `EXPLAIN` and never `EXPLAIN ANALYZE`, so it measures no latency. A statement that changes data or schema never runs, because the accept rule refuses it before any connection exists. Laravel Telescope stores no entry of the Tinker run: the command switches it off, the snippet first stops its recording and drops the entries the boot queued (`Telescope::stopRecording()` and `Telescope::flushEntries()`, when the class exists), and the guard refuses before any query when the configuration still enables it.
 
 ## The closed output list
 
@@ -66,7 +68,7 @@ The snippet prints only these lines. Every other line of the command output is d
 
 | Line | Value |
 |---|---|
-| `casey:guard=` | `ok`, or `refused:` followed by `driver`, `environment`, `host`, `no-host`, `url`, or `telescope` |
+| `casey:guard=` | `ok`, or `refused:` followed by `driver`, `environment`, `host`, `no-host`, `url`, `dsn`, or `telescope` |
 | `casey:default=` | `ok` or `refused`: the guard verdict of the default connection |
 | `casey:sql=` | the accepted statement with `?` placeholders |
 | `casey:bindings=` | the number of bindings, never a value |
@@ -96,10 +98,12 @@ CASEY_SNIPPET
 
 ## Laravel Boost and Laravel Telescope — optional, never required
 
-- **Laravel Boost.** `casey` calls the Boost tool `database-schema` for the columns and indexes of a table, only when the session exposes that tool, only after a run of this procedure printed both `casey:guard=ok` and `casey:default=ok` in this run, and without its `database` argument.
+- **Laravel Boost.** `casey` calls the Boost tool `database-schema` for the columns and indexes of a table, only when the session exposes that tool, only when `composer.json` requires `laravel/telescope` in neither `require` nor `require-dev`, only after a run of this procedure printed both `casey:guard=ok` and `casey:default=ok` in this run, and without its `database` argument.
+  Boost runs every tool in its own `php artisan boost:execute-tool` process. The `TELESCOPE_ENABLED=false` of the command and the Telescope stop of the snippet do not reach that process, so Telescope would record the call. A project that requires `laravel/telescope` therefore reads the schema without Boost.
+  The tool keeps the schema it read for 20 seconds in the default cache store of the application (`Cache::remember`). That is a write: a `database` store writes a row to its own connection, which the guard never checked.
   Without that argument Boost reads the default connection, so `casey:default=ok` is the proof for the connection Boost reads; `casey:guard=ok` alone proves only the connection of the model.
   A project without Boost, and a session without that tool, read the schema from the migrations and from the plain database client as before. `casey` never calls the Boost tool `tinker` (it executes arbitrary PHP and is off unless `boost.tinker_tool_enabled` is set) or `database-query` (it runs a statement that `casey` typed, outside the accept rule). Both tool names, and `database-schema`, were verified in the source of `laravel/boost` v2.10.4 (`src/Mcp/Tools/`), where a tool is named after its class in kebab case.
-- **Laravel Telescope.** When the project uses `laravel/telescope`, `@skills/laravel-telescope/SKILL.md` may read the query entries the application recorded before this run for the same statement, and only after the guard printed `ok`. The Tinker run records no query: the command sets `TELESCOPE_ENABLED=false`, and the guard refuses with `refused:telescope` when recording is still on. A Telescope fact is the recorded `time`, the `slow` flag, or the number of entries with the same `hash`. The report never quotes the recorded statement: Telescope stores it with its bindings inlined. The report quotes the `file` of an entry relative to the project root and never an absolute path.
+- **Laravel Telescope.** When the project uses `laravel/telescope`, `@skills/laravel-telescope/SKILL.md` may read the query entries the application recorded before this run for the same statement, and only after the guard printed `ok`. The Tinker run stores no Telescope entry: the command sets `TELESCOPE_ENABLED=false`, the snippet stops the recording and drops the queued entries first, and the guard refuses with `refused:telescope` when the configuration still enables it. A Telescope fact is the recorded `time`, the `slow` flag, or the number of entries with the same `hash`. The report never quotes the recorded statement: Telescope stores it with its bindings inlined. The report quotes the `file` of an entry relative to the project root and never an absolute path.
 
 ## What the mechanism does not cover
 
@@ -109,7 +113,8 @@ CASEY_SNIPPET
 - A commit on the pull request branch by an account other than the author. The trust rule reads the author of the pull request only.
 - The name `localhost`, which the guard accepts without resolving it.
 - Files the boot writes inside the checkout (logs, caches). They are git-ignored runtime files, and `casey` never writes a tracked file.
-- A Telescope entry of the boot. When a project keeps Telescope on through a configuration that ignores `TELESCOPE_ENABLED`, Telescope starts at the boot, before the guard refuses. It can then write an entry of the Tinker command to its storage connection, which the guard never checked. No query of the snippet runs in that case.
+- A Telescope entry update of the boot. When a project keeps Telescope on through a configuration that ignores `TELESCOPE_ENABLED`, Telescope starts at the boot. `Telescope::flushEntries()` drops the queued entries, not an entry update (`Telescope::recordUpdate()`, which the job watchers use). No query of the snippet runs in that case.
+- The cache entry of a Boost `database-schema` call. It goes to the default cache store of the application, whose connection the guard never checked (*Laravel Boost and Laravel Telescope* above).
 - The configuration the Laravel Boost server loaded when it started. `casey:default=ok` proves the default connection of the Tinker process. A Boost server started before the checkout reached the reviewed head, or before a configuration change, can hold another default connection.
 - The plan of the local database. It reflects the local data volume and statistics, and `EXPLAIN` here is plain, so no latency is measured. A table size comes from `SHOW INDEX` through the plain database client only.
 
@@ -120,7 +125,7 @@ Block 1 holds the pure functions. Block 2 uses them. `casey` pastes both blocks,
 ```php
 $loopback = ['localhost', '127.0.0.1', '::1', '[::1]'];
 $tokens = [
-    'guard' => ['ok', 'refused:driver', 'refused:environment', 'refused:host', 'refused:no-host', 'refused:url', 'refused:telescope'],
+    'guard' => ['ok', 'refused:driver', 'refused:environment', 'refused:host', 'refused:no-host', 'refused:url', 'refused:dsn', 'refused:telescope'],
     'default' => ['ok', 'refused'],
     'error' => ['spec', 'model', 'statement', 'explain'],
 ];
@@ -131,39 +136,50 @@ $emit = static function (string $key, string|int $value) use ($tokens): void {
 };
 $hostOf = static fn (mixed $host): string => is_string($host) ? strtolower(trim($host)) : '';
 $hostsOf = static fn (array $section): array => array_map($hostOf, array_values((array) ($section['host'] ?? [])));
-$sectionHosts = static function (mixed $section) use ($hostOf, $hostsOf): ?array {
+$isDsnPart = static fn (mixed $part): bool => $part === null || (is_scalar($part) && preg_match('/[;=]/', (string) $part) !== 1);
+$dsnSafe = static fn (array $section): bool => $isDsnPart($section['database'] ?? null) && $isDsnPart($section['port'] ?? null) && $isDsnPart($section['unix_socket'] ?? null);
+$sectionHosts = static function (mixed $section) use ($hostOf, $hostsOf, $dsnSafe): array|string {
     $hosts = [];
     foreach (is_array($section) && isset($section[0]) ? $section : [$section] as $entry) {
         if (is_array($entry) && isset($entry['url'])) {
-            return null;
+            return 'refused:url';
+        }
+        if (is_array($entry) && ! $dsnSafe($entry)) {
+            return 'refused:dsn';
         }
         $hosts = [...$hosts, ...(is_array($entry) ? $hostsOf($entry) : [$hostOf($entry)])];
     }
 
     return $hosts;
 };
-$guard = static function (array $connection, string $environment) use ($loopback, $hostsOf, $sectionHosts): string {
+$guard = static function (array $connection, string $environment) use ($loopback, $hostsOf, $sectionHosts, $isDsnPart, $dsnSafe): string {
     if (! in_array($connection['driver'] ?? null, ['mysql', 'mariadb'], true)) {
         return 'refused:driver';
     }
     if (! in_array($environment, ['local', 'testing'], true)) {
         return 'refused:environment';
     }
+    if (! $dsnSafe($connection)) {
+        return 'refused:dsn';
+    }
     $hosts = $hostsOf($connection);
     foreach (['read', 'write'] as $type) {
         $found = isset($connection[$type]) ? $sectionHosts($connection[$type]) : [];
-        if ($found === null) {
-            return 'refused:url';
+        if (is_string($found)) {
+            return $found;
         }
         $hosts = [...$hosts, ...$found];
     }
     $url = $connection['url'] ?? null;
-    if (is_string($url) && $url !== '') {
-        $urlHost = parse_url($url, PHP_URL_HOST);
-        if (! is_string($urlHost)) {
+    if ($url !== null && $url !== '') {
+        $parts = is_string($url) ? parse_url($url) : false;
+        if (! is_array($parts) || ! is_string($parts['host'] ?? null) || isset($parts['query']) || ! in_array(strtolower($parts['scheme'] ?? ''), ['mysql', 'mariadb'], true)) {
             return 'refused:url';
         }
-        $hosts[] = strtolower($urlHost);
+        if (! $isDsnPart(rawurldecode($parts['path'] ?? ''))) {
+            return 'refused:dsn';
+        }
+        $hosts[] = strtolower($parts['host']);
     }
     if ($hosts === [] && ($connection['unix_socket'] ?? '') === '') {
         return 'refused:no-host';
@@ -215,6 +231,10 @@ $isSpec = static fn (mixed $spec): bool => is_array($spec)
 
 ```php
 $run = static function () use ($emit, $guard, $accept, $isSpec): void {
+    if (class_exists(\Laravel\Telescope\Telescope::class)) {
+        \Laravel\Telescope\Telescope::stopRecording();
+        \Laravel\Telescope\Telescope::flushEntries();
+    }
     $path = (string) getenv('CASEY_QUERY_SPEC');
     $spec = is_file($path) && is_readable($path) ? json_decode((string) file_get_contents($path), true) : null;
     if (! $isSpec($spec)) {
