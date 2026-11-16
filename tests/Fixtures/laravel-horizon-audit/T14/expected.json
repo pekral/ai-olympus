@@ -1,0 +1,10 @@
+{
+    "scenario": "T14",
+    "description": "The same fixture audited twice gives identical outcomes",
+    "evaluated": true,
+    "deterministic": true,
+    "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:PASS"
+    ]
+}

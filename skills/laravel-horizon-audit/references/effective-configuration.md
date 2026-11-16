@@ -4,15 +4,17 @@
 - Read each PHP config file as text. Interpret a literal scalar, a literal array, a class constant of the project, and a plain `env('NAME', <literal>)` call.
 - A value inside `env(...)` is **unknown**: the audit never reads `.env`, so the literal fallback shows only what applies when the variable is absent. Record the fallback as `fallback: <literal>` and the value as `unknown`.
 - A value built from a function call, a conditional, a loop, string concatenation with an unknown part, or a helper is `unknown`. Never evaluate it.
-- Never `include`, `require`, or execute a config file, never run `php artisan`, `tinker`, or `config:show`, and never open a `.env*` file other than `.env.example`.
+- Never `include`, `require`, or execute a config file, never run `php artisan`, `tinker`, or `config:show`, never run a command that shows a configuration or environment value in any mode (`SKILL.md` *Constraints*), and never open a `.env*` file other than `.env.example`.
 - Record every value with its `file:line`.
 
 ## Effective supervisor configuration
 1. Read `defaults` and `environments` of `config/horizon.php`.
-2. For each audited environment, take each supervisor of the environment and merge it over the `defaults` entry of the same name. The environment value wins. When the installed `vendor/laravel/horizon` shows a different merge, follow the installed source and say so. Without the source, treat a list value (the `queue` list) as `UNVERIFIED` for the merge result.
-3. Fill each option the merged row lacks with the Horizon default of the detected version, marked `built-in default`, only when the installed source states it. Otherwise leave it unknown.
-4. Keep the provenance of each value: `defaults`, `environment <name>`, or `built-in default`, with `file:line`.
-5. An environment key that is a wildcard or that the audit cannot match to the audited `environment` is `UNVERIFIED`.
+2. Resolve the environment key. An exact key of `environments` wins. Otherwise the first key that matches the audited `environment` as a wildcard pattern applies, and `*` is the fallback environment. Horizon 5.x selects the environment with `Str::is($name, $environment)` and takes the first match.
+3. Merge the whole supervisor map. Horizon 5.x runs `array_replace_recursive($defaults, $environmentPlan)` over every supervisor of the environment. The result holds every supervisor of `defaults` and every supervisor of the environment. A supervisor that only `defaults` defines therefore runs in every environment, and for a supervisor in both the environment value wins. A list value such as `queue` is replaced index by index, not appended. A supervisor deploys only when its merged `maxProcesses` is above 0.
+4. Confirm the merge against the installed `vendor/laravel/horizon` source (`ProvisioningPlan`). When it shows a different merge, follow the installed source and say so. Without the source or for another major version, the merge result of a defaults-only supervisor and of a list value is `UNVERIFIED`. The audit still lists such a supervisor and never omits it.
+5. Fill each option the merged row lacks with the Horizon default of the detected version, marked `built-in default`, only when the installed source states it. Otherwise leave it unknown.
+6. Keep the provenance of each value: `defaults`, `environment <name>`, or `built-in default`, with `file:line`.
+7. An environment key that the audit cannot match to the audited `environment` (for example one built from an expression) is `UNVERIFIED`.
 
 The audit of a supervisor uses the merged row. Auditing `defaults` and the override as separate fields misses the value that applies.
 

@@ -1,0 +1,8 @@
+{
+    "scenario": "T16",
+    "description": "The dashboard authorization cannot be read from the code",
+    "evaluated": false,
+    "outcomes": [
+        "HZ-007:UNVERIFIED"
+    ]
+}

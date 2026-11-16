@@ -1,0 +1,13 @@
+{
+    "scenario": "T7",
+    "description": "defaults timeout 60 alone passes; the production override makes the merged timeout 150, above retry_after 120",
+    "evaluated": true,
+    "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:FAIL"
+    ],
+    "severity": [
+        "HIGH",
+        "CRITICAL"
+    ]
+}

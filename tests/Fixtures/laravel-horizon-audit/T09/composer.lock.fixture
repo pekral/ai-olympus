@@ -1,0 +1,6 @@
+{
+    "packages": [
+        {"name": "laravel/framework", "version": "v12.0.0"},
+        {"name": "laravel/horizon", "version": "v5.30.0"}
+    ]
+}

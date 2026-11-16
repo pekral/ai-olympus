@@ -1,0 +1,7 @@
+<?php
+
+return [
+    'redis' => [
+        'default' => ['database' => 0, 'prefix' => 'app_'],
+    ],
+];

@@ -1,0 +1,8 @@
+{
+    "scenario": "T12",
+    "description": "A static audit run connects to no Redis and runs no php artisan command",
+    "evaluated": false,
+    "outcomes": [
+        "NO_RUNTIME_ACCESS"
+    ]
+}

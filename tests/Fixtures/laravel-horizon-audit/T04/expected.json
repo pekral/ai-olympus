@@ -1,0 +1,13 @@
+{
+    "scenario": "T4",
+    "description": "Two Laravel connections share one Redis database, prefix, and queue, and differ in retry_after",
+    "evaluated": true,
+    "outcomes": [
+        "HZ-001:WARN",
+        "HZ-002:FAIL"
+    ],
+    "severity": [
+        "HIGH",
+        "CRITICAL"
+    ]
+}

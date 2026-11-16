@@ -1,0 +1,12 @@
+<?php
+
+return [
+    'defaults' => [
+        'supervisor-1' => ['connection' => 'redis', 'queue' => ['default'], 'balance' => 'auto', 'timeout' => 60],
+    ],
+    'environments' => [
+        'production' => [
+            'supervisor-1' => ['maxProcesses' => 4],
+        ],
+    ],
+];

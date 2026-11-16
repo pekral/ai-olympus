@@ -1,0 +1,8 @@
+<?php
+
+return [
+    'connections' => [
+        'redis' => ['driver' => 'redis', 'connection' => 'default', 'queue' => 'default', 'retry_after' => 90],
+        'redis-b' => ['driver' => 'redis', 'connection' => 'other', 'queue' => 'default', 'retry_after' => 120],
+    ],
+];
