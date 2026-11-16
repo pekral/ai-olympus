@@ -78,10 +78,9 @@ test('the pre-push gate runs the pr-gate fixers on every repository and the chec
     expect(packageSource('docs/installation.md'))->toContain(
         '(the `pr-gate` fixers run before a push through `run-gate.sh --exclusive` instead, because a fixer rewrite fails `--tier pr`)',
     );
-    expect(packageSource('rules/compound-engineering/concurrency.md'))->toContain(
-        'The pre-push `pr-gate` fixers take it through `run-gate.sh --exclusive`.',
-    )
-        ->not->toContain('`run-gate.sh --tier pr` and `--tier full` hold it for the run.');
+    $concurrency = packageSource('rules/compound-engineering/concurrency.md');
+    expect($concurrency)->toContain('The pre-push `pr-gate` fixers take it through `run-gate.sh --exclusive`.');
+    expect($concurrency)->not->toContain('`run-gate.sh --tier pr` and `--tier full` hold it for the run.');
     expect($gates)->not->toContain('`skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`')
         ->and($gates)->not->toContain('Without `pr-gate` nothing runs before a push');
 });
