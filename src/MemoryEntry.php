@@ -9,6 +9,8 @@ final readonly class MemoryEntry
 
     private const PATH_PATTERN = '/^(?=.*[A-Za-z0-9])[\w.\/\\\\:@$-]{1,200}$/';
 
+    private const EXAMPLE_PATTERN = '/^([A-Za-z0-9_.\/-]{1,100}:[1-9]\d{0,5}|supersedes [a-z0-9][a-z0-9-]{0,99})?$/';
+
     private const MAX_PATHS = 10;
 
     private const LINE_LIMITS = ['trigger' => 80, 'lesson' => 100, 'rule' => 160, 'evidence' => 120, 'example' => 120];
@@ -103,6 +105,10 @@ final readonly class MemoryEntry
             if (preg_match('/\A[^\r\n\x{2028}\x{2029}]{0,' . $limit . '}\z/u', $entry->{$field}) !== 1) {
                 throw InstallerFailure::memoryEntryInvalid(sprintf('"%s" must be one line of at most %d characters', $field, $limit));
             }
+        }
+
+        if (preg_match(self::EXAMPLE_PATTERN, $entry->example) !== 1) {
+            throw InstallerFailure::memoryEntryInvalid('"example" must be a file:line pointer or exactly "supersedes <slug>"');
         }
 
         if (count($entry->paths) > self::MAX_PATHS) {

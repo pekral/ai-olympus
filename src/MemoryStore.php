@@ -61,7 +61,8 @@ final readonly class MemoryStore
     }
 
     /**
-     * An entry whose slug another entry names in its example as `supersedes <slug>` is never returned.
+     * An entry that a later entry supersedes is never returned. The marker counts only as the whole `example`
+     * (`supersedes <slug>`) of an entry written after the entry it names, so it cannot hide a slug that does not exist yet.
      *
      * @param list<string> $paths
      * @param list<string> $symbols
@@ -87,7 +88,7 @@ final readonly class MemoryStore
                 ) . ') AS path_hit FROM memory_entries e LEFT JOIN ranked r ON r.id = e.id '
                 . 'WHERE (e.role = :role OR e.role = \'shared\') AND (path_hit = 1 OR r.id IS NOT NULL) '
                 . 'AND NOT EXISTS (SELECT 1 FROM memory_entries s '
-                . 'WHERE instr(\' \' || s.example || \' \', \' supersedes \' || e.slug || \' \') > 0) '
+                . 'WHERE s.example = \'supersedes \' || e.slug AND s.id > e.id) '
                 . 'ORDER BY path_hit DESC, r.score ASC, e.slug ASC LIMIT ' . $limit,
             );
             $statement->execute($params);
