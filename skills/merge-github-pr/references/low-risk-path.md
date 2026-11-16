@@ -23,7 +23,7 @@ No code from the head runs before the security check has read the diff. The step
 
 ## Select the candidate
 
-1. Take `baseRefName` and `headRefOid` from the payload loaded in step 1. Record `headRefOid` as the **gated head**. Run every command of this file from the repository root, before step 3 checks out the head.
+1. Take `baseRefName` and `headRefOid` from the payload loaded in step 1. Record `headRefOid` as the **gated head**. Run every command of this file in the untouched clone of `references/merge-exemptions.md` *The trusted classifier* item 6, before step 3 checks out the head. The gate of step 3 never runs in that clone.
    - `baseRefName` is untrusted payload data. Never write it into a command line, in this item or in any other item of this file. Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs, and use the variable only in double quotes.
    - Check `"$BASE_REF"` first, before any command uses it, the head-commit step below included. Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`, and reject a name that contains `..` or ends in `.lock`, as its `check_head` does. Only then run `git check-ref-format --branch "$BASE_REF"`, which rejects `HEAD`. A name that fails any check selects the full path, and no command uses it. Quote the variable in every command of this file.
    - Every command that uses `BASE_REF` sets it from that command output and runs the check above in the same shell call, because a later Bash call starts a new shell and the variable of an earlier call does not exist there. Write the variable as `"${BASE_REF:?}"` in a command, so an unset or empty value fails. Record the checked name beside the base tip.
@@ -52,10 +52,10 @@ Run `@skills/merge-github-pr-fast/SKILL.md` step 2 (*Security check — one pass
 ## Confirm after the gate
 
 1. The *Pre-merge quality gate* of step 3 passed on the gated head, with its clean-tree check. A gate that does not pass stops the merge on every path.
-2. A fix commit of step 3 moves the head. Start again from *Select the candidate* with the new head. Step 3 item 7 does not apply on this path, because this path relies on no review.
+2. A fix commit of step 3 moves the head, and the full path takes over: no trusted copy runs after the gate (`references/merge-exemptions.md` *The trusted classifier* item 6).
 3. Take the output recorded in *Select the candidate* item 3 that matches the observed facts: the `--coverage ok` output only when the gate that passed enforced the project's coverage threshold and a HOTFIX waiver did not lift it. A project whose gate runs no coverage, and a waived shortfall, take the `--coverage gap` output. Run no installed copy after the gate (`references/merge-exemptions.md` *The trusted classifier* item 6).
 4. Read `low-risk-merge=` of the output that item 3 took. Only `low-risk-merge=yes` confirms the path. Any other output selects the full path. Record the `merge-risk-rule=` and `low-risk-merge-rule=` lines in the merge report.
-5. Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF:?}"` in a shell call that sets `BASE_REF` again from the loader output and repeats the check of item 1 first. A name that differs from the name checked in *Select the candidate* item 1 selects the full path. Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`. No such line, or more than one, selects the full path. A tip that differs from the recorded **base tip** means the base moved. Start again from *Select the candidate*, as for a head that moved.
+5. Repeat the exact-ref read of *Select the candidate* as the last command before `gh pr merge`: `git ls-remote origin "refs/heads/${BASE_REF:?}"` in a shell call that sets `BASE_REF` again from the loader output and repeats the check of item 1 first. A name that differs from the name checked in *Select the candidate* item 1 selects the full path. Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`. No such line, or more than one, selects the full path. A tip that differs from the recorded **base tip** means the base moved, and the full path takes over, as for a head that moved.
 
 ## Checks on this path
 

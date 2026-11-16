@@ -31,7 +31,7 @@ test('the merge path is opt-in and selected by the verdict of the trusted classi
         ->and($path)->toContain('selects the full path and the report says why');
 });
 
-test('the diff is made with text mode from the repository root and the base symlinks are resolved', function (): void {
+test('the diff is made with text mode in the untouched clone and the base symlinks are resolved', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
 
     expect($path)->toContain(
@@ -39,7 +39,9 @@ test('the diff is made with text mode from the repository root and the base syml
     )
         ->and($path)->toContain('--merge-risk --base <base tip> --ignore-assignment --diff - --coverage ok --gate green')
         ->and($path)->not->toContain('git merge-base')
-        ->and($path)->toContain('Run every command of this file from the repository root, before step 3 checks out the head.')
+        ->and($path)->toContain(
+            'Run every command of this file in the untouched clone of `references/merge-exemptions.md` *The trusted classifier* item 6, before step 3 checks out the head.',
+        )
         ->and($path)->toContain('`--text` and the exclusion of `.gitattributes` keep a NUL byte or a `-diff` attribute from hiding a file')
         ->and($path)->toContain('`--submodule=short --ignore-submodules=none` keep a submodule pointer change from hiding')
         ->and($path)->toContain('`--base <base tip>` lets the classifier resolve the symlinks of the tree the merge lands on')
@@ -65,7 +67,7 @@ test('the base tip is read again as the last command before the merge and a move
         ->and($confirm)->toContain('Keep only the output line whose ref field is exactly `refs/heads/${BASE_REF}`.')
         ->and($confirm)->toContain('No such line, or more than one, selects the full path.')
         ->and($confirm)->toContain('A name that differs from the name checked in *Select the candidate* item 1 selects the full path.')
-        ->and($confirm)->toContain('means the base moved. Start again from *Select the candidate*')
+        ->and($confirm)->toContain('means the base moved, and the full path takes over')
         ->and($path)->not->toContain('git ls-remote origin refs/heads/<baseRefName>')
         ->and($path)->not->toContain('refs/heads/<baseRefName>')
         ->and(strpos($confirm, 'Run the trusted classifier again'))->toBeLessThan((int) strpos($confirm, 'git ls-remote origin'))

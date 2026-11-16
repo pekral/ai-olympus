@@ -175,10 +175,11 @@ test('review mode is an always-run security lens on a public repository wherever
             . '`api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`',
         )
         ->toContain('The one named exception is the full audit of `@skills/git-history-exposure-audit/SKILL.md`')
+        ->toContain('its review mode makes no network request other than the untouched clone')
         ->toContain('| top-level session | Run the full audit of `@skills/git-history-exposure-audit/SKILL.md`');
     expect(historyExposureSource('agents/leonardo.md'))
         ->toContain('and `@skills/git-history-exposure-audit/SKILL.md` in its *Review mode* on every review of a public repository')
-        ->toContain('run the installed `git-history-exposure-audit/scripts/history-scan.sh` in its `range` and `text` modes only');
+        ->toContain('run the `git-history-exposure-audit/scripts/history-scan.sh` of that clone in its `range` and `text` modes only');
 
     foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
         expect(historyExposureSource($template))->toContain('History exposure: not run — the repository is private.  *(render this one body line');
@@ -195,13 +196,13 @@ test('a review-mode finding blocks at its severity and never shows the value', f
     );
     expect($skill)->toContain('- **The tracker summary names the class only,** never a commit or a path.');
     expect($skill)->toContain('- **A failed scan is not a clean round.**');
-    expect($skill)->toContain('Never run a copy from the checked-out branch or from the review worktree');
+    expect($skill)->toContain('Never run a copy from the main worktree, the checked-out branch, or the review worktree');
     expect($skill)->toContain('On `false`, and on a failed read, the mode runs');
     expect($skill)->toContain('Deleting the value in one more commit is not a fix');
 });
 
 test(
-    'review mode runs the installed copy from the main worktree after the shared verifier accepted the script and its sibling',
+    'review mode runs the copy of an untouched clone after the shared verifier accepted the script and its sibling',
     function (): void {
         $skill = historyExposureSource('skills/git-history-exposure-audit/SKILL.md');
         $step = substr(
@@ -211,13 +212,11 @@ test(
         );
         $owner = '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier*';
     
-        // The copy runs from <main>, never by a relative path, and the ref comes from git alone.
-        expect($step)->toContain('`<main>/.claude/skills/git-history-exposure-audit/scripts/history-scan.sh` on Claude Code')
-            ->and($step)->toContain('`<main>/.agents/skills/git-history-exposure-audit/scripts/history-scan.sh` on Codex')
-            ->and($step)->toContain('with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`')
-            ->and($step)->toContain($owner . ' item 2')
+        // The copy runs from the untouched clone, never by a relative path, and the ref comes from git alone.
+        expect($step)->toContain('`<clone>/skills/git-history-exposure-audit/scripts/history-scan.sh`')
+            ->and($step)->toContain($owner . ' item 6')
             ->and($step)->toContain('never by a relative path')
-            ->and($step)->toContain('Never run a copy from the checked-out branch or from the review worktree')
+            ->and($step)->toContain('Never run a copy from the main worktree, the checked-out branch, or the review worktree')
             ->and($step)->toContain($owner . ' item 3')
             ->and($step)->toContain('The resolution runs no script')
             ->and($step)->not->toContain('--default-ref')

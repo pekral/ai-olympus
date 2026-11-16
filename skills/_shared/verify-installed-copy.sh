@@ -1,42 +1,43 @@
 #!/usr/bin/env bash
-# verify-installed-copy.sh — the one check that an installed skill copy is the copy the package installed and the
-# copy the default branch ships, before a step runs it as a trusted copy.
+# verify-installed-copy.sh — the one check that a skill copy holds the content the default branch ships, before a
+# step runs it as a trusted copy.
 #
 # Why this exists
-#   The merge gate and the code review run some package scripts as a trusted copy: the installed copy under
-#   `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex) of the main worktree, never the copy of the branch
-#   under review. A file in the main worktree is a trusted copy only while it is a regular file that holds the content
-#   the package installed and the default branch ships. This script is the only place that decides whether an
-#   installed copy can run as a trusted copy.
-#   `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* owns when a step runs it.
+#   The merge gate and the code review run some package scripts as a trusted copy, never the copy of the branch under
+#   review. A trusted copy runs only in the clone that `skills/merge-github-pr/references/merge-exemptions.md`
+#   *The trusted classifier* item 6 defines: the default-branch file below `skills/`, or the copy the package
+#   installed below `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex). This script is the only place that
+#   decides whether such a file can run as a trusted copy. That section owns when a step runs it.
 #
 # Usage
 #   verify-installed-copy.sh --root <main worktree> --commit <default-branch commit id> <installed path>...
 #   verify-installed-copy.sh --self-test
 #
-#   --root   the absolute path of the main worktree, the parent of `git rev-parse --path-format=absolute
-#            --git-common-dir`
+#   --root   the absolute path of the top of the clone
 #   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
-#   <installed path>  a path relative to the root, below `.claude/skills/` or `.agents/skills/`
+#   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
 #
 #   The script reads no file beside itself, so a caller runs it from the default-branch blob:
 #   `git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root ... --commit "${TIP:?}" ...`
-#   Every git command of the script reads the objects the commit names, with replacement objects off
-#   (`GIT_NO_REPLACE_OBJECTS=1`).
+#   Every git command of the script reads the objects the commit names, with replacement objects, hooks, and the
+#   file-system monitor off (`GIT_NO_REPLACE_OBJECTS=1`, `core.hooksPath=/dev/null`, `core.fsmonitor=false`).
 #
-# What it checks, for every path, in this order
+# What it checks
+#   0. The git directory of the root has one worktree. Otherwise every path is refused with `other-worktree`.
+#   Then, for every path, in this order:
 #   1. No component below the root is a symbolic link: not the file and not a directory on the way to it.
 #   2. The path is a regular file.
-#   3. Its SHA-256 equals the hash the installer recorded for that path in
+#   3. For a path below `.claude/skills/` or `.agents/skills/` only: its SHA-256 equals the hash the installer
+#      recorded for that path in
 #      `<git dir of the root>/ai-olympus/installed-copies.sha256`. The installer writes that reference outside the
 #      working tree, so no checkout and no file of a branch changes it. A missing reference, a reference that is
 #      not a regular file, and a path the reference does not list exactly once are a refusal.
 #   4. It equals the default-branch blob at `skills/<path below the skills directory>` when the default branch
-#      ships that file, otherwise at the installed path when the default branch tracks it. No blob is a refusal.
+#      ships that file, otherwise at the given path when the default branch tracks it. No blob is a refusal.
 #
 # Output (stdout)
 #   One line per path: `installed-copy=verified|<path>` or `installed-copy=refused|<path>|<reason>`, where the reason
-#   is one of `symlink`, `no-installed-copy`, `not-regular`, `no-reference`, `hash-mismatch`,
+#   is one of `other-worktree`, `symlink`, `no-installed-copy`, `not-regular`, `no-reference`, `hash-mismatch`,
 #   `no-default-branch-blob`, `blob-mismatch`. The last line is `installed-copy-verdict=verified` only when every path
 #   passed every check; every other outcome ends with `installed-copy-verdict=refused`. A caller runs the copy only
 #   after it read the verified verdict line: an empty output is a refusal too.
@@ -49,6 +50,8 @@
 
 set -uo pipefail
 export GIT_NO_REPLACE_OBJECTS=1
+export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null \
+  GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
 
 REFERENCE_FILE='ai-olympus/installed-copies.sha256'
 
@@ -70,10 +73,10 @@ sha256_of() {
   fi
 }
 
-# A path is relative, below an installed skills directory, and has no empty, `.`, or `..` component.
+# A path is relative, below a skills directory, and has no empty, `.`, or `..` component.
 valid_installed_path() {
   local path="$1" component parts=()
-  [[ "$path" =~ ^\.(claude|agents)/skills/. ]] || return 1
+  [[ "$path" =~ ^(\.(claude|agents)/)?skills/. ]] || return 1
   [[ "$path" != *$'\n'* ]] || return 1
   IFS='/' read -r -a parts <<<"$path"
   for component in "${parts[@]}"; do
@@ -114,8 +117,8 @@ recorded_hash() {
 
 # Prints the refusal reason of check 4, or nothing when the copy equals the default-branch blob.
 blob_refusal() {
-  local root="$1" commit="$2" path="$3" file="$4" source blob_path
-  source="skills/${path#.*/skills/}"
+  local root="$1" commit="$2" path="$3" file="$4" source="$3" blob_path
+  [[ "$path" != skills/* ]] && source="skills/${path#.*/skills/}"
   blob_path=''
   if [[ "$(git -C "$root" cat-file -t "$commit:$source" </dev/null 2>/dev/null)" == 'blob' ]]; then
     blob_path="$source"
@@ -172,18 +175,22 @@ verify_main() {
     exit 3
   fi
 
-  local refused=0 reason recorded
+  local refused=0 reason recorded worktrees
+  worktrees="$(git -C "$root" worktree list --porcelain </dev/null 2>/dev/null | grep -c '^worktree ')"
   for path in "${paths[@]}"; do
-    reason="$(file_refusal "$root" "$path")"
-    if [[ -z "$reason" ]]; then
+    reason=''
+    [[ "$worktrees" == 1 ]] || reason='other-worktree'
+    [[ -n "$reason" ]] || reason="$(file_refusal "$root" "$path")"
+    if [[ -z "$reason" && "$path" != skills/* ]]; then
       recorded="$(recorded_hash "$git_dir/$REFERENCE_FILE" "$path")"
       if [[ -z "$recorded" ]]; then
         reason='no-reference'
       elif [[ "$(sha256_of "$root/$path")" != "$recorded" ]]; then
         reason='hash-mismatch'
-      else
-        reason="$(blob_refusal "$root" "$commit" "$path" "$root/$path")"
       fi
+    fi
+    if [[ -z "$reason" ]]; then
+      reason="$(blob_refusal "$root" "$commit" "$path" "$root/$path")"
     fi
     if [[ -z "$reason" ]]; then
       printf 'installed-copy=verified|%s\n' "$path"
@@ -300,6 +307,40 @@ verify_self_test() {
   git -C "$main" update-ref "$ref" "$default_tip"
   git -C "$main" branch -q -D moved
 
+  # Every git command of the check runs with hooks and the file-system monitor off.
+  reset_install
+  mkdir -p "$tmp/fakebin"
+  # shellcheck disable=SC2016 # the fake git expands the variables when it runs
+  printf '#!/usr/bin/env bash\nprintf "%%s|%%s|%%s|%%s|%%s\\n" "${GIT_CONFIG_COUNT:-}" "${GIT_CONFIG_KEY_0:-}" "${GIT_CONFIG_VALUE_0:-}" "${GIT_CONFIG_KEY_1:-}" "${GIT_CONFIG_VALUE_1:-}" >>"%s"\nexec "%s" "$@"\n' \
+    "$tmp/git-env" "$(command -v git)" >"$tmp/fakebin/git"
+  chmod +x "$tmp/fakebin/git"
+  PATH="$tmp/fakebin:$PATH" bash "$script" --root "$main" --commit "$(tip)" "$file" >/dev/null 2>&1
+  checks=$((checks + 1))
+  if [[ -s "$tmp/git-env" ]] && ! grep -qvxF '2|core.hooksPath|/dev/null|core.fsmonitor|false' "$tmp/git-env"; then
+    echo 'ok    every git command runs with hooks and the file-system monitor off'
+  else
+    echo "FAIL: a git command ran without hooks and the file-system monitor off: $(sort -u "$tmp/git-env" 2>/dev/null | tr '\n' ' ')" >&2
+    failures=$((failures + 1))
+  fi
+  rm -rf "$tmp/fakebin" "$tmp/git-env"
+
+  # A root that shares its git directory with another worktree.
+  reset_install
+  git -C "$main" worktree add -q --detach "$tmp/second" 2>/dev/null
+  expect 'a root whose git directory another worktree shares is refused' 3 "installed-copy=refused|$file|other-worktree" \
+    --root "$main" --commit "$(tip)" "$file"
+  git -C "$main" worktree remove --force "$tmp/second"
+
+  # A file of the default branch in the checkout: no installer reference, the blob at the same path.
+  reset_install
+  rm -rf "$main/.git/ai-olympus"
+  expect 'a default-branch file of the checkout is verified without a recorded hash' 0 'installed-copy=verified|skills/_shared/tool.sh' \
+    --root "$main" --commit "$(tip)" 'skills/_shared/tool.sh'
+  cp "$tmp/replaced.sh" "$main/skills/_shared/tool.sh"
+  expect 'a checkout file that differs from the default-branch blob is refused' 3 'installed-copy=refused|skills/_shared/tool.sh|blob-mismatch' \
+    --root "$main" --commit "$(tip)" 'skills/_shared/tool.sh'
+  git -C "$main" checkout -q -- skills/_shared/tool.sh
+
   # A symbolic link as the file.
   reset_install
   rm "$main/$file"
@@ -362,8 +403,8 @@ verify_self_test() {
   expect 'a short commit id is a usage error' 1 'installed-copy-verdict=refused' --root "$main" --commit "$(tip | cut -c1-12)" "$file"
   expect 'a commit that is not in the checkout is refused' 3 'installed-copy-verdict=refused' \
     --root "$main" --commit '0123456789abcdef0123456789abcdef01234567' "$file"
-  expect 'a path outside the installed skills directories is a usage error' 1 'installed-copy-verdict=refused' \
-    --root "$main" --commit "$(tip)" 'skills/_shared/tool.sh'
+  expect 'a path outside the skills directories is a usage error' 1 'installed-copy-verdict=refused' \
+    --root "$main" --commit "$(tip)" 'src/tool.sh'
   expect 'a path with a parent component is a usage error' 1 'installed-copy-verdict=refused' \
     --root "$main" --commit "$(tip)" '.claude/skills/../../skills/_shared/tool.sh'
   expect 'a root below the top of the checkout is refused' 3 'installed-copy-verdict=refused' --root "$main/skills" --commit "$(tip)" "$file"

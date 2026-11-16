@@ -6,32 +6,42 @@ Loaded by `@skills/merge-github-pr/SKILL.md` step 2 (*Pre-checks*). Step numbers
 
 Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review: the `FAST`-tier exemption below and *Merge path* (`references/low-risk-path.md`). A branch proposes a script, and a pull request that edits the tier logic would otherwise grade itself. This is the one owner of the rule.
 
-1. Fetch the default branch (`git fetch origin "+refs/heads/<default branch>:refs/remotes/origin/<default branch>"`).
-2. Run the installed copy from the main worktree of the repository, never from the checked-out head: `<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex, with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`. Never run `skills/_shared/classify-risk.sh` of the checked-out branch, of the gated head, or of a review worktree.
+1. Create the untouched clone of item 6 before any other command of the run uses the repository. Run every command of this section in it.
+2. Run the trusted copy from that clone: `<clone>/skills/_shared/classify-risk.sh` when the default branch ships `skills/`. When the default branch tracks the installed copies instead, run the dependency install and the package install of `TIP` in the clone first, and use `<clone>/.claude/skills/_shared/classify-risk.sh` on Claude Code or `<clone>/.agents/skills/_shared/classify-risk.sh` on Codex. Never run a copy from the main worktree of the project, from the checked-out branch, from the gated head, or from a review worktree.
 3. Resolve the default branch ref once, as `skills/_shared/read-manifest.sh` does: `git symbolic-ref --quiet refs/remotes/origin/HEAD` prints the fully qualified `refs/remotes/origin/<default branch>`. Accept the output only when it matches `refs/remotes/origin/?*`; any other output and a failed command leave the ref empty, and an empty ref is a failed resolution. Never compare with the short `origin/<default branch>`: a local branch of that name shadows it, so a branch under review could plant the blob that the installed copy is compared with.
-4. Verify the installed `classify-risk.sh` and the two siblings it sources, `domain-vocabulary.sh` and `read-manifest.sh`, with `skills/_shared/verify-installed-copy.sh`, the one verifier of a trusted copy. Its header owns the checks: no symbolic link in any component of the installed path, a regular file, the SHA-256 the installer recorded outside the working tree, and the default-branch blob (`skills/_shared/<file>` when the default branch ships it, otherwise the installed path when the default branch tracks it). The verifier compares with the default-branch tip commit that GitHub names, by object id:
+4. Verify `classify-risk.sh` and the two siblings it sources, `domain-vocabulary.sh` and `read-manifest.sh`, with `skills/_shared/verify-installed-copy.sh`, the one verifier of a trusted copy. Its header owns the checks: one worktree in the clone, no symbolic link in any component of the path, a regular file, for an installed copy, the SHA-256 the installer recorded outside the working tree, and the default-branch blob (`skills/_shared/<file>` when the default branch ships it, otherwise the installed path when the default branch tracks it). The verifier compares with the default-branch tip commit that GitHub names, by object id:
    - Read `TIP` from GitHub: the `defaultBranchRef` target of the repository of the pull request, with `<owner>` and `<name>` from the deterministic loader output. Accept only a full hexadecimal object id.
    - Require the ref of item 3 to resolve to `TIP`, so `read-manifest.sh` reads the manifest of that commit.
-   - Run every git command of the check and of the run with `GIT_NO_REPLACE_OBJECTS=1`.
-   - Run the verifier from the blob of `TIP`, never from an installed or checked-out file.
+   - Run every git command of the check and of the run with replacement objects, hooks, and the file-system monitor off: the two `export` lines of the snippet.
+   - Run the verifier from the blob of `TIP`, never from a file of a worktree.
 
    Run the trusted copy in the same shell call as the resolution of item 3, and only after the last line of the verifier is `installed-copy-verdict=verified`:
    ```bash
+   cd "<clone>" || exit 3
    export GIT_NO_REPLACE_OBJECTS=1
+   export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false
    REF="$(git symbolic-ref --quiet refs/remotes/origin/HEAD)"; [[ "$REF" == refs/remotes/origin/?* ]] || REF=''
    TIP="$(gh api graphql -f query='query($owner:String!,$name:String!){repository(owner:$owner,name:$name){defaultBranchRef{target{oid}}}}' \
      -f owner='<owner>' -f name='<name>' --jq '.data.repository.defaultBranchRef.target.oid')"
    [[ "$TIP" =~ ^[0-9a-f]{40}$ ]] && [ "$(git rev-parse --verify --quiet --end-of-options "${REF:?}^{commit}")" = "${TIP:?}" ] \
-     && verdict="$(git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root "<main>" --commit "${TIP:?}" \
-       .claude/skills/_shared/classify-risk.sh .claude/skills/_shared/domain-vocabulary.sh .claude/skills/_shared/read-manifest.sh)" \
-     && [ "$(printf '%s\n' "$verdict" | tail -n 1)" = 'installed-copy-verdict=verified' ] && "<main>/.claude/skills/_shared/classify-risk.sh" <arguments>
+     && verdict="$(git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root "<clone>" --commit "${TIP:?}" \
+       skills/_shared/classify-risk.sh skills/_shared/domain-vocabulary.sh skills/_shared/read-manifest.sh)" \
+     && [ "$(printf '%s\n' "$verdict" | tail -n 1)" = 'installed-copy-verdict=verified' ] && "<clone>/skills/_shared/classify-risk.sh" <arguments>
    ```
-   On Codex every path starts with `.agents/skills/`. When the default branch tracks the installed copies instead of shipping `skills/`, read the verifier blob at its installed path.
-5. The trusted copy is not available when any of these holds: a last line other than `installed-copy-verdict=verified`, an empty output included; a git or `gh` command that failed, the resolution of item 3 included; a `TIP` that is not a full object id, or that the ref of item 3 does not resolve to. The `FAST`-tier exemption is then not qualified, the low-risk path is not available, and the report says why.
-   - The verifier refuses a symbolic link, a path that is not a regular file, no installed copy, no recorded hash or a different one, no default-branch blob to compare with at either path, and a difference.
-   - A project whose installed copy is not tracked on the default branch therefore takes the full path, and so does a pull request head that adds or changes the installed path.
-   - A copy installed with `--symlink`, and a copy installed before the installer recorded hashes, are refused too: `vendor/bin/ai-olympus install --force` on the default branch writes regular copies and the reference.
-6. **Take the verdict before code from the head runs.** A verdict holds only for the run in the same shell call. Every step of a merge run that needs the trusted classifier runs it before any code from the pull-request head runs in the main worktree: its checkout, its dependency install, its build, its tests, or its gate. After that point a new verdict there never makes a copy trusted again, and no later step of the run runs a trusted copy there. A step after the gate takes the verdict recorded before it (`references/low-risk-path.md` *Select the candidate* item 3).
+   When the default branch tracks the installed copies instead of shipping `skills/`, every path starts with `.claude/skills/` (`.agents/skills/` on Codex), and the verifier blob is read at its installed path.
+5. The trusted copy is not available when any of these holds: no untouched clone (item 6); a last line other than `installed-copy-verdict=verified`, an empty output included; a git or `gh` command that failed, the resolution of item 3 included; a `TIP` that is not a full object id, or that the ref of item 3 does not resolve to. The `FAST`-tier exemption is then not qualified, the low-risk path is not available, and the report says why.
+   - The verifier refuses a second worktree, a symbolic link, a path that is not a regular file, a missing file, for an installed copy no recorded hash or a different one, no default-branch blob to compare with at either path, and a difference.
+   - A project whose default branch neither ships nor tracks the copy therefore takes the full path.
+   - A copy installed with `--symlink` is refused too.
+6. **Only an untouched clone gives a trusted copy.** A clone in which a run checked out a pull-request head or ran its dependency install, build, tests, or gate, in any worktree of the clone, in this run or an earlier one, gives no trusted copy, whatever a check there prints. So the main worktree of a project never gives one. A clone is untouched only when all of these hold:
+   1. The run created it itself, in this run, with the command below, in a new directory that `mktemp -d` creates below the git-ignored run directory (`.claude/run/` on Claude Code, `.codex/run/` on Codex).
+   2. It has one worktree, and its `HEAD` is `TIP`.
+   3. No command ran in it except the commands of this section, a fetch of the pull-request commits by object id with no destination ref, and the installs of item 2. No head is checked out there, and no gate runs there.
+   ```bash
+   git clone --quiet --no-checkout --template= --config core.hooksPath=/dev/null --config core.fsmonitor=false \
+     "https://github.com/<owner>/<name>.git" "<clone>" && git -C "<clone>" checkout --quiet --detach "${TIP:?}"
+   ```
+   `<owner>`, `<name>`, and `TIP` are those of item 4, with `TIP` read in the same shell call. Accept `<owner>` and `<name>` only when each matches `^[A-Za-z0-9_.-]+$`. Take every verdict before the gate of step 3. A step after the gate uses the verdict recorded before it (`references/low-risk-path.md` *Select the candidate* item 3). The run removes the clone when it ends.
 
 ## `FAST`-tier PR exemption (code review not required)
 
