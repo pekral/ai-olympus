@@ -1,5 +1,9 @@
 ## Security Audit Report - <Project Name>
 
+### Route Access
+- `<METHOD> <uri>` — reached by: unauthenticated caller | signed-in user | privileged role — evidence: route `file:line`, middleware `file:line`, authorization `file:line` — verdict: finding | public by design (reason) | not verified (step that settles it)
+- `Route access: not applicable — the diff changes no route`
+
 ### Critical
 1. [file:line] Description
    Category (OWASP): ...

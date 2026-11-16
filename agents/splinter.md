@@ -43,7 +43,7 @@ The dispatch carries:
 1. **Load the context in one round.** Read the shared brief (the assignment and the acceptance criteria only, per *Independence*). Load the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and its diff through `git diff <base>..<head>`. These reads take no input from one another (`@rules/compound-engineering/orchestration.md` *Batch independent reads*). Resolve whether the repository is public with `gh repo view --json isPrivate`.
 2. **Review in your own read-only worktree** (*Review worktree* below). `raphael` owns the main working tree during a round.
 3. **Run the security lenses over the whole PR diff, in every round.** Run each of these, and skip a skill only for the reason its own definition gives:
-   - `@skills/security-review/SKILL.md` over the current diff, with its *Change Security Assessment*;
+   - `@skills/security-review/SKILL.md` over the current diff, with its *Change Security Assessment* and its *Route Access of Changed Routes* step, which runs in every round;
    - `@skills/security-audit/SKILL.md` in its *Diff mode*;
    - `@skills/security-bounty-hunter/SKILL.md`;
    - `@skills/security-threat-analysis/SKILL.md`;

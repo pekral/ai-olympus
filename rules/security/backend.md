@@ -60,6 +60,17 @@ Apply the following rules only if authentication relies on cookies instead of to
 - Handle errors securely without revealing sensitive details to end users.
 - Log access and actions for monitoring, auditing, and detecting abnormal activity.
 
+## Route Access (issue #586)
+Every HTTP route the application serves is either **internal** or **public by design**. An internal route is an admin, back-office, management, debug, or internal-API route that is not meant for anonymous visitors. Whoever reaches an internal route acts with the power of the application behind it, so the route must demand a sign-in on every channel that reaches it: the browser (a session guard) and the REST API (a token guard).
+
+- **An internal route requires a signed-in caller.** The route definition, its group, or its middleware stack carries an authentication control for the guard of the channel. A controller that checks the user inside its own method counts only when the check runs before any action or data of the route is reachable.
+- **A route that is public by design is not a finding.** The review names the reason it is public. `@skills/laravel-authorization-review/references/public-by-design.md` owns the list of those cases and the test that confirms one. A route that only looks public is reported under *Not verified*, as that file states, and never as a hole.
+- **A route whose access the code does not settle is not assumed safe.** The review reports it under *Not verified* with the step that settles it, for example `php artisan route:list --json` or the owner's confirmation that the route is public.
+
+**Severity.** **Critical** when an internal route is reachable without signing in, from a browser or through the REST API. The finding names the route, the HTTP method, and the missing control. A signed-in caller who reaches a route that a privileged role should own is the privilege-escalation check of *Authentication & Access Control* in `@skills/security-review/SKILL.md`, and it keeps the severity of that check.
+
+> **Scope boundary.** This section owns the sign-in requirement of an internal route. Object-level authorization (IDOR / BOLA) stays with `@skills/laravel-authorization-review/SKILL.md`. Raise one finding per route and method, never two for the same line.
+
 ## External Requests
 - Restrict outbound requests to only necessary external services and internal endpoints.
 - Use allowlists to define permitted destinations instead of blocking known bad domains.
