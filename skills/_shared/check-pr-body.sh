@@ -31,8 +31,11 @@
 #   Sections     every always-present section of the template is there, the sections follow
 #                the template's order, and no heading or <details> block outside the
 #                template appears. A heading is a level-1 or level-2 ATX heading (0-3 leading
-#                spaces), a setext heading (a text line over a `===` or `---` underline), or
-#                an HTML <h1> or <h2> line.
+#                spaces), a setext heading (a paragraph line over a `===` or `---` underline,
+#                whatever character the paragraph line starts with), or an HTML <h1> or <h2>
+#                line. A dash line under a list item, a block quote, an indented code block, an
+#                HTML block, or a table is a thematic break and is no heading. A heading nested
+#                inside a list item or a block quote is not read, as an ATX heading there is not.
 #   Merge risk   the heading reads `## Merge risk <icon> <low|medium|high>` and carries one
 #                `**Door:**` line and one `**Blast radius:**` line, or it reads
 #                `## Merge risk ⚪ not computed — <reason>` and carries neither. The signal list
@@ -93,7 +96,20 @@ BLAST_SHAPE='^\*\*Blast radius:\*\* (FAST|STANDARD|CRITICAL) \(.*\)$'
 ATX_SHAPE='^ {0,3}#{1,2}([[:space:]]+(.*))?$'
 SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
-NOT_PARAGRAPH='^[[:space:]]*([-*+>|<]|[0-9]+[.)][[:space:]])'
+# The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
+# CommonMark rules GitHub renders): only a paragraph line is underlined. A list item, a block
+# quote, an indented code block, an HTML block, and a table keep their block until a blank line, so
+# a dash line under one of them is a thematic break. What the line starts with decides nothing:
+# `**Problem**`, `*Problem*`, and `<b>Problem</b>` are paragraph lines.
+THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
+QUOTE_START='^ {0,3}>'
+LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
+LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
+LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
+INDENTED_CODE=$'^( {4}|\t)'
+HTML_RAW_START='^ {0,3}<(!--|\?|![a-z]|!\[cdata\[|(pre|script|style|textarea)([[:space:]>]|$))'
+HTML_BLOCK_START='^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([[:space:]>]|/>|$)'
+HTML_LONE_TAG='^ {0,3}(<[a-z][a-z0-9-]*([[:space:]]+[^<>]*)?/?>|</[a-z][a-z0-9-]*[[:space:]]*>)[[:space:]]*$'
 
 # template_sections <name> — print the template's sections in order, one per line, as
 # `<always|optional>|<heading|details>:<name>`. A section this list does not name is a
@@ -155,27 +171,119 @@ count_chars() {
   LC_ALL=C tr -d '\200-\277' | LC_ALL=C wc -c | tr -d '[:space:]'
 }
 
+# list_item_indent <line> — set LIST_INDENT to the column where the content of the list item
+# that <line> opens starts. A line indented at least that far after a blank line continues the
+# item, so a dash line under such a line is not a setext underline.
+list_item_indent() {
+  [[ "$1" =~ $LIST_ITEM_PARSE ]] || return 0
+  if [[ -z "${BASH_REMATCH[4]}" || "${#BASH_REMATCH[3]}" -ge 5 ]]; then
+    LIST_INDENT=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + 1))
+  else
+    LIST_INDENT=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#BASH_REMATCH[3]}))
+  fi
+}
+
+# next_block <block> <line> <html state before the line> — set NEXT_BLOCK to the block the line
+# leaves open: `none` after a blank line or a thematic break, `paragraph` while text continues,
+# and `container` for a list item, a block quote, an indented code block, an HTML block, or a
+# table, which hold until the next blank line. A list item also holds across a blank line for
+# every line indented to its content column (LIST_INDENT). <line> is not a heading, a setext
+# underline of a paragraph, or a skipped line. A new block starts only where CommonMark lets it:
+# a list item starts a block anywhere but interrupts a paragraph only with text (and an ordered
+# one only at 1), a block quote and an HTML block of types 1-6 interrupt a paragraph, a lone HTML
+# tag and an indented line start a block only outside a paragraph, and a table delimiter row
+# turns the paragraph above it into a table.
+next_block() {
+  local block="$1" line="$2" was_html="$3" lower="" delim lead indent
+
+  NEXT_BLOCK=container
+  if [[ ! "$line" =~ [^[:space:]] ]]; then
+    NEXT_BLOCK=none
+    return 0
+  fi
+  if [[ "$line" =~ $THEMATIC_BREAK ]]; then
+    NEXT_BLOCK=none
+    LIST_INDENT=0
+    return 0
+  fi
+
+  # The inside and the closing line of a comment, a processing instruction, or a raw element.
+  if [[ -n "$was_html" && "$was_html" != blank ]]; then
+    [[ -z "$CR_HTML_END" ]] && NEXT_BLOCK=none
+    return 0
+  fi
+
+  if [[ "$block" != paragraph ]]; then
+    if [[ "$line" =~ $LIST_ITEM ]]; then
+      list_item_indent "$line"
+      return 0
+    fi
+    if [[ "$block" == none && "$LIST_INDENT" -gt 0 ]]; then
+      lead="${line%%[! ]*}"
+      indent=${#lead}
+      [[ "$line" == $'\t'* ]] && indent=4
+      [[ "$indent" -ge "$LIST_INDENT" ]] && return 0
+      LIST_INDENT=0
+    fi
+  fi
+
+  if [[ "$line" == *'<'* && "$line" =~ ^\ {0,3}\< ]]; then
+    lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$lower" =~ $HTML_RAW_START ]]; then
+      [[ -z "$CR_HTML_END" ]] && NEXT_BLOCK=none
+      return 0
+    fi
+    [[ "$lower" =~ $HTML_BLOCK_START ]] && return 0
+  fi
+
+  [[ "$line" =~ $QUOTE_START ]] && return 0
+
+  if [[ "$block" == paragraph ]]; then
+    if [[ "$line" =~ $LIST_ITEM_WITH_TEXT ]]; then
+      list_item_indent "$line"
+      return 0
+    fi
+    if [[ "$line" == *'|'* ]]; then
+      delim="${line//[|:[:space:]-]/}"
+      [[ -z "$delim" && "$line" == *-* ]] && return 0
+    fi
+    NEXT_BLOCK=paragraph
+    return 0
+  fi
+
+  [[ "$block" == container ]] && return 0
+  [[ "$line" =~ $INDENTED_CODE ]] && return 0
+  [[ -n "$lower" && "$lower" =~ $HTML_LONE_TAG ]] && return 0
+
+  NEXT_BLOCK=paragraph
+  return 0
+}
+
 # scan_body — read the body and print what the section check reads, one record per line:
 #   section|<line number>|<heading|details>:<name>
 #   merge-risk-heading|<the whole heading line>
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
 # A line that cr_header_fence_step skips is a quotation and is never read.
 scan_body() {
-  local line number=0 in_merge_risk=0 text prev=""
+  local line number=0 in_merge_risk=0 text block=none was_html
+
+  LIST_INDENT=0
 
   cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     number=$((number + 1))
+    was_html="$CR_HTML_END"
 
     if cr_header_fence_step "$line"; then
-      prev=""
+      block=none
       continue
     fi
 
     if [[ "$line" =~ $ATX_SHAPE ]]; then
       text="${BASH_REMATCH[2]}"
-      prev=""
+      block=none
+      LIST_INDENT=0
       if [[ "$text" == 'Merge risk'* ]]; then
         in_merge_risk=1
         printf 'section|%s|heading:Merge risk\n' "$number"
@@ -189,34 +297,38 @@ scan_body() {
 
     if [[ "$line" =~ $HTML_HEADING ]]; then
       in_merge_risk=0
-      prev=""
+      block=container
+      LIST_INDENT=0
       printf 'section|%s|heading:<h>\n' "$number"
       continue
     fi
 
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
       in_merge_risk=0
-      prev=""
+      block=container
+      LIST_INDENT=0
       printf 'section|%s|details:%s\n' "$number" "${BASH_REMATCH[1]}"
       continue
     fi
 
     # A setext heading: a paragraph line, then a `===` or `---` underline. The section is
-    # named by the line of its text, and the text itself is never printed.
+    # named by the line of its text, and the text itself is never printed. A dash line under
+    # any other block is a thematic break, and an equals line there is text.
     if [[ "$line" =~ $SETEXT_UNDERLINE ]]; then
-      if [[ -n "$prev" ]]; then
+      if [[ "$block" == paragraph ]]; then
         in_merge_risk=0
+        block=none
         printf 'section|%s|heading:<setext>\n' "$((number - 1))"
+        continue
       fi
-      prev=""
-      continue
+      if [[ "$line" == *-* ]]; then
+        block=none
+        continue
+      fi
     fi
 
-    if [[ "$line" =~ [^[:space:]] && ! "$line" =~ $NOT_PARAGRAPH ]]; then
-      prev="$line"
-    else
-      prev=""
-    fi
+    next_block "$block" "$line" "$was_html"
+    block="$NEXT_BLOCK"
 
     if [[ "$in_merge_risk" -eq 1 && "$line" == '**Door:**'* ]]; then
       printf 'merge-risk-line|%s\n' "$line"
@@ -569,6 +681,34 @@ self_test() {
     "$(render '' "$(printf 'text\n\n---')")" '"valid": true'
   scenario 'a list item before a dash line is not a heading' 0 \
     "$(render '' "$(printf -- '- item\n---')")" '"valid": true'
+
+  # A dash line is a heading only under a paragraph line, whatever that line starts with. Under a
+  # list item (wrapped or loose), a block quote, an indented code block, or a table it is a
+  # thematic break, as GitHub renders it.
+  scenario 'a wrapped list item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '* item that\n  wraps here\n---')")" '"valid": true'
+  scenario 'a wrapped nested list item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '* a\n  * b that\n    wraps\n---')")" '"valid": true'
+  scenario 'a wrapped ordered item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '1. item that\n   wraps here\n---')")" '"valid": true'
+  scenario 'a loose list item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '- a\n\n  para\n---')")" '"valid": true'
+  scenario 'an indented code block before a dash line is not a heading' 0 \
+    "$(render '' "$(printf 'text\n\n    code\n---')")" '"valid": true'
+  scenario 'a block quote with a lazy line before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '> quote\nlazy\n---')")" '"valid": true'
+  scenario 'a table before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '| a | b |\n|---|---|\n| c | d |\n---')")" '"valid": true'
+  scenario 'a bold line over a dash underline is refused' 3 \
+    "$(render '' "$(printf -- '**Problem**\n---')")" 'is not a section of the template'
+  scenario 'an emphasis line over an equals underline is refused' 3 \
+    "$(render '' "$(printf -- '*Problem*\n===')")" 'is not a section of the template'
+  scenario 'an inline HTML line over a dash underline is refused' 3 \
+    "$(render '' "$(printf -- '<b>Problem</b>\n---')")" 'is not a section of the template'
+  scenario 'a paragraph ending in a bold line over a dash underline is refused' 3 \
+    "$(render '' "$(printf -- 'Problem text\n**more**\n---')")" 'is not a section of the template'
+  scenario 'a paragraph line indented four spaces over an underline is refused' 3 \
+    "$(render '' "$(printf -- 'Problem text\n    more\n---')")" 'is not a section of the template'
 
   # A heading the template does not define is untrusted body text: the problem names its
   # line, and no part of its text reaches the output.
