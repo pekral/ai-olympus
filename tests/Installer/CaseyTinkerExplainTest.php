@@ -34,7 +34,7 @@ function tinkerExplainFunction(string $name): Closure
     $file = (string) tempnam(sys_get_temp_dir(), 'tinker-explain');
 
     try {
-        file_put_contents($file, "<?php\n" . tinkerExplainSnippetBlocks()[0] . "\nreturn compact('guard', 'accept', 'isSpec', 'emit');\n");
+        file_put_contents($file, "<?php\n" . tinkerExplainSnippetBlocks()[0] . "\nreturn compact('guard', 'cacheGuard', 'accept', 'isSpec', 'emit');\n");
         $functions = include $file;
     } finally {
         unlink($file);
@@ -140,8 +140,9 @@ test('the output list is closed and the command drops every other line (invarian
     'bindings count only' => ['the number of bindings, never a value'],
     'no exception message' => ['The snippet catches every `Throwable` and prints `casey:error=explain` without its message.'],
     'no secret' => ['No host, database name, DSN, credential, configuration value, or exception message is printed.'],
+    'the cache verdict' => ['| `casey:cache=` | `ok` or `refused`: the driver check of the default cache store |'],
     'the default verdict' => ['| `casey:default=` | `ok` or `refused`: the guard verdict of the default connection |'],
-    'the filter' => ['2>&1 | grep -E \'^casey:(guard|default|sql|bindings|plan|error)=\''],
+    'the filter' => ['2>&1 | grep -E \'^casey:(guard|default|cache|sql|bindings|plan|error)=\''],
     'the list' => [
         'The snippet prints only these lines. Every other line of the command output is dropped unread by the `grep` '
         . 'of the command, and `casey` never quotes or relays it.',
@@ -200,11 +201,15 @@ test('the text names what the mechanism does not cover (invariant 8)', function 
     expect(tinkerExplainReference())->toContain($text);
 })->with([
     'a copy of production data' => ['A loopback database that holds a copy of production data.'],
-    'a tunnel' => ['A loopback port that a tunnel or a proxy forwards to another host.'],
+    'a forwarded socket' => [
+        'A loopback port or a unix socket (including the default socket of `localhost`) that a tunnel or a proxy forwards to another host.',
+    ],
+    'a socket on line 3' => ['The guard accepts a `unix_socket` as local, and it cannot see where the socket leads'],
     'localhost' => ['The name `localhost`, which the guard accepts without resolving it.'],
     'other authors' => ['A commit on the pull request branch by an account other than the author.'],
     'runtime files' => ['Files the boot writes inside the checkout (logs, caches).'],
     'the boot' => ['Code that runs while the application boots, before the snippet.'],
+    'the file cache path' => ['The path of a `file` cache store. `casey:cache=ok` proves the driver of the store, not where its configured path leads.'],
     'the local plan' => ['The plan of the local database. It reflects the local data volume and statistics'],
     'the section' => ['## What the mechanism does not cover'],
 ]);
@@ -435,6 +440,7 @@ test('the document check takes only the closed vocabulary of builder methods', f
 test('the emit function prints only lines of the closed list', function (string $key, string|int $value, string $printed): void {
     expect(tinkerExplainEmitted($key, $value))->toBe($printed);
 })->with([
+    'a cache value outside the tokens' => ['cache', 'redis', ''],
     'a default value outside the tokens' => ['default', 'mysql', ''],
     'a guard value outside the tokens' => ['guard', 'db.internal.example', ''],
     'a key outside the list' => ['host', '127.0.0.1', ''],
@@ -442,6 +448,8 @@ test('the emit function prints only lines of the closed list', function (string 
     'an error value outside the tokens' => ['error', 'SQLSTATE[HY000] Access denied for user', ''],
     'a refusal token' => ['guard', 'refused:host', 'casey:guard=refused:host' . PHP_EOL],
     'the bindings count' => ['bindings', 2, 'casey:bindings=2' . PHP_EOL],
+    'the cache refusal' => ['cache', 'refused', 'casey:cache=refused' . PHP_EOL],
+    'the cache verdict' => ['cache', 'ok', 'casey:cache=ok' . PHP_EOL],
     'the default verdict' => ['default', 'refused', 'casey:default=refused' . PHP_EOL],
     'the DSN refusal' => ['guard', 'refused:dsn', 'casey:guard=refused:dsn' . PHP_EOL],
     'the guard verdict' => ['guard', 'ok', 'casey:guard=ok' . PHP_EOL],
@@ -509,8 +517,8 @@ test('Boost reads the schema only after the default connection passed the guard 
     expect(tinkerExplainReference())->toContain($text);
 })->with([
     'the condition' => [
-        'only after a run of this procedure printed both `casey:guard=ok` '
-        . 'and `casey:default=ok` in this run, and without its `database` argument.',
+        'only after a run of this procedure printed `casey:guard=ok`, `casey:default=ok`, '
+        . 'and `casey:cache=ok` in this run, and without its `database` argument.',
     ],
     'the default guard' => ['The snippet runs the same guard on the default connection (`config(\'database.default\')`)'],
     'the reason' => [
@@ -557,16 +565,23 @@ test('the snippet stops Telescope recording and drops the queued entries before 
         ->and($flush)->toBeLessThan((int) strpos($run, 'getenv(\'CASEY_QUERY_SPEC\')'));
 });
 
-test('Boost runs only without Telescope and its cache write is named (Telescope and Boost)', function (string $text): void {
+test('Boost runs only without Telescope and only when the default cache store is local (Telescope and Boost)', function (string $text): void {
     expect(tinkerExplainReference())->toContain($text);
 })->with([
+    'the cache check' => [
+        'It prints `casey:cache=ok` when the driver of that store is `array` or `file`, and `casey:cache=refused` '
+        . 'for every other driver, a missing store, and a store with no driver.',
+    ],
     'the cache write' => [
         'The tool keeps the schema it read for 20 seconds in the default cache store of the application (`Cache::remember`). '
-        . 'That is a write: a `database` store writes a row to its own connection, which the guard never checked.',
+        . 'That is a write, so `casey:cache=ok` is the proof for the store Boost writes to.',
     ],
-    'the not-covered cache entry' => ['- The cache entry of a Boost `database-schema` call.'],
     'the process' => ['Boost runs every tool in its own `php artisan boost:execute-tool` process.'],
     'the reason' => ['A project that requires `laravel/telescope` therefore reads the schema without Boost.'],
+    'the refused stores' => [
+        'A `redis`, `memcached`, `dynamodb`, or `database` store writes over a connection the guard never checked, '
+        . 'so a project with such a default store reads the schema without Boost.',
+    ],
     'without Telescope' => ['only when `composer.json` requires `laravel/telescope` in neither `require` nor `require-dev`'],
 ]);
 
@@ -584,4 +599,28 @@ test('the guard refuses a URL query string, a foreign scheme, and a DSN part tha
     ],
     'the scheme' => ['A `url` whose scheme is not `mysql` or `mariadb`, and a `url` that is not a string, are refused too'],
     'the token' => ['`url`, `dsn`, or `telescope` |'],
+]);
+
+test('the snippet checks the driver of the default cache store that Boost writes to, before any query (Critical, round 3)', function (): void {
+    $run = tinkerExplainSnippetBlocks()[1];
+
+    expect($run)->toContain('$emit(\'cache\', $cacheGuard(config(\'cache.stores.\' . config(\'cache.default\'))));')
+        ->and(strpos($run, '$emit(\'cache\''))->toBeLessThan((int) strpos($run, '$builder = $model::query()'));
+});
+
+test('the cache check accepts only the array and the file driver of the default cache store', function (mixed $store, string $verdict): void {
+    $cacheGuard = tinkerExplainFunction('cacheGuard');
+
+    expect($cacheGuard($store))->toBe($verdict);
+})->with([
+    'a database store' => [['driver' => 'database', 'connection' => 'mysql', 'table' => 'cache'], 'refused'],
+    'a driver that is not a string' => [['driver' => ['file']], 'refused'],
+    'a dynamodb store' => [['driver' => 'dynamodb', 'table' => 'cache'], 'refused'],
+    'a file store' => [['driver' => 'file', 'path' => '/app/storage/framework/cache/data'], 'ok'],
+    'a memcached store' => [['driver' => 'memcached', 'servers' => [['host' => '127.0.0.1']]], 'refused'],
+    'a missing store' => [null, 'refused'],
+    'an array store' => [['driver' => 'array', 'serialize' => false], 'ok'],
+    'an empty driver' => [['driver' => ''], 'refused'],
+    'a redis store' => [['driver' => 'redis', 'connection' => 'cache'], 'refused'],
+    'a store with no driver' => [['path' => '/tmp/cache'], 'refused'],
 ]);
