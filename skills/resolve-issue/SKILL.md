@@ -185,7 +185,7 @@ When a plan does exist, it runs after the self-check above and **still before th
 
 **A foreign repository can restrict AI-written descriptions.** `skills/_shared/contribution-policy.sh` reads its policy first. A restricting or unverified policy replaces the generated body with an outline and holds back every other generated text there (`@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*; steps in `references/pull-request.md`).
 
-The opt-out consequences and the full PR body layout — **`## Merge risk`** with its traffic-light icon, the categorised **Summary** (pre-existing security fixes included), **Open decisions**, the collapsed **Walkthrough** and **Testing** blocks, **`## Security acceptance checklist`**, **TODO list**, and the mandatory collapsed **Audit** block with its standalone-run fallback — live in `references/pull-request.md`.
+The opt-out consequences and the full PR body layout — **`## Merge risk`** with its traffic-light icon, the categorised **Summary** (pre-existing security fixes included), **Open decisions**, the **Walkthrough** and **Testing** sections, **`## Security acceptance checklist`**, **TODO list**, and the mandatory **Audit** section with its standalone-run fallback (a section folds only over 600 characters) — live in `references/pull-request.md`.
 
 ### Deferred-item follow-up issues
 

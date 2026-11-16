@@ -87,17 +87,17 @@ test('the skill opens a Draft pull request whose description holds only values r
         ->and($skill)->not->toContain('A dependency update pull request carries nothing else.');
 });
 
-test('the pull request body collapses the Testing section into the same block as the resolve-issue template', function (): void {
+test('the pull request body renders the Testing section open under the same heading as the resolve-issue template', function (): void {
     $template = composerUpdateSource('skills/composer-update-pr/templates/pull-request-body.md');
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
-    $block = "<details>\n<summary><strong>✅ Testing</strong></summary>\n\n<the commands run and their result>";
+    $heading = "## ✅ Testing\n\n<the commands run and their result>";
 
-    expect(composerUpdateSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain(
-        "<details>\n<summary><strong>✅ Testing</strong></summary>",
-    )
-        ->and($template)->toContain($block)
+    expect(composerUpdateSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain("\n## ✅ Testing\n")
+        ->and($template)->toContain($heading)
+        ->and($template)->not->toContain("<details>\n")
         ->and($template)->not->toContain('## Testing')
-        ->and($skill)->toContain('the collapsed *✅ Testing* block')
+        ->and($skill)->toContain('`## ✅ Testing`')
+        ->and($skill)->toContain('Fold a section into a `<details>` block only when its content is longer than 600 characters')
         ->and($skill)->not->toContain('`## Testing`');
 });
 

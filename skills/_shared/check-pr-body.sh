@@ -31,7 +31,8 @@
 #                An over-limit body is refused on the length alone: no section scan runs on it.
 #   Sections     every always-present section of the template is there, the sections follow
 #                the template's order, and no heading or <details> block outside the
-#                template appears. A heading is a level-1 or level-2 ATX heading (0-3 leading
+#                template appears. A section of the template is a `##` heading or a <details>
+#                block whose <summary><strong> carries the same name (the folded form). A heading is a level-1 or level-2 ATX heading (0-3 leading
 #                spaces), a setext heading (a paragraph line over a `===` or `---` underline,
 #                whatever character the paragraph line starts with), or an HTML <h1> or <h2>
 #                line. The body is read with the container stack CommonMark keeps (GitHub renders
@@ -45,6 +46,16 @@
 #                container ends at a fence line of its own character and at least its length, or
 #                with the container. A heading nested inside a list item or a block quote is not
 #                read, as an ATX heading there is not.
+#   Folding      a section whose content is longer than 600 code points (FOLD_LIMIT) is a <details>
+#                block, and a section of 600 or fewer is an open `##` section. `## Merge risk` is
+#                never a <details> block, whatever its length. The one owner of the rule is
+#                rules/git/pull-requests.md *PR Content Requirements*; this script enforces it and
+#                states no second copy of the wording. The content is counted from the line after the
+#                heading (for a <details> block, the line after its <summary>) to the line before the
+#                next section (for a <details> block, before its </details>), with the blank lines at
+#                both ends left out and a line break between two lines counted as one code point. A
+#                `<details>` opener line directly above a <summary> belongs to no content. Text after a
+#                </details> and before the next section belongs to no section and is not counted.
 #   Depth        a block quote or a list item nests at most 16 levels deep (MAX_DEPTH). No real body
 #                nests beyond a handful, and the cap bounds the work for each line. A deeper body is
 #                refused with a problem that names the line number and never the text.
@@ -99,12 +110,17 @@ Usage: check-pr-body.sh --file <body-file|-> [--template resolve-issue|composer-
        check-pr-body.sh --self-test
 
 Exit 3 when the body is over the length limit, misses a section of its template, carries a
-section the template does not define, orders the sections differently, nests block quotes or
-list items deeper than 16 levels, or renders the `## Merge risk` block in another shape.
+section the template does not define, orders the sections differently, folds a section of 600
+characters or fewer, leaves a section over 600 characters open, folds `## Merge risk`, nests
+block quotes or list items deeper than 16 levels, or renders the `## Merge risk` block in
+another shape.
 EOF
 }
 
 MAX_CHARS=6500
+# A section whose content is longer than this is a <details> block; a section of at most this many code
+# points is an open `##` section (rules/git/pull-requests.md *PR Content Requirements*).
+FOLD_LIMIT=600
 OUTLINE_MARKER='<!-- ai-olympus:contribution-policy=human-description -->'
 GRADED_SHAPE='^## Merge risk (🟢 low|🟡 medium|🔴 high)$'
 NOT_COMPUTED_SHAPE='^## Merge risk ⚪ not computed — .+$'
@@ -115,6 +131,8 @@ BLAST_SHAPE='^\*\*Blast radius:\*\* (FAST|STANDARD|CRITICAL) \(.*\)$'
 ATX_SHAPE='^ {0,3}#{1,2}([[:space:]]+(.*))?$'
 SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
+DETAILS_OPEN='^[[:space:]]*<details([[:space:]][^>]*)?>[[:space:]]*$'
+DETAILS_END='^ {0,3}</details>[[:space:]]*$'
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
 # no container holds is a heading of the body. What the line starts with decides nothing:
@@ -134,34 +152,34 @@ HTML_BLOCK_START='^ {0,3}</?(address|article|aside|base|basefont|blockquote|body
 HTML_LONE_TAG='^ {0,3}(<[a-z][a-z0-9-]*([[:space:]]+[^<>]*)?/?>|</[a-z][a-z0-9-]*[[:space:]]*>)[[:space:]]*$'
 
 # template_sections <name> — print the template's sections in order, one per line, as
-# `<always|optional>|<heading|details>:<name>`. A section this list does not name is a
-# section the template does not define.
+# `<always|optional>|<name>`. The name is the text of the `##` heading, or of the <summary> of the
+# folded form. A section this list does not name is a section the template does not define.
 template_sections() {
   case "$1" in
   resolve-issue)
     cat <<'EOF'
-always|heading:Merge risk
-always|heading:Summary
-optional|heading:Open decisions for the operator
-always|details:Walkthrough
-always|details:✅ Testing
-optional|heading:Security acceptance checklist
-optional|heading:Safeguard
-optional|heading:TODO
-always|details:Audit
+always|Merge risk
+always|Summary
+optional|Open decisions for the operator
+always|Walkthrough
+always|✅ Testing
+optional|Security acceptance checklist
+optional|Safeguard
+optional|TODO
+always|Audit
 EOF
     ;;
   composer-update)
     cat <<'EOF'
-always|heading:Merge risk
-always|heading:TL;DR
-always|heading:Summary
-optional|heading:Major updates
-always|heading:Other updates
-always|heading:Manifest changes
-optional|heading:Other changed files
-always|details:✅ Testing
-always|details:Audit
+always|Merge risk
+always|TL;DR
+always|Summary
+optional|Major updates
+always|Other updates
+always|Manifest changes
+optional|Other changed files
+always|✅ Testing
+always|Audit
 EOF
     ;;
   *)
@@ -582,6 +600,7 @@ report_depth() {
 
 # scan_body — read the body and print what the section check reads, one record per line:
 #   section|<line number>|<heading|details>:<name>
+#   details-end|<line number>   a </details> line outside every container
 #   merge-risk-heading|<the whole heading line>
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
 #   too-deep|<line number>      the first line that nests deeper than MAX_DEPTH; the scan stops there
@@ -650,10 +669,16 @@ scan_body() {
       continue
     fi
 
+    # The end of a <details> block. The fold check counts the content of a folded section up to it.
+    [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s\n' "$number"
+
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
+      text="${BASH_REMATCH[1]}"
       in_merge_risk=0
       block=container
-      printf 'section|%s|details:%s\n' "$number" "${BASH_REMATCH[1]}"
+      # A folded Merge risk carries its grade in the summary; it is named as the section it folds.
+      [[ "$text" == 'Merge risk'* ]] && text='Merge risk'
+      printf 'section|%s|details:%s\n' "$number" "$text"
       continue
     fi
 
@@ -699,7 +724,7 @@ check_sections() {
     index=-1
     i=0
     for name in "${names[@]}"; do
-      if [[ "$name" == "$section" ]]; then
+      if [[ "$name" == "${section#*:}" ]]; then
         index="$i"
         break
       fi
@@ -726,11 +751,115 @@ check_sections() {
     if [[ "${states[$i]}" == 'always' ]]; then
       found=0
       for entry in ${observed[@]+"${observed[@]}"}; do
-        [[ "${entry#*|}" == "$name" ]] && found=1
+        section="${entry#*|}"
+        [[ "${section#*:}" == "$name" ]] && found=1
       done
       [[ "$found" -eq 0 ]] && printf 'Sections: the always-present section "%s" is missing\n' "${name#*:}"
     fi
     i=$((i + 1))
+  done
+}
+
+# check_folding <template> <scanned records> — judge the fold rule: a section of the template whose
+# content is longer than FOLD_LIMIT code points is a <details> block, a section of at most that many is an
+# open `##` section, and `## Merge risk` is never a <details> block. The body is on standard input.
+# Every line is read once and the sections do not overlap, so the run time grows with the length of the
+# body alone. A section the template does not define is refused by check_sections and is not judged here.
+check_folding() {
+  local template="$1" scanned="$2"
+  local -a sec_line=() sec_kind=() sec_name=() det_end=() cp=() blank=() text=()
+  local record kind value line number=0 total=0 allowed="|" i n m j d start end next first last len
+  local name form stripped
+
+  while IFS= read -r record; do
+    [[ -n "$record" ]] && allowed="$allowed${record#*|}|"
+  done < <(template_sections "$template")
+
+  # One line of the body per entry; <text> is the line and <cp> its code points. One pass of `tr`
+  # drops every continuation byte, so the length in bytes of a line of the result is its length in
+  # code points. The line breaks stay, so the line numbers are those of the scan.
+  stripped="$(LC_ALL=C tr -d '\200-\277')"
+  while IFS= read -r line; do
+    line="${line%$'\r'}"
+    number=$((number + 1))
+    text[number]="$line"
+    blank[number]=1
+    [[ "$line" =~ [^[:space:]] ]] && blank[number]=0
+    cp[number]="${#line}"
+  done <<<"$stripped"
+  total="$number"
+
+  while IFS= read -r record; do
+    [[ -z "$record" ]] && continue
+    kind="${record%%|*}"
+    value="${record#*|}"
+    case "$kind" in
+    section)
+      sec_line[${#sec_line[@]}]="${value%%|*}"
+      value="${value#*|}"
+      sec_kind[${#sec_kind[@]}]="${value%%:*}"
+      sec_name[${#sec_name[@]}]="${value#*:}"
+      ;;
+    details-end) det_end[${#det_end[@]}]="$value" ;;
+    esac
+  done <<<"$scanned"
+
+  n=${#sec_line[@]}
+  m=${#det_end[@]}
+  j=0
+  i=0
+  while [[ "$i" -lt "$n" ]]; do
+    name="${sec_name[$i]}"
+    form="${sec_kind[$i]}"
+    start="${sec_line[$i]}"
+    i=$((i + 1))
+    [[ "$allowed" == *"|$name|"* ]] || continue
+
+    if [[ "$name" == 'Merge risk' ]]; then
+      [[ "$form" == details ]] && printf '%s\n' 'Folding: "Merge risk" is a <details> block; the Merge risk section is never folded'
+      continue
+    fi
+
+    if [[ "$i" -lt "$n" ]]; then
+      next="${sec_line[$i]}"
+    else
+      next=$((total + 1))
+    fi
+    end="$next"
+    # The <details> opener directly above the <summary> of the next section is not content.
+    if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details && "$((next - 1))" -gt "$start" ]]; then
+      [[ "${text[$((next - 1))]}" =~ $DETAILS_OPEN ]] && end=$((next - 1))
+    fi
+    if [[ "$form" == details ]]; then
+      while [[ "$j" -lt "$m" && "${det_end[$j]}" -le "$start" ]]; do
+        j=$((j + 1))
+      done
+      [[ "$j" -lt "$m" && "${det_end[$j]}" -lt "$end" ]] && end="${det_end[$j]}"
+    fi
+
+    first=$((start + 1))
+    last=$((end - 1))
+    while [[ "$first" -le "$last" && "${blank[$first]}" -eq 1 ]]; do
+      first=$((first + 1))
+    done
+    while [[ "$last" -ge "$first" && "${blank[$last]}" -eq 1 ]]; do
+      last=$((last - 1))
+    done
+    len=0
+    if [[ "$first" -le "$last" ]]; then
+      len=$((last - first))
+      d="$first"
+      while [[ "$d" -le "$last" ]]; do
+        len=$((len + cp[d]))
+        d=$((d + 1))
+      done
+    fi
+
+    if [[ "$form" == heading && "$len" -gt "$FOLD_LIMIT" ]]; then
+      printf 'Folding: the open section "%s" has %s characters, over the limit of %s; fold it in a <details> block\n' "$name" "$len" "$FOLD_LIMIT"
+    elif [[ "$form" == details && "$len" -le "$FOLD_LIMIT" ]]; then
+      printf 'Folding: the folded section "%s" has %s characters, at most %s; render it as an open ## section\n' "$name" "$len" "$FOLD_LIMIT"
+    fi
   done
 }
 
@@ -759,9 +888,10 @@ check_merge_risk() {
 judge_body() {
   local template="$1"
   local -a observed=()
-  local scanned record kind value heading="" doors=0 blasts=0
+  local scanned record kind value heading="" doors=0 blasts=0 body_text
 
-  scanned="$(scan_body)"
+  body_text="$(cat)"
+  scanned="$(scan_body <<<"$body_text")"
 
   while IFS= read -r record; do
     [[ -z "$record" ]] && continue
@@ -782,6 +912,7 @@ judge_body() {
   done <<<"$scanned"
 
   check_sections "$template" ${observed[@]+"${observed[@]}"}
+  check_folding "$template" "$scanned" <<<"$body_text"
 
   [[ -n "$heading" ]] || return 0
   check_merge_risk "$heading" "$doors" "$blasts"
@@ -894,26 +1025,54 @@ self_test() {
 **Door:** two-way no rollback signal
 **Blast radius:** STANDARD (production-code-changed)'
 
-  # Render a body of the resolve-issue template. $1 replaces the Merge risk block, $2 is
-  # appended before the Audit block, and a non-empty $3 leaves the Summary section out.
-  render() {
-    printf 'Closes #42\n\n%s\n\n' "${1:-$risk_ok}"
-    [[ -n "${3:-}" ]] || printf '## Summary\n\n* **Bug Fixes**\n  * Rejects an empty payload.\n\n'
-    printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n|Layer / File(s)|Summary|\n|:---|:---|\n|**app** <br> app/X.php|one row|\n\n</details>\n\n'
-    printf '<details>\n<summary><strong>✅ Testing</strong></summary>\n\nPost an empty payload.\nEvidence: ImportTest, vendor/bin/pest\n\n</details>\n\n'
-    [[ -z "${2:-}" ]] || printf '%s\n\n' "$2"
-    printf '<details>\n<summary><strong>Audit</strong></summary>\n\nNo ledger was produced.\n\n</details>\n'
+  # A filler of a fixed length; reading /dev/urandom through `head -c` closes the pipe early,
+  # and the SIGPIPE that kills `tr` would end the self-test.
+  filler() { printf '%*s' "$1" '' | LC_ALL=C tr ' ' 'x'; }
+  multibyte() { local i out=''; for ((i = 0; i < $1; i++)); do out="$out"'ě'; done; printf '%s' "$out"; }
+
+  # section <name> <open|folded> <content> — one section in its open `##` form or its folded form.
+  section() {
+    if [[ "$2" == folded ]]; then
+      printf '<details>\n<summary><strong>%s</strong></summary>\n\n%s\n\n</details>\n' "$1" "$3"
+    else
+      printf '## %s\n\n%s\n' "$1" "$3"
+    fi
   }
 
-  # Render a body of the composer-update template.
+  # Render a body of the resolve-issue template. $1 replaces the Merge risk block, $2 is
+  # appended before the Audit section, and a non-empty $3 leaves the Summary section out. The
+  # environment variables SUMMARY and WALKTHROUGH replace those two sections as a whole.
+  render() {
+    printf 'Closes #42\n\n%s\n\n' "${1:-$risk_ok}"
+    if [[ -n "${SUMMARY:-}" ]]; then
+      printf '%s\n\n' "$SUMMARY"
+    elif [[ -z "${3:-}" ]]; then
+      printf '## Summary\n\n* **Bug Fixes**\n  * Rejects an empty payload.\n\n'
+    fi
+    if [[ -n "${WALKTHROUGH:-}" ]]; then
+      printf '%s\n\n' "$WALKTHROUGH"
+    else
+      printf '## Walkthrough\n\n|Layer / File(s)|Summary|\n|:---|:---|\n|**app** <br> app/X.php|one row|\n\n'
+    fi
+    printf '## ✅ Testing\n\nPost an empty payload.\nEvidence: ImportTest, vendor/bin/pest\n\n'
+    [[ -z "${2:-}" ]] || printf '%s\n\n' "$2"
+    printf '## Audit\n\nNo ledger was produced.\n'
+  }
+
+  # Render a body of the composer-update template. $1 non-empty leaves the Other updates section
+  # out, and the environment variable OTHER_UPDATES replaces that section as a whole.
   render_update() {
     printf '%s\n\n' "$risk_ok"
     printf '## TL;DR\n\n12 packages updated.\n\n'
     printf '## Summary\n\n* **Manifest**\n  * one constraint\n\n'
-    [[ -n "${1:-}" ]] || printf '## Other updates\n\n| Package | From | To |\n| --- | --- | --- |\n| a/b | 1.0 | 1.1 |\n\n'
+    if [[ -n "${OTHER_UPDATES:-}" ]]; then
+      printf '%s\n\n' "$OTHER_UPDATES"
+    elif [[ -z "${1:-}" ]]; then
+      printf '## Other updates\n\n| Package | From | To |\n| --- | --- | --- |\n| a/b | 1.0 | 1.1 |\n\n'
+    fi
     printf '## Manifest changes\n\nnone\n\n'
-    printf '<details>\n<summary><strong>✅ Testing</strong></summary>\n\nThe CI result of the pull request.\n\n</details>\n\n'
-    printf '<details>\n<summary><strong>Audit</strong></summary>\n\nNo ledger was produced.\n\n</details>\n'
+    printf '## ✅ Testing\n\nThe CI result of the pull request.\n\n'
+    printf '## Audit\n\nNo ledger was produced.\n'
   }
 
   # Run the script on a body and compare the exit code; a non-empty $4 must also appear in
@@ -949,7 +1108,7 @@ self_test() {
   scenario 'a body that misses an always-present section is refused' 3 "$(render '' '' skip-summary)" \
     'always-present section \"Summary\" is missing'
   scenario 'sections out of the template order are refused' 3 \
-    "$(printf 'Closes #42\n\n## Summary\n\n* a\n\n%s\n\n<details>\n<summary><strong>Walkthrough</strong></summary>\n\nrow\n\n</details>\n\n<details>\n<summary><strong>✅ Testing</strong></summary>\n\nhow\n\n</details>\n\n<details>\n<summary><strong>Audit</strong></summary>\n\nnone\n\n</details>\n' "$risk_ok")" \
+    "$(printf 'Closes #42\n\n## Summary\n\n* a\n\n%s\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nhow\n\n## Audit\n\nnone\n' "$risk_ok")" \
     'comes after a section the template places later'
   scenario 'a Merge risk heading without its grade is refused' 3 \
     "$(render '## Merge risk
@@ -980,17 +1139,73 @@ self_test() {
 **Door:** two-way no rollback signal
 **Blast radius:** small (documentation-only)')" 'the Blast radius line does not read'
 
-  # A filler of a fixed length; reading /dev/urandom through `head -c` closes the pipe early,
-  # and the SIGPIPE that kills `tr` would end the self-test.
-  filler() { printf '%*s' "$1" '' | LC_ALL=C tr ' ' 'x'; }
-  multibyte() { local i out=''; for ((i = 0; i < $1; i++)); do out="$out"'ě'; done; printf '%s' "$out"; }
-
   scenario 'a body over the character limit is refused' 3 \
     "$(render '' "$(printf '## TODO\n\n- [ ] %s' "$(filler 6600)")")" 'over the limit of 6500'
   # 3,000 two-byte characters put the body over 6,500 bytes and leave it under 6,500 code
   # points, so a byte count would refuse what the rule's own code-point count accepts.
   scenario 'a body of multi-byte characters is counted in code points' 0 \
-    "$(render '' "$(printf '## TODO\n\n- [ ] %s' "$(multibyte 3000)")")" '"valid": true'
+    "$(render '' "$(section TODO folded "- [ ] $(multibyte 3000)")")" '"valid": true'
+
+  # The fold rule (rules/git/pull-requests.md *PR Content Requirements*): over 600 code points a
+  # section is a <details> block, at most 600 it is an open `##` section, and Merge risk never folds.
+  local f599 f600 f601
+  f599="$(filler 599)"
+  f600="$(filler 600)"
+  f601="$(filler 601)"
+  scenario 'an open section just under 600 characters is valid' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$f599")" render)" '"valid": true'
+  scenario 'an open section of exactly 600 characters is valid' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$f600")" render)" '"valid": true'
+  scenario 'an open section of 601 characters is refused' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$f601")" render)" \
+    'Folding: the open section \"Walkthrough\" has 601 characters, over the limit of 600; fold it in a <details> block'
+  scenario 'a folded section of 601 characters is valid' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" render)" '"valid": true'
+  scenario 'a folded section of exactly 600 characters is refused' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f600")" render)" \
+    'Folding: the folded section \"Walkthrough\" has 600 characters, at most 600; render it as an open ## section'
+  scenario 'a folded section just under 600 characters is refused' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f599")" render)" 'has 599 characters, at most 600'
+  scenario 'a long Testing section folds under its emoji summary' 0 \
+    "$(printf 'Closes #42\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n%s\n\n## Audit\n\nnone\n' "$risk_ok" "$(section '✅ Testing' folded "$f601")")" '"valid": true'
+  scenario 'a long Merge risk section stays open and is valid' 0 \
+    "$(render "$(printf '## Merge risk 🟡 medium\n\n**Door:** one-way %s\n**Blast radius:** STANDARD (production-code-changed)' "$f601")")" \
+    '"valid": true'
+  scenario 'a folded Merge risk section is refused' 3 \
+    "$(render "$(printf '<details>\n<summary><strong>Merge risk 🟡 medium</strong></summary>\n\n**Door:** two-way no rollback signal\n**Blast radius:** STANDARD (production-code-changed)\n\n</details>')")" \
+    'the Merge risk section is never folded'
+  scenario 'a folded Merge risk section over 600 characters is refused' 3 \
+    "$(render "$(printf '<details>\n<summary><strong>Merge risk 🟡 medium</strong></summary>\n\n**Door:** one-way %s\n**Blast radius:** STANDARD (production-code-changed)\n\n</details>' "$f601")")" \
+    'the Merge risk section is never folded'
+  # Two lines count their line break: 300 + 300 characters and the break are 601 code points.
+  scenario 'two lines of 599 code points with their line break are valid open' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$(filler 300)
+$(filler 299)")" render)" '"valid": true'
+  scenario 'two lines of 601 code points with their line break are refused open' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$(filler 300)
+$(filler 300)")" render)" 'has 601 characters'
+  scenario 'the blank lines around the content are not counted' 0 \
+    "$(WALKTHROUGH="$(printf '## Walkthrough\n\n\n\n%s\n   \n\n' "$f600")" render)" '"valid": true'
+  scenario 'a level-3 heading inside a section is part of its content' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$(printf '### Detail\n%s' "$f600")")" render)" 'has 611 characters'
+  # Characters are code points: 600 two-byte characters are 1,200 bytes and fit an open section.
+  scenario 'a section of 600 multi-byte characters is valid open' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$(multibyte 600)")" render)" '"valid": true'
+  scenario 'a section of 601 multi-byte characters is refused open' 3 \
+    "$(WALKTHROUGH="$(section Walkthrough open "$(multibyte 601)")" render)" 'has 601 characters'
+  # The <details> opener above the next <summary> belongs to no content: 600 characters stay open.
+  scenario 'the <details> opener under a section of 600 characters is not counted' 0 \
+    "$(SUMMARY="$(section Summary open "$f600")" WALKTHROUGH="$(section Walkthrough folded "$f601")" render)" '"valid": true'
+  scenario 'a stray line after a </details> belongs to no section' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f601")
+
+$f601" render)" '"valid": true'
+  scenario 'the fold rule applies to the dependency-update template' 3 \
+    "$(OTHER_UPDATES="$(section 'Other updates' open "$f601")" render_update)" 'the open section \"Other updates\" has 601 characters' composer-update
+  scenario 'a folded long section is valid in the dependency-update template' 0 \
+    "$(OTHER_UPDATES="$(section 'Other updates' folded "$f601")" render_update)" '"valid": true' composer-update
+  scenario 'a body of 500 repeated sections is refused and is read once' 3 \
+    "$(printf 'Closes #42\n\n%s\n\n' "$risk_ok"; for ((i = 0; i < 500; i++)); do printf '## Summary\n'; done)" 'comes after a section the template places later'
 
   scenario 'the contribution-policy outline is exempt from the section check' 0 \
     "$(printf '%s\nCloses #42\n\n## What and why\n\n## How it was tested\n' "$OUTLINE_MARKER")" '"valid": true'
