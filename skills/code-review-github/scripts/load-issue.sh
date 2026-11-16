@@ -28,9 +28,9 @@
 #     "createdAt", "updatedAt", "closedAt",
 #     "comments":     [ { "author", "authorAssociation", "body", "createdAt", "updatedAt", "url" } ],
 #     "reactionsCount": <int>,
+#     "authorAssociation": <string|null>,
 #
 #     # issue-only (null / [] when kind == "pr")
-#     "authorAssociation": <string|null>,
 #     "closingPullRequests": [ { "number", "title", "url", "state" } ],
 #     "subIssues": [ {
 #         "number", "title", "url", "state", "author", "body",
@@ -68,9 +68,10 @@
 #   - `closingPullRequests` (for issues) is sourced from
 #     `closedByPullRequestsReferences` and surfaces the PRs that will close the
 #     issue when merged. `closingIssues` (for PRs) lists issues the PR closes.
-#   - `authorAssociation` (for issues) is the association of the issue's author
-#     with the repository, read by the same GraphQL call as `subIssues`. It is
-#     null when that call fails, so a caller reads null as untrusted.
+#   - `authorAssociation` is the association of the author of the issue or the
+#     pull request with the repository. For an issue it is read by the same
+#     GraphQL call as `subIssues`; for a pull request by one GraphQL call of its
+#     own. It is null when that call fails, so a caller reads null as untrusted.
 #   - `subIssues` (for issues) is sourced from the GraphQL `subIssues` connection
 #     (the `gh` CLI `--json` projection does not expose it). Each entry carries
 #     the sub-issue's full body and comments so the assignment context is
@@ -199,7 +200,7 @@ fi
 # PRs and on any GraphQL failure we fall back to an empty array so the script
 # never breaks on a repo without the feature enabled.
 SUBISSUES_JSON='[]'
-ISSUE_ASSOCIATION='null'
+AUTHOR_ASSOCIATION='null'
 if [[ "$KIND" == "issue" ]]; then
   # `$owner` / `$repo` / `$n` are GraphQL variables bound by the `-F` flags below, not shell ones.
   # The single quotes are what keeps the shell out of them, so expanding here would break the query.
@@ -226,7 +227,15 @@ if [[ "$KIND" == "issue" ]]; then
             url: (.url // null)
           } ]
         } ]' 2>/dev/null || printf '[]')"
-    ISSUE_ASSOCIATION="$(printf '%s' "$RAW_SUBISSUES" | jq -c '.data.repository.issue.authorAssociation | if type == "string" then . else null end' 2>/dev/null || printf 'null')"
+    AUTHOR_ASSOCIATION="$(printf '%s' "$RAW_SUBISSUES" | jq -c '.data.repository.issue.authorAssociation | if type == "string" then . else null end' 2>/dev/null || printf 'null')"
+  fi
+fi
+if [[ "$KIND" == "pr" ]]; then
+  # `$owner` / `$repo` / `$n` are GraphQL variables bound by the `-F` flags below, not shell ones.
+  # shellcheck disable=SC2016
+  PR_ASSOCIATION_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$n){authorAssociation}}}'
+  if RAW_PR_ASSOCIATION="$(gh api graphql -f query="$PR_ASSOCIATION_QUERY" -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" && [[ -n "$RAW_PR_ASSOCIATION" ]]; then
+    AUTHOR_ASSOCIATION="$(printf '%s' "$RAW_PR_ASSOCIATION" | jq -c '.data.repository.pullRequest.authorAssociation | if type == "string" then . else null end' 2>/dev/null || printf 'null')"
   fi
 fi
 if ! printf '%s' "$SUBISSUES_JSON" | jq -e . >/dev/null 2>&1; then
@@ -257,8 +266,8 @@ if [[ "$KIND" == "pr" ]] \
   REVIEW_COMMENTS_JSON="$PARSED_REVIEW_COMMENTS"
   REVIEW_COMMENTS_COMPLETE=true
 fi
-if ! printf '%s' "$ISSUE_ASSOCIATION" | jq -e 'type == "string" or . == null' >/dev/null 2>&1; then
-  ISSUE_ASSOCIATION='null'
+if ! printf '%s' "$AUTHOR_ASSOCIATION" | jq -e 'type == "string" or . == null' >/dev/null 2>&1; then
+  AUTHOR_ASSOCIATION='null'
 fi
 
 jq -n \
@@ -270,7 +279,7 @@ jq -n \
   --argjson subIssuesComplete "$SUBISSUES_COMPLETE" \
   --argjson reviewComments "$REVIEW_COMMENTS_JSON" \
   --argjson reviewCommentsComplete "$REVIEW_COMMENTS_COMPLETE" \
-  --argjson association "$ISSUE_ASSOCIATION" \
+  --argjson association "$AUTHOR_ASSOCIATION" \
   --argjson repoPrivate "$REPO_PRIVATE" '
 def total_reactions:
   ([ (.reactionGroups // [])[] | (.users.totalCount // .reactors.totalCount // 0) ] | add) // 0;
@@ -339,7 +348,7 @@ $payload as $p
     comments: ($p.comments | map_comments),
     reactionsCount: ($p | total_reactions),
 
-    authorAssociation: (if $kind == "issue" then $association else null end),
+    authorAssociation: $association,
     closingPullRequests: (if $kind == "issue"
       then ($p.closedByPullRequestsReferences | map_refs)
       else [] end),

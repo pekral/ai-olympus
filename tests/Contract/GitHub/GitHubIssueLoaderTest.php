@@ -416,3 +416,23 @@ test('a running check run reports its status as the state instead of the empty c
     expect(decodedJsonField($output, 'statusCheckRollup.1.state'))->toBe('SUCCESS');
     expect(decodedJsonField($output, 'statusCheckRollup.2.state'))->toBe('PENDING');
 });
+
+test('the association of the pull request author is read by its own GraphQL call, and a failed read stays null', function (): void {
+    $fixture = createGitHubLoaderFixture();
+    $association = static fn (string $value): string => (string) json_encode(
+        ['data' => ['repository' => ['pullRequest' => ['authorAssociation' => $value]]]],
+    );
+
+    $member = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_GRAPHQL_JSON' => $association('MEMBER')]);
+    $stranger = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_GRAPHQL_JSON' => $association('NONE')]);
+    $failed = runGitHubLoader($fixture, 'https://github.com/acme/widgets/pull/123', ['FAKE_GH_GRAPHQL_OK' => '0']);
+    $calls = (string) file_get_contents($fixture['calls']);
+    removeGitHubLoaderFixture($fixture);
+
+    expect($member->getExitCode())->toBe(0)
+        ->and($calls)->toContain('pullRequest')
+        ->and(decodedJsonField($member->getOutput(), 'authorAssociation'))->toBe('MEMBER')
+        ->and(decodedJsonField($stranger->getOutput(), 'authorAssociation'))->toBe('NONE')
+        ->and($failed->getExitCode())->toBe(0)
+        ->and(decodedJsonField($failed->getOutput(), 'authorAssociation'))->toBeNull();
+});
