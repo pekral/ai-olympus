@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/pekral/ai-olympus/skills/laravel-horizon-audit/schemas/report.schema.json",
+  "title": "Laravel Horizon audit report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "environment",
+    "laravel_version",
+    "horizon_version",
+    "mode",
+    "overall_result",
+    "findings",
+    "queue_map",
+    "missing_information",
+    "next_steps"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "project": { "type": "string", "minLength": 1 },
+    "environment": { "type": "string", "minLength": 1 },
+    "laravel_version": { "type": ["string", "null"] },
+    "horizon_version": { "type": ["string", "null"] },
+    "mode": { "enum": ["static", "runtime", "recommendations"] },
+    "overall_result": { "enum": ["PASS", "WARN", "FAIL", "NOT_APPLICABLE", "UNVERIFIED"] },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "queue_map": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/consumer" }
+    },
+    "missing_information": { "type": "array", "items": { "type": "string" } },
+    "next_steps": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "title",
+        "severity",
+        "status",
+        "evidence_basis",
+        "evidence",
+        "impact",
+        "recommendation",
+        "verification"
+      ],
+      "properties": {
+        "rule_id": { "enum": ["HZ-001", "HZ-002", "HZ-003", "HZ-004", "HZ-005", "HZ-006", "HZ-007"] },
+        "title": { "type": "string", "minLength": 1 },
+        "severity": { "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"] },
+        "status": { "enum": ["PASS", "FAIL", "WARN", "UNVERIFIED", "NOT_APPLICABLE"] },
+        "evidence_basis": { "enum": ["read", "computed", "not_verified"] },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "line", "value"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1 },
+              "line": { "type": ["integer", "null"], "minimum": 1 },
+              "value": { "type": "string" }
+            }
+          }
+        },
+        "impact": { "type": "string" },
+        "recommendation": { "type": "string" },
+        "verification": { "type": "string", "minLength": 1 }
+      }
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["consumer", "source", "connection", "driver", "redis_connection", "database", "prefix", "queue", "environment"],
+      "properties": {
+        "consumer": { "type": "string" },
+        "source": { "type": "string" },
+        "connection": { "type": "string" },
+        "driver": { "type": "string" },
+        "redis_connection": { "type": "string" },
+        "database": { "type": "string" },
+        "prefix": { "type": "string" },
+        "queue": { "type": "string" },
+        "environment": { "type": "string" }
+      }
+    }
+  }
+}
