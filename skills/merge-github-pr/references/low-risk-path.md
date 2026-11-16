@@ -61,7 +61,7 @@ Run `@skills/merge-github-pr-fast/SKILL.md` step 2 (*Security check — one pass
 
 | Check | On the low-risk path |
 |---|---|
-| Code-review gate and delegated security coverage | Replaced by the security check. The newest trusted code-review report is still read with `skills/_shared/cr-header.sh --report <loader-file>`: a Critical or an undeferred Moderate in it blocks, as `merge-exemptions.md` states for the `FAST`-tier exemption |
+| Code-review gate and delegated security coverage | Replaced by the security check. The newest trusted code-review report is still read with the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>` (`references/trusted-record-parser.md`): a Critical or an undeferred Moderate in it blocks, as `merge-exemptions.md` states for the `FAST`-tier exemption |
 | CI | Not waited for and not required. A check that already failed for a real reason blocks, and the *GitHub Actions billing exception* applies unchanged. A pending check is not waited for |
 | Pre-merge quality gate | Mandatory, on the gated head |
 | Security check | Mandatory, before the gate |

@@ -97,7 +97,7 @@ test('the installed reference replaces only a missing default-branch blob, and t
     expect($script)->toContain('#   verify-installed-copy.sh [--installed-reference] --root <untouched clone> --commit')
         ->and($script)->toContain('#   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships')
         ->and($script)->toContain(
-            '#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Only the review',
+            '#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Two procedures',
         )
         ->and($script)->toContain(
             '[[ "$reason" == \'no-default-branch-blob\' && "$installed_reference" == 1 && "$path" != skills/* ]] && reason=\'\'',
@@ -123,9 +123,9 @@ test('the installed reference replaces only a missing default-branch blob, and t
     // The fast-merge security check runs review-mode steps 2 and 3, so it is a deliberate caller of the option.
     expect(verifyInstalledCopySource('skills/merge-github-pr-fast/SKILL.md'))
         ->toContain('run `@skills/git-history-exposure-audit/SKILL.md` *Review mode* steps 2 and 3 only');
-    expect($script)->toContain('#            default-branch tip wrote the copy and the reference. Its callers are the code review and the security check')
+    expect($script)->toContain('#            reference: the review mode of `skills/git-history-exposure-audit/SKILL.md`, whose callers are the code')
         ->and($script)->toContain(
-            '#            of `skills/merge-github-pr-fast/SKILL.md` step 2, which runs steps 2 and 3 of that mode. The classifier of',
+            '#            review and the security check of `skills/merge-github-pr-fast/SKILL.md` step 2 (steps 2 and 3 of that mode),',
         );
     $changelog = verifyInstalledCopySource('CHANGELOG.md');
 
