@@ -1,11 +1,15 @@
 {
     "scenario": "T9",
     "description": "A waits key names redis:reports, which no supervisor consumes",
-    "evaluated": false,
     "outcomes": [
-        "HZ-006:WARN"
+        "HZ-001:PASS",
+        "HZ-002:PASS",
+        "HZ-005:UNVERIFIED",
+        "HZ-006:WARN",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "MEDIUM"
-    ]
+    ],
+    "judgement": "The notification routes of HZ-006 are read by the agent; the evaluator compares the waits keys with the consumers."
 }

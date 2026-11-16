@@ -1,6 +1,7 @@
 # Effective configuration, the consumer map, and static parsing
 
 ## Static parsing
+- `scripts/evaluate.php` does this parsing and the merge below for the computable checks (`SKILL.md` *The evaluator*). It tokenizes each config file with `PhpToken::tokenize` and never executes it. Where this file and the script differ, the script is the one that runs, and a difference is a defect to fix in the file or in the script.
 - Read each PHP config file as text. Interpret a literal scalar, a literal array, a class constant of the project, and a plain `env('NAME', <literal>)` call.
 - A value inside `env(...)` is **unknown**: the audit never reads `.env`, so the literal fallback shows only what applies when the variable is absent. Record the fallback as `fallback: <literal>` and the value as `unknown`.
 - A value built from a function call, a conditional, a loop, string concatenation with an unknown part, or a helper is `unknown`. Never evaluate it.
@@ -9,7 +10,7 @@
 
 ## Effective supervisor configuration
 1. Read `defaults` and `environments` of `config/horizon.php`.
-2. Resolve the environment key. An exact key of `environments` wins. Otherwise the first key that matches the audited `environment` as a wildcard pattern applies, and `*` is the fallback environment. Horizon 5.x selects the environment with `Str::is($name, $environment)` and takes the first match.
+2. Resolve the environment key the way Horizon 5.x does: the first key of `environments`, in file order, for which `Str::is($key, $environment)` holds. A key matches when it equals the environment or is a pattern with `*`. An exact key does not win over an earlier pattern: with `'*'` listed before `'production'`, Horizon deploys the `*` block in production, so audit that block and report the order. A `*` listed last is the fallback. When no key matches, Horizon deploys no supervisor for that environment, and the audit reports `UNVERIFIED`.
 3. Merge the whole supervisor map. Horizon 5.x runs `array_replace_recursive($defaults, $environmentPlan)` over every supervisor of the environment. The result holds every supervisor of `defaults` and every supervisor of the environment. A supervisor that only `defaults` defines therefore runs in every environment, and for a supervisor in both the environment value wins. A list value such as `queue` is replaced index by index, not appended. A supervisor deploys only when its merged `maxProcesses` is above 0.
 4. Confirm the merge against the installed `vendor/laravel/horizon` source (`ProvisioningPlan`). When it shows a different merge, follow the installed source and say so. Without the source or for another major version, the merge result of a defaults-only supervisor and of a list value is `UNVERIFIED`. The audit still lists such a supervisor and never omits it.
 5. Fill each option the merged row lacks with the Horizon default of the detected version, marked `built-in default`, only when the installed source states it. Otherwise leave it unknown.

@@ -1,10 +1,11 @@
 {
     "scenario": "T2",
     "description": "job timeout 120, supervisor timeout 60, retry_after 90",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:PASS",
-        "HZ-002:FAIL"
+        "HZ-002:FAIL",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "HIGH",

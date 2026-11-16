@@ -1,12 +1,14 @@
 {
     "scenario": "T3",
     "description": "job timeout 60, supervisor timeout 90, retry_after 120; the order holds, the margin is judged separately",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:PASS",
-        "HZ-002:PASS"
+        "HZ-002:PASS",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "INFO"
-    ]
+    ],
+    "judgement": "The margin between the limits is judged by the agent against the longest job of the workload."
 }

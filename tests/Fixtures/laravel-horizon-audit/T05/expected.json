@@ -1,10 +1,11 @@
 {
     "scenario": "T5",
     "description": "Same queue names in different Redis databases",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:PASS",
-        "HZ-002:PASS"
+        "HZ-002:PASS",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
     ],
     "severity": [
         "INFO"

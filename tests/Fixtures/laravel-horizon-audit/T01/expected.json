@@ -1,7 +1,6 @@
 {
     "scenario": "T1",
     "description": "No laravel/horizon in composer.json and composer.lock",
-    "evaluated": true,
     "outcomes": [
         "NOT_APPLICABLE"
     ]

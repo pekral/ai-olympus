@@ -88,7 +88,7 @@ Build the effective supervisor configuration for each audited environment: every
 The step is done when every supervisor of every audited environment has one merged row and every consumer has one map row.
 
 ### 3. Static checks
-Run HZ-001 to HZ-007 from `references/checks.md` over the normalized data. Each rule is independent: a rule that lacks its data returns `UNVERIFIED` and never blocks the others.
+Run `php skills/laravel-horizon-audit/scripts/evaluate.php <project_path> --environment <environment>` first (*The evaluator*). Use its outcomes for the computable parts of HZ-001 to HZ-007. Then run the rules of `references/checks.md` over the normalized data for every part the evaluator leaves to the agent. Each rule is independent: a rule that lacks its data returns `UNVERIFIED` and never blocks the others.
 
 | Rule | Check |
 |---|---|
@@ -156,13 +156,36 @@ In a code review, map `CRITICAL` to Critical and `HIGH`, `MEDIUM`, `LOW` to Mode
 - The audit takes no benchmark and states no universal timeout.
 - The rule set covers `redis` and names the `sqs` and `database` semantics where they differ (`references/checks.md` HZ-002).
 
+## The evaluator
+`scripts/evaluate.php` is the deterministic part of the audit. It is a script that ships with the skill and the skill runs it in steps 2 and 3.
+
+```text
+php skills/laravel-horizon-audit/scripts/evaluate.php <project_path> [--environment <name>]
+```
+
+- **What it reads.** `composer.json`, `composer.lock`, `config/horizon.php`, `config/queue.php`, `config/database.php`, the job classes under `app/Jobs`, any PHP file under `app/` for the dashboard authorization, and the process-manager and deploy files of the project directory. It reads each file as text, tokenizes a config file with `PhpToken::tokenize`, and never executes anything. It runs no process, opens no connection, follows no symbolic link, and refuses every file whose name starts with `.env`.
+- **What it prints.** One JSON document: `applicable`, `versions`, the audited `environment` and the `environment_key` Horizon selects, the `consumers` with their provenance lines, `findings` (rule, status, severity, `evidence_basis`, `file:line` evidence), the `outcomes` tokens (`HZ-002:FAIL`), `not_decided`, `process_files`, `files_read`, and `runtime_access`. The order is deterministic. It never prints a value of an `env()` call, so a credential in a fallback never reaches the output. The exit code is `0` for every evaluation, also for a `FAIL`, and `1` for a usage error.
+- **What it computes.**
+  - Discovery: `NOT_APPLICABLE` without `laravel/horizon`, and the two versions from `composer.lock`.
+  - The environment key and the merged supervisor map of Horizon 5.x (`references/effective-configuration.md`). A supervisor with a literal `maxProcesses` of 0 is not deployed.
+  - HZ-001: the physical key (driver, host, port, database, prefix, queue) of each consumer. A fully known equal key is `WARN`. An equal key with an unknown part is `UNVERIFIED`, and a standalone `queue:work` or `queue:listen` command keeps `PASS` away.
+  - HZ-002: `job timeout < supervisor timeout < retry_after`, and a differing `retry_after` on a shared queue. A job applies to a consumer when it is the only supervisor or the job names its queue. A value that is not a literal, a built-in default, and a driver other than `redis` give `UNVERIFIED`.
+  - HZ-003: a job with a finite `$tries` and a middleware that releases it (`WithoutOverlapping` without `dontRelease()`, `RateLimited`, `RateLimitedWithRedis`) gives `WARN`.
+  - HZ-004: `balance` `auto` with several literal queues gives `WARN`, and `minProcesses` above `maxProcesses` gives `FAIL`.
+  - HZ-005: no process-manager or deploy file that mentions Horizon or a queue worker gives `UNVERIFIED`. The files it finds go into `process_files`.
+  - HZ-006: a `waits` key with no consumer, or a consumed `connection:queue` with no key, gives `WARN`, when `waits` is declared.
+  - HZ-007: always `UNVERIFIED`, with the location of any `Horizon::auth` or `viewHorizon` code. It never prints a security diagnosis.
+- **What stays the agent's judgement.** A rule without an outcome in `not_decided` (HZ-003 without a releasing middleware, HZ-004 without an order problem, HZ-006 without a `waits` map). The notification routes. Whether a margin is justified by the workload. Whether `CRITICAL` replaces `HIGH` because a duplicate run repeats a side effect. Whether a project expects the queue order to set the priority. The grace period of a process manager against the longest job. The installed Horizon source, which the script never opens. The agent applies `references/checks.md` to these points and reports them as findings of its own with the `read` or `not_verified` basis.
+- **Limits.** The evaluator reads a literal scalar or list only. A class constant, a function call, an `env()` call, and an expression are unknown. A consumer outside `config/horizon.php` and the process files is unknown to it. It walks the project directory and cannot tell which files git tracks.
+
 ## Fixtures and tests of this skill
-`references/fixture-scenarios.md` lists the sixteen scenarios (T1 to T16) with the expected rule, status, and severity. The package test `tests/Installer/LaravelHorizonAuditSkillTest.php` pins the rules, the contract, and the schema.
+`references/fixture-scenarios.md` lists the sixteen scenarios (T1 to T16) with the expected rule, status, and severity. Each has a fixture directory with an `expected.json`. The package test `tests/Installer/LaravelHorizonAuditSkillTest.php` runs the evaluator over every fixture and compares each run with its `expected.json`. It also pins the rules, the contract, and the schema.
 
 ## References
 - `references/checks.md` — rules HZ-001 to HZ-007
 - `references/effective-configuration.md` — discovery, merge, consumer map, static parsing
 - `references/regression-tests.md` — Pest sketches and a CI step
-- `references/fixture-scenarios.md` — scenarios T1 to T16
+- `references/fixture-scenarios.md` — scenarios T1 to T16 and the fixtures
+- `scripts/evaluate.php` — the deterministic evaluator
 - `templates/report.md` — the Markdown report
 - `schemas/report.schema.json` — the JSON report

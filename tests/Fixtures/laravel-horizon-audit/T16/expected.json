@@ -1,8 +1,14 @@
 {
     "scenario": "T16",
     "description": "The dashboard authorization cannot be read from the code",
-    "evaluated": false,
     "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:PASS",
+        "HZ-005:UNVERIFIED",
         "HZ-007:UNVERIFIED"
-    ]
+    ],
+    "severity": [
+        "INFO"
+    ],
+    "judgement": "The default gate of Horizon decides at runtime; the agent states that and gives no security diagnosis."
 }

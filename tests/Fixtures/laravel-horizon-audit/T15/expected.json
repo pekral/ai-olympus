@@ -1,9 +1,13 @@
 {
     "scenario": "T15",
     "description": "A config with a dynamic expression is never evaluated",
-    "evaluated": true,
     "outcomes": [
         "HZ-001:PASS",
-        "HZ-002:UNVERIFIED"
+        "HZ-002:UNVERIFIED",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
+    ],
+    "severity": [
+        "INFO"
     ]
 }

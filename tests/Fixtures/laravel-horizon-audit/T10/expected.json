@@ -1,8 +1,13 @@
 {
     "scenario": "T10",
     "description": "Deployment with no process-manager file",
-    "evaluated": false,
     "outcomes": [
-        "HZ-005:UNVERIFIED"
+        "HZ-001:PASS",
+        "HZ-002:PASS",
+        "HZ-005:UNVERIFIED",
+        "HZ-007:UNVERIFIED"
+    ],
+    "severity": [
+        "INFO"
     ]
 }
