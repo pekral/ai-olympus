@@ -458,7 +458,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a name that an added or removed line of the change carries is the reviewed project's own text (issue #567).
         // Re-baselined: a run that only processes the owner's answers and lands no change publishes nothing (issue #575).
         // Re-baselined: the GitHub review body opens with a visible TL;DR of the inline findings and the CI result (issue #556).
-        'rules/code-review/general.md' => '5b64047808746b32234dd277f7edae9af745478f858ffa83574fff4b3bc74d3f',
+        'rules/code-review/general.md' => '1d975b85562c168682aa550dfba6063c2ad7948402f1e0668aa65f6b8635364e',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

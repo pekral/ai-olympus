@@ -51,7 +51,7 @@ The review body opens with the TL;DR of the round: one line for each finding tha
 
 The link points to the commented line on the *Files changed* page: `{diff anchor}` is the SHA-256 of the file path, with `R{line}` on the new file and `L{line}` on the old file. A DRY finding reads `🟠 **Moderate · DRY**`. With no inline finding, the finding lines are the one line `- No finding is open as an inline comment.`
 
-The CI line counts every check run and every commit status of the head; `({failing checks})`, `, {n} pending`, and `, {n} skipped` render only when they are not empty. When no check reported, it reads `no check reported a result for this commit.`, and when the lookup failed, `not read, the lookup on GitHub failed.`
+The CI line counts every check run and every commit status of the head, every page of both; `({failing checks})`, `, {n} pending`, and `, {n} skipped` render only when they are not empty. When no check reported, it reads `no check reported a result for this commit.`, and when the lookup failed, `not read, the lookup on GitHub failed.`
 
 ````markdown
 **TL;DR**

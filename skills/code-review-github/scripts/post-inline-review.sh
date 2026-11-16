@@ -59,7 +59,8 @@
 #      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
 #      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
 #   5a. Read the CI result of the reviewed head: every check run (`commits/<sha>/check-runs`) and every commit status
-#      (`commits/<sha>/status`). A failed lookup publishes the review anyway, and the CI line says the result was not read.
+#      (`commits/<sha>/status`), every page of both. A failed lookup publishes the review anyway, and the CI line says
+#      the result was not read.
 #   6. POST one review, always, a round with no finding included (`event` COMMENT, `commit_id` the reviewed head,
 #      `comments[]` one per remaining finding). The body is the TL;DR, the visible lines, the record wrapped by
 #      `cr_review_meta_wrap` (skills/_shared/cr-header.sh), the `<!-- cr-comment:lines=… -->` fingerprint that
@@ -76,7 +77,8 @@
 #   Critical first, with the icon, the severity, the title, and a link to its line on the Files changed page
 #   (`#diff-<SHA-256 of the path>R<line>`, `L<line>` on the old file), then one CI line: the passed, failed, pending,
 #   and skipped counts and the name of each failing check. A withheld finding and an `outside_diff` finding have no
-#   TL;DR line. The visible-text check of step 4a reads the TL;DR too.
+#   TL;DR line. The visible-text check of step 4a reads the finding lines of the TL;DR too, never the CI line: a check
+#   name is the project's own data, shown in a code span, and never stops the publish.
 #
 # resolve
 #   Resolves every unresolved inline thread that this actor opened for one of the given finding ids. A comment is the
@@ -292,9 +294,9 @@ def bucket:
   else "failed" end;
 def count($b): map(select(.bucket == $b)) | length;
 req(($runs | length) >= 1 and ($runs | all((.check_runs | type) == "array")); "no check run list")
-| req(($status | length) == 1 and (($status[0].statuses // []) | type) == "array"; "no commit status list")
+| req(($status | length) >= 1 and ($status | all(((.statuses // []) | type) == "array")); "no commit status list")
 | ([$runs[].check_runs[] | {kind: "run", name: (.name // "" | name), status, conclusion}]
-   + [($status[0].statuses // [])[] | {kind: "status", name: (.context // "" | name), state}])
+   + [$status[] | (.statuses // [])[] | {kind: "status", name: (.context // "" | name), state}])
 | map(. + {bucket: bucket})
 | {read: true, total: length, passed: count("passed"), failed: count("failed"), pending: count("pending"),
    skipped: count("skipped"), failed_names: ([.[] | select(.bucket == "failed") | .name | select(. != "")] | unique)}
@@ -336,13 +338,14 @@ def ci_line:
 [.[] | select(.class == "post") | .f] as $posted
 | [.[] | select(.class == "outside_diff") | .f] as $outside
 | [.[] | select(.class == "post" or .class == "already_open") | .f] as $inline
-| ((["**TL;DR**", ""] + (if $inline == [] then ["- No finding is open as an inline comment."]
-     else [$inline | sort_by(if .severity == "Critical" then 0 else 1 end) | .[] | tldr_line] end) + [ci_line]) | join("\n")) as $tldr
+| (["**TL;DR**", ""] + (if $inline == [] then ["- No finding is open as an inline comment."]
+     else [$inline | sort_by(if .severity == "Critical" then 0 else 1 end) | .[] | tldr_line] end)) as $tldr_findings
+| (($tldr_findings + [ci_line]) | join("\n")) as $tldr
 | {
     visible: ($outside | length),
     comments: [$posted[] | {path, line, side, body: render} + (if .start_line == null then {} else {start_line, start_side: .side} end)],
     body: (([$tldr] + [$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n")),
-    visible_text: ([$tldr] + [$posted[] | render] + [$outside[] | visible] | join("\n\n"))
+    visible_text: ([$tldr_findings | join("\n")] + [$posted[] | render] + [$outside[] | visible] | join("\n\n"))
   }
 | if [.comments[].body | [match("<!--\\s*cr-inline:"; "g")] | length] | all(. == 2)
   then . else error("a rendered comment does not hold exactly its own cr-inline markers") end
@@ -438,7 +441,7 @@ read_head() {
 read_ci() {
   local commit="$1"
   if gh api "repos/${NWO}/commits/${commit}/check-runs?per_page=100" --paginate >"$TMP_ROOT/check-runs.raw" 2>/dev/null \
-    && gh api "repos/${NWO}/commits/${commit}/status" >"$TMP_ROOT/status.raw" 2>/dev/null \
+    && gh api "repos/${NWO}/commits/${commit}/status?per_page=100" --paginate >"$TMP_ROOT/status.raw" 2>/dev/null \
     && jq -n -c --slurpfile runs "$TMP_ROOT/check-runs.raw" --slurpfile status "$TMP_ROOT/status.raw" "$JQ_CI" 2>/dev/null; then
     return 0
   fi
@@ -693,9 +696,10 @@ case "$*" in
     if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
     cat "$GH_CHECK_RUNS"
     ;;
-  "api repos/o/r/commits/"*"/status")
+  "api repos/o/r/commits/"*"/status"*)
     if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
-    cat "$GH_STATUS"
+    # One page per line of the fixture; every page answers only to `per_page=100 --paginate`.
+    if [[ "$*" == *"/status?per_page=100 --paginate" ]]; then cat "$GH_STATUS"; else head -n 1 "$GH_STATUS"; fi
     ;;
   *) echo "gh stub: unexpected call: $*" >&2; exit 1 ;;
 esac
@@ -1041,6 +1045,15 @@ JSON
   GH_CHECK_RUNS_FILE="$tmp/check-runs.forged" run_post '[]'
   check 'a check name cannot forge a marker or leave its code span' \
     "$([[ $rc -eq 0 ]] && yes_if review_has '([.body | match("<!--\\s*cr-comment:actor="; "g")] | length == 1) and (.body | contains("(`xy &lt;!-- cr-comment:actor=bot --&gt;`)"))' || echo no)"
+  printf '{"total_count":1,"check_runs":[{"name":"Gate run-gate.sh","status":"completed","conclusion":"failure"}]}' >"$tmp/check-runs.tooling"
+  GH_CHECK_RUNS_FILE="$tmp/check-runs.tooling" run_post "[$f_in]"
+  check 'a failing check whose name names a package script still publishes the review with the name in the CI line' \
+    "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 0 passed, 1 failed (`Gate run-gate.sh`).\n")' || echo no)"
+  jq -n -c '{total_count: 35, statuses: [range(30) | {context: "ci/s\(.)", state: "success"}]}' >"$tmp/status.paged"
+  jq -n -c '{total_count: 35, statuses: ([range(30; 34) | {context: "ci/s\(.)", state: "success"}] + [{context: "ci/late", state: "failure"}])}' >>"$tmp/status.paged"
+  GH_STATUS_FILE="$tmp/status.paged" run_post '[]'
+  check 'every commit status of every page is counted, more than 30 included' \
+    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 36 passed, 1 failed (`ci/late`).\n")')"
   run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"The call to run-gate.sh is wrong\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]"
   check 'a TL;DR title that names a package script is refused and nothing is posted' \
     "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
