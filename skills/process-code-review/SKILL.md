@@ -155,7 +155,7 @@ Loop iterations run **quiet** — the review is invoked with the explicit instru
 
 ### Quality gates — not run in this loop
 
-**Do not run fixers, checkers, or the full build inside the review loop.** Per `@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's gate runs exactly once, after the loop converges: *Finalization* below runs it, and `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accepts that record for the exact head SHA or runs the gate itself. A gate per iteration would prove nothing the final run does not re-prove.
+**Do not run fixers, checkers, or the full build inside the review loop.** Per `@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's gate runs exactly once, after the loop converges: *Finalization* below runs it, and `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accepts that record for the exact head SHA or runs the gate itself. Before each push of a fix only that section's pre-push gate runs.
 
 Apply each fix, commit it, push it, and let the next review iteration read the new diff.
 

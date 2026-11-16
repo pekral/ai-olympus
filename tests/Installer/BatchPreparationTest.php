@@ -141,7 +141,7 @@ test('every brief carries the complete gate-serialisation block and names only t
 
     expect($batch)->toContain('The root session puts this block into the dispatch of every specialist of every unit, verbatim.')
         ->and($batch)->toContain('`Too many connections`, `Deadlock`, `Table doesn\'t exist`')
-        ->and($batch)->toContain('`skills/_shared/run-gate.sh --tier pr --actor <your role>`')
+        ->and($batch)->toContain('Run the `pr-gate` fixers before a push only as one `skills/_shared/run-gate.sh --exclusive` call,')
         ->and($batch)->toContain('`skills/_shared/run-gate.sh --tier full`')
         ->and($batch)->toContain('`skills/_shared/run-gate.sh --exclusive --command "<command>"`')
         ->and($batch)->toContain('a dependency install (`composer install`, `npm ci`)')
@@ -295,9 +295,9 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         )
         ->and($batch)->toContain('With CI, it puts the worktree on the unit branch as step 2.1 states')
         ->and($batch)->toContain(
-            '**With CI, the same pull request.** It pushes with `git -C <worktree> push '
+            '**With CI, the same pull request.** It runs the `pr-gate` fixers and commits what they change. It pushes with `git -C <worktree> push '
             . '--force-with-lease="refs/heads/<branch>:<head SHA confirmed above>" origin "HEAD:refs/heads/<branch>"`, '
-            . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local gate.',
+            . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local checker and no local test.',
         )
         ->and($batch)->toContain('No pull request is opened or closed, and the bullets below do not apply.')
         ->and($batch)->toContain('**Without CI, a new pull request.**')

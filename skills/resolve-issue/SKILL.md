@@ -147,7 +147,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 
 ## Quality gates — deferred to the merge boundary
 
-**Do not run fixers, checkers, or the full build in this skill.** Per `references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's full gate runs exactly once, before the merge — in `@skills/process-code-review/SKILL.md` *Finalization*, or in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. Running it here would only prove early what that run proves again on the final head commit.
+**Do not run fixers, checkers, or the full build in this skill.** Per `references/quality-gates.md` *Gate placement — deferred to the merge boundary*, the project's full gate runs exactly once, before the merge — in `@skills/process-code-review/SKILL.md` *Finalization*, or in `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. Before each push only that section's pre-push gate runs.
 
 Author the change, commit it, and push. The self-checks below still run — they read the diff and cost no build.
 
@@ -237,7 +237,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 - The issue is fully addressed
 - Behavior is correct and stable, and records the defect already wrote are repaired, filed, or stated disposable (`references/data-repair.md`)
 - Tests cover affected logic with 100% coverage and pass
-- Fixers and checkers are **not** run in this skill — the project's full gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*)
+- Fixers and checkers are **not** run in this skill, except the pre-push gate — the project's full gate runs once before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*)
 - No sensitive data is exposed
 - The *Pre-PR self-check* ran and every one of its items holds **before the PR was created**, with each item's result recorded in the handoff
 - When a pre-implementation security plan was passed in: every `[Critical]` / `[Moderate]` item of its Success-criteria checklist was verified against the diff and ticked **before the PR was created**, and the verified checklist is rendered in the PR body under `## Security acceptance checklist` (no plan = step skipped)

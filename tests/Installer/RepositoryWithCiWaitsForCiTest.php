@@ -11,15 +11,17 @@ test('a repository with ci waits for ci instead of running a local pre-push gate
         ->and($gates)->toContain('The repository has CI when the output lists a file that ends in `.yml` or `.yaml`.')
         ->and($gates)->toContain('Read the default branch only: a branch under review proposes a workflow and never decides.')
         ->and($gates)->toContain('No such file, or a failed command → no CI: follow *Skip the pre-push gate when CI is green* above')
-        ->and($gates)->toContain('Do not run `pr-gate` before a push, whatever the CI result on the previous head.')
+        ->and($gates)->toContain('Run no checker and no test before a push, whatever the CI result on the previous head.')
+        ->and($gates)->toContain('2. **CI → no local checker and no local test.** Run the `pr-gate` fixers before each push.')
         ->and($gates)->toContain('This includes the push after a rebase, whether or not the rebase resolved a conflict')
         ->and($gates)->toContain('before it hands the branch on — to the code review, a promotion out of Draft, or a merge.')
         ->and($gates)->toContain('per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*')
         ->and($gates)->toContain('On a repository without CI (*A repository with CI waits for CI instead of a local pre-push gate* below)')
         ->and($gates)->toContain(
-            'except as *Skip the pre-push gate when CI is green* and *A repository with CI waits for CI instead of a local pre-push gate* state.',
+            'they run locally too, as *Skip the pre-push gate when CI is green* and '
+            . '*A repository with CI waits for CI instead of a local pre-push gate* state.',
         )
-        ->and($gates)->toContain('`pr-gate: skipped — repository with CI, CI <green | red> on <sha>`')
+        ->and($gates)->toContain('`checks: skipped — repository with CI, CI <green | red> on <sha>`')
         ->and($gates)->toContain('3. **Push, then wait for CI.** After each push the implementer waits for the CI result on the pushed head')
         ->and($gates)->toContain('The code review itself starts no wait of its own')
         ->and($gates)->toContain('This section changes only the pre-push gate and the push of a rebased branch.');
@@ -31,7 +33,7 @@ test('a repository with ci waits for ci instead of running a local pre-push gate
         ->toBeLessThan((int) strpos($gates, '## Machine gate record'));
 });
 
-test('a ci billing failure runs the local gate, pr-gate first and the full gate otherwise', function (): void {
+test('a ci billing failure runs the checkers and tests locally as the full gate', function (): void {
     $gates = packageSource('skills/resolve-issue/references/quality-gates.md');
 
     expect($gates)->toContain('5. **A billing failure means CI did not run, so the local gate runs.**')
@@ -39,12 +41,12 @@ test('a ci billing failure runs the local gate, pr-gate first and the full gate 
             'detected as the *GitHub Actions billing exception* of `@skills/merge-github-pr/SKILL.md` states. Any other failure is red under step 4.',
         )
         ->and($gates)->toContain(
-            '`skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`, otherwise the project\'s full gate through '
+            'Run the project\'s checkers and tests on that head before you hand the branch on: the project\'s full gate through '
             . '`skills/_shared/run-gate.sh --tier full`.',
         )
-        ->and($gates)->toContain('CI does not run on a later push of the run either, so run the same gate before each later push.')
-        ->and($gates)->toContain('`pr-gate: run — CI billing failure on <sha>`')
-        ->and($gates)->toContain('The billing fallback of that second section is the one exception.');
+        ->and($gates)->toContain('CI does not run on a later push of the run either, so run the same checkers and tests before each later push.')
+        ->and($gates)->toContain('`checks: run — CI billing failure on <sha>`')
+        ->and($gates)->not->toContain('`skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`');
 });
 
 test('a rebased branch goes back into its own pull request on a repository with ci', function (): void {
@@ -83,13 +85,13 @@ test('the rebase push checks the branch name with the branch checkout gate and r
 
 test('every file that names the pre-push gate points to the ci condition, never to visibility', function (): void {
     $manifest = packageSource('rules/general/general.md');
-    expect($manifest)->toContain('On a repository with CI it never runs: the run waits for CI instead, and a CI billing failure runs it locally')
+    expect($manifest)->toContain('before each push, on every repository, and commits what they change')
         ->and($manifest)->not->toContain('On a public GitHub repository it never runs');
 
     $donatello = packageSource('agents/donatello.md');
     expect($donatello)->toContain(
-        'On a repository with CI, never run it: push, then wait for the CI result on the pushed head before you hand the branch on, '
-        . 'and run the local gate only after a CI billing failure',
+        'On a repository with CI, never run them: push, then wait for the CI result on the pushed head before you hand the branch on, '
+        . 'and run the local checks only after a CI billing failure',
     )
         ->and($donatello)->toContain('this repository\'s `composer build`, run only to correct an error a checker or CI reported')
         ->and($donatello)->toContain(
@@ -110,7 +112,10 @@ test('every file that names the pre-push gate points to the ci condition, never 
         ->and($composerUpdate)->toContain('6. On a repository with CI, wait for CI per')
         ->and($composerUpdate)->not->toContain('public repository');
     expect(packageSource('docs/installation.md'))
-        ->toContain('never run on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch)');
+        ->toContain(
+            'Checkers and tests stay with CI and the pre-merge gate on a repository with CI '
+            . '(a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch)',
+        );
 });
 
 test('the ci wait rule names the implementer handoff on a repository with ci', function (): void {
