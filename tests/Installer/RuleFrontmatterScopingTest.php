@@ -76,7 +76,8 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // PR description instead of a comment at the sink, because a PHP comment carries only
         // `@` annotations. Nothing else in the file moved.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'backend.md' => '5113bc15e09f2f5b19ee4ecd4ee018f3f34c67309f2625cf6ce769f5aa703cc0',
+        // Re-baselined: every decision point of a dashboard access path must deny a guest, gate hooks and the Ignition guard included.
+        'backend.md' => 'e834f91f692ede365ab12df7af6e97ef54bc742506e33840b1779cb894c40934',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'mobile.md' => '5ab7dccc7d2b066e1f4da8461ec8f35a2899b1429c97deb3dfca23f493146e04',

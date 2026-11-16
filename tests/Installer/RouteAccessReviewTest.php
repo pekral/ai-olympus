@@ -200,11 +200,38 @@ test('a dashboard gate must be enforced through the middleware list and the enab
         ->and($section)->toContain('A `middleware` list without that entry leaves the gate unchanged and the dashboard reachable without signing in')
         ->and($section)->toContain('The `enabled` flag of such a config file')
         ->and($step)->toContain('the `middleware` list or the `enabled` flag of the dashboard\'s config file')
-        ->and($step)->toContain('the config files of the dashboards (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`)')
+        ->and($step)->toContain(
+            'the config files of the dashboards (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`, `config/ignition.php`)',
+        )
         ->and($step)->toContain('the gate definition and the `::auth` callback of each dashboard')
         ->and($step)->not->toContain('keeps its access middleware there')
         ->and($step)->toContain('for a dashboard, its gate definition and `::auth` callback as the rule describes them')
         ->and($step)->not->toContain('Authorize::class');
+});
+
+test('every decision point of a dashboard access path must deny a guest, gate hooks and the Ignition guard included', function (): void {
+    $section = routeAccessSection(routeAccessSource('rules/security/backend.md'), '## Route Access (issue #586)', '## External Requests');
+    $step = routeAccessSection(
+        routeAccessSource('skills/security-review/SKILL.md'),
+        '### Route Access of Changed Routes (issue #586)',
+        '### Session & Token Management',
+    );
+
+    expect($section)->toContain('has several decision points, and every one must deny an unauthenticated caller')
+        ->and($section)->toContain('the access middleware, the `::auth` callback, the gate, and every `Gate::before` or `Gate::after` hook')
+        ->and($section)->toContain('A decision point that a framework or a package adds to that path follows the same test.')
+        ->and($section)->toContain('A `Gate::before` or `Gate::after` hook runs around every gate check')
+        ->and($section)->toContain(
+            'A hook whose user parameter accepts null and returns true, or otherwise allows a guest, is the finding of the severity below.',
+        )
+        ->and($section)->toContain('Ignition (`_ignition/execute-solution`, `_ignition/update-config`) has no gate.')
+        ->and($section)->toContain('the runnable-solutions guard, which decides from `app.debug` and `ignition.enable_runnable_solutions`')
+        ->and($section)->toContain('A change that lets that guard pass outside the local environment is the finding of the severity below.')
+        ->and($step)->toContain('a `Gate::before` or `Gate::after` hook, `app.debug`, or `ignition.enable_runnable_solutions`')
+        ->and($step)->toContain('`config/horizon.php`, `config/ignition.php`) and `config/app.php` for `debug`')
+        ->and($step)->toContain('the files that register gate hooks (`AuthServiceProvider`, `AppServiceProvider`)')
+        ->and($step)->not->toContain('runnable-solutions guard')
+        ->and($step)->not->toContain('a user parameter that accepts null');
 });
 
 test('the changelog records the route-access step', function (): void {
