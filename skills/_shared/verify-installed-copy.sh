@@ -10,10 +10,11 @@
 #   decides whether such a file can run as a trusted copy. That section owns when a step runs it.
 #
 # Usage
-#   verify-installed-copy.sh --root <main worktree> --commit <default-branch commit id> <installed path>...
+#   verify-installed-copy.sh --root <untouched clone> --commit <default-branch commit id> <installed path>...
 #   verify-installed-copy.sh --self-test
 #
-#   --root   the absolute path of the top of the clone
+#   --root   the absolute path of the top of the untouched clone of merge-exemptions.md item 6. A `verified` verdict
+#            proves nothing for any other root, the main worktree included.
 #   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
 #   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
 #

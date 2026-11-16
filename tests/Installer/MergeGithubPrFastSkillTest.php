@@ -52,7 +52,9 @@ test('one inline security-only check runs before the merge and a Critical findin
         ->and($skill)->toContain('history-scan.sh range --base <baseRefOid> --head <headRefOid>')
         ->and($skill)->toContain('**A Critical finding stops the merge.**')
         ->and($skill)->toContain('`Blocked: security check not completed — <reason>`')
-        ->and($skill)->toContain('Any other exit, and an installed script that differs')
+        ->and($skill)->toContain('(the script of the untouched clone this check creates first')
+        ->and($skill)->toContain('Any other exit, and a scan without an untouched clone')
+        ->and($skill)->not->toContain('the installed script')
         ->and($skill)->toContain('Only the Moderate and lower findings of a completed check do not block.')
         ->and(strpos($skill, '### 2. Security check'))->toBeLessThan((int) strpos($skill, '### 6. Merge'));
 });

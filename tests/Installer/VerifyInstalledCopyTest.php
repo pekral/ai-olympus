@@ -14,6 +14,8 @@ test('the verifier is an executable bash script whose self-test the build runs o
 
     expect(is_executable($script))->toBeTrue()
         ->and(verifyInstalledCopySource('skills/_shared/verify-installed-copy.sh'))->toStartWith('#!/usr/bin/env bash')
+        ->and(verifyInstalledCopySource('skills/_shared/verify-installed-copy.sh'))->toContain('--root <untouched clone> --commit')
+        ->and(verifyInstalledCopySource('skills/_shared/verify-installed-copy.sh'))->not->toContain('<main worktree>')
         ->and(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/verify-installed-copy.sh '))->toBe(1);
 });
 

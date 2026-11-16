@@ -174,9 +174,13 @@ test('review mode is an always-run security lens on a public repository wherever
             '`security-audit` in its *Diff mode*, `git-history-exposure-audit` in its *Review mode* on a public repository, '
             . '`api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`',
         )
-        ->toContain('The one named exception is the full audit of `@skills/git-history-exposure-audit/SKILL.md`')
-        ->toContain('its review mode makes no network request other than the untouched clone')
+        ->toContain('Two named exceptions exist. The first is the full audit of `@skills/git-history-exposure-audit/SKILL.md`')
+        ->toContain('| `leonardo`, `splinter`, the session that runs `@skills/merge-github-pr/SKILL.md` or '
+            . '`@skills/merge-github-pr-fast/SKILL.md` | Create the untouched clone of')
+        ->toContain('The review mode of that audit and the merge gate make it, read only in it, and remove it when the step ends.')
         ->toContain('| top-level session | Run the full audit of `@skills/git-history-exposure-audit/SKILL.md`');
+    expect(historyExposureSource('rules/compound-engineering/orchestration.md'))
+        ->not->toContain('The one named exception is the full audit');
     expect(historyExposureSource('agents/leonardo.md'))
         ->toContain('and `@skills/git-history-exposure-audit/SKILL.md` in its *Review mode* on every review of a public repository')
         ->toContain('run the `git-history-exposure-audit/scripts/history-scan.sh` of that clone in its `range` and `text` modes only');
