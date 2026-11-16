@@ -680,6 +680,24 @@ A comment namespace that is not a code-review report — for example `mysql-repo
 
 **What every gate depends on:** the header block above carries each value a later round or the merge gate needs, and every publish writes it again in the new comment. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.
 
+### Visible review text names none of the package's own tooling
+
+A published review reads as the review of a person who works in the project. A name of this package's own tooling tells the reader nothing about the change, and it shows where the review came from. This section is the one owner of the rule. The review templates, the wrapper contract, and both platforms reference it.
+
+- **Visible text** is every text of a review that a person reads where it is published: an inline review comment, a visible line of the review body, every rendered value of a review published as a comment, and the tracker summary of a review.
+- **Package tooling** is a path or a name of this package's own scripts, skills, agents, rules, and installed directories:
+  1. a path under the package's `skills/`, `rules/`, `agents/`, or `codex/agents/`, and an `@skills/…` or `@rules/…` reference;
+  2. an installed directory: `.claude/`, `.codex/`, or `.agents/`;
+  3. the file name of a package script, for example `run-gate.sh`, `classify-risk.sh`, or `run-validation.sh`;
+  4. the name of a skill or an agent of the package.
+- **Describe the step in plain words instead.** Write *the project's test suite with coverage*, *the merge-risk check*, or *the quality gate ran on `<sha>`*. Keep what the step found.
+- **These stay allowed:**
+  1. the reviewed project's own commands, as the project runs them (`vendor/bin/pest --coverage`, `composer build`), without the package wrapper (`skills/_shared/run-gate.sh`) that ran them;
+  2. a path or a file name that the reviewed repository holds, a finding's own location included. In the repository of this package, its scripts are the reviewed project's own files;
+  3. the hidden machine record of a GitHub review (*One published comment per review run* item 3). No reader sees it on the page, so it keeps every value a later step reads, for example the gate record path on the `Quality gate:` line.
+- **A deterministic check refuses the rest before the publish.** `skills/code-review-github/scripts/post-inline-review.sh` passes the visible text and the paths of the reviewed repository at the reviewed head to `skills/_shared/check-visible-review-text.php`. A package path or a package script name that the repository does not hold publishes nothing, and the reviewer rewrites the sentence. The check reads paths and script names. A skill or agent name in plain prose is the reviewer's own obligation.
+- **Claude Code and Codex follow the same rule.** Both platforms render the same templates and publish through the same wrapper and check.
+
 ## Minor findings are not detected
 
 The review reports **Critical and Moderate findings only**. A Minor finding never blocked anything — `@skills/process-code-review/SKILL.md` fixes Critical and Moderate findings alone, and the convergence gate reads only those two — so every Minor entry cost a reader's attention on every round and changed no outcome. **The review no longer detects one, no longer raises one, and no longer renders one.**

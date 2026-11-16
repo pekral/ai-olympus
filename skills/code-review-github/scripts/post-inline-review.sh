@@ -49,6 +49,10 @@
 #   4. Read the changed lines of the pull request. A finding whose line (or any line of its range) is not in the diff,
 #      or that has no line, is reported as `outside_diff`: it gets one short visible line in the review body, because
 #      GitHub rejects the whole review for one comment off the diff.
+#   4a. Read the paths of the repository at the reviewed head (`git/trees/<sha>?recursive=1`) and the changed files.
+#      The visible text (every inline comment and every visible line, never the hidden record) must name none of the
+#      package's own tooling; skills/_shared/check-visible-review-text.php decides, and a name that the reviewed
+#      repository holds is the project's own. A refusal publishes nothing (exit 1), a failed lookup exits 3.
 #   5. Read the review threads, with every comment of each thread. A finding that has an unresolved inline thread on the
 #      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
 #      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
@@ -100,6 +104,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$HERE/../../_shared/audit-trail.sh"
 CHECK_HEADER="$HERE/../../_shared/check-cr-header.sh"
 CARRY_LINES="$HERE/../../_shared/carry-operator-lines.php"
+CHECK_VISIBLE="$HERE/../../_shared/check-visible-review-text.php"
 # shellcheck source=../../_shared/github-target.sh
 source "$HERE/../../_shared/github-target.sh"
 # The one encoder of the hidden review record.
@@ -286,7 +291,8 @@ def visible:
 | {
     visible: ($outside | length),
     comments: [$posted[] | {path, line, side, body: render} + (if .start_line == null then {} else {start_line, start_side: .side} end)],
-    body: (([$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n"))
+    body: (([$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n")),
+    visible_text: ([$posted[] | render] + [$outside[] | visible] | join("\n\n"))
   }
 | if [.comments[].body | [match("<!--\\s*cr-inline:"; "g")] | length] | all(. == 2)
   then . else error("a rendered comment does not hold exactly its own cr-inline markers") end
@@ -432,6 +438,10 @@ cmd_post() {
     || die 3 "changed file lookup failed on ${NWO}#${NUMBER}, nothing was published: $(cat "$TMP_ROOT/files.err")"
   jq -s 'add // []' "$TMP_ROOT/files.raw" >"$TMP_ROOT/files.json" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no file list, nothing was published"
+  gh api "repos/${NWO}/git/trees/${commit}?recursive=1" >"$TMP_ROOT/tree.json" 2>"$TMP_ROOT/tree.err" \
+    || die 3 "repository tree lookup failed on ${NWO}@${commit}, nothing was published: $(cat "$TMP_ROOT/tree.err")"
+  jq -r -s '(.[0].tree // [])[].path, (.[1][] | .filename, (.previous_filename // empty))' "$TMP_ROOT/tree.json" "$TMP_ROOT/files.json" >"$TMP_ROOT/repo-paths.txt" 2>/dev/null \
+    || die 3 "repository tree lookup on ${NWO}@${commit} returned no path list, nothing was published"
   fetch_threads "$TMP_ROOT/threads.json"
 
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
@@ -450,6 +460,13 @@ cmd_post() {
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
   jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" "$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
+  jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
+  local visible_rc=0
+  php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt" >"$TMP_ROOT/visible-check.json" 2>"$TMP_ROOT/visible.err" || visible_rc=$?
+  if [[ "$visible_rc" -eq 3 ]]; then
+    die 1 "the visible review text names the package tooling $(jq -r '.names | join(", ")' "$TMP_ROOT/visible-check.json" | head -c 300); describe the step in plain words (rules/code-review/general.md *Visible review text names none of the package's own tooling*), nothing was published"
+  fi
+  [[ "$visible_rc" -eq 0 ]] || die 1 "the check of the visible review text did not pass, nothing was published: $(head -c 300 "$TMP_ROOT/visible.err")"
   jq -j '.body' "$TMP_ROOT/draft.json" >"$TMP_ROOT/body.draft"
   php "$CARRY_LINES" markdown cr-comment "$TMP_ROOT/body.draft" >"$TMP_ROOT/body.md" 2>"$TMP_ROOT/carry.err" \
     || die 1 "the line fingerprint of the review body failed, nothing was published: $(head -c 300 "$TMP_ROOT/carry.err")"
@@ -590,6 +607,10 @@ case "$*" in
     if [[ "$*" == *"cursor="* ]]; then cat "$GH_THREADS_2"; else cat "$GH_THREADS_1"; fi
     ;;
   "api repos/o/r/pulls/7/files"*) cat "$GH_FILES" ;;
+  "api repos/o/r/git/trees/"*)
+    if [[ "${GH_TREE_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
+    cat "$GH_TREE"
+    ;;
   "api repos/o/r/pulls/7/reviews"*)
     cat >"$GH_REVIEW"
     printf 'x\n' >>"$GH_REVIEW_CALLS"
@@ -607,6 +628,8 @@ STUB
 [{"filename":"src/A.php","patch":"@@ -9,2 +9,5 @@ class A\n ctx9\n+add10\n+add11\n+add12\n ctx13\n@@ -29,3 +32,2 @@\n ctx32\n-gone30\n ctx33\n\\ No newline at end of file"}]
 JSON
   printf '[]' >"$tmp/pages.empty"
+  printf '{"tree":[{"path":"src","type":"tree"},{"path":"src/A.php","type":"blob"}],"truncated":false}' >"$tmp/tree.json"
+  printf '{"tree":[{"path":"src/A.php","type":"blob"},{"path":"skills/_shared/run-gate.sh","type":"blob"}],"truncated":false}' >"$tmp/tree.package"
   printf '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}' >"$tmp/threads.empty"
   cp "$tmp/threads.empty" "$tmp/threads.1"
   cp "$tmp/threads.empty" "$tmp/threads.2"
@@ -645,7 +668,7 @@ MD
     : >"$tmp/ledger.audit"
     rm -f "$tmp/review.json"
     set +e
-    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="$tmp/files.json" \
+    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="$tmp/files.json" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" - <<<"$findings" 2>"$tmp/stderr")"
@@ -839,6 +862,23 @@ JSON
   check 'a faulty example of more than 5 lines is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'faulty_example must be 5 lines at most' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",$base,\"kind\":\"dry\",\"existing\":\"src/B.php:4\"}]"
   check 'a Critical dry finding is refused: a duplicated security control keeps the Problem shape' "$([[ $rc -eq 1 ]] && grep -q 'a dry finding is Moderate' "$tmp/stderr" && echo yes || echo no)"
+
+  # 10a. the visible text names none of the package's own tooling; the hidden record and the project's own names stay
+  local f_tool
+  f_tool="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"Coverage ran through skills/_shared/run-gate.sh.\",\"impact\":\"i\"}"
+  run_post "[$f_tool]"
+  check 'an inline comment that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling skills/_shared/run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"The grade of classify-risk.sh is wrong.\",\"impact\":\"i\"}]"
+  check 'a visible line that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
+  GH_TREE_FILE="$tmp/tree.package" run_post "[$f_tool]"
+  check 'a script name that the reviewed repository holds is the project own and is posted' "$([[ $rc -eq 0 ]] && review_has '.comments[0].body | contains("skills/_shared/run-gate.sh")' && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The project test suite (vendor/bin/pest) misses src/A.php:11.\",\"impact\":\"i\"}]"
+  check 'the reviewed project own command and path are posted' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  { cat "$tmp/meta.md"; printf '**Quality gate:** composer build — green on %s, tree t — record .claude/run/gates/t.json\n' "$sha"; } >"$tmp/meta-tool.md"
+  META_FILE="$tmp/meta-tool.md" run_post "[$f_in]"
+  check 'the hidden record may keep a package path' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  run_post "[$f_in]" GH_TREE_FAILS=1
+  check 'a failed repository tree lookup publishes nothing' "$([[ $rc -eq 3 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
 
   # 11. text from the finding cannot forge a marker, and a backtick run in a faulty example gets a longer fence
   local f_forge
