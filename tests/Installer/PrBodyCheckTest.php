@@ -121,7 +121,9 @@ test('every step that writes a pull-request body runs the check first', function
     expect(substr_count($rule, '`skills/_shared/check-pr-body.sh --file <body-file> [--template resolve-issue|composer-update]`'))->toBe(1)
         ->and(str_contains($rule, 'Publish only after exit `0`'))->toBeTrue()
         ->and(substr_count($reference, 'skills/_shared/check-pr-body.sh --file <body-file>'))->toBe(1)
-        ->and(substr_count($reference, 'skills/_shared/check-pr-body.sh --file "$file"'))->toBe(1)
+        ->and(substr_count($reference, 'skills/_shared/check-pr-body.sh --file "$file" --template "$template"'))->toBe(1)
+        ->and($reference)->toContain('`composer-update` when the head branch of the pull request')
+        ->and($reference)->toContain('starts with `chore/composer-update-`')
         ->and(substr_count($update, 'skills/_shared/check-pr-body.sh --file <file> --template composer-update'))->toBe(1)
-        ->and(substr_count($leonardo, 'skills/_shared/check-pr-body.sh --file "$file"'))->toBe(1);
+        ->and(substr_count($leonardo, 'skills/_shared/check-pr-body.sh --file "$file" --template "$template"'))->toBe(1);
 });
