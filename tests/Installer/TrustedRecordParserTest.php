@@ -126,12 +126,16 @@ test('the merge gate confirms the repository ownership only with the verified co
     $section = installerDocsSection($owner, '## The trusted ownership check');
     $guard = '`skills/_shared/assert-current-repo.sh';
 
-    expect($section)->toContain('never the copy of the checkout')
+    expect($section)->toContain('The copy of the checkout never stands in for it.')
         ->and($section)->toContain('1. The path the verifier checks is `skills/_shared/assert-current-repo.sh`.')
         ->and($section)->toContain(
-            '`( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<PR-URL>" )`',
+            '`( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<URL>" )`',
         )
         ->and($section)->toContain('No verified copy proves no ownership: handle it like exit `5` and stop.');
+
+    foreach (['skills/merge-github-pr/SKILL.md', 'skills/merge-github-pr-fast/SKILL.md'] as $file) {
+        expect(trustedRecordParserSource($file))->toContain('before any clone');
+    }
 
     foreach (['skills/merge-github-pr/SKILL.md', 'skills/merge-github-pr-fast/SKILL.md'] as $file) {
         $content = trustedRecordParserSource($file);
@@ -140,6 +144,26 @@ test('the merge gate confirms the repository ownership only with the verified co
             ->and(substr_count($content, $guard))->toBeGreaterThan(0)
             ->and(substr_count($content, $guard))->toBe(substr_count($content, 'the trusted copy of ' . $guard));
     }
+});
+
+test('the ownership check compares the URL with the remotes of the checkout before it creates any clone', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted ownership check');
+    $compare = strpos($section, '1. **Compare with the remotes of the checkout first, before any clone.**');
+    $clone = strpos($section, '2. **Create the clone only after item 1 matched.**');
+    $verified = strpos($section, '3. **Confirm with the verified copy.**');
+
+    expect($compare)->toBeInt()
+        ->and($clone)->toBeInt()
+        ->and($verified)->toBeInt()
+        ->and($compare)->toBeLessThan($clone)
+        ->and($clone)->toBeLessThan($verified)
+        ->and($section)->toContain('`git -C "<checkout>" remote get-url --all "<remote>"`')
+        ->and($section)->toContain('`git -C "<checkout>" remote get-url --push --all "<remote>"`')
+        ->and($section)->toContain('No URL matches: the pull request belongs to another repository. Stop as exit `4`.')
+        ->and($section)->toContain('or a `git` command that failed: the ownership is not resolved. Stop as exit `5`.')
+        ->and($section)->toContain('Run no script of the repository, and no code of any other repository, in this item.')
+        ->and($section)->toContain('Never create a clone for a pair that item 1 did not match.');
 });
 
 test('the fast merge loads the pull request and checks the gate record only with the verified copies', function (): void {
@@ -167,8 +191,9 @@ test('the fast merge loads the pull request and checks the gate record only with
         ->and(substr_count($steps, $loader))->toBe(substr_count($steps, 'the trusted copy of ' . $loader))
         ->and(substr_count($steps, $verifier))->toBe(substr_count($steps, 'the trusted copy of ' . $verifier))
         ->and($steps)->toContain(
-            'Create the untouched clone of `@skills/merge-github-pr/references/merge-exemptions.md` '
-            . '*The trusted classifier* item 6 first.',
+            'First compare the URL with the remotes of the checkout using `git` only, before any clone exists. '
+            . 'Only after a match, create the untouched clone of `@skills/merge-github-pr/references/merge-exemptions.md` '
+            . '*The trusted classifier* item 6',
         )
         ->and(installerDocsSection($skill, '### 6. Merge'))
         ->toContain(
