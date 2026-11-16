@@ -52,7 +52,7 @@
 #   4a. Read the paths of the repository at the reviewed head (`git/trees/<sha>?recursive=1`) and the changed files.
 #      The visible text (every inline comment and every visible line, never the hidden record) must name none of the
 #      package's own tooling; skills/_shared/check-visible-review-text.php decides, and a name that the reviewed
-#      repository holds is the project's own. A refusal publishes nothing (exit 1), a failed lookup exits 3.
+#      repository holds, or that an added or removed line of the changed files carries, is the project's own. A refusal publishes nothing (exit 1), a failed lookup exits 3.
 #   5. Read the review threads, with every comment of each thread. A finding that has an unresolved inline thread on the
 #      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
 #      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
@@ -442,6 +442,8 @@ cmd_post() {
     || die 3 "repository tree lookup failed on ${NWO}@${commit}, nothing was published: $(cat "$TMP_ROOT/tree.err")"
   jq -r -s '(.[0].tree // [])[].path, (.[1][] | .filename, (.previous_filename // empty))' "$TMP_ROOT/tree.json" "$TMP_ROOT/files.json" >"$TMP_ROOT/repo-paths.txt" 2>/dev/null \
     || die 3 "repository tree lookup on ${NWO}@${commit} returned no path list, nothing was published"
+  jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
+    || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
   fetch_threads "$TMP_ROOT/threads.json"
 
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
@@ -462,7 +464,7 @@ cmd_post() {
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
   local visible_rc=0
-  php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt" >"$TMP_ROOT/visible-check.json" 2>"$TMP_ROOT/visible.err" || visible_rc=$?
+  php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt" --diff-text "$TMP_ROOT/diff-text.txt" >"$TMP_ROOT/visible-check.json" 2>"$TMP_ROOT/visible.err" || visible_rc=$?
   if [[ "$visible_rc" -eq 3 ]]; then
     die 1 "the visible review text names the package tooling $(jq -r '.names | join(", ")' "$TMP_ROOT/visible-check.json" | head -c 300); describe the step in plain words (rules/code-review/general.md *Visible review text names none of the package's own tooling*), nothing was published"
   fi
@@ -668,7 +670,7 @@ MD
     : >"$tmp/ledger.audit"
     rm -f "$tmp/review.json"
     set +e
-    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="$tmp/files.json" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
+    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" - <<<"$findings" 2>"$tmp/stderr")"
@@ -872,6 +874,11 @@ JSON
   check 'a visible line that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
   GH_TREE_FILE="$tmp/tree.package" run_post "[$f_tool]"
   check 'a script name that the reviewed repository holds is the project own and is posted' "$([[ $rc -eq 0 ]] && review_has '.comments[0].body | contains("skills/_shared/run-gate.sh")' && echo yes || echo no)"
+  printf '[{"filename":"src/A.php","patch":"@@ -9,2 +9,4 @@ class A\\n ctx9\\n+$p = \x27.claude/run/state.json\x27;\\n+add11\\n ctx12"}]' >"$tmp/files.diff-name"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\"}]"
+  check 'an installed-directory name of the package is refused when no changed line carries it' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling .claude/run/state.json' "$tmp/stderr" && echo yes || echo no)"
+  GH_FILES_FILE="$tmp/files.diff-name" run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\"}]"
+  check 'a name that a changed line carries is the project own text and is posted' "$([[ $rc -eq 0 ]] && review_has '.comments[0].body | contains(".claude/run/state.json")' && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The project test suite (vendor/bin/pest) misses src/A.php:11.\",\"impact\":\"i\"}]"
   check 'the reviewed project own command and path are posted' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   { cat "$tmp/meta.md"; printf '**Quality gate:** composer build — green on %s, tree t — record .claude/run/gates/t.json\n' "$sha"; } >"$tmp/meta-tool.md"
