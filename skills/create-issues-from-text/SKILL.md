@@ -78,7 +78,7 @@ For a database column, `@rules/sql/optimalize.md` *Deploy-safe schema changes* o
 
 ## Issue Structure
 
-Use the template defined in `templates/issue-structure.md`. It is the business-only shape of `@rules/compound-engineering/assignment.md`: no class, file, route, table, query, test command, or technical acceptance criterion goes into an issue. The technical detail of the original assignment stays in the preserved original text. When an issue text mentions another issue of the same tracker, the output reports each missing native link with its recommended type, as that rule states.
+Use the template defined in `templates/issue-structure.md`. It is the business-only shape of `@rules/compound-engineering/assignment.md`: nothing that *What an assignment never contains* lists goes into an issue, and a security requirement of the original is restated as a business rule. The technical detail of the original assignment stays in the preserved original text. When an issue text mentions another issue of the same tracker, the output reports each missing native link with its recommended type, as that rule states.
 
 ---
 
