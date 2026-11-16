@@ -127,7 +127,8 @@ test('the installed reference replaces only a missing default-branch blob, and t
         ->and($script)->toContain(
             '#            of `skills/merge-github-pr-fast/SKILL.md` step 2, which runs steps 2 and 3 of that mode. The classifier of',
         );
-    expect(verifyInstalledCopySource('CHANGELOG.md'))
-        ->toContain('The security check of `skills/merge-github-pr-fast/SKILL.md` step 2 runs steps 2 and 3 of the review mode')
-        ->not->toContain('and the merge gate does not pass the option');
+    $changelog = verifyInstalledCopySource('CHANGELOG.md');
+
+    expect($changelog)->toContain('The security check of `skills/merge-github-pr-fast/SKILL.md` step 2 runs steps 2 and 3 of the review mode')
+        ->and($changelog)->not->toContain('and the merge gate does not pass the option');
 });
