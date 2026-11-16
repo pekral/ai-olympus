@@ -7,7 +7,7 @@ use Symfony\Component\Process\Process;
 /**
  * @param list<string>|null $repoPaths
  */
-function runCheckVisibleReviewText(string $text, ?array $repoPaths = null): Process
+function runCheckVisibleReviewText(string $text, ?array $repoPaths = null, ?string $diffText = null): Process
 {
     $packageDir = dirname(__DIR__, 3);
     $arguments = ['php', $packageDir . '/skills/_shared/check-visible-review-text.php', '--text', '-'];
@@ -20,12 +20,25 @@ function runCheckVisibleReviewText(string $text, ?array $repoPaths = null): Proc
         $arguments[] = $pathsFile;
     }
 
+    $diffFile = null;
+
+    if ($diffText !== null) {
+        $diffFile = (string) tempnam(sys_get_temp_dir(), 'ai-olympus-diff-text-');
+        file_put_contents($diffFile, $diffText);
+        $arguments[] = '--diff-text';
+        $arguments[] = $diffFile;
+    }
+
     $process = new Process($arguments, $packageDir);
     $process->setInput($text);
     $process->run();
 
     if ($pathsFile !== null) {
         unlink($pathsFile);
+    }
+
+    if ($diffFile !== null) {
+        unlink($diffFile);
     }
 
     return $process;
@@ -113,6 +126,18 @@ test('a name that the reviewed repository holds is the project own and stays all
 
     expect($process->getExitCode())->toBe(0)
         ->and(trim($process->getOutput()))->toBe('{"valid":true,"names":[]}');
+});
+
+test('a name that a changed line of the reviewed change carries is the project own text, any other name is refused', function (): void {
+    $diffText = "\$path = '.claude/run/state.json';\nrequire 'skills/_shared/run-gate.sh';\n";
+    $text = 'The line writes `.claude/run/state.json` and the step runs `classify-risk.sh`.';
+
+    $process = runCheckVisibleReviewText($text, ['src/A.php'], $diffText);
+
+    expect($process->getExitCode())->toBe(3)
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["classify-risk.sh"]}')
+        ->and(runCheckVisibleReviewText('The line writes `.claude/run/state.json`.', ['src/A.php'], $diffText)->getExitCode())->toBe(0)
+        ->and(runCheckVisibleReviewText('The line writes `.claude/run/state.json`.', ['src/A.php'])->getExitCode())->toBe(3);
 });
 
 test('without the reviewed repository paths every package name is refused', function (): void {
