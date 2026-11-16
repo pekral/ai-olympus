@@ -28,7 +28,8 @@ test('the trusted classifier runs only in an untouched clone and verifies agains
         ->and($section)->toContain('for an installed copy, the SHA-256 the installer recorded outside the working tree')
         ->and($section)->toContain('export GIT_NO_REPLACE_OBJECTS=1')
         ->and($section)->toContain(
-            'export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false',
+            'export GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/dev/null '
+            . 'GIT_CONFIG_KEY_1=core.fsmonitor GIT_CONFIG_VALUE_1=false',
         )
         ->and($section)->toContain('defaultBranchRef{target{oid}}')
         ->and($section)->toContain('= "${TIP:?}" ]')
