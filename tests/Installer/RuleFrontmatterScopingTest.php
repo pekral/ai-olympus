@@ -76,7 +76,7 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // PR description instead of a comment at the sink, because a PHP comment carries only
         // `@` annotations. Nothing else in the file moved.
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
-        'backend.md' => 'b4612f80b5fabf17c8902693aa097abb17917bc4e3a4e9ff0cdb6705465e6828',
+        'backend.md' => '24b1eab9fe1e64d543b9b0970008b2906591dc6d77153061abb4664cc9d719ff',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'mobile.md' => '5ab7dccc7d2b066e1f4da8461ec8f35a2899b1429c97deb3dfca23f493146e04',
