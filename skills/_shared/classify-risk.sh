@@ -282,8 +282,10 @@ CORE_RE="$INFRA_RE"'|serviceprovider|(^|/)bootstrap/|(^|/)routes/|kernel\.php$|(
 # Markers that prove the assignment states what "done" means. Both project
 # languages are covered: the assignment is written in whatever language the
 # reporter used, and an English-only marker set would score every Czech
-# assignment as unclear.
-AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|the rules|what the user must be able to do|- \[ \]'
+# assignment as unclear. The business-only headings of
+# rules/compound-engineering/assignment.md count only as a heading ('#' or bold
+# before them), so ordinary prose such as "breaks the rules" keeps the point.
+AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|(#|\*\*)[[:space:]]*(the rules|what the user must be able to do|pravidla|co musí uživatel umět)|- \[ \]'
 
 # Rollback signals of the merge-risk mode. They are matched against the lower-cased
 # added lines of a unified diff, one line at a time, in documentation and test
@@ -1421,7 +1423,13 @@ TEXT
   # --- Clarity and coverage signals ------------------------------------------
   expect_line 'a vague assignment scores the clarity point' 'unclear-acceptance-criteria' \
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/vague.txt"
+  printf 'The new import breaks the rules we agreed on, please fix it.\n' >"$tmp/prose-rules.txt"
+  expect_line 'prose that mentions the rules keeps the clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/prose-rules.txt"
   printf '## What this is about\nA greeting needs the declined name.\n\n## What the user must be able to do\nThe admin edits a name.\n\n## The rules\nA name has at most 50 characters.\n' >"$tmp/business.txt"
+  printf '## Pravidla\nJméno má nejvýše 50 znaků.\n' >"$tmp/business-cs.txt"
+  expect_no_line 'a Czech rules heading scores no clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/business-cs.txt"
   expect_no_line 'a business-only assignment scores no clarity point' 'unclear-acceptance-criteria' \
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/business.txt"
   expect_line 'a source change with no test is flagged' 'missing-relevant-tests' \
