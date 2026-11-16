@@ -1,24 +1,17 @@
-## Goal
-<Business value>
+## What this is about
+<The problem today, who has it, and why it is fixed>
 
-## Context
-<Link or short reference>
+## What the user must be able to do
+<Behaviour, in plain sentences>
 
-## Technical Solution
-- key decisions
-- files / modules
-- constraints
+## The rules
+<Business rules: limits, the validation the user sees, what happens on an error>
 
-## Acceptance Criteria
-- [ ] ...
+## What we are not doing now
+<Each scope boundary, with a short reason>
 
-## Testing Scenarios
-### Happy Path
-### Edge Cases
-### Regression
+## Open questions for the owner
+<Each open decision, and what happens until the owner decides>
 
 ## Dependencies
-- ...
-
-## Notes
-- Source: <link>
+- <Other issue of the same tracker, and why it comes first>
