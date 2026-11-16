@@ -167,8 +167,9 @@ Record in the shared brief:
 - every explicit acceptance criterion and its evidence;
 - the authenticated GitHub actor from `gh api user --jq .login`, and on a JIRA source the `acli`
   account from `acli jira auth status`;
-- the newest trusted code-review report (`skills/_shared/cr-header.sh --report <loader-file>`: the
-  hidden record of a pull-request review, or a legacy `cr-comment` comment), including reviewed SHA,
+- the newest trusted code-review report (the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>`,
+  `@skills/merge-github-pr/references/trusted-record-parser.md`: the hidden record of a pull-request
+  review, or a legacy `cr-comment` comment), including reviewed SHA,
   effective diff fingerprint, finding counts, unresolved findings, and the `Quality gate:` exact-head
   evidence it carries.
 

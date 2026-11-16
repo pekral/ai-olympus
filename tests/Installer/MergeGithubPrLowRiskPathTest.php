@@ -410,7 +410,9 @@ test('no sentence of the skill or the rule still states that every merge needs t
 test('the low-risk path reads the newest trusted review report with the shared reader and a Critical or an open Moderate blocks', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
 
-    expect($path)->toContain('The newest trusted code-review report is still read with `skills/_shared/cr-header.sh --report <loader-file>`')
+    expect($path)->toContain(
+        'The newest trusted code-review report is still read with the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>`',
+    )
         ->and($path)->toContain('a Critical or an undeferred Moderate in it blocks, as `merge-exemptions.md` states for the `FAST`-tier exemption')
         ->and($path)->not->toContain('A trusted code-review comment that exists')
         ->and(lowRiskSource('skills/merge-github-pr/references/merge-exemptions.md'))->toContain('`skills/_shared/cr-header.sh --report <loader-file>`');

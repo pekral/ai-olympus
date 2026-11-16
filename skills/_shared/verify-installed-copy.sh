@@ -19,10 +19,11 @@
 #   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
 #   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships
 #            nor tracks the file, the recorded hash of check 3 is the trusted reference, and check 4 is skipped. It changes
-#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Only the review
-#            mode of `skills/git-history-exposure-audit/SKILL.md` passes it, in a clone where the package install of the
-#            default-branch tip wrote the copy and the reference. Its callers are the code review and the security check
-#            of `skills/merge-github-pr-fast/SKILL.md` step 2, which runs steps 2 and 3 of that mode. The classifier of
+#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Two procedures
+#            pass it, each in a clone where the package install of the default-branch tip wrote the copy and the
+#            reference: the review mode of `skills/git-history-exposure-audit/SKILL.md`, whose callers are the code
+#            review and the security check of `skills/merge-github-pr-fast/SKILL.md` step 2 (steps 2 and 3 of that mode),
+#            and the record parser of `skills/merge-github-pr/references/trusted-record-parser.md`. The classifier of
 #            the merge gate never passes it, so the low-risk path, which needs that classifier, takes the full path in
 #            such a project before its security check runs.
 #   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
