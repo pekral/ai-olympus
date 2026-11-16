@@ -78,7 +78,7 @@ route inventory and a cited controller line, never to a guess about what the cod
    > `role:admin` → its own class. **Never decide "no authz" by grepping for the literal
    > `can:`** — match the `Authorize:` / class form too, and read any custom middleware
    > class. See `references/auth-patterns.md` §2a.
-3. **Scope the review** to **application routes** — skip framework / vendor / `telescope` / `horizon` / `_ignition` routes unless asked. For a **PR / diff**, intersect the route list with the changed files.
+3. **Scope the review** to **application routes** — skip framework / vendor routes unless asked. A debug or management dashboard (`telescope`, `horizon`, `pulse`, `_ignition`) that the diff changes is never skipped: it is an internal route (`@rules/security/backend.md` *Route Access (issue #586)*). For a **PR / diff**, intersect the route list with the changed files.
 4. **Fallback when the app won't boot:** parse `routes/*.php` statically + Grep for `Route::` / middleware, **report it as not verified** (`Not verified: route middleware — php artisan route:list did not boot; routes read statically.`), and move every structural finding to the open-point class: the merged route-group middleware is exactly what the static read cannot see. Never silently substitute a guess for the real list.
    > Laravel 11/12 boots `route:list` on defaults even with no `.env` — a missing `.env` is *not* a reliable failure trigger. Real boot failures: a missing PHP extension, or a service provider that hits the DB / cache at boot. If it's a missing extension you can enable, prefer fixing the boot (`php -d extension=gd artisan route:list --json`) over the lossy static fallback. Glob **all** of `routes/*.php` — apps split into `admin.php`, `api.base.php`, etc.
 
@@ -143,7 +143,7 @@ This is an open-point finding: the exposed field is verified, and its sensitivit
 ### 5. False-positive control (first-class, not a footnote)
 A security tool dies from false positives. Before flagging, apply these filters — and
 when the code does not settle a point, **report the verified facts with the point under *Not verified*; don't drop or inflate the finding**:
-- **Public-by-design routes** — login, register, `password/*`, email verification, landing / public listings, and signature-verified **webhooks** are *meant* to be unauthenticated. See `references/public-by-design.md`. If a route only *looks* public, mark it **"Not verified: public by design — the owner confirms"**.
+- **Public-by-design routes** — login, register, `password/*`, email verification, landing / public listings, and signature-verified **webhooks** are *meant* to be unauthenticated. See `references/public-by-design.md`. If a route only *looks* public, mark it **"Not verified: public by design — the operator confirms"**.
 - **Authorization can live in layers you must actually check** — a missing `$this->authorize()` is *not* a finding if a `can:` middleware, `authorizeResource()`, or a FormRequest already covers it. Verify all four layers first.
 - **`FormRequest::authorize()` returning `true`** is only a finding when the route is otherwise unprotected *and* touches owned data; on a public / separately-authorized route it's intentional ("verify intent").
 - **Admin / global contexts** — a route behind an `admin` / role middleware legitimately queries across all users; don't flag those unscoped queries as IDOR.
@@ -161,6 +161,8 @@ evidence chain. Map onto the CR scale per `@rules/code-review/general.md`:
 | `Model::all()` / unscoped query, or an API Resource exposing owned / internal fields | Open point / Hardening | **Moderate** |
 | No policy for a managed model, ad-hoc inline check instead of a policy, mass-assignment of ownership keys | Hardening — defense-in-depth | **Moderate** |
 | All applicable layers present | — | Covered ✅ |
+
+> An internal route that an unauthenticated caller reaches is raised once, under `@rules/security/backend.md` *Route Access (issue #586)*, which owns its severity. This table grades the authorization and scoping layers of a signed-in route and never lowers that severity.
 
 > **Evidence rule.** *Structural* = you can point at the missing layer structurally (route +
 > method, no check anywhere in the chain). *Open point* = the missing check is verified, and
