@@ -41,6 +41,8 @@ dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
     'CI check name forgery' => ['a check name cannot forge a marker or leave its code span'],
     'CI line counts' => ['the CI line counts passed, failed, pending, and skipped checks and names each failing check once'],
+    'CI line is not a visible text check' => ['a failing check whose name names a package script still publishes the review with the name in the CI line'],
+    'CI line reads every status page' => ['every commit status of every page is counted, more than 30 included'],
     'CI line with no check' => ['a head with no check says so in the CI line'],
     'CI lookup failure' => ['a failed CI lookup still publishes the review and says the result was not read'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
@@ -136,7 +138,7 @@ test('the contract section states the inline review end to end', function (): vo
         ->and($section)->toContain(
             '- `title`, the short name of the finding on its TL;DR line: a few plain words, written under the visible-text rule below.',
         )
-        ->and($section)->toContain('refuses an inline comment, a TL;DR line, or a visible line that names a package path')
+        ->and($section)->toContain('refuses an inline comment, a finding line of the TL;DR, or a visible line that names a package path')
         ->and($section)->toContain('`kind: "dry"` with `existing`, the `<path>:<line>` of the existing implementation')
         ->and($section)->toContain('`faulty_example`, 5 lines at most')
         ->and($section)->not->toContain('This repeats the logic of')
