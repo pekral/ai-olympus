@@ -12,13 +12,15 @@ test('the merge gate runs the classifier from the default branch, never from the
     $section = installerDocsSection($exemptions, '## The trusted classifier — the default-branch copy');
 
     expect($section)->toContain('Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review')
-        ->and($section)->toContain('`git fetch origin "+refs/heads/<default branch>:refs/remotes/origin/<default branch>"`')
+        ->and($section)->toContain('1. Create the untouched clone of item 6 before any other command of the run uses the repository.')
         ->and($section)->not->toContain('`git fetch origin <default branch>`')
+        ->and($section)->toContain('`<clone>/skills/_shared/classify-risk.sh` when the default branch ships `skills/`')
         ->and($section)->toContain(
-            '`<main>/.claude/skills/_shared/classify-risk.sh` on Claude Code, `<main>/.agents/skills/_shared/classify-risk.sh` on Codex',
+            '`<clone>/.claude/skills/_shared/classify-risk.sh` on Claude Code or `<clone>/.agents/skills/_shared/classify-risk.sh` on Codex',
         )
-        ->and($section)->toContain('with `<main>` the parent of `git rev-parse --path-format=absolute --git-common-dir`')
-        ->and($section)->toContain('Never run `skills/_shared/classify-risk.sh` of the checked-out branch, of the gated head, or of a review worktree.')
+        ->and($section)->toContain(
+            'Never run a copy from the main worktree of the project, from the checked-out branch, from the gated head, or from a review worktree.',
+        )
         ->and($section)->toContain('`domain-vocabulary.sh` and `read-manifest.sh`')
         ->and($section)->toContain('`git symbolic-ref --quiet refs/remotes/origin/HEAD` prints the fully qualified `refs/remotes/origin/<default branch>`')
         ->and($section)->toContain('Accept the output only when it matches `refs/remotes/origin/?*`')
@@ -29,7 +31,7 @@ test('the merge gate runs the classifier from the default branch, never from the
         )
         ->and($section)->not->toContain('`git show origin/<default branch>:')
         ->and($section)->toContain('no default-branch blob to compare with at either path')
-        ->and($section)->toContain('A project whose installed copy is not tracked on the default branch therefore takes the full path')
+        ->and($section)->toContain('A project whose default branch neither ships nor tracks the copy therefore takes the full path')
         ->and($section)->toContain('The `FAST`-tier exemption is then not qualified, the low-risk path is not available');
 });
 
