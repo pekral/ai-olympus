@@ -30,10 +30,13 @@
 #                (rules/git/pull-requests.md *PR Content Requirements*).
 #   Sections     every always-present section of the template is there, the sections follow
 #                the template's order, and no heading or <details> block outside the
-#                template appears.
+#                template appears. A heading is a level-1 or level-2 ATX heading (0-3 leading
+#                spaces), a setext heading (a text line over a `===` or `---` underline), or
+#                an HTML <h1> or <h2> line.
 #   Merge risk   the heading reads `## Merge risk <icon> <low|medium|high>` and carries one
 #                `**Door:**` line and one `**Blast radius:**` line, or it reads
-#                `## Merge risk ⚪ not computed — <reason>` and carries neither.
+#                `## Merge risk ⚪ not computed — <reason>` and carries neither. The signal list
+#                of the Blast radius line may be empty: a diff with no risk signal renders `()`.
 #
 #   A body carrying the contribution-policy outline marker is exempt from the section check:
 #   that marker replaces the body template (rules/git/pull-requests.md *Foreign repository
@@ -84,7 +87,13 @@ OUTLINE_MARKER='<!-- ai-olympus:contribution-policy=human-description -->'
 GRADED_SHAPE='^## Merge risk (🟢 low|🟡 medium|🔴 high)$'
 NOT_COMPUTED_SHAPE='^## Merge risk ⚪ not computed — .+$'
 DOOR_SHAPE='^\*\*Door:\*\* (one-way|two-way) .+$'
-BLAST_SHAPE='^\*\*Blast radius:\*\* (FAST|STANDARD|CRITICAL) \(.+\)$'
+BLAST_SHAPE='^\*\*Blast radius:\*\* (FAST|STANDARD|CRITICAL) \(.*\)$'
+# A heading level 1 or 2 in the ATX form (0-3 leading spaces), a setext underline, and an HTML
+# <h1> or <h2> tag: every form GitHub renders as a section heading the template never carries.
+ATX_SHAPE='^ {0,3}#{1,2}([[:space:]]+(.*))?$'
+SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
+HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
+NOT_PARAGRAPH='^[[:space:]]*([-*+>|<]|[0-9]+[.)][[:space:]])'
 
 # template_sections <name> — print the template's sections in order, one per line, as
 # `<always|optional>|<heading|details>:<name>`. A section this list does not name is a
@@ -152,7 +161,7 @@ count_chars() {
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
 # A line that cr_header_fence_step skips is a quotation and is never read.
 scan_body() {
-  local line number=0 in_merge_risk=0 text
+  local line number=0 in_merge_risk=0 text prev=""
 
   cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -160,11 +169,13 @@ scan_body() {
     number=$((number + 1))
 
     if cr_header_fence_step "$line"; then
+      prev=""
       continue
     fi
 
-    if [[ "$line" =~ ^##[[:space:]]+(.+)$ ]]; then
-      text="${BASH_REMATCH[1]}"
+    if [[ "$line" =~ $ATX_SHAPE ]]; then
+      text="${BASH_REMATCH[2]}"
+      prev=""
       if [[ "$text" == 'Merge risk'* ]]; then
         in_merge_risk=1
         printf 'section|%s|heading:Merge risk\n' "$number"
@@ -176,10 +187,35 @@ scan_body() {
       continue
     fi
 
+    if [[ "$line" =~ $HTML_HEADING ]]; then
+      in_merge_risk=0
+      prev=""
+      printf 'section|%s|heading:<h>\n' "$number"
+      continue
+    fi
+
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
       in_merge_risk=0
+      prev=""
       printf 'section|%s|details:%s\n' "$number" "${BASH_REMATCH[1]}"
       continue
+    fi
+
+    # A setext heading: a paragraph line, then a `===` or `---` underline. The section is
+    # named by the line of its text, and the text itself is never printed.
+    if [[ "$line" =~ $SETEXT_UNDERLINE ]]; then
+      if [[ -n "$prev" ]]; then
+        in_merge_risk=0
+        printf 'section|%s|heading:<setext>\n' "$((number - 1))"
+      fi
+      prev=""
+      continue
+    fi
+
+    if [[ "$line" =~ [^[:space:]] && ! "$line" =~ $NOT_PARAGRAPH ]]; then
+      prev="$line"
+    else
+      prev=""
     fi
 
     if [[ "$in_merge_risk" -eq 1 && "$line" == '**Door:**'* ]]; then
@@ -477,6 +513,11 @@ self_test() {
 
 **Door:** reversible
 **Blast radius:** FAST (documentation-only)')" 'the Door line does not read'
+  scenario 'a Blast radius line with an empty signal list is valid' 0 \
+    "$(render '## Merge risk 🟢 low
+
+**Door:** two-way no rollback signal
+**Blast radius:** FAST ()')" '"valid": true'
   scenario 'a Blast radius line without its tier is refused' 3 \
     "$(render '## Merge risk 🟢 low
 
@@ -509,6 +550,25 @@ self_test() {
   scenario 'a details block the template does not define is named by its line' 3 \
     "$(render '' "$(printf '<details>\n<summary><strong>Notes</strong></summary>\n\nx\n\n</details>')")" \
     'the <details> block on line'
+
+  # Every heading form that GitHub renders at level 1 or 2 is a section of the body.
+  scenario 'a level-1 heading of its own is refused' 3 \
+    "$(render '' '# Problem')" 'is not a section of the template'
+  scenario 'a heading with leading spaces is refused' 3 \
+    "$(render '' '   ## Problem')" 'is not a section of the template'
+  scenario 'a setext heading with a dash underline is refused' 3 \
+    "$(render '' "$(printf 'Problem\n-------')")" 'is not a section of the template'
+  scenario 'a setext heading with an equals underline is refused' 3 \
+    "$(render '' "$(printf 'Problem\n=======')")" 'is not a section of the template'
+  scenario 'an HTML level-2 heading is refused' 3 \
+    "$(render '' '<h2>Problem</h2>')" 'is not a section of the template'
+  scenario 'a level-3 heading is not a section' 0 "$(render '' '### Detail')" '"valid": true'
+  scenario 'an indented line that looks like a heading is code and is not read' 0 \
+    "$(render '' '    ## Problem')" '"valid": true'
+  scenario 'a thematic break after a blank line is not a heading' 0 \
+    "$(render '' "$(printf 'text\n\n---')")" '"valid": true'
+  scenario 'a list item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '- item\n---')")" '"valid": true'
 
   # A heading the template does not define is untrusted body text: the problem names its
   # line, and no part of its text reaches the output.
