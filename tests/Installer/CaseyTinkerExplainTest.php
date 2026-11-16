@@ -282,6 +282,8 @@ test(
         expect($guard($connection, $environment))->toBe($verdict);
     },
 )->with([
+    'a database that adds a DSN host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'database' => 'app;host=db.example.com'], 'local', 'refused:dsn'],
+    'a database that is not a scalar' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'database' => ['app']], 'local', 'refused:dsn'],
     'a list-form read with a remote connection' => [
         ['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => [['host' => '127.0.0.1'], ['host' => 'replica.example']]],
         'local',
@@ -291,6 +293,11 @@ test(
         ['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => ['127.0.0.1', 'replica.example']],
         'local',
         'refused:host',
+    ],
+    'a list-form write entry port that adds a DSN host' => [
+        ['driver' => 'mysql', 'host' => '127.0.0.1', 'write' => [['host' => '127.0.0.1', 'port' => '3306;host=db.example.com']]],
+        'local',
+        'refused:dsn',
     ],
     'a list-form write with a remote connection' => [
         ['driver' => 'mysql', 'host' => '127.0.0.1', 'write' => [['host' => ['primary.example']]]],
@@ -309,6 +316,8 @@ test(
         'ok',
     ],
     'a list of local read host strings' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => ['127.0.0.1', '::1']], 'local', 'ok'],
+    'a local connection with a port and a database' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => '3306', 'database' => 'app'], 'local', 'ok'],
+    'a local URL with a port and a database' => [['driver' => 'mysql', 'url' => 'mysql://user:secret@127.0.0.1:3306/app'], 'local', 'ok'],
     'a loopback host in the local environment' => [['driver' => 'mysql', 'host' => '127.0.0.1'], 'local', 'ok'],
     'a loopback lookalike' => [['driver' => 'mysql', 'host' => '127.0.0.2'], 'local', 'refused:host'],
     'a MariaDB loopback host in the testing environment' => [['driver' => 'mariadb', 'host' => 'LOCALHOST'], 'testing', 'ok'],
@@ -321,12 +330,19 @@ test(
     'an empty host' => [['driver' => 'mysql', 'host' => ''], 'local', 'refused:host'],
     'an IPv6 loopback in a URL' => [['driver' => 'mysql', 'url' => 'mysql://user:secret@[::1]:3306/app'], 'local', 'ok'],
     'another driver' => [['driver' => 'pgsql', 'host' => '127.0.0.1'], 'local', 'refused:driver'],
+    'a port that adds a DSN host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'port' => '3306;host=db.example.com'], 'local', 'refused:dsn'],
+    'a read section database that adds a DSN host' => [
+        ['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => ['host' => '127.0.0.1', 'database' => 'app;host=db.example.com']],
+        'local',
+        'refused:dsn',
+    ],
     'a remote host' => [['driver' => 'mysql', 'host' => 'db.internal.example'], 'local', 'refused:host'],
     'a remote host in a list' => [['driver' => 'mysql', 'host' => ['127.0.0.1', 'db.internal.example']], 'local', 'refused:host'],
     'a remote host string as the whole read value' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => 'replica.example'], 'local', 'refused:host'],
     'a remote read host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => ['host' => ['replica.example']]], 'local', 'refused:host'],
     'a remote URL host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => 'mysql://user:secret@db.example:3306/app'], 'local', 'refused:host'],
     'a remote write host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'write' => ['host' => 'primary.example']], 'local', 'refused:host'],
+    'a socket that adds a DSN host' => [['driver' => 'mysql', 'unix_socket' => '/tmp/mysql.sock;host=db.example.com'], 'local', 'refused:dsn'],
     'a unix socket with no host' => [['driver' => 'mysql', 'unix_socket' => '/tmp/mysql.sock'], 'local', 'ok'],
     'a URL inside a list-form read entry' => [
         ['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => [['url' => 'mysql://127.0.0.1/app']]],
@@ -334,6 +350,25 @@ test(
         'refused:url',
     ],
     'a URL inside a read section' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'read' => ['url' => 'mysql://127.0.0.1/app']], 'local', 'refused:url'],
+    'a URL path that adds a DSN host' => [['driver' => 'mysql', 'url' => 'mysql://127.0.0.1/app%3Bhost%3Ddb.example.com'], 'local', 'refused:dsn'],
+    'a URL query that sets a list-form write host' => [
+        ['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => 'mysql://127.0.0.1/app?write[0][host]=db.example.com'],
+        'local',
+        'refused:url',
+    ],
+    'a URL query that sets the host' => [
+        ['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => 'mysql://127.0.0.1/app?host=db.example.com'],
+        'local',
+        'refused:url',
+    ],
+    'a URL query that sets the read host' => [
+        ['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => 'mysql://127.0.0.1/app?read[host]=db.example.com'],
+        'local',
+        'refused:url',
+    ],
+    'a URL that is not a string' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => ['mysql://127.0.0.1/app']], 'local', 'refused:url'],
+    'a URL with an empty query' => [['driver' => 'mysql', 'url' => 'mysql://127.0.0.1/app?'], 'local', 'refused:url'],
+    'a URL with another scheme' => [['driver' => 'mysql', 'url' => 'pgsql://127.0.0.1/app'], 'local', 'refused:url'],
     'a URL with no host' => [['driver' => 'mysql', 'host' => '127.0.0.1', 'url' => 'not a url:///'], 'local', 'refused:url'],
     'no host and no socket' => [['driver' => 'mysql'], 'local', 'refused:no-host'],
     'the production environment' => [['driver' => 'mysql', 'host' => '127.0.0.1'], 'production', 'refused:environment'],
@@ -408,6 +443,7 @@ test('the emit function prints only lines of the closed list', function (string 
     'a refusal token' => ['guard', 'refused:host', 'casey:guard=refused:host' . PHP_EOL],
     'the bindings count' => ['bindings', 2, 'casey:bindings=2' . PHP_EOL],
     'the default verdict' => ['default', 'refused', 'casey:default=refused' . PHP_EOL],
+    'the DSN refusal' => ['guard', 'refused:dsn', 'casey:guard=refused:dsn' . PHP_EOL],
     'the guard verdict' => ['guard', 'ok', 'casey:guard=ok' . PHP_EOL],
     'the statement' => ['sql', 'select * from `users` where `id` = ?', 'casey:sql=select * from `users` where `id` = ?' . PHP_EOL],
     'the Telescope refusal' => ['guard', 'refused:telescope', 'casey:guard=refused:telescope' . PHP_EOL],
@@ -501,9 +537,51 @@ test('the Tinker run records no query in Telescope and names the write that rema
     ],
     'the command' => ['TELESCOPE_ENABLED=false CASEY_QUERY_SPEC=<absolute path of the document> php artisan tinker --execute='],
     'the guard' => ['The snippet also refuses with `refused:telescope` when `config(\'telescope.enabled\')` is true after the boot.'],
-    'the remaining write' => ['A Telescope entry of the boot. When a project keeps Telescope on through a configuration that ignores `TELESCOPE_ENABLED`'],
-    'the statement' => [
-        'Laravel Telescope records no query of the run: the command '
-        . 'switches it off, and the guard refuses before any query when it is still on.',
+    'the remaining update' => [
+        '`Telescope::flushEntries()` drops the queued entries, not an entry update (`Telescope::recordUpdate()`, which the job watchers use).',
     ],
+    'the statement' => [
+        'Laravel Telescope stores no entry of the Tinker run: the command switches it off, the snippet first stops its recording '
+        . 'and drops the entries the boot queued (`Telescope::stopRecording()` and `Telescope::flushEntries()`, when the class exists)',
+    ],
+]);
+
+test('the snippet stops Telescope recording and drops the queued entries before it reads the document (Telescope)', function (): void {
+    $run = tinkerExplainSnippetBlocks()[1];
+    $stop = (int) strpos($run, '\\Laravel\\Telescope\\Telescope::stopRecording();');
+    $flush = (int) strpos($run, '\\Laravel\\Telescope\\Telescope::flushEntries();');
+
+    expect($run)->toContain('if (class_exists(\\Laravel\\Telescope\\Telescope::class)) {')
+        ->and($stop)->toBeGreaterThan(0)
+        ->and($flush)->toBeGreaterThan($stop)
+        ->and($flush)->toBeLessThan((int) strpos($run, 'getenv(\'CASEY_QUERY_SPEC\')'));
+});
+
+test('Boost runs only without Telescope and its cache write is named (Telescope and Boost)', function (string $text): void {
+    expect(tinkerExplainReference())->toContain($text);
+})->with([
+    'the cache write' => [
+        'The tool keeps the schema it read for 20 seconds in the default cache store of the application (`Cache::remember`). '
+        . 'That is a write: a `database` store writes a row to its own connection, which the guard never checked.',
+    ],
+    'the not-covered cache entry' => ['- The cache entry of a Boost `database-schema` call.'],
+    'the process' => ['Boost runs every tool in its own `php artisan boost:execute-tool` process.'],
+    'the reason' => ['A project that requires `laravel/telescope` therefore reads the schema without Boost.'],
+    'without Telescope' => ['only when `composer.json` requires `laravel/telescope` in neither `require` nor `require-dev`'],
+]);
+
+test('the guard refuses a URL query string, a foreign scheme, and a DSN part that adds a key (Critical, round 2)', function (string $text): void {
+    expect(tinkerExplainReference())->toContain($text);
+})->with([
+    'the DSN parts' => [
+        '`database`, `port`, and `unix_socket` of the connection and of every `read` or `write` entry, and the decoded database path of a `url`, '
+        . 'are refused with `refused:dsn` when they contain `;` or `=`, or when they are not a scalar.',
+    ],
+    'the last host' => ['PDO takes the last `host=` of a DSN, so such a value moves the connection to another host.'],
+    'the query string' => [
+        'A `url` that carries a query string is refused with `refused:url`, because Laravel merges its parameters '
+        . '(`host`, `read[host]`, `write[0][host]`) over the host of the URL and over the connection.',
+    ],
+    'the scheme' => ['A `url` whose scheme is not `mysql` or `mariadb`, and a `url` that is not a string, are refused too'],
+    'the token' => ['`url`, `dsn`, or `telescope` |'],
 ]);
