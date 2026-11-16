@@ -12,16 +12,46 @@
 #
 # Usage
 #   run-shell-self-tests.sh <script.sh>...
+#   SHELL_SELF_TESTS_SHARD=<k>/<n> run-shell-self-tests.sh <script.sh>...
+#
+#   SHELL_SELF_TESTS_SHARD runs only shard <k> of <n>: the scripts at input
+#   positions k, k+n, k+2n, and so on. The n shards together run every script
+#   exactly once, so CI can split the list across parallel jobs. Unset or empty,
+#   the runner runs every script.
 #
 # Exit codes
 #   0  every script passed
-#   1  at least one script failed, or no script was given
+#   1  at least one script failed, no script was given, the shard value is
+#      invalid, or the shard holds no script
 
 set -uo pipefail
 
 if [[ $# -eq 0 ]]; then
   echo 'usage: run-shell-self-tests.sh <script.sh>...' >&2
   exit 1
+fi
+
+shard="${SHELL_SELF_TESTS_SHARD:-}"
+if [[ -n "$shard" ]]; then
+  if [[ ! "$shard" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || ((BASH_REMATCH[1] > BASH_REMATCH[2])); then
+    echo "run-shell-self-tests.sh: SHELL_SELF_TESTS_SHARD must be <k>/<n> with 1 <= k <= n, got '$shard'" >&2
+    exit 1
+  fi
+  shard_index=$((BASH_REMATCH[1] - 1))
+  shard_count=${BASH_REMATCH[2]}
+  total=$#
+  selected=()
+  position=0
+  for script in "$@"; do
+    ((position % shard_count == shard_index)) && selected+=("$script")
+    position=$((position + 1))
+  done
+  if [[ ${#selected[@]} -eq 0 ]]; then
+    echo "run-shell-self-tests.sh: shard $shard holds no script of the $total given" >&2
+    exit 1
+  fi
+  set -- "${selected[@]}"
+  printf '  shard %s: %s of %s scripts\n\n' "$shard" "$#" "$total"
 fi
 
 width=0

@@ -30,6 +30,7 @@ test('the CI matrices cover every PHP version from the composer.json minimum', f
 
     expect($lint[0])->toBe($minimum);
     expect($installer)->toBe([...$lint, ...$quality]);
+    expect(prWorkflowMatrix($workflow, 'quality-checks-result'))->toBe($quality);
 });
 
 test('the syntax lint job covers every tracked PHP file, the skill scripts and the CLI included', function (): void {
