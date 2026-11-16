@@ -1,6 +1,6 @@
 # Inline review comment
 
-> One inline review comment on the changed line of a finding, on a GitHub pull request. `skills/code-review-github/scripts/post-inline-review.sh` renders it, one comment for each finding, and posts every comment of a round as one pull-request review. This file fixes the two shapes: the lines, their order, and the markers. Canonical contract: `@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*.
+> One inline review comment on the changed line of a finding, on a GitHub pull request. `skills/code-review-github/scripts/post-inline-review.sh` renders it, one comment for each finding, and posts every comment of a round as one pull-request review. This file fixes the two shapes: the lines, their order, and the markers. It also fixes the visible line of a finding that cannot anchor and the TL;DR that opens the review body. Canonical contract: `@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*.
 >
 > **Write it as a person would.** `**Problem:**` holds one or two plain sentences, `**Impact:**` one sentence, and the faulty example at most 5 lines in a fenced block (its language from `faulty_example_lang`, when set). The icon is the severity: 🔴 Critical, 🟠 Moderate. Nothing else is visible: no Rule, Provenance, Answered, Raised by, Level, Evidence, Expected behavior, Test hint, or Suggested fix line, and no `suggestion` block. The full finding lives in the hidden record of the review body (`templates/pr-comment-output.md`).
 >
@@ -45,4 +45,17 @@ A finding that cannot anchor to a line of the diff is one line of the review bod
 ````markdown
 {🔴 | 🟠} **Problem:** {the problem} **Impact:** {the impact} (`{file:line}`, outside the diff | no line) @{login}
 <!-- cr-inline:finding={finding id} -->
+````
+
+The review body opens with the TL;DR of the round: one line for each finding that is open as an inline comment (posted in this round or `already_open`), Critical first, then one line with the CI result of the reviewed head.
+
+The link points to the commented line on the *Files changed* page: `{diff anchor}` is the SHA-256 of the file path, with `R{line}` on the new file and `L{line}` on the old file. A DRY finding reads `🟠 **Moderate · DRY**`. With no inline finding, the finding lines are the one line `- No finding is open as an inline comment.`
+
+The CI line counts every check run and every commit status of the head; `({failing checks})`, `, {n} pending`, and `, {n} skipped` render only when they are not empty. When no check reported, it reads `no check reported a result for this commit.`, and when the lookup failed, `not read, the lookup on GitHub failed.`
+
+````markdown
+**TL;DR**
+
+- {🔴 | 🟠} **{Critical | Moderate}** · {title} — [`{file:line}`](https://github.com/{owner}/{repo}/pull/{number}/files#diff-{diff anchor}{R | L}{line})
+- **CI** on `{short head SHA}`: {n} passed, {n} failed (`{failing check}`, …), {n} pending, {n} skipped.
 ````

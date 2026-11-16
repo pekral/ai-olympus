@@ -581,8 +581,12 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 1. **Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it. `@skills/code-review-github/templates/inline-review-comment.md` fixes its shape, from the findings-file keys `problem`, `impact`, and `faulty_example` (5 lines at most), or `kind: "dry"` with `existing` for a DRY finding.
 2. **Each finding that cannot anchor is one short visible line in the review body**: a finding outside the diff, and a functional gap with no line.
-3. **The machine record is hidden HTML in the review body.** It is this template's report — the header block, every published finding in full, and every section below — without the human prose of *Quick overview* below. It carries the `<!-- cr-comment:lines=… -->` and `<!-- cr-comment:actor=<login> -->` markers, so the trust test and every reader read it as before.
-4. **A security finding marked `do not file publicly` on a public repository reaches none of the three**, the hidden record included: hidden HTML is public.
+3. **The review body opens with a visible TL;DR of the round.** It is the summary a person reads first. `@skills/code-review-github/templates/inline-review-comment.md` fixes its shape.
+   - It has one line for each finding that is open as an inline comment, posted in this round or already open from an earlier one, Critical first: the severity, the finding title, and a link to the commented line.
+   - Its last line is the CI result of the reviewed head: how many checks passed, failed, are pending, and were skipped, and the name of each failing check. The publisher reads the CI result from GitHub when it publishes, and a failed lookup says so instead of stopping the publish.
+   - The TL;DR is visible text, so the finding title follows *Visible review text names none of the package's own tooling* below. The hidden record does not change, and the merge gate never reads the TL;DR.
+4. **The machine record is hidden HTML in the review body.** It is this template's report — the header block, every published finding in full, and every section below — without the human prose of *Quick overview* below. It carries the `<!-- cr-comment:lines=… -->` and `<!-- cr-comment:actor=<login> -->` markers, so the trust test and every reader read it as before.
+5. **A security finding marked `do not file publicly` on a public repository reaches none of the four**, the TL;DR and the hidden record included: hidden HTML is public.
 
 Every reader reads the newest trusted report across both homes: the review and a legacy `cr-comment` comment of an earlier run. The JIRA ticket, the Bugsnag error, and the non-technical tracker summary are unchanged.
 
@@ -632,7 +636,7 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **Quick overview — the comment opens with it, and ends with a prompt to fix the open findings.** A review report published as a comment carries three parts in its header block, the section after it, and its last section. The merge gate still reads every value from the same report, because no value moves out of the header block or out of the technical sections.
 
-**On GitHub the review carries none of the three parts.** The report there is the hidden record of a pull-request review (*One published comment per review run* above), and hidden prose has no reader: the short inline comments and the visible lines are the human part of the review. The record leaves out the `Overview:` line, `## Changed areas`, `## TL;DR`, and `## Prompt to fix all issues`, and keeps every other line and section.
+**On GitHub the review carries none of the three parts.** The report there is the hidden record of a pull-request review (*One published comment per review run* above), and hidden prose has no reader: the visible TL;DR, the short inline comments, and the visible lines are the human part of the review (*One published comment per review run* item 3). The record leaves out the `Overview:` line, `## Changed areas`, `## TL;DR`, and `## Prompt to fix all issues`, and keeps every other line and section.
 
 1. **`Overview:` is the first line of the header block.** It holds one or two sentences on what the change does, derived from the assignment and the diff, on one line. `Counts:`, `Merge verdict:` and `Merge risk:` follow in the same block, so the first lines of the comment answer what changed, what was found, whether it can merge, and how risky it is. The header block takes no table and no list, because `skills/_shared/cr-header.sh` rejects them there.
 2. **`## Changed areas` follows the header block.** It is one table with the columns `Layer`, `Files`, and `Summary`. A row is one changed area of `git diff --name-only <base>..<head>`: the layer (the project's own layer name, or the top-level directory), the changed paths or, past four paths, a count, and a one-line summary of the change there. Every changed file belongs to exactly one row. The section repeats none of the header lines.
@@ -695,7 +699,7 @@ A comment namespace that is not a code-review report — for example `mysql-repo
 
 A published review reads as the review of a person who works in the project. A name of this package's own tooling tells the reader nothing about the change, and it shows where the review came from. This section is the one owner of the rule. The review templates, the wrapper contract, and both platforms reference it.
 
-- **Visible text** is every text of a review that a person reads where it is published: an inline review comment, a visible line of the review body, every rendered value of a review published as a comment, and the tracker summary of a review.
+- **Visible text** is every text of a review that a person reads where it is published: an inline review comment, the TL;DR and a visible line of the review body, every rendered value of a review published as a comment, and the tracker summary of a review.
 - **Package tooling** is a path or a name of this package's own scripts, skills, agents, rules, and installed directories:
   1. a path under the package's `skills/`, `rules/`, `agents/`, or `codex/agents/`, and an `@skills/…` or `@rules/…` reference;
   2. an installed directory: `.claude/`, `.codex/`, or `.agents/`;
@@ -705,7 +709,7 @@ A published review reads as the review of a person who works in the project. A n
 - **These stay allowed:**
   1. the reviewed project's own commands, as the project runs them (`vendor/bin/pest --coverage`, `composer build`), without the package wrapper (`skills/_shared/run-gate.sh`) that ran them;
   2. a path or a file name that the reviewed repository holds, a finding's own location included, and a name that an added or removed line of the change carries. In the repository of this package, its scripts are the reviewed project's own files;
-  3. the hidden machine record of a GitHub review (*One published comment per review run* item 3). No reader sees it on the page, so it keeps every value a later step reads, for example the gate record path on the `Quality gate:` line.
+  3. the hidden machine record of a GitHub review (*One published comment per review run* item 4). No reader sees it on the page, so it keeps every value a later step reads, for example the gate record path on the `Quality gate:` line.
 - **A deterministic check refuses the rest before the publish.** `skills/code-review-github/scripts/post-inline-review.sh` passes the visible text, the paths of the reviewed repository at the reviewed head, and the added and removed lines of the changed files to `skills/_shared/check-visible-review-text.php`. A package path or a package script name that neither the repository nor a changed line holds publishes nothing, and the reviewer rewrites the sentence. The check reads paths and script names. A skill or agent name in plain prose is the reviewer's own obligation.
 - **Claude Code and Codex follow the same rule.** Both platforms render the same templates and publish through the same wrapper and check.
 
