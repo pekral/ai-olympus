@@ -99,7 +99,8 @@ test('the rule makes the link check read-only by default and creating a link an 
         ->and($rule)->toContain('**Creating a link is a tracker write, and it is L2.**')
         ->and($rule)->toContain('so a GitHub relationship other than a sub-issue is reported as not verified')
         ->and($consent)->toContain(
-            '| any agent, or the top-level session | Create a native link that the check of `@rules/compound-engineering/assignment.md` *Native links between issues* reports as missing',
+            '| any agent, or the top-level session | Create a native link that the check of '
+            . '`@rules/compound-engineering/assignment.md` *Native links between issues* reports as missing',
         )
         ->and($consent)->toContain('only when the operator\'s own request in this run names the link');
 });
@@ -145,7 +146,8 @@ test('the native-link consent row covers only the missing links and leaves the d
         'Create a native link that the check of `@rules/compound-engineering/assignment.md` *Native links between issues* reports as missing',
     )
         ->and($consent)->toContain(
-            'The sub-issue relation of a deferred follow-up (L1, the row of *File deferred points*) and of an approved EPIC (its own row) is not covered by this row',
+            'The sub-issue relation of a deferred follow-up (L1, the row of *File deferred points*) '
+            . 'and of an approved EPIC (its own row) is not covered by this row',
         )
         ->and($rule)->toContain('The row covers only a link that this check reports as missing.')
         ->and($rule)->toContain('The sub-issue relation of a deferred follow-up and of an approved EPIC keeps its own row.');
