@@ -1,0 +1,8 @@
+{
+    "scenario": "T10",
+    "description": "Deployment with no process-manager file",
+    "evaluated": false,
+    "outcomes": [
+        "HZ-005:UNVERIFIED"
+    ]
+}

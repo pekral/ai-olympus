@@ -1,0 +1,11 @@
+{
+    "scenario": "T9",
+    "description": "A waits key names redis:reports, which no supervisor consumes",
+    "evaluated": false,
+    "outcomes": [
+        "HZ-006:WARN"
+    ],
+    "severity": [
+        "MEDIUM"
+    ]
+}

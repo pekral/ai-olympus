@@ -14,6 +14,7 @@ metadata:
 - Apply `@rules/writing/general.md` — one idea per sentence, active voice, one term per concept.
 - **Read-only by default.** The audit reads tracked files of the project and writes nothing. It never edits a file, stages, commits, pushes, or opens a pull request. `apply_changes` only adds reviewable diff sketches to the report; an implementation is a separate request that the orchestrator routes.
 - **Static by default.** The audit never connects to Redis or a queue, never runs `php artisan`, `tinker`, or `config:show`, and never `include`s, `require`s, or executes a PHP config file of the audited repository. It reads each file as text and interprets literal values only (`references/effective-configuration.md` *Static parsing*).
+- **No command shows a configuration or environment value.** In every mode, and even when `allow_commands` names it, the audit never runs a command whose output shows a configuration or environment value: `php artisan config:show`, `php artisan about`, `php artisan tinker`, a `config()` dump, `env`, or `printenv` (`@rules/security/general.md` *Environment values are never read*).
 - **Never reveal a secret.** A finding names a location and the kind of value, never a credential, token, password, payload, or personal datum.
 - **Never recommend a worker count without a measurement.** A recommendation about `maxProcesses`, `minProcesses`, or a process total needs the CPU, memory, and queue metrics of `metrics_source`. Without them the report names the missing metrics and states no target.
 
@@ -64,9 +65,9 @@ Example requests:
 |---|---|---|
 | `static` | Steps 1 to 5 and 8 on tracked files | none |
 | `recommendations` | `static`, plus steps 6 and 7 | none |
-| `runtime` | `recommendations`, plus step 5a on `metrics_source` and the approved commands | `allow_commands` lists each command |
+| `runtime` | `recommendations`, plus step 5 on `metrics_source` and the approved commands | `allow_commands` lists each command |
 
-- **Commands are split in two.** A read-only command (`php artisan route:list --json`, `git grep`) is still a command: run it only when `allow_commands` names it. A mutating command (`horizon:terminate`, `queue:restart`, `queue:clear`, `queue:flush`, a Redis `FLUSH*`, a deploy, a configuration change) is never run by this skill, with or without approval.
+- **Commands are split in two.** A read-only command (`php artisan route:list --json`, `git grep`) is still a command: run it only when `allow_commands` names it and it is not a command that shows a configuration or environment value (*Constraints*). `allow_commands` never lifts that exclusion. A mutating command (`horizon:terminate`, `queue:restart`, `queue:clear`, `queue:flush`, a Redis `FLUSH*`, a deploy, a configuration change) is never run by this skill, with or without approval.
 - **A live target must be shown to be local or test.** Take it from the dispatch or the committed development setup (`@rules/security/general.md` *Production is never touched*). A target that is not shown to be one counts as production, and the runtime step stops `Blocked`. Production metrics reach the audit only as an anonymised file the user supplies.
 - **No upload.** The audit sends no configuration or log content to an external service.
 
@@ -82,7 +83,7 @@ Example requests:
 The step is done when the report header names the two versions or states that they could not be read.
 
 ### 2. Normalization
-Build the effective supervisor configuration for each audited environment: the `defaults` entry of a supervisor merged with its `environments` override, every value with its provenance (`file:line`, and whether it came from `defaults`, the override, or a built-in default). Build the **consumer map** next. Both follow `references/effective-configuration.md`.
+Build the effective supervisor configuration for each audited environment: every supervisor of `defaults` and of the environment, merged by name (`references/effective-configuration.md` *Effective supervisor configuration*), every value with its provenance (`file:line`, and whether it came from `defaults`, the override, or a built-in default). Build the **consumer map** next. Both follow `references/effective-configuration.md`.
 
 The step is done when every supervisor of every audited environment has one merged row and every consumer has one map row.
 
@@ -105,7 +106,7 @@ The step is done when the report holds one result for each of the seven rules.
 Attach to every finding the path, the line, the computed condition, and the evidence basis (*Evidence basis* below). Move every value that comes from an environment variable, a function call, or a runtime expression into `UNVERIFIED`.
 
 ### 5. Metrics (optional)
-Process `metrics_source` only when the user supplied it. Without it, rule outcomes that need a measurement stay `UNVERIFIED`, and *Missing information* names the metrics. Never read a running Redis or Horizon without the approval of *Modes and approval*.
+Process `metrics_source` only when the user supplied it. Without it, rule outcomes that need a measurement stay `UNVERIFIED`, and *Missing information* names the metrics. Never read a running Redis or Horizon without the approval of *Modes and approval*, and run only the commands that `allow_commands` names and *Constraints* permit.
 
 ### 6. Recommendations
 For each `FAIL` and `WARN` give the smallest-risk change, how to verify it, and how to roll it back. Prefer a configuration value over a code change. State a recommendation about worker counts only when step 5 holds the metrics that support it.

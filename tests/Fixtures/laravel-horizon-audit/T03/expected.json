@@ -1,0 +1,12 @@
+{
+    "scenario": "T3",
+    "description": "job timeout 60, supervisor timeout 90, retry_after 120; the order holds, the margin is judged separately",
+    "evaluated": true,
+    "outcomes": [
+        "HZ-001:PASS",
+        "HZ-002:PASS"
+    ],
+    "severity": [
+        "INFO"
+    ]
+}

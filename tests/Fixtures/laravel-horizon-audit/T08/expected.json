@@ -1,0 +1,11 @@
+{
+    "scenario": "T8",
+    "description": "balance is auto and the queue order is expected to set priority",
+    "evaluated": false,
+    "outcomes": [
+        "HZ-004:WARN"
+    ],
+    "severity": [
+        "MEDIUM"
+    ]
+}

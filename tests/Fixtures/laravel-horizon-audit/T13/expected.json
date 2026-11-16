@@ -1,0 +1,9 @@
+{
+    "scenario": "T13",
+    "description": "The secret of the environment file never reaches the report or the skill logs",
+    "evaluated": false,
+    "outcomes": [
+        "SECRET_ABSENT"
+    ],
+    "secret": "fixture-redis-password-7f3a91"
+}

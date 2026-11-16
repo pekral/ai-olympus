@@ -24,11 +24,11 @@ Interpret each setting by the detected `laravel/framework` and `laravel/horizon`
 **Evaluate.**
 1. Where a job timeout is defined, require `job_timeout < supervisor timeout < connection retry_after`, each applied where that limit takes effect. A job timeout applies to the job class that declares it. A supervisor `timeout` applies to every job on that supervisor.
 2. Require a positive margin between the limits. The margin is not a universal number: state the margin the files show and ask the owner to justify it against the longest job of the workload. Never print 600, 1800, or 3600 seconds as a recommended value.
-3. When several connections consume one physical queue (HZ-001), compare their effective `retry_after` values and report a difference.
+3. When several connections consume one physical queue (HZ-001) and every part of the key is known, compare their effective `retry_after` values. A difference is a `FAIL`: the same queue then has two visibility windows.
 4. Report a `retry_after` far above the longest job: a worker that dies leaves its job invisible until `retry_after` passes, so recovery takes that long.
 5. Apply the semantics of the driver. `redis` and `database` use `retry_after`. `sqs` uses the visibility timeout of the queue, set in SQS. Do not apply the Redis rule to another driver without stating it.
 
-**Outcomes.** `FAIL` (severity `HIGH`, or `CRITICAL` when the evidence shows a side effect that a duplicate run repeats) when a verified order is broken: `job >= supervisor`, or `supervisor >= retry_after`. `WARN` when the order holds with a margin the owner has not justified, when connections that share a queue differ, or when `retry_after` is far above the longest job. `PASS` when the order holds and the margin is stated. `UNVERIFIED` when a limit comes from an unknown value.
+**Outcomes.** `FAIL` (severity `HIGH`, or `CRITICAL` when the evidence shows a side effect that a duplicate run repeats) when a verified order is broken (`job >= supervisor`, or `supervisor >= retry_after`) or when connections that share a physical queue with a fully known key differ in `retry_after`. `WARN` when the order holds with a margin the owner has not justified, or when `retry_after` is far above the longest job. `PASS` when the order holds and the margin is stated. `UNVERIFIED` when a limit comes from an unknown value.
 
 ## HZ-003 — Retry, backoff, and idempotence
 
@@ -40,7 +40,7 @@ Interpret each setting by the detected `laravel/framework` and `laravel/horizon`
 3. For side-effect jobs (mail, invoicing, payments, webhooks, external APIs), look for an idempotency key, a unique constraint, or a `ShouldBeUnique` / `ShouldBeUniqueUntilProcessing` contract. A missing safeguard is a risk (`WARN`), never a proven defect.
 4. Report unlimited retries (`tries` 0, or no `tries`, `retryUntil`, or `maxExceptions` bound) without a protective mechanism.
 
-**Outcomes.** `WARN` for each risk above, with the missing evidence named. `FAIL` only when a verified setting contradicts itself (for example `$backoff` list longer than `$tries` allows to run, shown by the values). `PASS` when the safeguards are present. `UNVERIFIED` when the job class or its configuration is dynamic.
+**Outcomes.** `WARN` for each risk above, with the missing evidence named. `FAIL` only when a verified setting contradicts itself in a way that the values show. A `$backoff` list longer than `$tries` is not one: the worker takes the entry of the attempt, or the last entry, so extra entries stay unused. Report them as `INFO`. `PASS` when the safeguards are present. `UNVERIFIED` when the job class or its configuration is dynamic.
 
 ## HZ-004 — Horizon supervisor configuration
 

@@ -1,0 +1,11 @@
+{
+    "scenario": "T11",
+    "description": "A job uses WithoutOverlapping and tries 2",
+    "evaluated": false,
+    "outcomes": [
+        "HZ-003:WARN"
+    ],
+    "severity": [
+        "MEDIUM"
+    ]
+}

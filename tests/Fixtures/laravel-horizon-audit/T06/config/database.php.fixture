@@ -1,0 +1,8 @@
+<?php
+
+return [
+    'redis' => [
+        'default' => ['database' => env('REDIS_DB', 0), 'prefix' => env('REDIS_PREFIX', 'app_')],
+        'other' => ['database' => env('REDIS_DB_B', 0), 'prefix' => env('REDIS_PREFIX', 'app_')],
+    ],
+];

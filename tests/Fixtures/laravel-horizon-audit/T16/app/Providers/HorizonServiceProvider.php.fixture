@@ -1,0 +1,11 @@
+<?php
+
+namespace App\Providers;
+
+final class HorizonServiceProvider
+{
+    public function boot(): void
+    {
+        // The default gate of Horizon decides at runtime; the code shows no Horizon::auth.
+    }
+}

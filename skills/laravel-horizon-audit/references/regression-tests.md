@@ -11,12 +11,13 @@ Each sketch fails on the broken configuration of its finding and passes after th
 declare(strict_types = 1);
 
 test('every Horizon supervisor timeout stays below the retry_after of its connection', function (): void {
-    foreach (config('horizon.environments') as $environment => $supervisors) {
-        foreach ($supervisors as $name => $override) {
-            $supervisor = array_replace_recursive(config('horizon.defaults.' . $name, []), $override);
+    foreach (config('horizon.environments') as $environment => $plan) {
+        // Horizon 5.x merges the whole map: a supervisor that only `defaults` defines runs in every environment.
+        foreach (array_replace_recursive(config('horizon.defaults', []), $plan) as $name => $supervisor) {
             $retryAfter = config('queue.connections.' . $supervisor['connection'] . '.retry_after');
 
-            expect($supervisor['timeout'])
+            // 60 stands for the built-in timeout default; confirm it in the installed Horizon source.
+            expect($supervisor['timeout'] ?? 60)
                 ->toBeLessThan($retryAfter, $environment . '.' . $name);
         }
     }
