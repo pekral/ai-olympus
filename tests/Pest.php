@@ -1046,3 +1046,25 @@ function decodedJsonField(string $json, string $path): mixed
 
     return $value;
 }
+
+/**
+ * Returns the indented body of one job of the PR workflow.
+ */
+function prWorkflowJobBlock(string $workflow, string $job): string
+{
+    expect(preg_match('/^  ' . preg_quote($job, '/') . ':\n((?:    .*\n|\n)+)/m', $workflow, $block))->toBe(1);
+
+    return $block[1] ?? '';
+}
+
+/**
+ * Reads one inline matrix list, such as `php: ['8.4', '8.5']`, out of a job of the PR workflow.
+ *
+ * @return list<string>
+ */
+function prWorkflowMatrixList(string $workflow, string $job, string $key): array
+{
+    expect(preg_match('/^        ' . preg_quote($key, '/') . ': \[([^\]]+)\]/m', prWorkflowJobBlock($workflow, $job), $list))->toBe(1);
+
+    return array_map(static fn (string $item): string => trim($item, ' \''), explode(',', $list[1] ?? ''));
+}

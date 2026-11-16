@@ -6,16 +6,6 @@ declare(strict_types = 1);
 // `require.php` in composer.json, so the quality matrix starts above the minimum. The syntax lint
 // job covers the versions below it, and the installer matrix covers all of them.
 
-/**
- * @return list<string>
- */
-function prWorkflowMatrix(string $workflow, string $job): array
-{
-    expect(preg_match('/^  ' . $job . ':\n(?:    .*\n|\n)*?        php: \[([^\]]+)\]/m', $workflow, $matrix))->toBe(1);
-
-    return array_map(static fn (string $version): string => trim($version, ' \''), explode(',', $matrix[1] ?? ''));
-}
-
 test('the CI matrices cover every PHP version from the composer.json minimum', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $composer = (string) file_get_contents($packageDir . '/composer.json');
@@ -24,13 +14,13 @@ test('the CI matrices cover every PHP version from the composer.json minimum', f
     expect(preg_match('/"require": \{\s*"php": "\^(\d+\.\d+)"/', $composer, $constraint))->toBe(1);
     $minimum = $constraint[1] ?? null;
 
-    $lint = prWorkflowMatrix($workflow, 'php-compatibility');
-    $quality = prWorkflowMatrix($workflow, 'quality-checks');
-    $installer = prWorkflowMatrix($workflow, 'installer-compatibility');
+    $lint = prWorkflowMatrixList($workflow, 'php-compatibility', 'php');
+    $quality = prWorkflowMatrixList($workflow, 'quality-checks', 'php');
+    $installer = prWorkflowMatrixList($workflow, 'installer-compatibility', 'php');
 
     expect($lint[0])->toBe($minimum);
     expect($installer)->toBe([...$lint, ...$quality]);
-    expect(prWorkflowMatrix($workflow, 'quality-checks-result'))->toBe($quality);
+    expect(prWorkflowMatrixList($workflow, 'quality-checks-result', 'php'))->toBe($quality);
 });
 
 test('the syntax lint job covers every tracked PHP file, the skill scripts and the CLI included', function (): void {
