@@ -4,6 +4,8 @@
 >
 > **Write it as a person would.** `**Problem:**` holds one or two plain sentences, `**Impact:**` one sentence, and the faulty example at most 5 lines in a fenced block (its language from `faulty_example_lang`, when set). The icon is the severity: 🔴 Critical, 🟠 Moderate. Nothing else is visible: no Rule, Provenance, Answered, Raised by, Level, Evidence, Expected behavior, Test hint, or Suggested fix line, and no `suggestion` block. The full finding lives in the hidden record of the review body (`templates/pr-comment-output.md`).
 >
+> **Name no tooling of this package.** The visible text describes each step in plain words and names no script, skill, agent, rule, or installed directory of this package. The reviewed project's own commands and paths stay. The wrapper refuses the rest before the publish (`@rules/code-review/general.md` *Visible review text names none of the package's own tooling*).
+>
 > **A DRY / reuse finding takes the second shape** (`kind: "dry"`, `existing` = the `<path>:<line>` of the existing implementation). It is Moderate (`@rules/code-review/general.md` *Reuse Existing Logic*). A duplicated security control keeps its security severity and takes the first shape.
 >
 > **The mention line renders only when the finding has an `author`** — a missing-test or DRY finding of a review-only run (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*).
