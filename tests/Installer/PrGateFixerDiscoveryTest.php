@@ -103,8 +103,12 @@ test('krang discovers the fixers once, proposes the key through one pull request
         ->and($discovery)->toContain('the root session runs steps 1 to 3 once for the whole batch, never once per unit.')
         ->and($discovery)->toContain(
             '**Check again right before the dispatch:** run the `gh pr list` of step 2 and '
-            . '`git ls-remote --exit-code --heads origin chore/ai-olympus-pr-gate`.',
+            . '`gh api "repos/{owner}/{repo}/git/ref/heads/chore/ai-olympus-pr-gate"`. '
+            . 'When either finds the pull request or the branch (the `gh api` call exits `0`)',
         )
+        ->and($discovery)->toContain('A `gh api` failure with HTTP 404 means the branch does not exist.')
+        ->and($discovery)->toContain('Any other failure means the check cannot tell: dispatch no second proposal and name the failure in the report.')
+        ->and($discovery)->not->toContain('git ls-remote')
         ->and($discovery)->toContain('**A proposal never stops the delivery.**')
         ->and($discovery)->toContain('The run\'s own delivery continues.')
         ->and($discovery)->toContain(
