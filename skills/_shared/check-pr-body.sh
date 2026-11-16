@@ -33,13 +33,17 @@
 #                template appears. A heading is a level-1 or level-2 ATX heading (0-3 leading
 #                spaces), a setext heading (a paragraph line over a `===` or `---` underline,
 #                whatever character the paragraph line starts with), or an HTML <h1> or <h2>
-#                line. A dash line under a list item, a block quote, an indented code block, an
-#                HTML block, or a table is a thematic break and is no heading. An indented code
-#                block ends at the first unindented line, and a list item or a block quote takes an
-#                unindented line only as a lazy continuation of its paragraph text: after a heading,
-#                a code line, or an empty item inside it, an unindented line starts a paragraph of
-#                its own, and a dash line under that paragraph is a heading. A heading nested
-#                inside a list item or a block quote is not read, as an ATX heading there is not.
+#                line. The body is read with the container stack CommonMark keeps (GitHub renders
+#                it): a block quote and a list item hold blocks of their own, and a block inside
+#                one is never a heading of the body. A dash line under a list item, a block quote,
+#                an indented code block, a fenced code block, an HTML block, or a table is a
+#                thematic break and is no heading. A line that does not continue the containers
+#                above it is a lazy continuation only of paragraph text; after a heading, a fenced
+#                or indented code line, or an empty item inside a container it starts a paragraph of
+#                its own, and a dash line under that paragraph is a heading. A fence inside a
+#                container ends at a fence line of its own character and at least its length, or
+#                with the container. A heading nested inside a list item or a block quote is not
+#                read, as an ATX heading there is not.
 #   Locale       the body is read in the C locale, byte by byte, so the verdict on a body with an
 #                invalid UTF-8 byte is the same on every host.
 #   Merge risk   the heading reads `## Merge risk <icon> <low|medium|high>` and carries one
@@ -108,15 +112,15 @@ ATX_SHAPE='^ {0,3}#{1,2}([[:space:]]+(.*))?$'
 SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
-# CommonMark rules GitHub renders): only a paragraph line is underlined. A list item, a block
-# quote, an indented code block, an HTML block, and a table keep their block until a blank line, so
-# a dash line under one of them is a thematic break. What the line starts with decides nothing:
+# CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
+# no container holds is a heading of the body. What the line starts with decides nothing:
 # `**Problem**`, `*Problem*`, and `<b>Problem</b>` are paragraph lines.
 THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
 QUOTE_START='^ {0,3}>'
 QUOTE_PARSE='^ {0,3}>(.*)$'
 ATX_ANY='^ {0,3}#{1,6}([[:space:]]|$)'
-FENCE_OPEN='^ {0,3}(```|~~~)'
+FENCE_LINE='^( {0,3})(`{3,}|~{3,})(.*)$'
+FENCE_CLOSE='^ {0,3}(`+|~+)[[:blank:]]*$'
 LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
 LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
 LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
@@ -185,18 +189,6 @@ count_chars() {
   LC_ALL=C tr -d '\200-\277' | LC_ALL=C wc -c | tr -d '[:space:]'
 }
 
-# list_item_indent <line> — set LIST_INDENT to the column where the content of the list item
-# that <line> opens starts. A line indented at least that far after a blank line continues the
-# item, so a dash line under such a line is not a setext underline.
-list_item_indent() {
-  [[ "$1" =~ $LIST_ITEM_PARSE ]] || return 0
-  if [[ -z "${BASH_REMATCH[4]}" || "${#BASH_REMATCH[3]}" -ge 5 ]]; then
-    LIST_INDENT=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + 1))
-  else
-    LIST_INDENT=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#BASH_REMATCH[3]}))
-  fi
-}
-
 # lowercase <text> — print the text in lower case, byte by byte. The filter runs under LC_ALL=C:
 # under a UTF-8 locale BSD `tr` stops at an invalid byte and cuts the text there, so the verdict
 # on a line would depend on the locale of the host.
@@ -204,82 +196,285 @@ lowercase() {
   printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
 }
 
-# container_leaf <line> — set LEAF to what remains of <line> after its block quote and list item
-# markers: `# H` for `- # H`, `text` for `> - text`, an indented line for `-     code`.
-container_leaf() {
-  local rest="$1" depth=0 spaces content
+# The containers a line sits in. A block quote and a list item hold blocks of their own, so the
+# body is read with the stack CommonMark keeps (GitHub renders it): CS_KIND[i] is `q` (a block
+# quote) or `l` (a list item), CS_WIDTH[i] is the content column of an item relative to the
+# content of the container around it, and CS_EMPTY[i] is 1 while an item has no content yet. CS_N
+# is the depth; the entries from CS_N on are stale. LEAF is the block the innermost container
+# holds at its end: `none`, `para` (paragraph text), `code` (an indented code block), `fence`
+# (a fenced code block; FENCE_CHAR and FENCE_LEN), or `html` (an HTML block; HTML_END). HANDOVER_END is
+# the end of an HTML block that the last container_step left open.
+CS_N=0
+CS_KIND=()
+CS_WIDTH=()
+CS_EMPTY=()
+LEAF=none
+FENCE_CHAR=''
+FENCE_LEN=0
+HTML_END=''
+HANDOVER_END=''
+TAB=$'\t'
 
-  while [[ "$depth" -lt 16 ]]; do
-    depth=$((depth + 1))
-    if [[ "$rest" =~ $QUOTE_PARSE ]]; then
-      rest="${BASH_REMATCH[1]}"
-      rest="${rest# }"
-    elif [[ "$rest" =~ $LIST_ITEM && "$rest" =~ $LIST_ITEM_PARSE ]]; then
-      spaces="${BASH_REMATCH[3]}"
-      content="${BASH_REMATCH[4]}"
-      if [[ -z "$content" ]]; then
-        rest=""
-        break
-      fi
-      if [[ "${#spaces}" -ge 5 ]]; then
-        rest="    $content"
-        break
-      fi
-      rest="$content"
-    else
-      break
-    fi
-  done
-  LEAF="$rest"
+# detab <text> — set DETABBED to <text> with each tab in its leading whitespace read as four spaces.
+detab() {
+  local text="$1" lead
+
+  if [[ "$text" == *"$TAB"* ]]; then
+    lead="${text%%[! "$TAB"]*}"
+    text="${lead//$TAB/    }${text#"$lead"}"
+  fi
+  DETABBED="$text"
 }
 
-# leaf_block <line> — set NEXT_BLOCK for a line that opens a list item or a block quote: `open`
-# when the line ends in paragraph text, so an unindented line after it is a lazy continuation
-# (CommonMark), and `shut` for an empty item, a heading, a thematic break, a fence, an indented code
-# line, or an HTML block inside it, after which an unindented line starts a new top-level block.
-leaf_block() {
-  local lower
+# match_containers <line> — strip the markers of the containers that <line> continues, from the
+# outermost: `>` and one space for a block quote, the content column of the item for a list item
+# (a blank line continues an item that has content). Set MATCHED to the number of containers
+# that the line continues and MATCHED_REST to what remains of it.
+match_containers() {
+  local rest="$1" i=0 lead width
 
-  NEXT_BLOCK=shut
-  container_leaf "$1"
-  [[ "$LEAF" =~ [^[:space:]] ]] || return 0
-  [[ "$LEAF" =~ $INDENTED_CODE ]] && return 0
-  [[ "$LEAF" =~ $ATX_ANY ]] && return 0
-  [[ "$LEAF" =~ $THEMATIC_BREAK ]] && return 0
-  [[ "$LEAF" =~ $FENCE_OPEN ]] && return 0
-  if [[ "$LEAF" == *'<'* && "$LEAF" =~ ^\ {0,3}\< ]]; then
-    lower="$(lowercase "$LEAF")"
-    [[ "$lower" =~ $HTML_RAW_START ]] && return 0
-    [[ "$lower" =~ $HTML_BLOCK_START ]] && return 0
+  while [[ "$i" -lt "$CS_N" ]]; do
+    detab "$rest"
+    rest="$DETABBED"
+    if [[ "${CS_KIND[$i]}" == q ]]; then
+      [[ "$rest" =~ $QUOTE_PARSE ]] || break
+      rest="${BASH_REMATCH[1]}"
+      rest="${rest# }"
+    elif [[ ! "$rest" =~ [^[:space:]] ]]; then
+      [[ "${CS_EMPTY[$i]}" -eq 1 ]] && break
+      rest=""
+    else
+      width="${CS_WIDTH[$i]}"
+      lead="${rest%%[! ]*}"
+      [[ "${#lead}" -ge "$width" ]] || break
+      rest="${rest:$width}"
+      CS_EMPTY[i]=0
+    fi
+    i=$((i + 1))
+  done
+  MATCHED="$i"
+  MATCHED_REST="$rest"
+}
+
+# classify_line <text> <1 when a paragraph is open, else 0> — set KIND to the block that <text>,
+# the part of a line inside its containers, starts: `blank`, `code` (indented four columns, and
+# no paragraph is open: an indented line continues a paragraph), `underline` (a `=` or `-` line
+# under a paragraph), `thematic`, `fence`, `atx`, `html`, `quote`, `list`, or `text`. A list
+# item interrupts a paragraph only with text, and an ordered one only at 1; an HTML block of type
+# 7 (a lone tag) never interrupts a paragraph.
+classify_line() {
+  local text="$1" in_para="$2" lead lower
+
+  KIND=text
+  if [[ ! "$text" =~ [^[:space:]] ]]; then
+    KIND=blank
+    return 0
   fi
-  NEXT_BLOCK=open
+  lead="${text%%[! ]*}"
+  if [[ "${#lead}" -ge 4 ]]; then
+    [[ "$in_para" -eq 1 ]] || KIND=code
+    return 0
+  fi
+  if [[ "$in_para" -eq 1 && "$text" =~ $SETEXT_UNDERLINE ]]; then
+    KIND=underline
+    return 0
+  fi
+  if [[ "$text" =~ $THEMATIC_BREAK ]]; then
+    KIND=thematic
+    return 0
+  fi
+  if [[ "$text" =~ $FENCE_LINE ]]; then
+    [[ "${BASH_REMATCH[2]:0:1}" != '`' || "${BASH_REMATCH[3]}" != *'`'* ]] && { KIND=fence; return 0; }
+  fi
+  if [[ "$text" =~ $ATX_ANY ]]; then
+    KIND=atx
+    return 0
+  fi
+  if [[ "$text" == *'<'* && "$text" =~ ^\ {0,3}\< ]]; then
+    lower="$(lowercase "$text")"
+    if [[ "$lower" =~ $HTML_RAW_START || "$lower" =~ $HTML_BLOCK_START ]]; then
+      KIND=html
+      return 0
+    fi
+    if [[ "$in_para" -eq 0 && "$lower" =~ $HTML_LONE_TAG ]]; then
+      KIND=html
+      return 0
+    fi
+  fi
+  if [[ "$text" =~ $QUOTE_START ]]; then
+    KIND=quote
+    return 0
+  fi
+  if [[ "$in_para" -eq 1 ]]; then
+    [[ "$text" =~ $LIST_ITEM_WITH_TEXT ]] && KIND=list
+  else
+    [[ "$text" =~ $LIST_ITEM ]] && KIND=list
+  fi
+  return 0
+}
+
+# html_step <call> <text> — run cr_header_html_open or cr_header_html_end (the one rule for where an
+# HTML block ends) on <text> with the state of the HTML block of the container, and keep LEAF
+# `html` while the block is open.
+html_step() {
+  local saved="$CR_HTML_END"
+
+  if [[ "$1" == open ]]; then
+    CR_HTML_END=''
+    cr_header_html_open "$2"
+  else
+    CR_HTML_END="$HTML_END"
+    cr_header_html_end "$2"
+  fi
+  HTML_END="$CR_HTML_END"
+  CR_HTML_END="$saved"
+  LEAF=html
+  [[ -n "$HTML_END" ]] || LEAF=none
+}
+
+# leaf_step <text> — read <text>, the part of a line inside all the open containers, as the next
+# line of the innermost one. Open the containers it starts, and set LEAF to the block it leaves.
+leaf_step() {
+  local text="$1" width spaces in_para
+
+  while :; do
+    detab "$text"
+    text="$DETABBED"
+
+    if [[ "$LEAF" == fence ]]; then
+      if [[ "$text" =~ $FENCE_CLOSE ]]; then
+        [[ "${BASH_REMATCH[1]:0:1}" == "$FENCE_CHAR" && "${#BASH_REMATCH[1]}" -ge "$FENCE_LEN" ]] && LEAF=none
+      fi
+      return 0
+    fi
+    if [[ "$LEAF" == html ]]; then
+      html_step end "$text"
+      return 0
+    fi
+
+    in_para=0
+    [[ "$LEAF" == para ]] && in_para=1
+    classify_line "$text" "$in_para"
+    case "$KIND" in
+    blank | thematic | atx | underline)
+      LEAF=none
+      return 0
+      ;;
+    code)
+      LEAF=code
+      return 0
+      ;;
+    fence)
+      [[ "$text" =~ $FENCE_LINE ]]
+      FENCE_CHAR="${BASH_REMATCH[2]:0:1}"
+      FENCE_LEN="${#BASH_REMATCH[2]}"
+      LEAF=fence
+      return 0
+      ;;
+    html)
+      html_step open "$text"
+      return 0
+      ;;
+    quote)
+      [[ "$text" =~ $QUOTE_PARSE ]]
+      text="${BASH_REMATCH[1]}"
+      text="${text# }"
+      push_container q 0 0
+      ;;
+    list)
+      [[ "$text" =~ $LIST_ITEM_PARSE ]]
+      spaces="${BASH_REMATCH[3]//$TAB/    }"
+      width=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#spaces}))
+      text="${BASH_REMATCH[4]}"
+      if [[ -z "$text" ]]; then
+        push_container l $((width - ${#spaces} + 1)) 1
+      elif [[ "${#spaces}" -ge 5 ]]; then
+        push_container l $((width - ${#spaces} + 1)) 0
+        text="${spaces#?}$text"
+      else
+        push_container l "$width" 0
+      fi
+      ;;
+    *)
+      LEAF=para
+      return 0
+      ;;
+    esac
+  done
+}
+
+# push_container <q|l> <width> <empty> — open a container inside the innermost one.
+push_container() {
+  CS_KIND[CS_N]="$1"
+  CS_WIDTH[CS_N]="$2"
+  CS_EMPTY[CS_N]="$3"
+  CS_N=$((CS_N + 1))
+  LEAF=none
+}
+
+# container_step <line> — read <line> while a container is open. Succeed when the line stays in the
+# stack. Fail, with the stack empty, when it closes every container: the line is then a line of the
+# body, read as the first line of a block. A line that does not continue every container is a lazy
+# continuation of the paragraph at the end of the innermost one when it starts no block (an indented
+# line starts none); otherwise
+# it closes the containers it does not continue, and the rest of the line is read inside the others.
+container_step() {
+  local line="$1"
+
+  HANDOVER_END=''
+  match_containers "$line"
+  if [[ "$MATCHED" -lt "$CS_N" ]]; then
+    # A comment, a processing instruction, or a raw element that its container leaves open stays open
+    # in the HTML GitHub renders, and swallows the lines up to its end: the shared line rule takes it over.
+    if [[ "$LEAF" == html && "$HTML_END" != blank ]]; then
+      HANDOVER_END="$HTML_END"
+      CS_N=0
+      LEAF=none
+      return 1
+    fi
+    if [[ "$LEAF" == para ]]; then
+      # The paragraph is not one of the containers the line continues, so it does not stop an
+      # empty item, an ordered item at a number above 1, or a lone HTML tag from starting a block.
+      classify_line "$MATCHED_REST" 0
+      [[ "$KIND" == code ]] && KIND=text
+      [[ "$KIND" == text ]] && return 0
+    fi
+    CS_N="$MATCHED"
+    LEAF=none
+    [[ "$CS_N" -gt 0 ]] || return 1
+  fi
+  leaf_step "$MATCHED_REST"
+  return 0
+}
+
+# container_open <line> — <line> starts a block quote or a list item outside every container.
+container_open() {
+  CS_N=0
+  LEAF=none
+  leaf_step "$1"
+  NEXT_BLOCK=stack
+  [[ "$CS_N" -gt 0 ]] || NEXT_BLOCK=none
 }
 
 # next_block <block> <line> <html state before the line> — set NEXT_BLOCK to the block the line
-# leaves open: `none` after a blank line or a thematic break, `paragraph` while text continues,
-# `code` for an indented code block, `open` for a list item or a block quote that ends in paragraph
-# text, `shut` for one that does not, and `container` for an HTML block or a table. Only `paragraph`
-# and `open` take a `---` or `===` line as a heading underline, and only `paragraph` is one.
-# A `container` holds until the next blank line. An indented code block ends at the first unindented
-# line. A list item or a block quote takes an unindented line only as a lazy continuation while
-# its last line was paragraph text (`open`); after `shut` that line starts a new top-level block.
-# A list item also holds across a blank line for every line indented to its content column
-# (LIST_INDENT). <line> is not a heading, a setext underline of a paragraph, or a skipped line. A
-# new block starts only where CommonMark lets it: a list item starts a block anywhere but
-# interrupts a paragraph only with text (and an ordered one only at 1), a block quote and an HTML
-# block of types 1-6 interrupt a paragraph, a lone HTML tag and an indented line start a block
-# only outside a paragraph, and a table delimiter row turns the paragraph above it into a table.
+# leaves, for a line outside every container: `none` after a blank line, a thematic break, or a heading,
+# `paragraph` while text continues, `table` while table rows continue, `code` for an indented code
+# block, `stack` for a line that opens a block quote or a list item (container_step reads every
+# later line while one is open), and `container` for an HTML block. Only `paragraph` takes a `---`
+# or `===` line as a heading underline. An HTML block holds until the next blank line, and a table
+# until a blank line or the first line that starts another block. An indented code block ends at the
+# first unindented line. <line> is not a heading, a setext underline of a
+# paragraph, or a skipped line. A new block starts only where CommonMark lets it: a list item
+# starts a block anywhere but interrupts a paragraph only with text (and an ordered one only at 1),
+# a block quote and an HTML block of types 1-6 interrupt a paragraph, a lone HTML tag and an
+# indented line start a block only outside a paragraph, and a table delimiter row turns the
+# paragraph above it into a table.
 next_block() {
-  local block="$1" line="$2" was_html="$3" lower="" delim lead indent in_text=0
+  local block="$1" line="$2" was_html="$3" lower="" delim in_text=0
 
   NEXT_BLOCK=container
   if [[ ! "$line" =~ [^[:space:]] ]]; then
     NEXT_BLOCK=none
-    return 0
-  fi
-  if [[ "$line" =~ $THEMATIC_BREAK ]]; then
-    NEXT_BLOCK=none
-    LIST_INDENT=0
     return 0
   fi
 
@@ -289,28 +484,28 @@ next_block() {
     return 0
   fi
 
-  # A table and an HTML block take every line until the blank line.
+  # An HTML block takes every line until the blank line.
   if [[ "$block" == container ]]; then
     return 0
   fi
 
-  [[ "$block" == paragraph || "$block" == open ]] && in_text=1
+  if [[ "$line" =~ $THEMATIC_BREAK ]]; then
+    NEXT_BLOCK=none
+    return 0
+  fi
+
+  # A heading of level 3 to 6 ends any block above it and is a block of one line.
+  if [[ "$line" =~ $ATX_ANY ]]; then
+    NEXT_BLOCK=none
+    return 0
+  fi
+
+  [[ "$block" == paragraph || "$block" == table ]] && in_text=1
 
   if [[ "$in_text" -eq 0 ]]; then
     if [[ "$line" =~ $LIST_ITEM ]]; then
-      list_item_indent "$line"
-      leaf_block "$line"
+      container_open "$line"
       return 0
-    fi
-    if [[ "$LIST_INDENT" -gt 0 ]]; then
-      lead="${line%%[! ]*}"
-      indent=${#lead}
-      [[ "$line" == $'\t'* ]] && indent=4
-      if [[ "$indent" -ge "$LIST_INDENT" ]]; then
-        NEXT_BLOCK=open
-        return 0
-      fi
-      LIST_INDENT=0
     fi
     # An indented code block continues on every indented line and ends at the first other line,
     # which is read as the first line of a block.
@@ -330,21 +525,20 @@ next_block() {
   fi
 
   if [[ "$line" =~ $QUOTE_START ]]; then
-    leaf_block "$line"
+    container_open "$line"
     return 0
   fi
 
   if [[ "$in_text" -eq 1 ]]; then
     if [[ "$line" =~ $LIST_ITEM_WITH_TEXT ]]; then
-      list_item_indent "$line"
-      leaf_block "$line"
+      container_open "$line"
       return 0
     fi
     if [[ "$line" == *'|'* && "$block" == paragraph ]]; then
       delim="${line//[|:[:space:]-]/}"
-      [[ -z "$delim" && "$line" == *-* ]] && return 0
+      [[ -z "$delim" && "$line" == *-* ]] && { NEXT_BLOCK=table; return 0; }
     fi
-    # A text line continues the paragraph, or lazily the item or the quote that holds it.
+    # A text line continues the paragraph or the table.
     NEXT_BLOCK="$block"
     return 0
   fi
@@ -356,31 +550,64 @@ next_block() {
   return 0
 }
 
+# merge_risk_line <1 under the Merge risk heading, else 0> <line> — print a **Door:** or **Blast radius:**
+# line under the heading.
+merge_risk_line() {
+  if [[ "$1" -eq 1 && ( "$2" == '**Door:**'* || "$2" == '**Blast radius:**'* ) ]]; then
+    printf 'merge-risk-line|%s\n' "$2"
+  fi
+  return 0
+}
+
 # scan_body — read the body and print what the section check reads, one record per line:
 #   section|<line number>|<heading|details>:<name>
 #   merge-risk-heading|<the whole heading line>
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
 # A line that cr_header_fence_step skips is a quotation and is never read.
 scan_body() {
-  local line number=0 in_merge_risk=0 text block=none was_html
+  local line number=0 in_merge_risk=0 text block=none was_html skipped
 
-  LIST_INDENT=0
-
+  CS_N=0
+  LEAF=none
   cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
     number=$((number + 1))
     was_html="$CR_HTML_END"
 
-    if cr_header_fence_step "$line"; then
+    # The skipped regions of the one shared parser start and end on the lines outside every
+    # container. A line that continues a container of the stack is read by the stack alone, and
+    # the fence and the HTML block it opens belong to the stack, so the shared state starts over.
+    skipped=0
+    cr_header_fence_step "$line" && skipped=1
+
+    if [[ "$CS_N" -gt 0 ]]; then
+      if container_step "$line"; then
+        cr_header_fence_reset
+        block=stack
+        [[ "$skipped" -eq 1 ]] && continue
+        merge_risk_line "$in_merge_risk" "$line"
+        continue
+      fi
+      block=none
+      if [[ -n "$HANDOVER_END" ]]; then
+        cr_header_fence_reset
+        CR_HTML_END="$HANDOVER_END"
+        was_html="$HANDOVER_END"
+        cr_header_html_end "$line"
+        skipped=0
+      fi
+    fi
+
+    if [[ "$skipped" -eq 1 ]]; then
       block=none
       continue
     fi
 
-    if [[ "$line" =~ $ATX_SHAPE ]]; then
+    # An HTML block holds every line up to the next blank line, so a heading line in it is HTML text.
+    if [[ "$block" != container && "$line" =~ $ATX_SHAPE ]]; then
       text="${BASH_REMATCH[2]}"
       block=none
-      LIST_INDENT=0
       if [[ "$text" == 'Merge risk'* ]]; then
         in_merge_risk=1
         printf 'section|%s|heading:Merge risk\n' "$number"
@@ -395,7 +622,6 @@ scan_body() {
     if [[ "$line" =~ $HTML_HEADING ]]; then
       in_merge_risk=0
       block=container
-      LIST_INDENT=0
       printf 'section|%s|heading:<h>\n' "$number"
       continue
     fi
@@ -403,7 +629,6 @@ scan_body() {
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
       in_merge_risk=0
       block=container
-      LIST_INDENT=0
       printf 'section|%s|details:%s\n' "$number" "${BASH_REMATCH[1]}"
       continue
     fi
@@ -418,21 +643,11 @@ scan_body() {
         printf 'section|%s|heading:<setext>\n' "$((number - 1))"
         continue
       fi
-      if [[ "$line" == *-* ]]; then
-        block=none
-        continue
-      fi
     fi
 
     next_block "$block" "$line" "$was_html"
     block="$NEXT_BLOCK"
-
-    if [[ "$in_merge_risk" -eq 1 && "$line" == '**Door:**'* ]]; then
-      printf 'merge-risk-line|%s\n' "$line"
-    fi
-    if [[ "$in_merge_risk" -eq 1 && "$line" == '**Blast radius:**'* ]]; then
-      printf 'merge-risk-line|%s\n' "$line"
-    fi
+    merge_risk_line "$in_merge_risk" "$line"
   done
 }
 
@@ -828,6 +1043,38 @@ self_test() {
     "$(render '' "$(printf -- '- item\nlazy\n---')")" '"valid": true'
   scenario 'a lazy line after a quoted paragraph in a list item is not a heading' 0 \
     "$(render '' "$(printf -- '- > quote\nlazy\n---')")" '"valid": true'
+
+  # A fenced code block or an indented code block inside a block quote or a list item is code,
+  # never paragraph text, so the unindented line after it starts a top-level paragraph and a dash
+  # line under it is a heading of the body. A fence closes only on its own character and length.
+  scenario 'a paragraph after a fenced block in a block quote over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '> %s\n> x\ntext\n---' "$fence")")" 'is not a section of the template'
+  scenario 'a paragraph after a tilde fence in a block quote over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '> ~~~\n> x\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a fenced block in a list item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '- %s\n  x\ntext\n---' "$fence")")" 'is not a section of the template'
+  scenario 'a paragraph after a fence a shorter fence does not close is refused' 3 \
+    "$(render '' "$(printf -- '> ~~~~\n> ~~~\n> x\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a closed fence in a block quote over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '> %s\n> x\n> %s\nlazy\n---' "$fence" "$fence")")" 'is not a section of the template'
+  scenario 'a paragraph after a code line of a loose bullet item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '- item\n\n      code\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a code line of a loose ordered item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '1. item\n\n       code\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a fence in a quote in a list item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '- > a\n  > %s\n  > x\ntext\n---' "$fence")")" 'is not a section of the template'
+  scenario 'a paragraph after a code line in a list item in a quote over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '> - a\n>\n>       code\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a code line of a nested list item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '- a\n  - b\n\n        code\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph line inside a list item over a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '- a\n\n  text\n---')")" '"valid": true'
+  scenario 'a paragraph after a closed fence in a list item over a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '- %s\n  x\n  %s\n  text\n---' "$fence" "$fence")")" '"valid": true'
+  scenario 'a level-3 heading before a dash line leaves a thematic break' 0 \
+    "$(render '' "$(printf -- '### H3\n---')")" '"valid": true'
+  scenario 'an empty list item and its paragraph before a dash line are not a heading' 0 \
+    "$(render '' "$(printf -- '-\n  text\n---')")" '"valid": true'
 
   # The verdict never depends on the locale of the host. Under a UTF-8 locale `tr` stopped at an
   # invalid byte and cut `<DIV\377>` to `<div`, which read as an HTML block, and a paragraph line
