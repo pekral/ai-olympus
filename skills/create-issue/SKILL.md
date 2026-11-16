@@ -9,6 +9,7 @@ metadata:
 ## Constraints
 - Preserve original text exactly (no rewriting or summarizing)
 - Improve formatting only (headings, lists, spacing)
+- Apply `@rules/compound-engineering/assignment.md`: a text that is already business-only keeps its content and takes the headings of that shape; a text that carries technical detail is preserved as given and reported as technical, with an offer of a business-only rewrite
 - Assign issue to current user
 - Use available CLI tools
 
@@ -33,6 +34,7 @@ metadata:
 
 ### 4. Output
 - Return direct link to created issue, or the withheld report of the guard when it created none
+- State when the preserved text carries technical detail, and report each missing native link to another issue it mentions, as `@rules/compound-engineering/assignment.md` states
 
 ---
 

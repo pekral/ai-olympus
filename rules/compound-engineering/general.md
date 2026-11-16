@@ -22,6 +22,12 @@ The sections that govern a run taking its assignment from a tracker item live in
 
 - **A run that reads, claims, updates, links, labels, or files a tracker item reads and applies `@rules/compound-engineering/tracker.md` first.** Every skill and agent that performs one of those steps names the file.
 
+## The business-only assignment — the companion file
+
+The shape of every task an agent writes in a tracker lives in `@rules/compound-engineering/assignment.md`, not in this file: five business parts, no technical detail, and the native links between issues. That file loads on demand.
+
+- **A run that writes, rewrites, or checks the text of an assignment reads and applies `@rules/compound-engineering/assignment.md` first.** Every skill that does so names the file.
+
 ## The assignment is the scope
 
 The goal of every assignment is that every acceptance criterion is met. This section is the one owner of that goal and of its boundary. Other files reference it and never restate it.

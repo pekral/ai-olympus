@@ -8,6 +8,7 @@ metadata:
 
 ## Constraints
 - Preserve original assignment (store in parent or first issue)
+- Write every issue it derives as a business-only assignment, as `@rules/compound-engineering/assignment.md` defines
 - Do not implement code
 - Assign all issues to current user
 - Use CLI tools
@@ -77,7 +78,7 @@ For a database column, `@rules/sql/optimalize.md` *Deploy-safe schema changes* o
 
 ## Issue Structure
 
-Use the template defined in `templates/issue-structure.md`.
+Use the template defined in `templates/issue-structure.md`. It is the business-only shape of `@rules/compound-engineering/assignment.md`: no class, file, route, table, query, test command, or technical acceptance criterion goes into an issue. The technical detail of the original assignment stays in the preserved original text. When an issue text mentions another issue of the same tracker, the output reports each missing native link with its recommended type, as that rule states.
 
 ---
 
@@ -89,7 +90,7 @@ Use this when the assignment bundles **several behaviours that are each delivere
 
 1. **Pick (or create) the parent.** When the assignment already has a tracker item, that item becomes the EPIC parent. When the assignment is a described task with no tracker item, create the parent issue first, carrying the full original assignment in its body.
 2. **Label the parent `EPIC`.** Apply the `EPIC` label to the parent. Create the label once if the repository does not have it yet (`gh label create EPIC --description "Tracks a cross-cutting effort split into sub-issues" --color 5319e7`), then ignore the "already exists" outcome on subsequent runs.
-3. **Create one sub-issue per vertical slice.** Cut the sub-issues as *Split into vertical slices* above defines. Each sub-issue is an independently deliverable assignment (same `templates/issue-structure.md` structure) that delivers a working piece through every layer it needs. Never create one sub-issue per layer or per application area.
+3. **Create one sub-issue per vertical slice.** Cut the sub-issues as *Split into vertical slices* above defines. Each sub-issue is an independently deliverable, business-only assignment (same `templates/issue-structure.md` structure) that delivers a working piece through every layer it needs. Never create one sub-issue per layer or per application area.
 4. **Link every sub-issue back to the parent (both directions).**
    - In each sub-issue body, reference the parent with `Part of #<parent>` so the relationship is visible from the child.
    - In the parent body, keep a checkable task list of the children — `- [ ] #<child>` per sub-issue — under a `## Sub-issues` heading, so the parent shows the full breakdown and progress.
