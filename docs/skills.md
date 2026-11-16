@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 69 skills this package ships, grouped by what you reach for them for. Each description is the
+All 70 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -86,6 +86,7 @@ link to read the skill itself.
 | [`mysql-problem-solver`](../skills/mysql-problem-solver/) | Analyze real MySQL query and schema problems using code inspection, schema review, and EXPLAIN when available |
 | [`postgres-patterns`](../skills/postgres-patterns/) | Designing PostgreSQL schema features or applying advanced Postgres patterns in Laravel |
 | [`redis-patterns`](../skills/redis-patterns/) | Using Redis in a Laravel app |
+| [`laravel-horizon-audit`](../skills/laravel-horizon-audit/) | Auditing the Laravel Horizon, Redis queue, job, deployment, and monitoring configuration of a project |
 | [`laravel-telescope`](../skills/laravel-telescope/) | Analyzing Laravel Telescope requests from URL and DB |
 
 ## Frontend & UI
