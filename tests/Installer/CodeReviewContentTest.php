@@ -4820,9 +4820,17 @@ test('a run that only processes the owner answers and lands no change publishes 
     // The rule is the one owner: the three conditions, the allowed edits, the report, and the finding.
     expect($rule)->toContain('**A run that only processes the owner\'s answers and lands no change publishes nothing.**')
         ->and($rule)->toContain('The run publishes no pull-request review, no pull-request comment, and no tracker mirror')
-        ->and($rule)->toContain('the only input is answers that the owner or a reviewer already gave to open decisions')
+        ->and($rule)->toContain('the only input is answers that a trusted author (*Authorship trust* above) already gave to open decisions')
         ->and($rule)->toContain('the run lands no commit;')
-        ->and($rule)->toContain('no new review round runs (*When another review round runs at all* above).')
+        ->and($rule)->toContain(
+            'the carry-forward decision of *When another review round runs at all* above carries the newest trusted code-review report forward;',
+        )
+        ->and($rule)->toContain(
+            'that report already covers the current head (its `Reviewed revision:` equals the head, or its `Reviewed diff fingerprint:` matches)',
+        )
+        ->and($rule)->toContain(
+            'An answer whose author fails the *Authorship trust* test is not an answer. The run reports it and records no decision from it.',
+        )
         ->and($rule)->toContain('An edit is never a new comment.')
         ->and($rule)->toContain('naming each processed answer and stating that nothing was published')
         ->and($rule)->toContain('A run that lands a change, or runs a new review round, publishes as the rest of this section states.')
@@ -4833,15 +4841,15 @@ test('a run that only processes the owner answers and lands no change publishes 
     expect(
         substr_count(
             $skill,
-            '- **Publish nothing when the run only processed the owner\'s answers to open decisions, lands no commit, and runs no new review round:**',
+            '- **Publish nothing in the owner-answers case of `@rules/code-review/general.md` *One published comment per review run*:**',
         ),
     )->toBe(
         1,
     )
         ->and($skill)->toContain('(no pull-request review, comment, or tracker mirror)')
         ->and($skill)->toContain('and report each processed answer and that nothing was published')
-        ->and($skill)->toContain('(`@rules/code-review/general.md` *One published comment per review run*).');
+        ->and($skill)->not->toContain('runs no new review round:**');
 
     // The reviewing agent, shared by Claude Code and Codex, points at the same rule.
-    expect($leonardo)->toContain('A run that only processes the owner\'s answers to open decisions and lands no change publishes nothing');
+    expect($leonardo)->toContain('The owner-answers case of `@rules/code-review/general.md` *One published comment per review run* publishes nothing.');
 });

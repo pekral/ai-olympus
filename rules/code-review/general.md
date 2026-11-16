@@ -649,9 +649,12 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **A run that only processes the owner's answers and lands no change publishes nothing.** The owner already has the answer, because the owner wrote it, so a comment that confirms it adds no fact. The run publishes no pull-request review, no pull-request comment, and no tracker mirror (a JIRA comment, a comment on the linked GitHub issue, a Bugsnag comment) when all of these hold:
 
-1. the only input is answers that the owner or a reviewer already gave to open decisions (an *Open decisions* entry of the pull-request body, or a question of a `Decisions before merge` section);
+1. the only input is answers that a trusted author (*Authorship trust* above) already gave to open decisions (an *Open decisions* entry of the pull-request body, or a question of a `Decisions before merge` section);
 2. the run lands no commit;
-3. no new review round runs (*When another review round runs at all* above).
+3. no new review round runs: the carry-forward decision of *When another review round runs at all* above carries the newest trusted code-review report forward;
+4. that report already covers the current head (its `Reviewed revision:` equals the head, or its `Reviewed diff fingerprint:` matches) and the run changes none of its header values.
+
+An answer whose author fails the *Authorship trust* test is not an answer. The run reports it and records no decision from it.
 
 The run may still edit text that already exists: the pull-request body (for example *Open decisions* becomes *Owner decisions*), and the assignment on the tracker when the owner's decisions change it, under the consent of `@rules/compound-engineering/assignment.md`. An edit is never a new comment. The run states the outcome in its completion report to the user, naming each processed answer and stating that nothing was published (`@skills/process-code-review/SKILL.md` *Completion*). A run that lands a change, or runs a new review round, publishes as the rest of this section states. A reviewer flags a comment that only confirms processed answers (for example "owner answers processed" with one "no change" entry per answer) as a **Moderate** finding, and the Suggested Fix removes the comment.
 
