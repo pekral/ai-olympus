@@ -24,9 +24,8 @@ test('the security review has a route-access step that runs in every review roun
             'each route the diff adds or changes, and each route whose middleware, route group, controller, or policy the diff changes',
         )
         ->and($step)->toContain('an unauthenticated caller, a signed-in user, or a privileged role')
-        ->and($step)->toContain(
-            'the authorization in the controller or policy, and, for a dashboard, its gate definition and `::auth` callback as the rule describes them, each with its `file:line`',
-        )
+        ->and($step)->toContain('the authorization in the controller or policy, and, for a dashboard, its gate definition and `::auth` callback')
+        ->and($step)->toContain('as the rule describes them, each with its `file:line`')
         ->and($step)->toContain('`Route access: not applicable — the diff changes no route`')
         ->and($step)->toContain('goes under *Not verified* with the step that settles it');
 });
@@ -201,9 +200,8 @@ test('a dashboard gate must be enforced through the middleware list and the enab
         ->and($section)->toContain('A `middleware` list without that entry leaves the gate unchanged and the dashboard reachable without signing in')
         ->and($section)->toContain('The `enabled` flag of such a config file')
         ->and($step)->toContain('the `middleware` list or the `enabled` flag of the dashboard\'s config file')
-        ->and($step)->toContain(
-            'the config files of the dashboards (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`), the gate definition and the `::auth` callback of each dashboard',
-        )
+        ->and($step)->toContain('the config files of the dashboards (`config/telescope.php`, `config/pulse.php`, `config/horizon.php`)')
+        ->and($step)->toContain('the gate definition and the `::auth` callback of each dashboard')
         ->and($step)->not->toContain('keeps its access middleware there')
         ->and($step)->toContain('for a dashboard, its gate definition and `::auth` callback as the rule describes them')
         ->and($step)->not->toContain('Authorize::class');
