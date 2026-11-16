@@ -195,7 +195,8 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
         ->and($leonardo)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
         ->and($boundary)->toContain('only on a converged loop')
         ->and($boundary)->toContain(
-            'only after `skills/_shared/check-pr-body.sh --file "$file"` exited `0` '
+            'only after `skills/_shared/check-pr-body.sh --file "$file" --template "$template"` exited `0`, '
+            . 'with `$template` the template that rendered the body as *Refresh after the gate* resolves it, '
             . 'as `@rules/git/pull-requests.md` *PR Content Requirements* directs',
         )
         ->and($boundary)->toContain('only while the `headRefOid` of the pull request equals the head whose gate result it uses')
