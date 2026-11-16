@@ -151,7 +151,8 @@ test('the route inventory is read statically and route:list runs only where the 
     expect($step)->toContain('Build the inventory statically from the diff, without running code of the head')
         ->and($step)->toContain('the route files, the middleware registration (`bootstrap/app.php`, `app/Http/Kernel.php`, a panel provider)')
         ->and($step)->toContain(
-            'Run `php artisan route:list --json` only where the caller lets code of the head run, and never in a security-only check that runs before the head runs.',
+            'Run `php artisan route:list --json` only where the caller lets code of the head run, '
+            . 'and never in a security-only check that runs before the head runs.',
         )
         ->and($step)->toContain('Report the merged group middleware that the static read cannot see under *Not verified*')
         ->and($step)->not->toContain('the inventory is the `php artisan route:list --json`');
