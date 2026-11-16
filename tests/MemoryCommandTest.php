@@ -310,6 +310,27 @@ test('add stores one entry that the next query finds, and refuses a slug it alre
     installerRemoveDirectory($root);
 });
 
+test('a query never returns an entry that another entry supersedes, and a longer slug with the same start stays', function (): void {
+    $root = memoryRepository();
+    $entry = static fn (string $slug, string $example): string => (string) json_encode([
+        'slug' => $slug, 'role' => 'shared', 'trigger' => 'a path is joined from input', 'lesson' => 'A joined path escaped the project',
+        'rule' => 'Resolve the path and compare its prefix.', 'evidence' => 'PR #9', 'paths' => ['src/PathJoin.php'], 'example' => $example,
+        'source' => 'https://example.test/pull/9', 'added' => '2026-11-16',
+    ]);
+
+    foreach (['path-join' => '', 'path-join-v2' => 'supersedes path-join', 'path-join-other' => ''] as $slug => $example) {
+        installerWriteFile($root . '/.claude/run/' . $slug . '.json', $entry($slug, $example));
+        expect(memoryRun($root, 'add', '--entry', '.claude/run/' . $slug . '.json')[0])->toBe(0);
+    }
+
+    [$exitCode, $query] = memoryRun($root, 'query', '--role', 'krang', '--path', 'src/PathJoin.php');
+
+    expect($exitCode)->toBe(0)
+        ->and(memorySlugs($query))->toEqualCanonicalizing(['path-join-other', 'path-join-v2']);
+
+    installerRemoveDirectory($root);
+});
+
 /**
  * @return array<string, string>
  */

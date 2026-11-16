@@ -61,6 +61,8 @@ final readonly class MemoryStore
     }
 
     /**
+     * An entry whose slug another entry names in its example as `supersedes <slug>` is never returned.
+     *
      * @param list<string> $paths
      * @param list<string> $symbols
      * @return list<\Pekral\AiOlympus\MemoryEntry>
@@ -84,6 +86,8 @@ final readonly class MemoryStore
                     $hits,
                 ) . ') AS path_hit FROM memory_entries e LEFT JOIN ranked r ON r.id = e.id '
                 . 'WHERE (e.role = :role OR e.role = \'shared\') AND (path_hit = 1 OR r.id IS NOT NULL) '
+                . 'AND NOT EXISTS (SELECT 1 FROM memory_entries s '
+                . 'WHERE instr(\' \' || s.example || \' \', \' supersedes \' || e.slug || \' \') > 0) '
                 . 'ORDER BY path_hit DESC, r.score ASC, e.slug ASC LIMIT ' . $limit,
             );
             $statement->execute($params);
