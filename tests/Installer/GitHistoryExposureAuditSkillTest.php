@@ -280,14 +280,16 @@ test('review mode runs the installed copy of a project whose default branch does
         ->and($step)->toContain('for each fetch, and for the dependency install');
 
     // The install in the untouched clone runs no Composer plugin and never resolves versions the default branch did not pin.
-    expect(historyExposureSource('skills/merge-github-pr/references/merge-exemptions.md'))->toContain(
+    $exemptions = historyExposureSource('skills/merge-github-pr/references/merge-exemptions.md');
+
+    expect($exemptions)->toContain(
         '`skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts --no-plugins"`, '
         . 'then `vendor/bin/ai-olympus install`.',
     )
-        ->toContain('The installs run only when `TIP` carries a `composer.lock`')
-        ->toContain('so the trusted copy is not available (item 5)')
-        ->toContain('a `TIP` with no `composer.lock` when item 2 needs the installs.')
-        ->not->toContain('"composer install --no-interaction --no-scripts"');
+        ->and($exemptions)->toContain('The installs run only when `TIP` carries a `composer.lock`')
+        ->and($exemptions)->toContain('so the trusted copy is not available (item 5)')
+        ->and($exemptions)->toContain('a `TIP` with no `composer.lock` when item 2 needs the installs.')
+        ->and($exemptions)->not->toContain('"composer install --no-interaction --no-scripts"');
 
     foreach (['agents/leonardo.md', 'agents/splinter.md'] as $agent) {
         expect(historyExposureSource($agent))->toContain(
@@ -295,11 +297,13 @@ test('review mode runs the installed copy of a project whose default branch does
         );
     }
 
-    expect(historyExposureSource('rules/compound-engineering/orchestration.md'))->toContain(
+    $orchestration = historyExposureSource('rules/compound-engineering/orchestration.md');
+
+    expect($orchestration)->toContain(
         'fetch the pull-request commits into it by object id, run the installs of its item 2 in it, read only in it',
     )
-        ->toContain('installing a new package (two exceptions exist: `raphael` running a dependency install')
-        ->toContain('*The trusted classifier* item 2 in the untouched clone of the second named exception below')
-        ->toContain('the second install exception above.')
-        ->not->toContain('the one exception is `raphael`');
+        ->and($orchestration)->toContain('installing a new package (two exceptions exist: `raphael` running a dependency install')
+        ->and($orchestration)->toContain('*The trusted classifier* item 2 in the untouched clone of the second named exception below')
+        ->and($orchestration)->toContain('the second install exception above.')
+        ->and($orchestration)->not->toContain('the one exception is `raphael`');
 });
