@@ -32,11 +32,11 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
 
 ### 1. Resolve the pull request
 1. Take the pull request from the argument: a URL, a number, or, when none is given, the pull request of the current branch (`gh pr view --json url --jq .url`).
-2. Run `skills/_shared/assert-current-repo.sh <URL>` first. Only exit `0` continues; every other exit is a hard stop, as in `@skills/merge-github-pr/SKILL.md` step 1.
-3. Load the pull request with `skills/code-review-github/scripts/load-issue.sh <URL>`, always with the full URL. Read `state`, `isDraft`, `mergeable`, `headRefOid`, `baseRefOid`, `baseRefName`, `headRefName`, `statusCheckRollup[]`, and `files[]`. A state other than `OPEN` stops the run. `mergeable == "CONFLICTING"` stops the run: report the conflict and merge nothing.
+2. Create the untouched clone of `@skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 first. Then run the trusted copy of `skills/_shared/assert-current-repo.sh <URL>` (`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted ownership check*). Only exit `0` continues; every other exit and an unavailable copy are a hard stop, as in `@skills/merge-github-pr/SKILL.md` step 1.
+3. Load the pull request with the trusted copy of `skills/code-review-github/scripts/load-issue.sh <URL>` (`@skills/merge-github-pr/references/trusted-record-parser.md` *The fast merge*), always with the full URL. No verified copy stops the run. Read `state`, `isDraft`, `mergeable`, `headRefOid`, `baseRefOid`, `baseRefName`, `headRefName`, `statusCheckRollup[]`, and `files[]`. A state other than `OPEN` stops the run. `mergeable == "CONFLICTING"` stops the run: report the conflict and merge nothing.
 4. Read `isCrossRepository` of the same payload. A missing or `null` value stops the run.
 5. Record `headRefOid` as the **gated head**. Every later step names it.
-6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base tip by object id instead. The base branch name is payload data, so never write it into a command line, the steps below included. Set `BASE_REF` from command output: `BASE_REF="$(skills/code-review-github/scripts/load-issue.sh <URL> | jq -r '.baseRefName')"`. Use the variable only in double quotes. Run the check and the read of items 1 and 2 in the same shell call that sets `BASE_REF`: a later call sets it again and repeats the check first.
+6. Make both commits available locally: run `git fetch origin <baseRefOid> <headRefOid>`. When the server refuses a fetch by object id, run `git fetch origin refs/pull/<number>/head` and fetch the base tip by object id instead. The base branch name is payload data, so never write it into a command line, the steps below included. Set `BASE_REF` from the loader document of item 3: `BASE_REF="$(jq -r '.baseRefName' "<loader-file>")"`. Use the variable only in double quotes. Run the check and the read of items 1 and 2 in the same shell call that sets `BASE_REF`: a later call sets it again and repeats the check first.
    1. Check `"$BASE_REF"` before any command uses it, with the `baseRefName` check of `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* item 1. A name that fails stops the run: `Blocked: invalid base branch name`. This skill has no full path to fall back to.
    2. Read the base tip with the exact-ref read of that item, on `"refs/heads/${BASE_REF:?}"`. A read that gives no single matching line with a full hexadecimal object id stops the run: `Blocked: pull request commits not available locally — <baseRefOid>`.
    3. Run `git fetch origin "<object id>"` with that object id, as that item directs. Name no destination ref: the base branch name never enters a local ref.
@@ -47,19 +47,19 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
 A single `leonardo`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.
 
 1. Run `@skills/security-review/SKILL.md` over the diff with the security rules it applies. Read the diff only; run nothing the diff supplies. A diff that cannot be read, or a review that cannot finish, stops the run: `Blocked: security check not completed — <reason>`.
-2. Read the repository visibility with `gh repo view <nameWithOwner> --json isPrivate`. On `false`, and on a failed read, run `@skills/git-history-exposure-audit/SKILL.md` *Review mode* steps 2 and 3 only (the script of the untouched clone this check creates first, as `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 defines, then `history-scan.sh range --base <baseRefOid> --head <headRefOid>` in that clone).
+2. Read the repository visibility with `gh repo view <nameWithOwner> --json isPrivate`. On `false`, and on a failed read, run `@skills/git-history-exposure-audit/SKILL.md` *Review mode* steps 2 and 3 only (the script of the untouched clone that step 1 created, as `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 defines, then `history-scan.sh range --base <baseRefOid> --head <headRefOid>` in that clone).
    On `true`, skip it and record `History exposure: not run — the repository is private.` Exit `0` is a clean lens and exit `5` carries findings. Any other exit, and a scan without an untouched clone or with a copy the verifier does not mark verified, as the skill describes, is a failed scan and stops the run: `Blocked: security check not completed — <the reason the script printed>`.
 3. Classify each finding with the severities of those skills. A credential or sensitive-file finding of the history scan is Critical.
 4. **A Critical finding stops the merge.** Report the finding the way the skill that produced it publishes it (class, rule, location; never a found value) and merge nothing.
 5. A check that did not complete is never a clean result (step 1 and step 2). Only the Moderate and lower findings of a completed check do not block. List them in the report.
 
 ### 3. The gate
-Read `statusCheckRollup[]` of the loaded payload and decide with the first row that matches:
+Read `statusCheckRollup[]` of the loader document of step 1 and decide with the first row that matches:
 
 | State of the entries | Decision |
 |---|---|
 | Every entry is `SUCCESS`, `NEUTRAL`, or `SKIPPED` | Gate met |
-| An entry is pending (`PENDING`, `EXPECTED`, `QUEUED`, `IN_PROGRESS`, `WAITING`, `REQUESTED`) | Wait per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*. When the wait ends, load the pull request again, check that `headRefOid` is still the gated head, and decide again from this table |
+| An entry is pending (`PENDING`, `EXPECTED`, `QUEUED`, `IN_PROGRESS`, `WAITING`, `REQUESTED`) | Wait per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*. When the wait ends, load the pull request again with the trusted copy of step 1 item 3, check that `headRefOid` is still the gated head, and decide again from this table |
 | An entry failed for a real reason (tests, lint, static analysis) | Stop. Report the check and its link. Merge nothing |
 | The only blocking entries are GitHub Actions runs that never started because of a billing or spending-limit error, confirmed by the conservative detection of `@skills/merge-github-pr/SKILL.md` *GitHub Actions billing exception* | Fallback gate (below) |
 | No check exists on the pull request | Fallback gate (below) |
@@ -67,7 +67,7 @@ Read `statusCheckRollup[]` of the loaded payload and decide with the first row t
 
 **Fallback gate.** The gate is met only when the project's quality gate passes on the gated head in this run:
 1. Check out the gated head and confirm a clean tree: `git status --porcelain --untracked-files=all` prints nothing.
-2. Run `skills/_shared/verify-gate.sh --tier full <gated head>` and `skills/_shared/run-gate.sh --tier full` exactly as `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* step 3.1 and step 3.3 direct, including the exits `5` (discovered gate command through `run-gate.sh --exclusive --command`), `3`, and the lock wait.
+2. Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <gated head>` (`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check*) and `skills/_shared/run-gate.sh --tier full` exactly as `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* step 3.1 and step 3.3 direct, including the exits `5` (discovered gate command through `run-gate.sh --exclusive --command`), `3`, and the lock wait. No verified copy accepts no record, and the gate runs.
 3. Only a green result meets the gate. A failure, a fixer rewrite of a tracked file, a refusal, or a gate that cannot run stops the run. This skill never commits the rewrite.
 
 ### 4. Read the merge strategy
@@ -81,7 +81,7 @@ When `isDraft` is `true`, run `gh pr ready <URL>` and record that this run promo
 ### 6. Merge
 1. Run `gh pr merge <URL> <strategy> --match-head-commit <gated head>`. Add no `--admin`.
 2. When GitHub refuses the merge (branch protection, a ruleset, a required review, a conflict, `BEHIND` under strict protection, a moved head), stop. Report the refusal text and that nothing was merged. Never retry with `--admin`. Return a promoted pull request to Draft as step 5 directs.
-3. Load the pull request again and confirm `state == "MERGED"`. Read the merge commit from the payload.
+3. Load the pull request again and confirm `state == "MERGED"`. Read the merge commit from the payload. Load it with the trusted copy of step 1 item 3 when the fallback gate did not run. After the fallback gate no copy runs again: read `gh pr view <URL> --json state,mergeCommit` instead.
 
 ### 7. Post-merge
 Apply `@skills/merge-github-pr/SKILL.md` section 5, with these steps and no others, in this order:

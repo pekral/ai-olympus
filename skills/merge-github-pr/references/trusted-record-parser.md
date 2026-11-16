@@ -1,6 +1,6 @@
 # The trusted record parser — the default-branch copy
 
-Loaded by `@skills/merge-github-pr/SKILL.md` step 1 (*Load PRs*) and step 2 (*Pre-checks*). Step numbers in this file refer to that skill's *Execution* steps.
+Loaded by `@skills/merge-github-pr/SKILL.md` steps 1 to 3 and by `@skills/merge-github-pr-fast/SKILL.md` steps 1 to 3. Step numbers in this file refer to the *Execution* steps of `@skills/merge-github-pr/SKILL.md`.
 
 Every step that reads the newest trusted code-review report for a merge decision runs the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>`, never the copy of the branch under review. The parser reads the record through the jq filter `skills/_shared/review-trust.jq` beside it, so the filter is part of the trusted copy. The parser reads the document that `skills/code-review-github/scripts/load-issue.sh` writes, so the loader is part of the trusted copy too: its document carries the author association and the marker that the filter trusts. A branch proposes all three files, and a pull request that edits them would otherwise decide how its own review reads. This file is the one owner of the rule. Every other step names this file and restates none of it.
 
@@ -32,9 +32,28 @@ These steps read the loader document of the procedure, and no other loader docum
 6. **No verified copy, no document — the merge stops.** The trusted copy is not available in every case that *The trusted classifier* item 5 lists. Then do not merge: the pre-checks of step 2 have no document to read, and the code-review gate, both exemptions, the HOTFIX waiver, and the approval check through a converged review are all unmet. The GitHub MCP server never stands in for the trusted copy. The merge report names the refusal line of the verifier or the command that failed.
    - In `@skills/verify-merge-readiness/SKILL.md` step 1 an unavailable copy means no trusted report: the review round runs, and no round is skipped on that record.
 
+## The trusted ownership check
+
+Step 1 confirms that the pull request belongs to the current checkout with the trusted copy of `skills/_shared/assert-current-repo.sh <URL>`, never the copy of the checkout. The checkout can hold the head under review, and the verdict decides whether the run continues. `@skills/merge-github-pr-fast/SKILL.md` step 1 runs it the same way.
+
+1. Create the clone of item 1 of the procedure first. Run this check next, before the load of item 3.
+2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
+   1. The path the verifier checks is `skills/_shared/assert-current-repo.sh`.
+   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<PR-URL>" )`. `<checkout>` is the checkout the run started in, because the check reads its remotes.
+   - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
+3. No verified copy proves no ownership: handle it like exit `5` and stop. The copy of the checkout never stands in for it.
+
+## The fast merge
+
+`@skills/merge-github-pr-fast/SKILL.md` reads no review record, so it runs the loader without the parser. It uses the clone of item 1 of the procedure, the ownership check above, and the gate-record check below.
+
+1. Its load is item 3 of the procedure with two changes: the path the verifier checks is `skills/code-review-github/scripts/load-issue.sh`, and the command that runs after the verdict is `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>"`. The installed paths follow item 3.
+2. Every read of its steps 1 to 3 takes that loader document. A reload after the wait for CI runs the whole call again. A step after its fallback gate runs no copy again.
+3. No verified copy, no document: the run stops and merges nothing.
+
 ## The trusted gate-record check
 
-Step 3 item 1 runs the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>`, never the copy of the checked-out head. Its verdict decides whether a recorded gate run stands in for the gate, so a head that edits the script would decide its own gate. `@skills/verify-merge-readiness/SKILL.md` step 3 runs it the same way.
+Step 3 item 1 runs the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>`, never the copy of the checked-out head. Its verdict decides whether a recorded gate run stands in for the gate, so a head that edits the script would decide its own gate. `@skills/verify-merge-readiness/SKILL.md` step 3 and the *Fallback gate* of `@skills/merge-github-pr-fast/SKILL.md` run it the same way.
 
 1. Use the clone and the copies of items 1 and 2 of the procedure.
 2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
@@ -42,3 +61,4 @@ Step 3 item 1 runs the trusted copy of `skills/_shared/verify-gate.sh --tier ful
    2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checked-out head>" && "<clone>/skills/_shared/verify-gate.sh" --tier full "<headRefOid>" )`. The working directory is the checked-out head, because the record is keyed to its tree and lives in its evidence directory.
    - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
 3. No verified copy accepts no record: handle it like exit `10` and run the gate in step 3. The copy of the checked-out head never stands in for it.
+4. **The fresh verdict of a HOTFIX.** Keep the output as text in the context of the run. The HOTFIX exception of step 3 item 3 reads `fresh_exit_code` from it, so no copy of `verify-gate.sh` runs after the gate. The exception applies only when the `sha` of that output is the head the gate ran on and `fresh_exit_code` is `0`. A later head, an unavailable copy, and a `null` verdict give no exception.

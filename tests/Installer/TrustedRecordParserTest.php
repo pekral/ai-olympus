@@ -120,3 +120,74 @@ test('the merge gate checks the gate record only with the verified copy of the r
             'run the trusted copy of `skills/_shared/verify-gate.sh --tier full <head SHA>`',
         );
 });
+
+test('the merge gate confirms the repository ownership only with the verified copy of the ownership check', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted ownership check');
+    $guard = '`skills/_shared/assert-current-repo.sh';
+
+    expect($section)->toContain('never the copy of the checkout')
+        ->and($section)->toContain('1. The path the verifier checks is `skills/_shared/assert-current-repo.sh`.')
+        ->and($section)->toContain(
+            '`( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<PR-URL>" )`',
+        )
+        ->and($section)->toContain('No verified copy proves no ownership: handle it like exit `5` and stop.');
+
+    foreach (['skills/merge-github-pr/SKILL.md', 'skills/merge-github-pr-fast/SKILL.md'] as $file) {
+        $content = trustedRecordParserSource($file);
+
+        expect($content)->toContain('*The trusted ownership check*')
+            ->and(substr_count($content, $guard))->toBeGreaterThan(0)
+            ->and(substr_count($content, $guard))->toBe(substr_count($content, 'the trusted copy of ' . $guard));
+    }
+});
+
+test('the fast merge loads the pull request and checks the gate record only with the verified copies', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The fast merge');
+    $skill = trustedRecordParserSource('skills/merge-github-pr-fast/SKILL.md');
+    $steps = installerDocsSection($skill, '### 1. Resolve the pull request')
+        . installerDocsSection($skill, '### 2. Security check — one pass, inline')
+        . installerDocsSection($skill, '### 3. The gate');
+    $loader = '`skills/code-review-github/scripts/load-issue.sh';
+    $verifier = '`skills/_shared/verify-gate.sh';
+
+    expect($section)->toContain('the path the verifier checks is `skills/code-review-github/scripts/load-issue.sh`')
+        ->and($section)->toContain(
+            '`"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>"`',
+        )
+        ->and($section)->toContain('No verified copy, no document: the run stops and merges nothing.')
+        ->and($owner)->toContain('the *Fallback gate* of `@skills/merge-github-pr-fast/SKILL.md` run it the same way')
+        ->and($steps)->toContain('(`@skills/merge-github-pr/references/trusted-record-parser.md` *The fast merge*)')
+        ->and($steps)->toContain(
+            '(`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check*)',
+        )
+        ->and($steps)->toContain('BASE_REF="$(jq -r \'.baseRefName\' "<loader-file>")"')
+        ->and($steps)->not->toContain('skills/code-review-github/scripts/load-issue.sh <URL> | jq')
+        ->and(substr_count($steps, $loader))->toBe(substr_count($steps, 'the trusted copy of ' . $loader))
+        ->and(substr_count($steps, $verifier))->toBe(substr_count($steps, 'the trusted copy of ' . $verifier))
+        ->and($steps)->toContain(
+            'Create the untouched clone of `@skills/merge-github-pr/references/merge-exemptions.md` '
+            . '*The trusted classifier* item 6 first.',
+        )
+        ->and(installerDocsSection($skill, '### 6. Merge'))
+        ->toContain(
+            'After the fallback gate no copy runs again: read `gh pr view <URL> --json state,mergeCommit` instead.',
+        );
+});
+
+test('the HOTFIX coverage exception reads the fresh verdict that the trusted check took before the gate', function (): void {
+    $owner = trustedRecordParserSource('skills/merge-github-pr/references/trusted-record-parser.md');
+    $section = installerDocsSection($owner, '## The trusted gate-record check');
+    $skill = trustedRecordParserSource('skills/merge-github-pr/SKILL.md');
+    $step = installerDocsSection($skill, '### 3. Pre-merge quality gate');
+
+    expect($section)->toContain('4. **The fresh verdict of a HOTFIX.**')
+        ->and($section)->toContain('so no copy of `verify-gate.sh` runs after the gate')
+        ->and($section)->toContain('A later head, an unavailable copy, and a `null` verdict give no exception.')
+        ->and($step)->not->toContain('`verify-gate.sh`, run afterwards')
+        ->and($step)->toContain(
+            'the trusted check of item 1 reports `fresh_exit_code` `0` before the gate '
+            . '(`references/trusted-record-parser.md` *The trusted gate-record check* item 4)',
+        );
+});
