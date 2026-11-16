@@ -46,6 +46,15 @@ A changed line is **off** it when it cannot be reached or influenced by an attac
 - privilege escalation
 - broken access control
 
+### Route Access of Changed Routes (issue #586)
+This step runs in **every review round**, on the diff of that round, whatever the earlier rounds reported. `@rules/security/backend.md` *Route Access (issue #586)* owns the rule: what an internal route is, that one reachable without signing in is **Critical**, the public-by-design exception, and the *Not verified* case. This step applies it and restates none of it.
+
+1. **Select the routes.** Take each route the diff adds or changes, and each route whose middleware, route group, controller, or policy the diff changes. In a Laravel project the inventory is the `php artisan route:list --json` of `@skills/laravel-authorization-review/SKILL.md` step 1, intersected with the changed files. A diff that changes no route answers `Route access: not applicable — the diff changes no route`.
+2. **State who can reach each route:** an unauthenticated caller, a signed-in user, or a privileged role. The evidence is the route definition, its middleware stack, and the authorization in the controller or policy, each with its `file:line`.
+3. **Decide each route.** An internal route that an unauthenticated caller reaches, from a browser or through the REST API, is a finding at the severity the rule states. A route that is public by design is named with its reason from `@skills/laravel-authorization-review/references/public-by-design.md` and raises no finding. A route whose access the code does not settle goes under *Not verified* with the step that settles it.
+
+The per-route statements go into the report under `### Route Access` of `templates/audit-report.md`. Object-level authorization stays with `@skills/laravel-authorization-review/SKILL.md`: this step reads who can sign in to a route, never whose record the route returns, and it does not run that skill a second time.
+
 ### Session & Token Management
 - session fixation — session ID not rotated after privilege change (login, role elevation)
 - missing or weak session expiry / idle timeout
