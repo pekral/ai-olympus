@@ -34,8 +34,14 @@
 #                spaces), a setext heading (a paragraph line over a `===` or `---` underline,
 #                whatever character the paragraph line starts with), or an HTML <h1> or <h2>
 #                line. A dash line under a list item, a block quote, an indented code block, an
-#                HTML block, or a table is a thematic break and is no heading. A heading nested
+#                HTML block, or a table is a thematic break and is no heading. An indented code
+#                block ends at the first unindented line, and a list item or a block quote takes an
+#                unindented line only as a lazy continuation of its paragraph text: after a heading,
+#                a code line, or an empty item inside it, an unindented line starts a paragraph of
+#                its own, and a dash line under that paragraph is a heading. A heading nested
 #                inside a list item or a block quote is not read, as an ATX heading there is not.
+#   Locale       the body is read in the C locale, byte by byte, so the verdict on a body with an
+#                invalid UTF-8 byte is the same on every host.
 #   Merge risk   the heading reads `## Merge risk <icon> <low|medium|high>` and carries one
 #                `**Door:**` line and one `**Blast radius:**` line, or it reads
 #                `## Merge risk ⚪ not computed — <reason>` and carries neither. The signal list
@@ -63,6 +69,11 @@
 #   2  the check did not run to its end; nothing is written to stdout
 #   3  at least one problem; the problems are in the output
 set -euo pipefail
+
+# The body is read byte by byte, in the C locale. Under a UTF-8 locale a line with an invalid byte
+# fails every bracket expression of `[[ =~ ]]` and every `tr`, so the same body gave another verdict
+# on another host (`<DIV\377>`, or a paragraph line ending in `\377`, over a dash line).
+export LC_ALL=C
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,6 +114,9 @@ HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
 # `**Problem**`, `*Problem*`, and `<b>Problem</b>` are paragraph lines.
 THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
 QUOTE_START='^ {0,3}>'
+QUOTE_PARSE='^ {0,3}>(.*)$'
+ATX_ANY='^ {0,3}#{1,6}([[:space:]]|$)'
+FENCE_OPEN='^ {0,3}(```|~~~)'
 LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
 LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
 LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
@@ -183,18 +197,80 @@ list_item_indent() {
   fi
 }
 
+# lowercase <text> — print the text in lower case, byte by byte. The filter runs under LC_ALL=C:
+# under a UTF-8 locale BSD `tr` stops at an invalid byte and cuts the text there, so the verdict
+# on a line would depend on the locale of the host.
+lowercase() {
+  printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
+}
+
+# container_leaf <line> — set LEAF to what remains of <line> after its block quote and list item
+# markers: `# H` for `- # H`, `text` for `> - text`, an indented line for `-     code`.
+container_leaf() {
+  local rest="$1" depth=0 spaces content
+
+  while [[ "$depth" -lt 16 ]]; do
+    depth=$((depth + 1))
+    if [[ "$rest" =~ $QUOTE_PARSE ]]; then
+      rest="${BASH_REMATCH[1]}"
+      rest="${rest# }"
+    elif [[ "$rest" =~ $LIST_ITEM && "$rest" =~ $LIST_ITEM_PARSE ]]; then
+      spaces="${BASH_REMATCH[3]}"
+      content="${BASH_REMATCH[4]}"
+      if [[ -z "$content" ]]; then
+        rest=""
+        break
+      fi
+      if [[ "${#spaces}" -ge 5 ]]; then
+        rest="    $content"
+        break
+      fi
+      rest="$content"
+    else
+      break
+    fi
+  done
+  LEAF="$rest"
+}
+
+# leaf_block <line> — set NEXT_BLOCK for a line that opens a list item or a block quote: `open`
+# when the line ends in paragraph text, so an unindented line after it is a lazy continuation
+# (CommonMark), and `shut` for an empty item, a heading, a thematic break, a fence, an indented code
+# line, or an HTML block inside it, after which an unindented line starts a new top-level block.
+leaf_block() {
+  local lower
+
+  NEXT_BLOCK=shut
+  container_leaf "$1"
+  [[ "$LEAF" =~ [^[:space:]] ]] || return 0
+  [[ "$LEAF" =~ $INDENTED_CODE ]] && return 0
+  [[ "$LEAF" =~ $ATX_ANY ]] && return 0
+  [[ "$LEAF" =~ $THEMATIC_BREAK ]] && return 0
+  [[ "$LEAF" =~ $FENCE_OPEN ]] && return 0
+  if [[ "$LEAF" == *'<'* && "$LEAF" =~ ^\ {0,3}\< ]]; then
+    lower="$(lowercase "$LEAF")"
+    [[ "$lower" =~ $HTML_RAW_START ]] && return 0
+    [[ "$lower" =~ $HTML_BLOCK_START ]] && return 0
+  fi
+  NEXT_BLOCK=open
+}
+
 # next_block <block> <line> <html state before the line> — set NEXT_BLOCK to the block the line
 # leaves open: `none` after a blank line or a thematic break, `paragraph` while text continues,
-# and `container` for a list item, a block quote, an indented code block, an HTML block, or a
-# table, which hold until the next blank line. A list item also holds across a blank line for
-# every line indented to its content column (LIST_INDENT). <line> is not a heading, a setext
-# underline of a paragraph, or a skipped line. A new block starts only where CommonMark lets it:
-# a list item starts a block anywhere but interrupts a paragraph only with text (and an ordered
-# one only at 1), a block quote and an HTML block of types 1-6 interrupt a paragraph, a lone HTML
-# tag and an indented line start a block only outside a paragraph, and a table delimiter row
-# turns the paragraph above it into a table.
+# `code` for an indented code block, `open` for a list item or a block quote that ends in paragraph
+# text, `shut` for one that does not, and `container` for an HTML block or a table. Only `paragraph`
+# and `open` take a `---` or `===` line as a heading underline, and only `paragraph` is one.
+# A `container` holds until the next blank line. An indented code block ends at the first unindented
+# line. A list item or a block quote takes an unindented line only as a lazy continuation while
+# its last line was paragraph text (`open`); after `shut` that line starts a new top-level block.
+# A list item also holds across a blank line for every line indented to its content column
+# (LIST_INDENT). <line> is not a heading, a setext underline of a paragraph, or a skipped line. A
+# new block starts only where CommonMark lets it: a list item starts a block anywhere but
+# interrupts a paragraph only with text (and an ordered one only at 1), a block quote and an HTML
+# block of types 1-6 interrupt a paragraph, a lone HTML tag and an indented line start a block
+# only outside a paragraph, and a table delimiter row turns the paragraph above it into a table.
 next_block() {
-  local block="$1" line="$2" was_html="$3" lower="" delim lead indent
+  local block="$1" line="$2" was_html="$3" lower="" delim lead indent in_text=0
 
   NEXT_BLOCK=container
   if [[ ! "$line" =~ [^[:space:]] ]]; then
@@ -213,22 +289,39 @@ next_block() {
     return 0
   fi
 
-  if [[ "$block" != paragraph ]]; then
+  # A table and an HTML block take every line until the blank line.
+  if [[ "$block" == container ]]; then
+    return 0
+  fi
+
+  [[ "$block" == paragraph || "$block" == open ]] && in_text=1
+
+  if [[ "$in_text" -eq 0 ]]; then
     if [[ "$line" =~ $LIST_ITEM ]]; then
       list_item_indent "$line"
+      leaf_block "$line"
       return 0
     fi
-    if [[ "$block" == none && "$LIST_INDENT" -gt 0 ]]; then
+    if [[ "$LIST_INDENT" -gt 0 ]]; then
       lead="${line%%[! ]*}"
       indent=${#lead}
       [[ "$line" == $'\t'* ]] && indent=4
-      [[ "$indent" -ge "$LIST_INDENT" ]] && return 0
+      if [[ "$indent" -ge "$LIST_INDENT" ]]; then
+        NEXT_BLOCK=open
+        return 0
+      fi
       LIST_INDENT=0
+    fi
+    # An indented code block continues on every indented line and ends at the first other line,
+    # which is read as the first line of a block.
+    if [[ "$block" == code && "$line" =~ $INDENTED_CODE ]]; then
+      NEXT_BLOCK=code
+      return 0
     fi
   fi
 
   if [[ "$line" == *'<'* && "$line" =~ ^\ {0,3}\< ]]; then
-    lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+    lower="$(lowercase "$line")"
     if [[ "$lower" =~ $HTML_RAW_START ]]; then
       [[ -z "$CR_HTML_END" ]] && NEXT_BLOCK=none
       return 0
@@ -236,23 +329,27 @@ next_block() {
     [[ "$lower" =~ $HTML_BLOCK_START ]] && return 0
   fi
 
-  [[ "$line" =~ $QUOTE_START ]] && return 0
-
-  if [[ "$block" == paragraph ]]; then
-    if [[ "$line" =~ $LIST_ITEM_WITH_TEXT ]]; then
-      list_item_indent "$line"
-      return 0
-    fi
-    if [[ "$line" == *'|'* ]]; then
-      delim="${line//[|:[:space:]-]/}"
-      [[ -z "$delim" && "$line" == *-* ]] && return 0
-    fi
-    NEXT_BLOCK=paragraph
+  if [[ "$line" =~ $QUOTE_START ]]; then
+    leaf_block "$line"
     return 0
   fi
 
-  [[ "$block" == container ]] && return 0
-  [[ "$line" =~ $INDENTED_CODE ]] && return 0
+  if [[ "$in_text" -eq 1 ]]; then
+    if [[ "$line" =~ $LIST_ITEM_WITH_TEXT ]]; then
+      list_item_indent "$line"
+      leaf_block "$line"
+      return 0
+    fi
+    if [[ "$line" == *'|'* && "$block" == paragraph ]]; then
+      delim="${line//[|:[:space:]-]/}"
+      [[ -z "$delim" && "$line" == *-* ]] && return 0
+    fi
+    # A text line continues the paragraph, or lazily the item or the quote that holds it.
+    NEXT_BLOCK="$block"
+    return 0
+  fi
+
+  [[ "$line" =~ $INDENTED_CODE ]] && { NEXT_BLOCK=code; return 0; }
   [[ -n "$lower" && "$lower" =~ $HTML_LONE_TAG ]] && return 0
 
   NEXT_BLOCK=paragraph
@@ -710,6 +807,54 @@ self_test() {
   scenario 'a paragraph line indented four spaces over an underline is refused' 3 \
     "$(render '' "$(printf -- 'Problem text\n    more\n---')")" 'is not a section of the template'
 
+  # An indented code block ends at the first unindented line, and a list item or a block quote
+  # takes an unindented line only as a lazy continuation of a paragraph. Any other unindented line
+  # starts a top-level paragraph, and a dash line under it is a heading of the body.
+  scenario 'a paragraph after an indented code block over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '    code\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a later indented code block over a dash line is refused' 3 \
+    "$(render '' "$(printf -- 'text\n\n    code\nmore\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a heading in a block quote over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '> # Q\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a heading in a list item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '- # H\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after an empty list item over a dash line is refused' 3 \
+    "$(render '' "$(printf -- '-\ntext\n---')")" 'is not a section of the template'
+  scenario 'a paragraph after a code line in a list item over an equals line is refused' 3 \
+    "$(render '' "$(printf -- '-     code\ntext\n===')")" 'is not a section of the template'
+  scenario 'an indented code block before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '    code\n---')")" '"valid": true'
+  scenario 'a lazy line after a list item before a dash line is not a heading' 0 \
+    "$(render '' "$(printf -- '- item\nlazy\n---')")" '"valid": true'
+  scenario 'a lazy line after a quoted paragraph in a list item is not a heading' 0 \
+    "$(render '' "$(printf -- '- > quote\nlazy\n---')")" '"valid": true'
+
+  # The verdict never depends on the locale of the host. Under a UTF-8 locale `tr` stopped at an
+  # invalid byte and cut `<DIV\377>` to `<div`, which read as an HTML block, and a paragraph line
+  # with an invalid byte failed every bracket expression and read as a blank line; the dash line
+  # under either passed. A locale the host lacks leaves the C locale, and the case stays valid.
+  local locale_name locale_label locale_body rc
+  for locale_label in 'an HTML tag' 'a paragraph line'; do
+    if [[ "$locale_label" == 'an HTML tag' ]]; then
+      locale_body="$(render '' "$(printf '<DIV\377>Problem\n---')")"
+    else
+      locale_body="$(render '' "$(printf 'Problem \377\n---')")"
+    fi
+    for locale_name in en_US.UTF-8 C.UTF-8 C; do
+      printf '%s\n' "$locale_body" >"$tmp/locale.md"
+      set +e
+      LC_ALL="$locale_name" "$script" --file "$tmp/locale.md" >/dev/null 2>&1
+      rc=$?
+      set -e
+      if [[ "$rc" -eq 3 ]]; then
+        printf 'ok    %-66s exit 3\n' "an invalid byte in $locale_label reads the same under $locale_name"
+      else
+        printf 'FAIL  %-66s expected exit 3, got %s\n' "an invalid byte in $locale_label reads the same under $locale_name" "$rc" >&2
+        failures=$((failures + 1))
+      fi
+    done
+  done
+
   # A heading the template does not define is untrusted body text: the problem names its
   # line, and no part of its text reaches the output.
   local echoed
@@ -740,7 +885,6 @@ self_test() {
     printf 'ok    %-66s\n' 'a section is never executed'
   fi
 
-  local rc
   render >"$tmp/stdin.md"
   set +e
   "$script" --file - <"$tmp/stdin.md" >/dev/null 2>&1
