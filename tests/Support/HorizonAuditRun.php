@@ -74,6 +74,22 @@ final readonly class HorizonAuditRun
         return $values;
     }
 
+    /**
+     * @return list<string>
+     */
+    public function evidenceOf(string $rule): array
+    {
+        $findings = decodedJsonField($this->output, 'findings');
+
+        foreach (is_array($findings) ? $findings : [] as $finding) {
+            if (is_array($finding) && ($finding['rule_id'] ?? null) === $rule) {
+                return self::strings($finding['evidence'] ?? null);
+            }
+        }
+
+        return [];
+    }
+
     public function topSeverity(): ?string
     {
         return $this->string('findings.0.severity');

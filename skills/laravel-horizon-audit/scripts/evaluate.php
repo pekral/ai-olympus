@@ -37,6 +37,12 @@ const HZ_MAX_FILE_BYTES = 1048576;
 
 const HZ_MAX_CONSUMERS = 500;
 
+const HZ_MAX_JOBS = 1000;
+
+const HZ_MAX_EVIDENCE = 100;
+
+const HZ_JOBS_OVER_CAP_REASON = 'The project has more than 1000 job files, so the job timeouts and retries past the first 1000 are not read.';
+
 const HZ_OVER_CAP_REASON = 'The configuration declares more than 500 consumers (one per supervisor and queue name), so the comparison of the consumers is not run.';
 
 enum HzKind: string
@@ -656,7 +662,9 @@ function hzSupervisors(?HzNode $horizon, string $environment): array
 }
 
 /**
- * The host, port, and database that a literal Redis url sets, or null when the url is not a literal or cannot be parsed.
+ * The host, port, and database that a literal Redis url sets, or null when the url is not a literal, cannot be parsed,
+ * or carries a query string. Laravel merges the query string of a url last, so `?database=` and `?prefix=` override
+ * every other part, and a url with a query makes the whole key unknown.
  * A part the url does not name is left out of the result, so the literal key of the connection stays.
  *
  * @return array<string, int|string>|null
@@ -665,7 +673,7 @@ function hzUrlParts(?string $url): ?array
 {
     $parts = $url === null || $url === '' ? false : parse_url($url);
 
-    if (!is_array($parts)) {
+    if (!is_array($parts) || isset($parts['query'])) {
         return null;
     }
 
@@ -699,7 +707,7 @@ function hzConsumers(string $name, HzNode $row, ?HzNode $queueConfig, ?HzNode $d
             : $urlParts + ['host' => $host, 'port' => $port, 'database' => $database];
     }
 
-    $prefix = $redis === null ? null : ($prefixNode === null ? '' : hzKeyPart($prefixNode));
+    $prefix = $redis === null || ($url !== null && $urlParts === null) ? null : ($prefixNode === null ? '' : hzKeyPart($prefixNode));
     $consumers = [];
 
     foreach (hzQueueNames(hzItem($row, 'queue')) as $queue) {
@@ -753,7 +761,9 @@ function hzKeyRelation(HzConsumer $first, HzConsumer $second): string
 }
 
 /**
- * @return list<HzJob>
+ * Reads at most HZ_MAX_JOBS job files, so the work and the memory stay bounded on a crafted project.
+ *
+ * @return array{jobs: list<HzJob>, overCap: bool}
  */
 function hzJobs(HzProject $project): array
 {
@@ -764,6 +774,10 @@ function hzJobs(HzProject $project): array
 
         if ($source === null) {
             continue;
+        }
+
+        if (count($jobs) >= HZ_MAX_JOBS) {
+            return ['jobs' => $jobs, 'overCap' => true];
         }
 
         $line = static fn (string $pattern): ?int => preg_match($pattern, $source, $found, PREG_OFFSET_CAPTURE) === 1 ? substr_count($source, "\n", 0, $found[0][1]) + 1 : null;
@@ -785,7 +799,7 @@ function hzJobs(HzProject $project): array
         );
     }
 
-    return $jobs;
+    return ['jobs' => $jobs, 'overCap' => false];
 }
 
 /**
@@ -801,12 +815,12 @@ function hzProcessFiles(HzProject $project): array
             continue;
         }
 
-        $tokens = [];
+        $seen = [];
         $first = 0;
 
         foreach (explode("\n", $project->read($path) ?? '') as $index => $text) {
             if (preg_match_all(HZ_PROCESS_TOKEN, $text, $found) > 0) {
-                $tokens = array_merge($tokens, $found[1]);
+                $seen += array_fill_keys($found[1], true);
                 $first = $first === 0 ? $index + 1 : $first;
             }
 
@@ -815,8 +829,8 @@ function hzProcessFiles(HzProject $project): array
             }
         }
 
-        if ($tokens !== []) {
-            $tokens = array_values(array_unique($tokens));
+        if ($seen !== []) {
+            $tokens = array_map(strval(...), array_keys($seen));
             sort($tokens);
             $files[] = new HzProcessFile($path, $first, $tokens);
         }
@@ -832,13 +846,16 @@ function hzFinding(string $rule, string $status, string $reason, array $evidence
 {
     sort($evidence);
 
+    $locations = array_values(array_unique($evidence));
+    $total = count($locations);
+
     return new HzFinding(
         ruleId: $rule,
         status: $status,
         severity: HZ_SEVERITY_OF_STATUS[$status],
         evidenceBasis: $status === 'UNVERIFIED' ? 'not_verified' : 'computed',
-        evidence: array_values(array_unique($evidence)),
-        reason: $reason,
+        evidence: array_slice($locations, 0, HZ_MAX_EVIDENCE),
+        reason: $total > HZ_MAX_EVIDENCE ? $reason . ' The evidence lists the first ' . HZ_MAX_EVIDENCE . ' of ' . $total . ' locations.' : $reason,
     );
 }
 
@@ -939,7 +956,7 @@ function hzOrder(HzConsumer $consumer, array $jobs, int $consumerCount): array
  * @param list<HzConsumer> $consumers
  * @param list<HzJob> $jobs
  */
-function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason, bool $overCap): HzFinding
+function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason, bool $overCap, bool $jobsOverCap): HzFinding
 {
     if ($overCap) {
         return hzFinding('HZ-002', 'UNVERIFIED', HZ_OVER_CAP_REASON, ['config/horizon.php:1']);
@@ -948,7 +965,7 @@ function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason, b
     $supervisors = count(array_unique(array_map(static fn (HzConsumer $consumer): string => $consumer->consumer, $consumers)));
     $status = $consumers === [] ? 'UNVERIFIED' : 'PASS';
     $reason = $consumers === [] ? $noSupervisorReason : 'job timeout < supervisor timeout < retry_after holds for every consumer.';
-    $byStatus = ['FAIL' => [], 'UNVERIFIED' => $consumers === [] ? ['config/horizon.php:1'] : [], 'PASS' => []];
+    $byStatus = ['FAIL' => [], 'UNVERIFIED' => $consumers === [] ? ['config/horizon.php:1' => true] : [], 'PASS' => []];
     $connectionLine = static fn (HzConsumer $consumer): ?string => $consumer->connectionLine;
 
     foreach ($consumers as $index => $consumer) {
@@ -972,16 +989,21 @@ function hzTimeouts(array $consumers, array $jobs, string $noSupervisorReason, b
             [$status, $reason] = [$orderStatus, $orderReason];
         }
 
-        $byStatus[$orderStatus] = array_merge($byStatus[$orderStatus], $orderEvidence);
+        $byStatus[$orderStatus] += array_fill_keys($orderEvidence, true);
     }
 
-    return hzFinding('HZ-002', $status, $reason, array_values(array_filter($byStatus[$status])));
+    if ($jobsOverCap && $status === 'PASS') {
+        [$status, $reason] = ['UNVERIFIED', HZ_JOBS_OVER_CAP_REASON];
+        $byStatus['UNVERIFIED'] = ['app/Jobs:1' => true];
+    }
+
+    return hzFinding('HZ-002', $status, $reason, array_map(strval(...), array_keys($byStatus[$status])));
 }
 
 /**
  * @param list<HzJob> $jobs
  */
-function hzRetries(array $jobs): ?HzFinding
+function hzRetries(array $jobs, bool $jobsOverCap): ?HzFinding
 {
     $evidence = [];
 
@@ -989,6 +1011,10 @@ function hzRetries(array $jobs): ?HzFinding
         if ($job->releasing && $job->tries !== null && $job->tries > 0) {
             $evidence[] = $job->file . ':' . $job->triesLine;
         }
+    }
+
+    if ($evidence === [] && $jobsOverCap) {
+        return hzFinding('HZ-003', 'UNVERIFIED', HZ_JOBS_OVER_CAP_REASON, ['app/Jobs:1']);
     }
 
     return $evidence === [] ? null : hzFinding('HZ-003', 'WARN', 'A job with a finite $tries uses a middleware that releases it, and each release spends an attempt. Whether the value is low for the expected contention is the agent\'s judgement.', $evidence);
@@ -1026,12 +1052,16 @@ function hzSupervisorConfiguration(array $supervisors): ?HzFinding
 /**
  * @param list<HzConsumer> $consumers
  */
-function hzWaits(?HzNode $horizon, array $consumers): ?HzFinding
+function hzWaits(?HzNode $horizon, array $consumers, bool $overCap): ?HzFinding
 {
     $waits = hzItem($horizon, 'waits');
 
     if ($waits === null || $waits->kind !== HzKind::Collection) {
         return null;
+    }
+
+    if ($overCap) {
+        return hzFinding('HZ-006', 'UNVERIFIED', HZ_OVER_CAP_REASON, ['config/horizon.php:' . $waits->line]);
     }
 
     $unknown = array_filter($consumers, static fn (HzConsumer $consumer): bool => $consumer->connection === null || $consumer->queue === null) !== [];
@@ -1108,15 +1138,15 @@ function hzEvaluate(HzProject $project, string $environment): HzEvaluation
     $overCap = count($consumers) > HZ_MAX_CONSUMERS;
     $consumers = array_slice($consumers, 0, HZ_MAX_CONSUMERS);
 
-    $jobs = hzJobs($project);
+    ['jobs' => $jobs, 'overCap' => $jobsOverCap] = hzJobs($project);
     $process = hzProcessFiles($project);
     $findings = array_values(array_filter([
         hzQueueSharing($consumers, $process['standalone'], $noSupervisorReason, $overCap),
-        hzTimeouts($consumers, $jobs, $noSupervisorReason, $overCap),
-        hzRetries($jobs),
+        hzTimeouts($consumers, $jobs, $noSupervisorReason, $overCap, $jobsOverCap),
+        hzRetries($jobs, $jobsOverCap),
         hzSupervisorConfiguration($plan['supervisors']),
         $process['files'] === [] ? hzFinding('HZ-005', 'UNVERIFIED', 'No process-manager or deploy file that mentions Horizon or a queue worker is in the project, so the deployment is not shown.', ['composer.json:1']) : null,
-        $modelled ? hzWaits($horizon, $consumers) : null,
+        $modelled ? hzWaits($horizon, $consumers, $overCap) : null,
         hzDashboard($project),
     ]));
     $outcomes = array_map(static fn (HzFinding $finding): string => $finding->outcome(), $findings);

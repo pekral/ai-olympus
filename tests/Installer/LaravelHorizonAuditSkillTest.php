@@ -838,12 +838,17 @@ test('a literal Redis url overrides the host, port, and database of the connecti
 });
 
 /**
+ * @param array<string, string> $files
  * @return array{0: float, 1: int, 2: string}
  */
-function horizonAuditBoundedRun(string $horizon): array
+function horizonAuditBoundedRun(string $horizon, array $files = []): array
 {
     $root = GraphFixture::project('laravel-horizon-audit/T05');
     installerWriteFile($root . '/config/horizon.php', $horizon);
+
+    foreach ($files as $path => $content) {
+        installerWriteFile($root . '/' . $path, $content);
+    }
 
     try {
         $started = microtime(as_float: true);
@@ -900,3 +905,104 @@ test('the consumers at the cap are still compared, and a repeated queue name in 
     expect((new HorizonAuditRun($atCap, '', 0))->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
     expect($repeated->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
 });
+
+/**
+ * @return array{0: float, 1: int, 2: string}
+ */
+function horizonAuditManyJobsRun(int $jobTimeout, int $jobs): array
+{
+    $queues = implode(',', array_map(static fn (int $index): string => 'q' . $index, range(1, 500)));
+    $files = [];
+
+    for ($index = 0; $index < $jobs; $index++) {
+        $files["app/Jobs/Job{$index}.php"] = "<?php\nclass Job{$index}\n{\n    public int \$timeout = {$jobTimeout};\n}\n";
+    }
+
+    return horizonAuditBoundedRun(
+        '<?php return [\'defaults\' => [\'supervisor-1\' => [\'connection\' => \'redis\', \'queue\' => \'' . $queues
+            . '\', \'timeout\' => 30]], \'environments\' => [\'production\' => []]];',
+        $files,
+    );
+}
+
+test(
+    '500 consumers over more job files than the cap finish fast in bounded memory and never PASS (splinter)',
+    function (int $jobTimeout, string $status): void {
+        [$seconds, $exitCode, $output] = horizonAuditManyJobsRun($jobTimeout, 1_500);
+    
+        expect($exitCode)->toBe(0);
+        expect($seconds)->toBeLessThan(10.0);
+        expect((new HorizonAuditRun($output, '', $exitCode))->outcomeOf('HZ-002'))->toBe('HZ-002:' . $status);
+        expect(count((new HorizonAuditRun($output, '', $exitCode))->evidenceOf('HZ-002')))->toBeLessThanOrEqual(100);
+    },
+)->with([
+    'job timeouts above the supervisor timeout fail with a bounded evidence list' => [120, 'FAIL'],
+    'job timeouts below the supervisor timeout are not read past the cap' => [10, 'UNVERIFIED'],
+]);
+
+test('a project of more job files than the cap states it for HZ-002 and HZ-003 (splinter)', function (): void {
+    [, , $output] = horizonAuditManyJobsRun(10, 1_001);
+
+    expect($output)->toContain('more than 1000 job files');
+    expect((new HorizonAuditRun($output, '', 0))->outcomeOf('HZ-003'))->toBe('HZ-003:UNVERIFIED');
+});
+
+test('a deploy file of a million bytes of matching lines is read in linear time (splinter)', function (string $line, string $field): void {
+    $content = str_repeat($line . "\n", intdiv(1_048_576, strlen($line) + 1));
+
+    [$seconds, $exitCode, $output] = horizonAuditBoundedRun(
+        '<?php return [\'defaults\' => [], \'environments\' => [\'production\' => []]];',
+        ['deploy.sh' => $content],
+    );
+
+    expect($exitCode)->toBe(0);
+    expect($seconds)->toBeLessThan(5.0);
+    $run = new HorizonAuditRun($output, '', $exitCode);
+
+    expect(count($run->evidenceOf('HZ-001')))->toBeLessThanOrEqual(100);
+    expect($run->stringList('process_files.0.tokens'))->toBe([$field]);
+})->with([
+    'horizon lines' => ['horizon', 'horizon'],
+    'queue:work lines' => ['queue:work', 'queue:work'],
+]);
+
+test('over the consumer cap HZ-006 is UNVERIFIED and never reports a waits key as orphaned (leonardo M13)', function (): void {
+    $supervisors = '';
+    $waits = '';
+
+    for ($index = 0; $index <= 500; $index++) {
+        $supervisors .= "'s{$index}' => ['connection' => 'redis', 'queue' => ['q{$index}'], 'timeout' => 30],\n";
+        $waits .= "'redis:q{$index}' => 60,\n";
+    }
+
+    [, $exitCode, $output] = horizonAuditBoundedRun(
+        "<?php return ['defaults' => [{$supervisors}], 'waits' => [{$waits}], 'environments' => ['production' => []]];",
+    );
+    $run = new HorizonAuditRun($output, '', $exitCode);
+
+    expect($exitCode)->toBe(0);
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($run->outcomeOf('HZ-006'))->toBe('HZ-006:UNVERIFIED');
+});
+
+test(
+    'a literal Redis url with a query string overrides the key, so the key is unknown and no certain PASS follows (leonardo M12)',
+    function (string $default, array $databases): void {
+        $database = "<?php return ['redis' => ['default' => {$default}, 'other' => ['url' => 'redis://h:6379', 'database' => 1, 'prefix' => 'app_']]];";
+
+        $run = horizonAuditEvaluate('T05', ['config/database.php' => $database]);
+
+        expect($run->consumerField('database'))->toBe($databases);
+        expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+        expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    },
+)->with([
+    'a database in the query against another database key' => [
+        '[\'url\' => \'redis://h:6379?database=1\', \'database\' => 0, \'prefix\' => \'app_\']',
+        [null, 1],
+    ],
+    'a prefix in the query against the same prefix key' => [
+        '[\'url\' => \'redis://h:6379/1?prefix=x_\', \'database\' => 1, \'prefix\' => \'app_\']',
+        [null, 1],
+    ],
+]);
