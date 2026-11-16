@@ -34,14 +34,20 @@ These steps read the loader document of the procedure, and no other loader docum
 
 ## The trusted ownership check
 
-Step 1 confirms that the pull request belongs to the current checkout with the trusted copy of `skills/_shared/assert-current-repo.sh <URL>`, never the copy of the checkout. The checkout can hold the head under review, and the verdict decides whether the run continues. `@skills/merge-github-pr-fast/SKILL.md` step 1 runs it the same way.
+Step 1 confirms that the pull request belongs to the current checkout. The check has two parts, and the first runs before any clone exists. `@skills/merge-github-pr-fast/SKILL.md` step 1 and `@skills/verify-merge-readiness/SKILL.md` run it the same way. `<URL>` is the URL of the pull request, or of the issue in `@skills/verify-merge-readiness/SKILL.md`.
 
-1. Create the clone of item 1 of the procedure first. Run this check next, before the load of item 3.
-2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
+1. **Compare with the remotes of the checkout first, before any clone.** Use `git` only. Run no script of the repository, and no code of any other repository, in this item.
+   1. Take `<owner>` and `<name>` from `<URL>`: a `github.com` URL (a `www.` prefix is allowed) whose path starts with `<owner>/<name>`. Accept each only when it matches `^[A-Za-z0-9_.-]+$`, after the `.git` suffix of `<name>` is dropped. A URL that gives no such pair stops the run as exit `5`.
+   2. List the remotes of `<checkout>`, the checkout the run started in, with `git -C "<checkout>" remote`. For each remote, read every fetch URL with `git -C "<checkout>" remote get-url --all "<remote>"` and every push URL with `git -C "<checkout>" remote get-url --push --all "<remote>"`. Pass each remote name only in double quotes. Start each command with `-c core.fsmonitor=false -c core.hooksPath=/dev/null` before the subcommand.
+   3. Compare every `github.com` URL that item 2 read with the pair of item 1, ignoring case, a trailing `.git`, and a trailing slash.
+   4. No URL matches: the pull request belongs to another repository. Stop as exit `4`.
+   5. No remote, no `github.com` URL, or a `git` command that failed: the ownership is not resolved. Stop as exit `5`.
+2. **Create the clone only after item 1 matched.** Create the clone of item 1 of the procedure. The `<owner>` and `<name>` of the clone and of `TIP` are the pair that item 1 proved equal to a remote of the checkout. Never create a clone for a pair that item 1 did not match.
+3. **Confirm with the verified copy.** Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
    1. The path the verifier checks is `skills/_shared/assert-current-repo.sh`.
-   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<PR-URL>" )`. `<checkout>` is the checkout the run started in, because the check reads its remotes.
+   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checkout>" && "<clone>/skills/_shared/assert-current-repo.sh" "<URL>" )`. `<checkout>` is the checkout the run started in, because the check reads its remotes.
    - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
-3. No verified copy proves no ownership: handle it like exit `5` and stop. The copy of the checkout never stands in for it.
+4. No verified copy proves no ownership: handle it like exit `5` and stop. The copy of the checkout never stands in for it. Run the load of item 3 of the procedure only after this item.
 
 ## The fast merge
 
