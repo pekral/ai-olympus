@@ -23,7 +23,8 @@ test('the merge gate reads the review record only with the verified default-bran
             'Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check',
         )
         ->and($owner)->toContain(
-            '1. The paths the verifier checks are `skills/code-review-github/scripts/load-issue.sh skills/_shared/cr-header.sh skills/_shared/review-trust.jq`.',
+            '1. The paths the verifier checks are `skills/code-review-github/scripts/load-issue.sh '
+            . 'skills/_shared/cr-header.sh skills/_shared/review-trust.jq`.',
         )
         ->and($owner)->toContain(
             'the verdict `installed-copy-verdict=verified` are `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>"'
@@ -112,7 +113,8 @@ test('the merge gate checks the gate record only with the verified copy of the r
         )
         ->and($section)->toContain('No verified copy accepts no record: handle it like exit `10`')
         ->and(trustedRecordParserSource('skills/merge-github-pr/SKILL.md'))->toContain(
-            'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` (`references/trusted-record-parser.md`) on the checked-out head',
+            'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` '
+            . '(`references/trusted-record-parser.md`) on the checked-out head',
         )
         ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))->toContain(
             'run the trusted copy of `skills/_shared/verify-gate.sh --tier full <head SHA>`',
