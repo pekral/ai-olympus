@@ -539,3 +539,259 @@ test('the secret of the environment fixture appears nowhere in the skill, its re
         expect(packageSource('skills/laravel-horizon-audit/' . $file))->not->toContain($secret);
     }
 });
+
+/**
+ * @param array<string, string|null> $files
+ */
+function horizonAuditEvaluate(string $fixture, array $files, string ...$arguments): HorizonAuditRun
+{
+    $root = GraphFixture::project('laravel-horizon-audit/' . $fixture);
+
+    foreach ($files as $path => $content) {
+        $content === null ? installerRemoveDirectory($root . '/' . $path) : installerWriteFile($root . '/' . $path, $content);
+    }
+
+    try {
+        return HorizonAuditRun::over($root, ...$arguments);
+    } finally {
+        installerRemoveDirectory($root);
+    }
+}
+
+function horizonAuditLock(string $horizonVersion): string
+{
+    return '{"packages": [{"name": "laravel/framework", "version": "v12.0.0"}, {"name": "laravel/horizon", "version": "' . $horizonVersion . '"}]}';
+}
+
+function horizonAuditQueueConfig(string $secondConnection, int $secondRetryAfter): string
+{
+    return <<<PHP
+        <?php
+
+        return [
+            'connections' => [
+                'redis' => ['driver' => 'redis', 'connection' => 'default', 'queue' => 'default', 'retry_after' => 90],
+                'redis-b' => ['driver' => 'redis', 'connection' => '{$secondConnection}', 'queue' => 'default', 'retry_after' => {$secondRetryAfter}],
+            ],
+        ];
+        PHP;
+}
+
+test('a config that leaves the parser on one token ends at once and gives UNVERIFIED (M1)', function (string $config, string $rule): void {
+    $run = horizonAuditEvaluate('T03', ['config/horizon.php' => $config]);
+
+    expect($run->exitCode)->toBe(0);
+    expect($run->errorOutput)->toBe('');
+    expect($run->outcomeOf($rule))->toBe($rule . ':UNVERIFIED');
+})->with([
+    'a dollar-brace string as the timeout' => [<<<'PHP'
+        <?php
+
+        return [
+            'defaults' => ['s' => ['connection' => 'redis', 'queue' => ['default'], 'timeout' => "x${y}"]],
+            'environments' => ['production' => ['s' => []]],
+        ];
+        PHP, 'HZ-002',
+    ],
+    'a stray closing brace in a list' => [<<<'PHP'
+        <?php
+
+        return [1 => 2 }];
+        PHP, 'HZ-001',
+    ],
+]);
+
+test('a symlinked parent directory is never followed out of the project root (M2)', function (): void {
+    $outside = GraphFixture::project('laravel-horizon-audit/T02');
+    $root = GraphFixture::project('laravel-horizon-audit/T03');
+    installerRemoveDirectory($root . '/config');
+    installerRemoveDirectory($root . '/app');
+    symlink($outside . '/config', $root . '/config');
+    symlink($outside . '/app', $root . '/app');
+
+    try {
+        $run = HorizonAuditRun::over($root);
+    } finally {
+        installerRemoveDirectory($root);
+        installerRemoveDirectory($outside);
+    }
+
+    expect($run->exitCode)->toBe(0);
+    expect($run->stringList('files_read'))->toBe(['composer.json', 'composer.lock']);
+    expect($run->consumerField('consumer'))->toBe([]);
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+});
+
+test('an absent Redis database is the server default 0 and the prefix is inherited from options.prefix (M7)', function (): void {
+    $database = <<<'PHP'
+        <?php
+
+        return [
+            'redis' => [
+                'options' => ['prefix' => 'app_'],
+                'default' => ['host' => '127.0.0.1', 'port' => 6379, 'database' => 0],
+                'queue' => ['host' => '127.0.0.1', 'port' => 6379],
+            ],
+        ];
+        PHP;
+
+    $run = horizonAuditEvaluate('T04', ['config/database.php' => $database, 'config/queue.php' => horizonAuditQueueConfig('queue', 120)]);
+
+    expect($run->consumerField('database'))->toBe([0, 0]);
+    expect($run->consumerField('prefix'))->toBe(['app_', 'app_']);
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:FAIL');
+});
+
+test('the prefix of the connection wins over the options of the connection and the global options (M7)', function (): void {
+    $database = <<<'PHP'
+        <?php
+
+        return [
+            'redis' => [
+                'options' => ['prefix' => 'global_'],
+                'default' => ['database' => 0, 'options' => ['prefix' => 'own_']],
+                'queue' => ['database' => 0, 'prefix' => 'app_', 'options' => ['prefix' => 'own_']],
+                'bare' => ['database' => 0],
+            ],
+        ];
+        PHP;
+
+    $run = horizonAuditEvaluate('T04', ['config/database.php' => $database, 'config/queue.php' => horizonAuditQueueConfig('queue', 120)]);
+    $inherited = horizonAuditEvaluate('T04', ['config/database.php' => $database, 'config/queue.php' => horizonAuditQueueConfig('bare', 120)]);
+
+    expect($run->consumerField('prefix'))->toBe(['own_', 'app_']);
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:PASS');
+    expect($inherited->consumerField('prefix'))->toBe(['own_', 'global_']);
+});
+
+test('an absent prefix at every level is no prefix, and an absent host or an environment-driven database is unknown (M7)', function (): void {
+    $bare = '<?php return [\'redis\' => [\'default\' => [\'host\' => \'h\', \'port\' => 1], \'queue\' => [\'host\' => \'h\', \'port\' => 1]]];';
+    $noHost = '<?php return [\'redis\' => [\'default\' => [], \'queue\' => []]];';
+    $driven = '<?php return [\'redis\' => [\'default\' => [\'host\' => \'h\', \'port\' => 1, \'database\' => 0], '
+        . '\'queue\' => [\'host\' => \'h\', \'port\' => 1, \'database\' => env(\'REDIS_QUEUE_DB\', 0)]]];';
+    $queue = horizonAuditQueueConfig('queue', 120);
+
+    $noPrefix = horizonAuditEvaluate('T04', ['config/database.php' => $bare, 'config/queue.php' => $queue]);
+    $unknownHost = horizonAuditEvaluate('T04', ['config/database.php' => $noHost, 'config/queue.php' => $queue]);
+    $unknown = horizonAuditEvaluate('T04', ['config/database.php' => $driven, 'config/queue.php' => $queue]);
+
+    expect($noPrefix->consumerField('prefix'))->toBe(['', '']);
+    expect($noPrefix->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
+    expect($unknownHost->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($unknown->consumerField('database'))->toBe([0, null]);
+    expect($unknown->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($unknown->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+});
+
+test('the Horizon 5.x model applies only to a detected 5.x version (M8)', function (?string $lock): void {
+    $run = horizonAuditEvaluate('E02', ['composer.lock' => $lock]);
+
+    expect($run->consumerField('consumer'))->toBe([]);
+    expect($run->string('environment_key'))->toBeNull();
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    expect($run->stringList('not_decided'))->toBe(['HZ-003', 'HZ-004', 'HZ-006']);
+    expect($run->string('findings.0.reason'))->toContain('not 5.x or is not known from composer.lock');
+})->with([
+    'a development version' => [horizonAuditLock('dev-master')],
+    'Horizon 4.x' => [horizonAuditLock('v4.3.5')],
+    'no composer.lock' => [null],
+]);
+
+test('a waits map is not compared with consumers of a Horizon version the evaluator does not model (M8)', function (): void {
+    $run = horizonAuditEvaluate('T09', ['composer.lock' => horizonAuditLock('v4.3.5')]);
+
+    expect($run->outcomeOf('HZ-006'))->toBeNull();
+    expect($run->stringList('not_decided'))->toContain('HZ-006');
+});
+
+test('minProcesses above maxProcesses is a HZ-004 FAIL (M10)', function (): void {
+    $config = <<<'PHP'
+        <?php
+
+        return [
+            'defaults' => [
+                'supervisor-1' => ['connection' => 'redis', 'queue' => ['default'], 'minProcesses' => 5, 'maxProcesses' => 2, 'timeout' => 60],
+            ],
+            'environments' => ['production' => []],
+        ];
+        PHP;
+
+    $run = horizonAuditEvaluate('T09', ['config/horizon.php' => $config]);
+
+    expect($run->outcomeOf('HZ-004'))->toBe('HZ-004:FAIL');
+    expect($run->topSeverity())->toBe('HIGH');
+});
+
+test('a middleware that releases the job gives HZ-003, and dontRelease() does not (M10)', function (string $middleware, ?string $expected): void {
+    $job = <<<PHP
+        <?php
+
+        namespace App\Jobs;
+
+        final class SyncOrders
+        {
+            public int \$tries = 3;
+
+            public function middleware(): array
+            {
+                return [{$middleware}];
+            }
+        }
+        PHP;
+
+    $run = horizonAuditEvaluate('T11', ['app/Jobs/SyncOrders.php' => $job]);
+
+    expect($run->outcomeOf('HZ-003'))->toBe($expected);
+})->with([
+    'RateLimited' => ['new RateLimited(\'api\')', 'HZ-003:WARN'],
+    'RateLimitedWithRedis' => ['new RateLimitedWithRedis(\'api\')', 'HZ-003:WARN'],
+    'WithoutOverlapping' => ['new WithoutOverlapping(\'orders\')', 'HZ-003:WARN'],
+    'WithoutOverlapping with dontRelease' => ['(new WithoutOverlapping(\'orders\'))->dontRelease()', null],
+]);
+
+test('a driver other than redis never gets the retry_after rule of redis (M10)', function (string $driver): void {
+    $queue = '<?php return [\'connections\' => [\'redis\' => [\'driver\' => \'' . $driver . '\', \'retry_after\' => 90]]];';
+
+    $run = horizonAuditEvaluate('T03', ['config/queue.php' => $queue]);
+
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+})->with(['sqs', 'database']);
+
+test('a job timeout that is not a literal is UNVERIFIED and never PASS (M10)', function (): void {
+    $job = "<?php\n\nnamespace App\\Jobs;\n\nfinal class SyncOrders\n{\n    public int \$timeout = self::LIMIT;\n}\n";
+
+    $run = horizonAuditEvaluate('T03', ['app/Jobs/SyncOrders.php' => $job]);
+
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    expect(HorizonAuditRun::fixture('T03')->outcomeOf('HZ-002'))->toBe('HZ-002:PASS');
+});
+
+test('a waits key with a consumer of an unknown queue is UNVERIFIED, not WARN (M10)', function (): void {
+    $config = <<<'PHP'
+        <?php
+
+        return [
+            'defaults' => [
+                'supervisor-1' => ['connection' => 'redis', 'queue' => [env('HORIZON_QUEUE', 'default')], 'timeout' => 60],
+            ],
+            'environments' => ['production' => []],
+            'waits' => ['redis:reports' => 60],
+        ];
+        PHP;
+
+    $run = horizonAuditEvaluate('T09', ['config/horizon.php' => $config]);
+
+    expect($run->outcomeOf('HZ-006'))->toBe('HZ-006:UNVERIFIED');
+});
+
+test('the evaluator carries its records as typed classes and no mixed array shape (M9)', function (): void {
+    $source = packageSource('skills/laravel-horizon-audit/scripts/evaluate.php');
+
+    expect($source)->not->toContain('array<string, mixed>');
+
+    foreach (['HzNode', 'HzConsumer', 'HzJob', 'HzFinding', 'HzEvaluation'] as $class) {
+        expect($source)->toContain('final readonly class ' . $class);
+    }
+});

@@ -3,7 +3,7 @@
 Each rule lists its inputs, its evaluation, and the outcomes. A rule that lacks an input returns `UNVERIFIED` with the missing input named. Every outcome carries `file:line` evidence.
 
 ## Version rule
-Interpret each setting by the detected `laravel/framework` and `laravel/horizon` versions. When `vendor/laravel/horizon` exists, read the installed source to confirm the merge order, the option names, and the defaults. When the source or the version is unavailable, or the version is outside what the source shows, return `UNVERIFIED` for every behaviour that depends on it. Never apply the rules of one version to another without stating it.
+Interpret each setting by the detected `laravel/framework` and `laravel/horizon` versions. When `vendor/laravel/horizon` exists, read the installed source to confirm the merge order, the option names, and the defaults. The modelled merge and environment selection (`effective-configuration.md` *Effective supervisor configuration*) apply to a detected 5.x version, and without the source the report says that the source was not read. When the version is unknown or another major, or the version is outside what the source shows, return `UNVERIFIED` for every behaviour that depends on it. Never apply the rules of one version to another without stating it.
 
 ## HZ-001 — Real queue consumers
 
