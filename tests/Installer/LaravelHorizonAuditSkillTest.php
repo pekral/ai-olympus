@@ -2,6 +2,7 @@
 
 declare(strict_types = 1);
 
+use Symfony\Component\Process\Process;
 use Tests\Support\GraphFixture;
 use Tests\Support\HorizonAuditRun;
 
@@ -794,4 +795,108 @@ test('the evaluator carries its records as typed classes and no mixed array shap
     foreach (['HzNode', 'HzConsumer', 'HzJob', 'HzFinding', 'HzEvaluation'] as $class) {
         expect($source)->toContain('final readonly class ' . $class);
     }
+});
+
+test(
+    'a Redis url that is not a literal makes host, port, and database unknown, so no certain PASS follows (M11)',
+    function (string $default, string $other, array $databases): void {
+        $database = "<?php return ['redis' => ['default' => {$default}, 'other' => {$other}]];";
+    
+        $run = horizonAuditEvaluate('T05', ['config/database.php' => $database]);
+    
+        expect($run->consumerField('database'))->toBe($databases);
+        expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+        expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    },
+)->with([
+    'both urls in env' => [
+        '[\'url\' => env(\'REDIS_URL\'), \'database\' => 0, \'prefix\' => \'app_\']',
+        '[\'url\' => env(\'REDIS_QUEUE_URL\'), \'database\' => 1, \'prefix\' => \'app_\']',
+        [null, null],
+    ],
+    'one url in env against a literal database' => [
+        '[\'url\' => env(\'REDIS_URL\'), \'prefix\' => \'app_\']',
+        '[\'database\' => 1, \'prefix\' => \'app_\']',
+        [null, 1],
+    ],
+]);
+
+test('a literal Redis url overrides the host, port, and database of the connection (M11)', function (): void {
+    $database = '<?php return [\'redis\' => ['
+        . '\'default\' => [\'url\' => \'redis://cache:6380/2\', \'host\' => \'a\', \'port\' => 1, \'database\' => 0, \'prefix\' => \'app_\'], '
+        . '\'other\' => [\'url\' => \'redis://cache:6380/2\', \'host\' => \'b\', \'port\' => 2, \'database\' => 1, \'prefix\' => \'app_\']]];';
+    $otherDatabase = str_replace('\'redis://cache:6380/2\', \'host\' => \'b\'', '\'redis://cache:6380/3\', \'host\' => \'b\'', $database);
+
+    $shared = horizonAuditEvaluate('T05', ['config/database.php' => $database]);
+    $distinct = horizonAuditEvaluate('T05', ['config/database.php' => $otherDatabase]);
+
+    expect($shared->consumerField('database'))->toBe([2, 2]);
+    expect($shared->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
+    expect($shared->outcomeOf('HZ-002'))->toBe('HZ-002:FAIL');
+    expect($distinct->consumerField('database'))->toBe([2, 3]);
+    expect($distinct->outcomeOf('HZ-001'))->toBe('HZ-001:PASS');
+});
+
+/**
+ * @return array{0: float, 1: int, 2: string}
+ */
+function horizonAuditBoundedRun(string $horizon): array
+{
+    $root = GraphFixture::project('laravel-horizon-audit/T05');
+    installerWriteFile($root . '/config/horizon.php', $horizon);
+
+    try {
+        $started = microtime(as_float: true);
+        $process = new Process(['php', '-d', 'memory_limit=128M', HorizonAuditRun::EVALUATOR, $root]);
+        $process->run();
+
+        return [microtime(as_float: true) - $started, (int) $process->getExitCode(), $process->getOutput()];
+    } finally {
+        installerRemoveDirectory($root);
+    }
+}
+
+test('a crafted queue list over the consumer cap is UNVERIFIED with a stated reason and finishes fast in bounded memory (splinter)', function (): void {
+    $horizon = '<?php return [\'defaults\' => [\'supervisor-1\' => [\'connection\' => \'redis\', \'queue\' => \'' . str_repeat(
+        'a,',
+        8_000,
+    ) . 'a\', \'timeout\' => 30]], \'environments\' => [\'production\' => []]];';
+
+    [$seconds, $exitCode, $output] = horizonAuditBoundedRun($horizon);
+    $run = new HorizonAuditRun($output, '', $exitCode);
+
+    expect($exitCode)->toBe(0);
+    expect($seconds)->toBeLessThan(5.0);
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+    expect($output)->toContain('more than 500 consumers');
+});
+
+test('thousands of supervisors over the consumer cap are UNVERIFIED and finish fast in bounded memory (splinter)', function (): void {
+    $supervisors = '';
+
+    for ($index = 0; $index < 5_000; $index++) {
+        $supervisors .= "'s{$index}' => ['connection' => 'redis', 'queue' => ['q{$index}'], 'timeout' => 30],\n";
+    }
+
+    [$seconds, $exitCode, $output] = horizonAuditBoundedRun("<?php return ['defaults' => [{$supervisors}], 'environments' => ['production' => []]];");
+    $run = new HorizonAuditRun($output, '', $exitCode);
+
+    expect($exitCode)->toBe(0);
+    expect($seconds)->toBeLessThan(5.0);
+    expect($run->outcomeOf('HZ-001'))->toBe('HZ-001:UNVERIFIED');
+    expect($run->outcomeOf('HZ-002'))->toBe('HZ-002:UNVERIFIED');
+});
+
+test('the consumers at the cap are still compared, and a repeated queue name in one supervisor shares its physical queue (splinter)', function (): void {
+    $queues = implode(',', array_map(static fn (int $index): string => 'q' . $index, range(1, 499)));
+    $config = static fn (string $list): string => '<?php return [\'defaults\' => [\'supervisor-1\' => '
+        . "['connection' => 'redis', 'queue' => '{$list}', 'timeout' => 30]], 'environments' => ['production' => []]];";
+
+    [$seconds, , $atCap] = horizonAuditBoundedRun($config($queues . ',q1'));
+    $repeated = horizonAuditEvaluate('T05', ['config/horizon.php' => $config('a,a')]);
+
+    expect($seconds)->toBeLessThan(5.0);
+    expect((new HorizonAuditRun($atCap, '', 0))->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
+    expect($repeated->outcomeOf('HZ-001'))->toBe('HZ-001:WARN');
 });
