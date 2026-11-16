@@ -86,7 +86,7 @@ The step is done when every package of the pull request description appears in t
 5. Re-read the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm it exists and `isDraft` is `true`.
 6. On a repository with CI, wait for CI per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes* and report the result. A CI billing failure runs the local checkers and tests, as that section of `quality-gates.md` states.
 
-Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. The body keeps the 6,500-character limit of `@rules/git/pull-requests.md` *PR Content Requirements*, checked before `gh pr create`. Fill each number from the script output and the sections as follows:
+Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. `skills/_shared/check-pr-body.sh --file <file> --template composer-update` checks the body against this template before `gh pr create`, as `@rules/git/pull-requests.md` *PR Content Requirements* directs; the body is published only on exit `0`. Fill each number from the script output and the sections as follows:
 - `## TL;DR` — every number is counted from the script output.
 - `## Summary` — the categorised bullets of the template, in plain words: each major update with its versions and what the jump means, the minor and patch updates, the added or removed packages, and the manifest changes. A category without a bullet is left out. A consequence the run did not read in the package's release notes is `not verified`.
 - `## Major updates` — one row per package with `level` `major`. Omit the section when no package has `level` `major`.

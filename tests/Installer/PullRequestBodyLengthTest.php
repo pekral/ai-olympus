@@ -10,27 +10,32 @@ test('an agent-opened pull-request body is capped at 6,500 characters before eve
     $composer = (string) file_get_contents($packageDir . '/skills/composer-update-pr/SKILL.md');
 
     expect($rule)->toContain('**Keep the body at most 6,500 characters.** This is a hard limit')
-        ->and($rule)->toContain('[ "$(php -r \'echo mb_strlen((string) file_get_contents($argv[1]));\' <body-file>)" -le 6500 ]')
-        ->and($rule)->toContain('The count does not depend on the host locale.')
+        ->and($rule)->toContain('The check above counts the body in code points, so the count does not depend on the host locale.')
         ->and($rule)->toContain('A body over the limit is never published.')
         ->and($rule)->toContain('keep every section of its template, their order, and every required value')
         ->and($rule)->toContain('no truncation in the middle of a sentence');
     expect($reference)->toContain(
-        'Before `gh pr create`, and before every `gh pr edit` that rewrites the body, run the length check of '
-        . '`@rules/git/pull-requests.md` *PR Content Requirements*',
+        'Before `gh pr create`, and before every `gh pr edit` that rewrites the body, run '
+        . '`skills/_shared/check-pr-body.sh --file <body-file>` as `@rules/git/pull-requests.md` *PR Content Requirements* directs',
     )
         ->and($reference)->toContain('never publish a body that fails it');
     expect($template)->toContain('The whole body is at most 6,500 characters');
-    expect($composer)->toContain('The body keeps the 6,500-character limit of `@rules/git/pull-requests.md` *PR Content Requirements*');
+    expect($composer)->toContain('checks the body against this template before `gh pr create`');
 });
 
-test('the length check command has one owner, the pull-request rule', function (): void {
-    $command = 'mb_strlen((string) file_get_contents($argv[1]))';
-    $isRuleOrSkill = static fn (string $content, string $path): bool => (str_starts_with($path, 'rules/') || str_starts_with($path, 'skills/'))
-        && str_ends_with($path, '.md')
-        && str_contains($content, $command);
+test('the body check is the one owner of the count, and no rule or skill counts the body itself', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $script = (string) file_get_contents($packageDir . '/skills/_shared/check-pr-body.sh');
 
-    expect(array_keys(array_filter(packageTextFiles(), $isRuleOrSkill, ARRAY_FILTER_USE_BOTH)))->toBe(['rules/git/pull-requests.md']);
+    expect($script)->toContain('MAX_CHARS=6500')
+        ->and($script)->toContain('LC_ALL=C tr -d \'\\200-\\277\' | LC_ALL=C wc -c');
+
+    $handRolled = 'mb_strlen((string) file_get_contents($argv[1]))';
+    $countsItself = static fn (string $content, string $path): bool => (str_starts_with($path, 'rules/') || str_starts_with($path, 'skills/'))
+        && str_ends_with($path, '.md')
+        && str_contains($content, $handRolled);
+
+    expect(array_keys(array_filter(packageTextFiles(), $countsItself, ARRAY_FILTER_USE_BOTH)))->toBe([]);
 });
 
 test('verbatim audit, security, and package content moves to an overflow comment instead of being shortened', function (): void {
