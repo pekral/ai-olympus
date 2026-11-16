@@ -69,7 +69,7 @@ test('every section the check knows is a section of its template, and every temp
 ): void {
     $script = prBodyCheckSource('skills/_shared/check-pr-body.sh');
 
-    // The script's own list for this template, as `<always|optional>|<heading|details>:<name>` lines.
+    // The script's own list for this template, as `<always|optional>|<name>` lines.
     $block = (string) preg_replace('~\A.*?\n  ' . preg_quote($template, '~') . '\)\n    cat <<\'EOF\'\n(.*?)\nEOF\n.*~s', '$1', $script);
     expect($block)->not->toBe($script);
 
@@ -83,14 +83,14 @@ test('every section the check knows is a section of its template, and every temp
 
     expect($known)->not->toBeEmpty();
 
-    foreach ($known as $section) {
-        [$kind, $name] = explode(':', $section, 2);
-        $needle = $kind === 'heading' ? '## ' . $name : '<summary><strong>' . $name . '</strong></summary>';
-        expect(str_contains(prBodyCheckSource($templatePath), $needle))->toBeTrue();
+    // The template renders every section open, as a `## <name>` heading; the check also accepts the
+    // folded form of the same name.
+    foreach ($known as $name) {
+        expect(str_contains(prBodyCheckSource($templatePath), '## ' . $name))->toBeTrue();
     }
 
     foreach (prBodyTemplateHeadings($templatePath) as $heading) {
-        expect($known)->toContain('heading:' . $heading);
+        expect($known)->toContain($heading);
     }
 })->with([
     'composer-update' => ['composer-update', 'skills/composer-update-pr/templates/pull-request-body.md'],
@@ -103,11 +103,11 @@ test('the always-present sections are the ones the resolve-issue template marks 
 
     expect(str_contains($template, 'Merge risk, Summary, Walkthrough, Testing, and Audit are always present.'))->toBeTrue();
 
-    foreach (['heading:Merge risk', 'heading:Summary', 'details:Walkthrough', 'details:✅ Testing', 'details:Audit'] as $section) {
+    foreach (['Merge risk', 'Summary', 'Walkthrough', '✅ Testing', 'Audit'] as $section) {
         expect(substr_count($script, 'always|' . $section . "\n"))->toBeGreaterThanOrEqual(1);
     }
 
-    foreach (['heading:Open decisions for the operator', 'heading:Security acceptance checklist', 'heading:Safeguard', 'heading:TODO'] as $section) {
+    foreach (['Open decisions for the operator', 'Security acceptance checklist', 'Safeguard', 'TODO'] as $section) {
         expect(substr_count($script, 'optional|' . $section . "\n"))->toBe(1);
     }
 });
@@ -126,4 +126,33 @@ test('every step that writes a pull-request body runs the check first', function
         ->and($reference)->toContain('starts with `chore/composer-update-`')
         ->and(substr_count($update, 'skills/_shared/check-pr-body.sh --file <file> --template composer-update'))->toBe(1)
         ->and(substr_count($leonardo, 'skills/_shared/check-pr-body.sh --file "$file" --template "$template"'))->toBe(1);
+});
+
+test('the fold rule has one owner, and the templates, the fill instructions, and the check point to it', function (): void {
+    $rule = prBodyCheckSource('rules/git/pull-requests.md');
+    $script = prBodyCheckSource('skills/_shared/check-pr-body.sh');
+    $reference = prBodyCheckSource('skills/resolve-issue/references/pull-request.md');
+    $update = prBodyCheckSource('skills/composer-update-pr/SKILL.md');
+    $folding = 'is a <details> block with its heading text as the summary; one of 600 or fewer stays an open ## section; Merge risk is never folded. '
+        . 'rules/git/pull-requests.md PR Content Requirements owns the rule and the exact form.';
+
+    expect(substr_count($rule, '**Fold every section longer than 600 characters, and only those.**'))->toBe(1)
+        ->and($rule)->toContain('**`## Merge risk` is never folded,** whatever its length.')
+        ->and($rule)->toContain('**No fixed list of folded sections exists.**')
+        ->and($rule)->toContain('**Over 600 characters, the section is a `<details>` block.**')
+        ->and($rule)->toContain('**At most 600 characters, the section stays an open `##` section.**')
+        ->and(substr_count($script, 'FOLD_LIMIT=600'))->toBe(1)
+        ->and($script)->toContain('rules/git/pull-requests.md *PR Content Requirements*; this script enforces it')
+        ->and($reference)->toContain('*Fold every section longer than 600 characters* owns the rule and states no second copy here')
+        ->and($update)->toContain(
+            'only when its content is longer than 600 characters, as `@rules/git/pull-requests.md` *PR Content Requirements* states',
+        );
+
+    foreach (['skills/resolve-issue/templates/pull-request-body.md', 'skills/composer-update-pr/templates/pull-request-body.md'] as $template) {
+        $text = prBodyCheckSource($template);
+
+        expect(substr_count($text, $folding))->toBe(1)
+            ->and($text)->not->toContain('<summary>')
+            ->and($text)->not->toContain("<details>\n");
+    }
 });

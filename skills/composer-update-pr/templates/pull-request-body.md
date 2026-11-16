@@ -1,3 +1,5 @@
+This task has no tracker item.
+
 ## Merge risk <🟢 low | 🟡 medium | 🔴 high>
 <the section of skills/resolve-issue/templates/pull-request-body.md, with the assignment file holding the one line Update the Composer dependencies>
 
@@ -33,21 +35,14 @@ A major version may contain backward-incompatible changes (semver). Not verified
 ## Other changed files
 - <path as git status --porcelain printed it>
 
-<details>
-<summary><strong>✅ Testing</strong></summary>
+## ✅ Testing
 
 <the commands run and their result>
 No tests were added: the change carries none. The full test suite is the CI result of the pull request.
 
-</details>
-
-<details>
-<summary><strong>Audit</strong></summary>
+## Audit
 
 <the block of skills/resolve-issue/templates/pull-request-body.md, with its standalone-run fallback>
 
-</details>
-
-This task has no tracker item.
-
+<!-- Folding: a section whose content is longer than 600 characters is a <details> block with its heading text as the summary; one of 600 or fewer stays an open ## section; Merge risk is never folded. rules/git/pull-requests.md PR Content Requirements owns the rule and the exact form. -->
 <!-- Sections in this order; Merge risk comes first. Summary: a category only when it has a bullet; every value comes from the script output and the diff. Omit Major updates when no package has level major, and omit Other changed files when no path other than composer.json and composer.lock changed. -->

@@ -192,7 +192,7 @@ test('the pull request body states the merge danger from the merge-risk script a
 });
 
 test(
-    'the pull request body template renders a TL;DR layout with a merge risk first and collapsed Walkthrough, Testing, and Audit blocks',
+    'the pull request body template renders a TL;DR layout with a merge risk first and open Walkthrough, Testing, and Audit sections',
     function (): void {
         $template = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/resolve-issue/templates/pull-request-body.md');
         $order = [
@@ -200,9 +200,9 @@ test(
             '## Merge risk <',
             '## Summary',
             '## Open decisions for the operator',
-            '<summary><strong>Walkthrough</strong></summary>',
-            '<summary><strong>✅ Testing</strong></summary>',
-            '<summary><strong>Audit</strong></summary>',
+            '## Walkthrough',
+            '## ✅ Testing',
+            '## Audit',
         ];
         $positions = array_map(static fn (string $needle): int|false => strpos($template, $needle), $order);
         $sorted = $positions;
@@ -214,14 +214,13 @@ test(
             ->and($template)->toContain('* **New Features**')
             ->and($template)->toContain('* **Bug Fixes**')
             ->and($template)->toContain('* **Documentation**')
-            ->and($template)->toContain("<details>\n<summary><strong>Walkthrough</strong></summary>")
-            ->and($template)->toContain("<details>\n<summary><strong>✅ Testing</strong></summary>")
-            ->and($template)->toContain("<details>\n<summary><strong>Audit</strong></summary>")
+            ->and($template)->not->toContain("<details>\n")
+            ->and($template)->not->toContain('<summary>')
+            ->and($template)->toContain('Folding: a section whose content is longer than 600 characters is a <details> block')
             ->and($template)->not->toContain('## Changes')
             ->and($template)->not->toContain('## Testing')
             ->and($template)->not->toContain('## Merge danger')
             ->and($template)->not->toContain('## Pre-existing fixes')
-            ->and($template)->not->toContain('## Audit')
             ->and($template)->toContain('the pull request this one replaces, when it replaces one')
             ->and($template)->toContain('filled as the Merge risk bullet of skills/resolve-issue/references/pull-request.md states');
     },
@@ -882,10 +881,10 @@ test('an audit trail obligation exists for memory reads, outbound requests, and 
     $hygieneSection = substr($hygieneSection, 0, (int) strpos($hygieneSection, "\n## ", 1));
     expect($hygieneSection)->toContain('.claude/run/<source-slug>.audit');
 
-    // resolve-issue's PR body template renders a mandatory collapsed Audit block.
+    // resolve-issue's PR body template renders a mandatory Audit section, folded only over the limit.
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $template = (string) file_get_contents($packageDir . '/skills/resolve-issue/templates/pull-request-body.md');
-    expect($template)->toContain('<summary><strong>Audit</strong></summary>');
+    expect($template)->toContain("\n## Audit\n");
     expect($template)->toContain('Merge risk, Summary, Walkthrough, Testing, and Audit are always present');
     expect($resolveIssue)->toContain('**Audit** — transcribe the accumulated');
     expect($resolveIssue)->toContain('self-reported; a raw `curl` via `Bash` produces no automatic line');

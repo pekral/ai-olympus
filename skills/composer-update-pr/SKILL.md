@@ -86,15 +86,15 @@ The step is done when every package of the pull request description appears in t
 5. Re-read the pull request through `skills/code-review-github/scripts/load-issue.sh <PR-URL>` and confirm it exists and `isDraft` is `true`.
 6. On a repository with CI, wait for CI per `@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes* and report the result. A CI billing failure runs the local checkers and tests, as that section of `quality-gates.md` states.
 
-Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. `skills/_shared/check-pr-body.sh --file <file> --template composer-update` checks the body against this template before `gh pr create`, as `@rules/git/pull-requests.md` *PR Content Requirements* directs; the body is published only on exit `0`. Fill each number from the script output and the sections as follows:
+Render the body from `skills/composer-update-pr/templates/pull-request-body.md`. It owns the sections and their order. `skills/_shared/check-pr-body.sh --file <file> --template composer-update` checks the body against this template before `gh pr create`, as `@rules/git/pull-requests.md` *PR Content Requirements* directs; the body is published only on exit `0`. Fold a section into a `<details>` block only when its content is longer than 600 characters, as `@rules/git/pull-requests.md` *PR Content Requirements* states; `## Merge risk` is never folded. Fill each number from the script output and the sections as follows:
 - `## TL;DR` — every number is counted from the script output.
 - `## Summary` — the categorised bullets of the template, in plain words: each major update with its versions and what the jump means, the minor and patch updates, the added or removed packages, and the manifest changes. A category without a bullet is left out. A consequence the run did not read in the package's release notes is `not verified`.
 - `## Major updates` — one row per package with `level` `major`. Omit the section when no package has `level` `major`.
 - `## Other updates` — one row per remaining package; a `downgraded` row names the downgrade.
 - `## Manifest changes` — the `composer.json` constraint changes from the diff of step 6, or `none`.
 - `## Other changed files` — one line per committed path other than `composer.json` and `composer.lock`, as `git status --porcelain` printed it in step 4. Omit the section when there is no such path.
-- the collapsed *✅ Testing* block — the commands of step 2 and their result.
-- `## Merge risk` (the first section) and the collapsed *Audit* block (the last one) — the sections of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies` and the standalone-run fallback of the audit.
+- `## ✅ Testing` — the commands of step 2 and their result.
+- `## Merge risk` (the first section) and `## Audit` (the last one) — the sections of `@skills/resolve-issue/references/pull-request.md`, with the assignment file holding the one line `Update the Composer dependencies` and the standalone-run fallback of the audit.
 
 The step is done when the re-read confirms an open Draft pull request.
 
