@@ -28,6 +28,7 @@
 # What is checked
 #   Length       at most 6,500 code points, independent of the host locale
 #                (rules/git/pull-requests.md *PR Content Requirements*).
+#                An over-limit body is refused on the length alone: no section scan runs on it.
 #   Sections     every always-present section of the template is there, the sections follow
 #                the template's order, and no heading or <details> block outside the
 #                template appears. A heading is a level-1 or level-2 ATX heading (0-3 leading
@@ -44,6 +45,9 @@
 #                container ends at a fence line of its own character and at least its length, or
 #                with the container. A heading nested inside a list item or a block quote is not
 #                read, as an ATX heading there is not.
+#   Depth        a block quote or a list item nests at most 16 levels deep (MAX_DEPTH). No real body
+#                nests beyond a handful, and the cap bounds the work for each line. A deeper body is
+#                refused with a problem that names the line number and never the text.
 #   Locale       the body is read in the C locale, byte by byte, so the verdict on a body with an
 #                invalid UTF-8 byte is the same on every host.
 #   Merge risk   the heading reads `## Merge risk <icon> <low|medium|high>` and carries one
@@ -95,8 +99,8 @@ Usage: check-pr-body.sh --file <body-file|-> [--template resolve-issue|composer-
        check-pr-body.sh --self-test
 
 Exit 3 when the body is over the length limit, misses a section of its template, carries a
-section the template does not define, orders the sections differently, or renders the
-`## Merge risk` block in another shape.
+section the template does not define, orders the sections differently, nests block quotes or
+list items deeper than 16 levels, or renders the `## Merge risk` block in another shape.
 EOF
 }
 
@@ -204,6 +208,11 @@ lowercase() {
 # holds at its end: `none`, `para` (paragraph text), `code` (an indented code block), `fence`
 # (a fenced code block; FENCE_CHAR and FENCE_LEN), or `html` (an HTML block; HTML_END). HANDOVER_END is
 # the end of an HTML block that the last container_step left open.
+# MAX_DEPTH is the deepest stack the check reads. A real body nests a list item inside a list item
+# a few levels deep; a stack of 16 is far beyond that, and it bounds the walk of every line to 16
+# containers. DEEP is 1 once a line asks for a deeper one, and the check then refuses the body.
+MAX_DEPTH=16
+DEEP=0
 CS_N=0
 CS_KIND=()
 CS_WIDTH=()
@@ -379,7 +388,7 @@ leaf_step() {
       [[ "$text" =~ $QUOTE_PARSE ]]
       text="${BASH_REMATCH[1]}"
       text="${text# }"
-      push_container q 0 0
+      push_container q 0 0 || return 0
       ;;
     list)
       [[ "$text" =~ $LIST_ITEM_PARSE ]]
@@ -387,12 +396,12 @@ leaf_step() {
       width=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#spaces}))
       text="${BASH_REMATCH[4]}"
       if [[ -z "$text" ]]; then
-        push_container l $((width - ${#spaces} + 1)) 1
+        push_container l $((width - ${#spaces} + 1)) 1 || return 0
       elif [[ "${#spaces}" -ge 5 ]]; then
-        push_container l $((width - ${#spaces} + 1)) 0
+        push_container l $((width - ${#spaces} + 1)) 0 || return 0
         text="${spaces#?}$text"
       else
-        push_container l "$width" 0
+        push_container l "$width" 0 || return 0
       fi
       ;;
     *)
@@ -403,8 +412,13 @@ leaf_step() {
   done
 }
 
-# push_container <q|l> <width> <empty> — open a container inside the innermost one.
+# push_container <q|l> <width> <empty> — open a container inside the innermost one. Fail, and set
+# DEEP, when the stack already holds MAX_DEPTH containers.
 push_container() {
+  if [[ "$CS_N" -ge "$MAX_DEPTH" ]]; then
+    DEEP=1
+    return 1
+  fi
   CS_KIND[CS_N]="$1"
   CS_WIDTH[CS_N]="$2"
   CS_EMPTY[CS_N]="$3"
@@ -559,15 +573,24 @@ merge_risk_line() {
   return 0
 }
 
+# report_depth <line number> — print the too-deep record and succeed when the last step asked for a
+# container below MAX_DEPTH. The record carries the line number and never the text of the line.
+report_depth() {
+  [[ "$DEEP" -eq 1 ]] || return 1
+  printf 'too-deep|%s\n' "$1"
+}
+
 # scan_body — read the body and print what the section check reads, one record per line:
 #   section|<line number>|<heading|details>:<name>
 #   merge-risk-heading|<the whole heading line>
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
+#   too-deep|<line number>      the first line that nests deeper than MAX_DEPTH; the scan stops there
 # A line that cr_header_fence_step skips is a quotation and is never read.
 scan_body() {
   local line number=0 in_merge_risk=0 text block=none was_html skipped
 
   CS_N=0
+  DEEP=0
   LEAF=none
   cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -583,6 +606,7 @@ scan_body() {
 
     if [[ "$CS_N" -gt 0 ]]; then
       if container_step "$line"; then
+        report_depth "$number" && return 0
         cr_header_fence_reset
         block=stack
         [[ "$skipped" -eq 1 ]] && continue
@@ -646,6 +670,7 @@ scan_body() {
     fi
 
     next_block "$block" "$line" "$was_html"
+    report_depth "$number" && return 0
     block="$NEXT_BLOCK"
     merge_risk_line "$in_merge_risk" "$line"
   done
@@ -743,6 +768,10 @@ judge_body() {
     kind="${record%%|*}"
     value="${record#*|}"
     case "$kind" in
+    too-deep)
+      printf 'Containers: line %s nests block quotes or list items deeper than %s levels\n' "$value" "$MAX_DEPTH"
+      return 0
+      ;;
     section) observed[${#observed[@]}]="$value" ;;
     merge-risk-heading) [[ -n "$heading" ]] || heading="$value" ;;
     merge-risk-line)
@@ -816,12 +845,15 @@ check() {
   [[ "$chars" -le "$MAX_CHARS" ]] ||
     problems+=("Length: the body is $chars characters, over the limit of $MAX_CHARS")
 
+  # The length problem alone refuses the body, so the section scan, whose run time grows with the
+  # length of the body, never reads an over-limit body.
+  if [[ "${#problems[@]}" -gt 0 ]]; then
+    emit "${problems[@]}"
+    return 3
+  fi
+
   # The outline marker replaces the body template, so only the length check applies to it.
   if [[ "$body" == *"$OUTLINE_MARKER"* ]]; then
-    if [[ "${#problems[@]}" -gt 0 ]]; then
-      emit "${problems[@]}"
-      return 3
-    fi
     emit
     return 0
   fi
@@ -964,6 +996,39 @@ self_test() {
     "$(printf '%s\nCloses #42\n\n## What and why\n\n## How it was tested\n' "$OUTLINE_MARKER")" '"valid": true'
   scenario 'the outline is still held to the length limit' 3 \
     "$(printf '%s\nCloses #42\n%s\n' "$OUTLINE_MARKER" "$(filler 6600)")" 'over the limit of 6500'
+
+  # An over-limit body is refused on the length alone: a foreign heading in it adds no problem, as
+  # the section scan never runs on it.
+  scenario_only_length() {
+    local label="$1" body="$2" output status
+    printf '%s\n' "$body" >"$tmp/body.md"
+    set +e
+    output="$("$script" --file "$tmp/body.md" 2>/dev/null)"
+    status=$?
+    set -e
+    if [[ "$status" -eq 3 && "$output" == *'over the limit of 6500'* && "$output" != *'Sections:'* && "$output" != *'Containers:'* ]]; then
+      printf 'ok    %-66s exit %s\n' "$label" "$status"
+    else
+      printf 'FAIL  %-66s expected the length problem alone with exit 3, got %s\n' "$label" "$status" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  scenario_only_length 'an over-limit body with a foreign heading reports the length alone' \
+    "$(render '' "$(printf '## Problem\n\n%s' "$(filler 6600)")")"
+  scenario_only_length 'an over-limit body of deep list items reports the length alone' \
+    "$(printf -- '- %.0s' $(seq 1 40) | head -c 80; filler 6600)"
+
+  # A stack of containers deeper than MAX_DEPTH is refused with the line number, and a stack of
+  # exactly MAX_DEPTH is read. A blank line walks the whole stack, so the cap bounds the run time:
+  # the body of 1,600 nested items and 3,000 blank lines (6,400 characters) is refused at its first line.
+  nested() { local i out=''; for ((i = 0; i < $1; i++)); do out="$out- "; done; printf '%sitem' "$out"; }
+  scenario 'a list nested 16 levels deep is read' 0 "$(render '' "$(nested 16)")" '"valid": true'
+  scenario 'a list nested 17 levels deep is refused with its line number' 3 \
+    "$(printf 'Closes #42\n\n%s\n' "$(nested 17)")" 'Containers: line 3 nests block quotes or list items deeper than 16 levels'
+  scenario 'a block quote nested 17 levels deep is refused' 3 \
+    "$(printf 'Closes #42\n\n%s\n' "$(printf '> %.0s' $(seq 1 17))text")" 'Containers: line 3'
+  scenario 'a stack of 1,600 items with 3,000 blank lines is refused fast' 3 \
+    "$(nested 1600; printf '\n'; printf '\n%.0s' $(seq 1 3000); printf 'b')" 'deeper than 16 levels'
 
   local fence
   fence=$'\x60\x60\x60'
