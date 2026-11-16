@@ -4817,7 +4817,6 @@ test('a run that only processes the owner answers and lands no change publishes 
     $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
-    // The rule is the one owner: the three conditions, the allowed edits, the report, and the finding.
     expect($rule)->toContain('**A run that only processes the owner\'s answers and lands no change publishes nothing.**')
         ->and($rule)->toContain('The run publishes no pull-request review, no pull-request comment, and no tracker mirror')
         ->and($rule)->toContain('the only input is answers that a trusted author (*Authorship trust* above) already gave to open decisions')
@@ -4837,7 +4836,6 @@ test('a run that only processes the owner answers and lands no change publishes 
         ->and($rule)->toContain('flags a comment that only confirms processed answers')
         ->and($rule)->toContain('as a **Moderate** finding');
 
-    // The skill states the case and the report line, and defers the rule to its owner.
     expect(
         substr_count(
             $skill,
@@ -4850,6 +4848,5 @@ test('a run that only processes the owner answers and lands no change publishes 
         ->and($skill)->toContain('and report each processed answer and that nothing was published')
         ->and($skill)->not->toContain('runs no new review round:**');
 
-    // The reviewing agent, shared by Claude Code and Codex, points at the same rule.
     expect($leonardo)->toContain('The owner-answers case of `@rules/code-review/general.md` *One published comment per review run* publishes nothing.');
 });
