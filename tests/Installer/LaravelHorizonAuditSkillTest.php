@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+use Tests\Support\HorizonAuditConsumer;
+
 function horizonAuditSchemaField(string $path): mixed
 {
     return decodedJsonField(packageSource('skills/laravel-horizon-audit/schemas/report.schema.json'), $path);
@@ -273,6 +275,90 @@ function horizonAuditLiteral(?string $raw): ?string
 }
 
 /**
+ * The consumers of the audited environment, one per supervisor queue.
+ *
+ * @return list<\Tests\Support\HorizonAuditConsumer>
+ */
+function horizonAuditConsumers(string $fixture): array
+{
+    $connections = horizonAuditRows(horizonAuditFile($fixture, 'config/queue.php.fixture'));
+    $redis = horizonAuditRows(horizonAuditFile($fixture, 'config/database.php.fixture'));
+    $consumers = [];
+
+    foreach (horizonAuditSupervisors(horizonAuditFile($fixture, 'config/horizon.php.fixture'), 'production') as $options) {
+        $connection = $connections[horizonAuditLiteral($options['connection'] ?? null) ?? ''] ?? [];
+        $redisRow = $redis[horizonAuditLiteral($connection['connection'] ?? null) ?? ''] ?? [];
+
+        preg_match_all('/\'([^\']+)\'/', $options['queue'] ?? '', $queues);
+
+        foreach ($queues[1] as $queue) {
+            $consumers[] = new HorizonAuditConsumer(
+                [
+                    horizonAuditLiteral($connection['driver'] ?? null), horizonAuditLiteral($connection['connection'] ?? null),
+                    horizonAuditLiteral($redisRow['database'] ?? null), horizonAuditLiteral($redisRow['prefix'] ?? null), $queue,
+                ],
+                horizonAuditLiteral($connection['retry_after'] ?? null),
+                horizonAuditLiteral($options['timeout'] ?? null),
+            );
+        }
+    }
+
+    return $consumers;
+}
+
+/**
+ * The `public int $timeout` of every job class of the fixture, null for a job that declares none.
+ *
+ * @return list<int|null>
+ */
+function horizonAuditJobTimeouts(string $fixture): array
+{
+    $jobFiles = glob(__DIR__ . '/../Fixtures/laravel-horizon-audit/' . $fixture . '/app/Jobs/*');
+    $timeouts = [];
+
+    foreach ($jobFiles === false ? [] : $jobFiles as $jobFile) {
+        $timeouts[] = preg_match('/public int \$timeout = (\d+);/', (string) file_get_contents($jobFile), $found) === 1 ? (int) $found[1] : null;
+    }
+
+    return $timeouts;
+}
+
+/**
+ * The timeout order of HZ-002 for one consumer: `job < supervisor timeout < retry_after`.
+ *
+ * @param list<int|null> $jobTimeouts
+ */
+function horizonAuditOrder(HorizonAuditConsumer $consumer, array $jobTimeouts): string
+{
+    if ($consumer->timeout === null || $consumer->retryAfter === null || in_array(needle: null, haystack: $jobTimeouts, strict: true)) {
+        return 'UNVERIFIED';
+    }
+
+    $broken = array_filter($jobTimeouts, static fn (?int $job): bool => $job >= (int) $consumer->timeout) !== [];
+
+    return $broken || (int) $consumer->timeout >= (int) $consumer->retryAfter ? 'FAIL' : 'PASS';
+}
+
+/**
+ * Whether the test holds for any two consumers of the list.
+ *
+ * @param list<\Tests\Support\HorizonAuditConsumer> $consumers
+ * @param callable(\Tests\Support\HorizonAuditConsumer, \Tests\Support\HorizonAuditConsumer): bool $test
+ */
+function horizonAuditAnyPair(array $consumers, callable $test): bool
+{
+    foreach ($consumers as $index => $consumer) {
+        foreach (array_slice($consumers, $index + 1) as $other) {
+            if ($test($consumer, $other)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
  * The reference evaluation of the deterministic part of HZ-001 and HZ-002 over one fixture, as
  * `HZ-00N:STATUS` tokens. It reads regular literal config text and never executes it.
  *
@@ -284,71 +370,24 @@ function horizonAuditOutcomes(string $fixture): array
         return ['NOT_APPLICABLE'];
     }
 
-    $connections = horizonAuditRows(horizonAuditFile($fixture, 'config/queue.php.fixture'));
-    $redis = horizonAuditRows(horizonAuditFile($fixture, 'config/database.php.fixture'));
-    $jobTimeouts = [];
+    $consumers = horizonAuditConsumers($fixture);
+    $jobTimeouts = horizonAuditJobTimeouts($fixture);
+    $orders = array_map(static fn (HorizonAuditConsumer $consumer): string => horizonAuditOrder($consumer, $jobTimeouts), $consumers);
+    $sharing = match (true) {
+        horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->hasUnknownKeyPart($b)) => 'UNVERIFIED',
+        horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->sharesQueueWith($b)) => 'WARN',
+        default => 'PASS',
+    };
 
-    $jobFiles = glob(__DIR__ . '/../Fixtures/laravel-horizon-audit/' . $fixture . '/app/Jobs/*');
-
-    foreach ($jobFiles === false ? [] : $jobFiles as $jobFile) {
-        $jobTimeouts[] = preg_match('/public int \$timeout = (\d+);/', (string) file_get_contents($jobFile), $found) === 1 ? (int) $found[1] : null;
+    if (in_array('FAIL', $orders, strict: true)
+        || horizonAuditAnyPair($consumers, static fn (HorizonAuditConsumer $a, HorizonAuditConsumer $b): bool => $a->differsInRetryAfterFrom($b))
+    ) {
+        return ['HZ-001:' . $sharing, 'HZ-002:FAIL'];
     }
 
-    $consumers = [];
-    $order = 'PASS';
+    $unverified = in_array('UNVERIFIED', $orders, strict: true) || $sharing === 'UNVERIFIED';
 
-    foreach (horizonAuditSupervisors(horizonAuditFile($fixture, 'config/horizon.php.fixture'), 'production') as $options) {
-        $connection = $connections[horizonAuditLiteral($options['connection'] ?? null) ?? ''] ?? [];
-        $redisRow = $redis[horizonAuditLiteral($connection['connection'] ?? null) ?? ''] ?? [];
-        $retryAfter = horizonAuditLiteral($connection['retry_after'] ?? null);
-        $timeout = horizonAuditLiteral($options['timeout'] ?? null);
-
-        preg_match_all('/\'([^\']+)\'/', $options['queue'] ?? '', $queues);
-
-        foreach ($queues[1] as $queue) {
-            $consumers[] = [
-                'key' => [
-                    horizonAuditLiteral($connection['driver'] ?? null), horizonAuditLiteral($connection['connection'] ?? null),
-                    horizonAuditLiteral($redisRow['database'] ?? null), horizonAuditLiteral($redisRow['prefix'] ?? null), $queue,
-                ],
-                'retry_after' => $retryAfter,
-            ];
-        }
-
-        if ($timeout === null || $retryAfter === null || in_array(needle: null, haystack: $jobTimeouts, strict: true)) {
-            $order = $order === 'FAIL' ? 'FAIL' : 'UNVERIFIED';
-
-            continue;
-        }
-
-        $broken = (int) $timeout >= (int) $retryAfter || array_filter($jobTimeouts, static fn (?int $job): bool => $job >= (int) $timeout) !== [];
-        $order = $broken ? 'FAIL' : $order;
-    }
-
-    $sharing = 'PASS';
-
-    foreach ($consumers as $index => $consumer) {
-        foreach (array_slice($consumers, $index + 1) as $other) {
-            $unknown = in_array(needle: null, haystack: $consumer['key'], strict: true) || in_array(needle: null, haystack: $other['key'], strict: true);
-
-            if ($unknown) {
-                $sharing = 'UNVERIFIED';
-
-                continue;
-            }
-
-            if ($consumer['key'] !== $other['key']) {
-                continue;
-            }
-
-            $sharing = $sharing === 'UNVERIFIED' ? 'UNVERIFIED' : 'WARN';
-            $order = $consumer['retry_after'] !== $other['retry_after'] ? 'FAIL' : $order;
-        }
-    }
-
-    $retry = $order === 'PASS' && $sharing === 'UNVERIFIED' ? 'UNVERIFIED' : $order;
-
-    return ['HZ-001:' . $sharing, 'HZ-002:' . $retry];
+    return ['HZ-001:' . $sharing, 'HZ-002:' . ($unverified ? 'UNVERIFIED' : 'PASS')];
 }
 
 /**
@@ -385,11 +424,30 @@ function horizonAuditScenarioRow(int $number): string
     return '';
 }
 
-test('every scenario T1 to T16 ships a fixture whose expected result matches the scenario table and the report schema', function (): void {
-    $statuses = horizonAuditSchemaField('$defs.finding.properties.status.enum');
-    $severities = horizonAuditSchemaField('$defs.finding.properties.severity.enum');
-    $rules = horizonAuditSchemaField('$defs.finding.properties.rule_id.enum');
+/**
+ * Asserts that one `RULE:STATUS` outcome of a scenario is a rule and status of the report schema,
+ * and that a status other than PASS is named in the scenario table row.
+ */
+function expectOutcomeInScenarioRow(string $token, string $row): void
+{
+    [$rule, $status] = array_pad(explode(':', $token, 2), 2, '');
 
+    if ($status === '') {
+        return;
+    }
+
+    expect(horizonAuditSchemaField('$defs.finding.properties.rule_id.enum'))->toContain($rule);
+    expect(horizonAuditSchemaField('$defs.finding.properties.status.enum'))->toContain($status);
+
+    if ($status === 'PASS') {
+        return;
+    }
+
+    expect($row)->toContain($rule);
+    expect($row)->toContain('`' . $status . '`');
+}
+
+test('every scenario T1 to T16 ships a fixture whose expected result matches the scenario table and the report schema', function (): void {
     foreach (range(1, 16) as $number) {
         $row = horizonAuditScenarioRow($number);
 
@@ -397,28 +455,9 @@ test('every scenario T1 to T16 ships a fixture whose expected result matches the
         expect(horizonAuditFile(sprintf('T%02d', $number), 'composer.json'))->not->toBe('');
         expect($row)->not->toBe('');
         expect(horizonAuditExpectedList($number, 'outcomes'))->not->toBe([]);
+        expect(horizonAuditSchemaField('$defs.finding.properties.severity.enum'))->toContain(...horizonAuditExpectedList($number, 'severity'));
 
-        foreach (horizonAuditExpectedList($number, 'severity') as $severity) {
-            expect($severities)->toContain($severity);
-        }
-
-        foreach (horizonAuditExpectedList($number, 'outcomes') as $token) {
-            [$rule, $status] = array_pad(explode(':', $token, 2), 2, '');
-
-            if ($status === '') {
-                continue;
-            }
-
-            expect($rules)->toContain($rule);
-            expect($statuses)->toContain($status);
-
-            if ($status === 'PASS') {
-                continue;
-            }
-
-            expect($row)->toContain($rule);
-            expect($row)->toContain('`' . $status . '`');
-        }
+        array_map(static fn (string $token) => expectOutcomeInScenarioRow($token, $row), horizonAuditExpectedList($number, 'outcomes'));
     }
 });
 
