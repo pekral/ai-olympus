@@ -15,7 +15,7 @@
 #
 # Usage
 #   review-state.sh init     --state <file> --repo <owner/name> --pr <number>
-#   review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
+#   review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->] [--operator-authorised <comment-url>]
 #   review-state.sh evaluate --state <file> [--final]
 #   review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
@@ -25,11 +25,17 @@
 #   --state          the state file. Every command that writes it refuses a path outside the `.claude/run/` or
 #                    `.codex/run/` directory of the git toplevel, a symbolic link, and a tracked file.
 #   --input          the findings report of one review round (skills/_shared/extract-findings.sh --round).
-#   --changed-files  the paths the round's delta changed, one per line (`git diff --name-only <baseline>..HEAD`).
-#                    Required by `record` once an earlier round exists, and by `scope`.
-#   --numstat        the line counts of the same delta (`git diff --numstat <baseline>..HEAD`). `scope` reads it
-#                    to tell a small delta from a large one; without it the delta size is unknown and the round
-#                    runs every lens.
+#   --changed-files  the paths the round's delta changed, one per line (`git diff --no-renames --name-only
+#                    <baseline>..HEAD`). Required by `record` once an earlier round exists, and by `scope`.
+#   --numstat        the line counts of the same delta (`git diff --no-renames --numstat <baseline>..HEAD`). `scope`
+#                    reads it to tell a small delta from a large one. The size is unknown, and the round runs every
+#                    lens, without it, and when it is empty, holds a binary entry, a rename, or a line in another
+#                    shape, or names other paths than --changed-files.
+#   --operator-authorised
+#                    the URL of the operator's comment on the pull request of the state that authorises one round
+#                    after an escalation at the cap. The comment must name the round (`authorise round <n>`); the
+#                    script verifies its author exactly as for --comment. The round is recorded, and its findings
+#                    count as in every other round.
 #   --final          at the cap round, escalate when a blocking finding is still neither fixed nor deferred.
 #   --comment        the URL of the rejection: a comment on the pull request of the state
 #                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
@@ -56,7 +62,7 @@
 #             `record`. A `light` depth runs only the lenses the delta can affect
 #             (rules/code-review/general.md *A light round after a small delta*): a later round whose scope is
 #             `delta`, whose delta has at most SMALL_DELTA_FILES files and SMALL_DELTA_LINES changed lines, and
-#             whose state holds no open security finding. Every other round is `full`.
+#             whose state holds no open security finding, and that is not past the cap. Every other round is `full`.
 #
 # Exit codes
 #   0  success — the verdict is in the output, never in the exit code
@@ -64,10 +70,12 @@
 #   2  a required tool is missing (git, jq)
 #   3  the state or the round report is missing, unreadable, or invalid; nothing was written, and the loop is
 #      not converged
-#   4  the policy refused the operation (a security finding, an untrusted author, a deferral before the cap)
-#   5  the loop is closed: it escalated, or its round cap is spent. A security finding left at the cap round
-#      gets up to two more rounds, limited to the security findings (the `security-round` verdict); `record`
-#      accepts a round past the cap only then.
+#   4  the policy refused the operation (a security finding, an untrusted or unverifiable author, a deferral
+#      before the cap, an operator authorisation before an escalation)
+#   5  the loop is closed: it escalated, or its round cap is spent. A security finding left at the cap round gets
+#      up to two more rounds that fix only the security findings (the `security-round` verdict), and so does one
+#      that a round after a convergence at the cap reports; `record` accepts a round past the cap only then, or
+#      with --operator-authorised after an escalation.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -82,11 +90,13 @@ MAX_CHANGED_FILES=20000
 # A small delta: at most this many changed files and changed lines (added plus deleted), both inclusive.
 SMALL_DELTA_FILES=5
 SMALL_DELTA_LINES=100
+# A comment on a pull request: the shape of a rejection and of an operator authorisation.
+COMMENT_URL_RE='^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$'
 
 usage() {
   cat >&2 <<'EOF'
 Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
-       review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
+       review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->] [--operator-authorised <comment-url>]
        review-state.sh evaluate --state <file> [--final]
        review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
        review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
@@ -120,8 +130,9 @@ IFS= read -r -d '' JQ_STATE <<'EOF' || true
 include "finding-defs";
 
 def isint($v; $min): ($v | type) == "number" and ($v | floor) == $v and $v >= $min;
-# The automatic rounds after the cap round for a security finding, limited to the security findings.
+# The automatic rounds after the cap round for a security finding: they fix only the security findings.
 def security_rounds: 2;
+def escalation_reasons: ["cap-reached-hard-blockers", "cap-reached-undeferred-blockers", "cap-spent-after-convergence", "security-rounds-spent"];
 def is_open: .status == "new" or .status == "confirmed" or .status == "needs-verification";
 # A finding blocks when it carries evidence, or when it is security-relevant even without evidence (the S1-S3 floor).
 def is_blocking: .status == "new" or .status == "confirmed" or (.status == "needs-verification" and .security);
@@ -139,7 +150,7 @@ def state_errors:
      "revision", "scope", "findings", "deferrals", "transitions", "rounds"] as $keys
     | (($s.findings // []) | if type == "array" then map(.finding_id) else [] end) as $ids
     | [
-        (($s | keys) - $keys | .[] | "unknown key \(.)"),
+        (($s | keys) - $keys - ["operator_rounds"] | .[] | "unknown key \(.)"),
         ($keys - ($s | keys) | .[] | "missing key \(.)"),
         (if $s.schema == 1 then empty else "schema must be 1" end),
         (if isstr($s.repo; "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") then empty else "repo must be owner/name" end),
@@ -161,11 +172,20 @@ def state_errors:
         (if (["open", "converged", "escalated"] | index([$s.status])) != null then empty else "status must be open, converged, or escalated" end),
         (if ($s.status == "escalated") == ($s.escalation_reason != null) then empty
          else "escalation_reason must be set exactly when the status is escalated" end),
-        (if $s.escalation_reason == null
-            or (["cap-reached-hard-blockers", "cap-reached-undeferred-blockers", "cap-spent-after-convergence",
-                 "security-rounds-spent"] | index([$s.escalation_reason])) != null
+        (if $s.escalation_reason == null or (escalation_reasons | index([$s.escalation_reason])) != null
          then empty else "escalation_reason is not a known reason" end),
         (if $s.status == "converged" and $s.iteration == 0 then "a state without a review round is never converged" else empty end),
+        # The rounds the operator authorised after an escalation; an older state has none.
+        (if ($s | has("operator_rounds") | not) or (($s.operator_rounds | type) == "array"
+              and ($s.operator_rounds | map(.iteration?) | unique | length) == ($s.operator_rounds | length)
+              and all($s.operator_rounds[];
+                type == "object" and keys == ["actor", "after", "association", "comment", "iteration"]
+                and .actor == "operator" and isstr(.association; "^(OWNER|MEMBER|COLLABORATOR)$")
+                and (.after as $a | escalation_reasons | index([$a])) != null
+                and isstr(.comment; "^\\S+#issuecomment-[1-9][0-9]{0,19}$")
+                and (.comment | startswith("https://github.com/\($s.repo)/pull/\($s.pr)#"))
+                and isint(.iteration; 2) and .iteration <= $s.iteration))
+         then empty else "an operator round is malformed" end),
         (if $s.revision == null or isstr($s.revision; "^[0-9a-f]{7,64}$") then empty else "revision must be null or a commit SHA" end),
         (if $s.scope == null or $s.scope == "delta" or $s.scope == "full" then empty else "scope must be null, delta, or full" end),
         (if ($s.findings | type) == "array" and all($s.findings[]; type == "object" and .repo == $s.repo and .pr == $s.pr)
@@ -190,8 +210,8 @@ def state_errors:
 
 # The verdict of the state under the effective configuration. A state without a review round never converges.
 # At the cap round a hard blocker that is not security-relevant escalates at once: a Critical is never deferred
-# and never waits. A security finding gets up to `security_rounds` more rounds, limited to the security findings,
-# and escalates when they are spent. Every other blocking finding is deferrable, and the loop defers it first.
+# and never waits. A security finding gets up to `security_rounds` more rounds, whose fix is limited to the security
+# findings and whose review runs at full depth, and escalates when they are spent. Every other blocking finding is deferrable, and the loop defers it first.
 def verdict($cap; $threshold):
   . as $s
   | ($s.deferrals | map(.finding_id)) as $deferred
@@ -234,7 +254,7 @@ def output($cap; $threshold; $carried):
                elif $v.verdict == "continue" and $s.iteration == 0 then "no review round is recorded yet"
                elif $v.verdict == "continue" then "\($v.open | length) blocking finding(s) are left after round \($s.iteration) of \($cap)"
                elif $v.verdict == "deferral-required" then "the round cap of \($cap) is reached; \($v.deferrable | length) blocking finding(s) are left that are neither security-relevant nor at or above the blocking threshold: fix or defer each one, or escalate"
-               elif $v.verdict == "security-round" then "the round cap of \($cap) is reached and \($v.security | length) security finding(s) are left: round \($s.iteration + 1) of at most \($cap + security_rounds) runs, limited to them"
+               elif $v.verdict == "security-round" then "the round cap of \($cap) is reached and \($v.security | length) security finding(s) are left: round \($s.iteration + 1) of at most \($cap + security_rounds) fixes only them and is reviewed at full depth"
                elif $s.escalation_reason == "security-rounds-spent" then "the round cap of \($cap) and the \(security_rounds) security rounds after it are spent, and \($v.security | length) security finding(s) are left: the operator decides"
                elif $s.escalation_reason == "cap-spent-after-convergence" then "the loop converged in the cap round of \($cap), and a later change needs a review round the cap no longer allows"
                elif $s.escalation_reason == "cap-reached-undeferred-blockers" then "the round cap of \($cap) is reached and \($v.open | length) blocking finding(s) were neither fixed nor deferred"
@@ -448,18 +468,21 @@ cmd_init() {
 }
 
 cmd_record() {
-  local state='' input='' changed=''
+  local state='' input='' changed='' authorised=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
     --changed-files) [[ $# -ge 2 ]] || die_usage '--changed-files needs a value'; changed="$2"; shift 2 ;;
+    --operator-authorised) [[ $# -ge 2 ]] || die_usage '--operator-authorised needs a value'; authorised="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ -n "$input" ]] || die_usage '--input is required'
   [[ "$input" != '-' || "$changed" != '-' ]] || die_usage '--input and --changed-files cannot both read standard input'
+  [[ -z "$authorised" || "$authorised" =~ $COMMENT_URL_RE ]] \
+    || die_usage '--operator-authorised must be the URL of a comment on the pull request (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>)'
   check_writable "$state"
   new_tmp
   load_state "$state" "$TMP/state.json"
@@ -470,24 +493,35 @@ cmd_record() {
   threshold="${config#* }"
   iteration="$(jq -r '.iteration' "$TMP/state.json")"
   status="$(jq -r '.status' "$TMP/state.json")"
-  [[ "$status" != 'escalated' ]] || fail 5 "the loop escalated; no further automatic review round starts"
-  # A change after a convergence in the cap round needs a review round the cap no longer allows. The loop
-  # escalates instead of letting the converged verdict stand for a diff nobody reviewed.
-  if [[ "$status" == 'converged' && "$iteration" -ge "$cap" ]]; then
-    jq -c '.status = "escalated" | .escalation_reason = "cap-spent-after-convergence"' "$TMP/state.json" >"$TMP/next.json"
-    write_state "$TMP/next.json" "$state"
-    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
-    fail 5 "the loop converged in the cap round of $cap; a later change needs a review round the cap no longer allows: escalated (cap-spent-after-convergence)"
-  fi
-  # Past the cap a round starts only as a security round: a security finding is left, every other finding is
-  # deferred, and the security rounds are not spent. The verdict decides it, never the caller.
-  if [[ "$iteration" -ge "$cap" ]]; then
+  local after_convergence=false
+  if [[ "$status" == 'escalated' ]]; then
+    [[ -n "$authorised" ]] || fail 5 "the loop escalated; no further automatic review round starts"
+  elif [[ -n "$authorised" ]]; then
+    fail 4 "an operator-authorised round is recorded only after the loop escalated; the state is unchanged"
+  elif [[ "$status" == 'converged' && "$iteration" -ge "$cap" ]]; then
+    # A change after a convergence at the cap needs a review round the cap no longer allows. Only a round whose
+    # blocking findings are all security findings may still take the security rounds (decided after the merge).
+    after_convergence=true
+  elif [[ "$iteration" -ge "$cap" ]]; then
+    # Past the cap a round starts only as a security round: a security finding is left, every other finding is
+    # deferred, and the security rounds are not spent. The verdict decides it, never the caller.
     local current
     current="$(jq -r -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' verdict($cap; $threshold).verdict' "$TMP/state.json")"
     [[ "$current" == 'security-round' ]] || fail 5 "the round cap of $cap is spent and the verdict is $current, not security-round; no further automatic review round starts"
   fi
   if [[ "$iteration" -gt 0 && -z "$changed" ]]; then
     die_usage '--changed-files is required once an earlier round exists'
+  fi
+  # An escalated loop takes one more round only on the operator's own comment that names it. The round reopens the
+  # loop and changes no finding: every finding it reports counts as in every other round.
+  if [[ -n "$authorised" ]]; then
+    local next association
+    next=$((iteration + 1))
+    association="$(trusted_comment "$authorised" "(?i)\\bauthori[sz]e[sd]? round $next\\b" "the authorisation of round $next (authorise round $next)" "authorises a round past the cap")"
+    jq -c --arg url "$authorised" --arg association "$association" --argjson n "$next" \
+      '.operator_rounds = ((.operator_rounds // []) + [{iteration: $n, comment: $url, actor: "operator", association: $association,
+        after: .escalation_reason}]) | .status = "open" | .escalation_reason = null' "$TMP/state.json" >"$TMP/authorised.json"
+    mv "$TMP/authorised.json" "$TMP/state.json"
   fi
 
   local repo pr
@@ -512,6 +546,16 @@ cmd_record() {
     --arg rev "$(jq -r '.revision' "$TMP/header.json")" --arg time "$(jq -r '.time' "$TMP/header.json")" \
     --argjson cap "$cap" --arg threshold "$threshold" \
     "$JQ_STATE"$'\n'". as \$cur | \$s[0] | $JQ_RECORD" "$TMP/round.jsonl" >"$TMP/merged.json"
+  # After a convergence at the cap, a round whose blocking findings are all security findings takes the security
+  # rounds that are left; every other change escalates instead of letting the convergence cover an unreviewed diff.
+  if [[ "$after_convergence" == true ]] && ! jq -e -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson before "$iteration" \
+    "$JQ_STATE"' .state | verdict($cap; $threshold).open as $o
+      | ($o | length) > 0 and all($o[]; .security) and $before < $cap + security_rounds' "$TMP/merged.json" >/dev/null; then
+    jq -c '.status = "escalated" | .escalation_reason = "cap-spent-after-convergence"' "$TMP/state.json" >"$TMP/next.json"
+    write_state "$TMP/next.json" "$state"
+    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+    fail 5 "the loop converged in the cap round of $cap; a later change needs a review round the cap no longer allows: escalated (cap-spent-after-convergence)"
+  fi
   jq -c --argjson cap "$cap" '.state | .max_iterations = $cap' "$TMP/merged.json" \
     | jq -c --arg t "$threshold" '.blocking_threshold = $t' >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
@@ -565,9 +609,14 @@ cmd_scope() {
   new_tmp
   load_state "$state" "$TMP/state.json"
   read_paths "$changed" "$TMP/changed.json"
+  local config cap
+  config="$(effective_config)"
+  cap="${config%% *}"
 
-  # The size of the delta: its changed lines (added plus deleted) from `git diff --numstat`. A binary entry or a
-  # line in another shape makes the size unknown, and an unknown size is never small.
+  # The size of the delta: its changed lines (added plus deleted) from `git diff --no-renames --numstat`. The size
+  # is known only when every line is a well-formed text entry and the entries name exactly the changed paths. An
+  # empty or partial list, a binary entry, a rename (`old => new`), and a line in another shape make it unknown,
+  # because a failed or mismatched diff must never read as small.
   local lines='null'
   if [[ -n "$numstat" ]]; then
     if [[ "$numstat" == '-' ]]; then
@@ -576,9 +625,12 @@ cmd_scope() {
       [[ -f "$numstat" ]] || fail 3 "numstat list not found: $(state_path_display "$numstat")"
       head -n "$MAX_CHANGED_FILES" <"$numstat" >"$TMP/numstat.raw"
     fi
-    lines="$(jq -R -s '[split("\n")[] | select(. != "") | split("\t")]
-      | if all(.[]; length >= 3 and (.[0] | test("^[0-9]{1,9}$")) and (.[1] | test("^[0-9]{1,9}$")))
-        then map((.[0] | tonumber) + (.[1] | tonumber)) | add // 0 else null end' "$TMP/numstat.raw")"
+    lines="$(jq -R -s --slurpfile changed "$TMP/changed.json" '[split("\n")[] | select(test("\\S")) | split("\t")] as $rows
+      | if ($rows | length) > 0
+           and all($rows[]; length == 3 and (.[0] | test("^[0-9]{1,9}$")) and (.[1] | test("^[0-9]{1,9}$"))
+             and (.[2] | contains(" => ") | not))
+           and ($rows | map(.[2] | gsub("[\\x00-\\x1f\\x7f]"; "") | sub("^(\\./)+"; "") | .[0:300]) | unique) == $changed[0]
+        then $rows | map((.[0] | tonumber) + (.[1] | tonumber)) | add else null end' "$TMP/numstat.raw")"
   fi
 
   # A narrow delta is not enough when it touches a surface whose regressions sit outside the changed lines.
@@ -590,7 +642,7 @@ cmd_scope() {
   fi
   # The next `record` reads the scope stored here: a blocking finding outside a delta round stays open.
   jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" --argjson lines "$lines" \
-    --argjson max_files "$SMALL_DELTA_FILES" --argjson max_lines "$SMALL_DELTA_LINES" "$JQ_STATE"'
+    --argjson max_files "$SMALL_DELTA_FILES" --argjson max_lines "$SMALL_DELTA_LINES" --argjson cap "$cap" "$JQ_STATE"'
     ($signals | split("\n") | map(select(. != ""))) as $sig
     | [ (if .iteration == 0 then "first-round" else empty end),
         (if (.rounds | last | .reopened? // 0) > 0 then "regression" else empty end),
@@ -603,7 +655,9 @@ cmd_scope() {
     | ($reasons
        + (if $files > $max_files or ($lines != null and $lines > $max_lines) then ["large-delta"] else [] end)
        + (if $lines == null then ["delta-size-unknown"] else [] end)
-       + (if any(.findings[]; is_blocking and .security) then ["open-security-finding"] else [] end)) as $depth_reasons
+       + (if any(.findings[]; is_blocking and .security) then ["open-security-finding"] else [] end)
+       # A round past the cap is a security round or a round the operator authorised: never narrowed.
+       + (if .iteration >= $cap then ["past-the-cap"] else [] end)) as $depth_reasons
     | .scope = (if ($reasons | length) > 0 then "full" else "delta" end)
     | {state: ., verdict: {scope, reasons: $reasons, baseline: .revision,
         depth: (if ($depth_reasons | length) > 0 then "full" else "light" end), depth_reasons: $depth_reasons,
@@ -613,34 +667,35 @@ cmd_scope() {
   jq -c '.verdict' "$TMP/scoped.json"
 }
 
-# rejection_association <comment-url> <finding-id> — the author association of the rejection comment, read from
-# the GitHub loader's payload of the state's own pull request, never from the caller. Exit 4 when the comment cannot
-# be verified as a trusted author's own comment that names the finding (rules/code-review/general.md *Authorship trust*).
-rejection_association() {
-  local url="$1" id="$2" repo pr rc=0 verdict
+# trusted_comment <comment-url> <pattern> <what> <purpose> — the author association of a comment on the state's own
+# pull request, read from the GitHub loader's payload, never from the caller. Exit 4 unless the comment is a trusted
+# author's own comment (rules/code-review/general.md *Authorship trust*) whose body matches <pattern>, the regular
+# expression that names <what>. A dismissal and an operator-authorised round share this one test.
+trusted_comment() {
+  local url="$1" pattern="$2" what="$3" purpose="$4" repo pr rc=0 verdict
   repo="$(jq -r '.repo' "$TMP/state.json")"
   pr="$(jq -r '.pr' "$TMP/state.json")"
   set +e
   "$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"
   rc=$?
   set -e
-  [[ "$rc" -eq 0 ]] || fail 4 "the rejection cannot be verified: the pull request cannot be loaded ($(state_path_display "$(head -n 1 "$TMP/pr.err")")); the status is unchanged"
-  verdict="$(jq -r -L "$HERE" --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" 'include "review-trust";
+  [[ "$rc" -eq 0 ]] || fail 4 "the comment cannot be verified: the pull request cannot be loaded ($(state_path_display "$(head -n 1 "$TMP/pr.err")")); the state is unchanged"
+  verdict="$(jq -r -L "$HERE" --arg url "$url" --arg pattern "$pattern" --arg what "$what" --arg repo "$repo" --argjson pr "$pr" 'include "review-trust";
     if type != "object" or .kind != "pr" or .number != $pr
        or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
     then "refused:the loader returned another item than the pull request of the state"
     else [ (.comments // [])[] | select(.url == $url) ] as $m
     | if ($m | length) != 1 then "refused:the pull request of the state has no comment with this URL"
       elif ($m[0].body | type) != "string" or ($m[0].body | agent_marker) then
-        "refused:the comment carries an agent marker; agent output is never a trusted rejection"
-      elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \($id)"
+        "refused:the comment carries an agent marker; agent output is never a trusted comment"
+      elif ($m[0].body | test($pattern) | not) then "refused:the comment does not name \($what)"
       elif ($m[0].authorAssociation | write_access | not) then
         "refused:the author association \($m[0].authorAssociation // "null") is not trusted"
       else "trusted:\($m[0].authorAssociation)" end
     end' "$TMP/pr.json" 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   case "$verdict" in
   trusted:OWNER | trusted:MEMBER | trusted:COLLABORATOR) printf '%s\n' "${verdict#trusted:}" ;;
-  *) fail 4 "only a trusted author dismisses a finding: $(state_path_display "${verdict#refused:}"); the status is unchanged" ;;
+  *) fail 4 "only a trusted author $purpose: $(state_path_display "${verdict#refused:}"); the state is unchanged" ;;
   esac
 }
 
@@ -656,7 +711,7 @@ cmd_dismiss() {
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
-  [[ "$comment" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]{0,8}#issuecomment-[1-9][0-9]{0,19}$ ]] \
+  [[ "$comment" =~ $COMMENT_URL_RE ]] \
     || die_usage '--comment must be the URL of a comment on the pull request (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>)'
   check_writable "$state"
   new_tmp
@@ -670,7 +725,7 @@ cmd_dismiss() {
   jq -e '.status == "new" or .status == "confirmed" or .status == "needs-verification"' <<<"$finding" >/dev/null \
     || fail 4 "finding $id is not open; the status is unchanged"
   local association
-  association="$(rejection_association "$comment" "$id")"
+  association="$(trusted_comment "$comment" "$id" "finding $id" "dismisses a finding")"
 
   local config cap threshold
   config="$(effective_config)"
@@ -1112,6 +1167,125 @@ EOF
   run_case 'a tighter threshold makes a medium Moderate a hard blocker' 0 -- record --state "$S" --input "$tmp/k2.md"
   check 'a medium finding at or above the threshold is never deferrable' "$(q '.verdict == "escalated" and (.deferrable | length) == 0')"
 
+  # --- a round past the cap is never narrowed, and a security round records every new finding ---------------
+  manifest '{ "review": { "max-iterations": 1 } }'
+  printf 'src/Foo/Bar.php\n' >"$tmp/changed-bar"
+  printf '1\t0\tsrc/Foo/Bar.php\n' >"$tmp/ns-bar"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1.md" >/dev/null)
+  cp "$repo/$S" "$tmp/security-round"
+  run_case 'a small delta in a security round is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-bar" --numstat "$tmp/ns-bar"
+  check 'a security round runs every lens, however small the delta' "$(q '.depth == "full" and (.depth_reasons | index("past-the-cap"))')"
+  local extra
+  for extra in 'security finding:F_SQL:security-round' 'Moderate outside security:F_STRUCT:deferral-required' 'Critical outside security:F_CRIT:escalated'; do
+    IFS=: read -r extra probe_changed probe_numstat <<<"$extra"
+    cp "$tmp/security-round" "$repo/$S"
+    report "$tmp/sr.md" 2 "${!probe_changed}"
+    run_case "a security round that reports a new $extra is recorded" 0 -- record --state "$S" --input "$tmp/sr.md" --changed-files "$tmp/changed-both"
+    check "a security round that reports a new $extra never converges" "$(q ".verdict == \"$probe_numstat\" and .verdict != \"converged\" and .rounds[1].new == 1")"
+  done
+
+  # A security finding the splinter view raises in the cap round reaches the state one round later: it still gets
+  # the security rounds after a convergence at the cap (default cap 3).
+  manifest '{}'
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/b1.md" >/dev/null)
+  report "$tmp/v2.md" 2 "$F_STRUCT"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/v2.md" --changed-files "$tmp/changed-none" >/dev/null)
+  report "$tmp/v3.md" 3
+  run_case 'a clean cap round converges the loop' 0 -- record --state "$S" --input "$tmp/v3.md" --changed-files "$tmp/changed-both"
+  check 'the loop converged in the cap round of 3' "$(q '.verdict == "converged" and .iteration == 3')"
+  cp "$repo/$S" "$tmp/converged-at-cap"
+  run_case 'a small delta after a convergence at the cap is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-bar" --numstat "$tmp/ns-bar"
+  check 'a round after a convergence at the cap runs every lens' "$(q '.depth == "full" and .depth_reasons == ["past-the-cap"]')"
+  for extra in 'security Moderate:F_LOW_SEC' 'security Critical:F_SQL'; do
+    IFS=: read -r extra probe_changed <<<"$extra"
+    cp "$tmp/converged-at-cap" "$repo/$S"
+    report "$tmp/v4.md" 4 "${!probe_changed}"
+    run_case "a $extra after a convergence at the cap is recorded" 0 -- record --state "$S" --input "$tmp/v4.md" --changed-files "$tmp/changed-both"
+    check "a $extra reported after a convergence in the cap round gets the security rounds" "$(q '.verdict == "security-round" and .status == "open" and .iteration == 4')"
+  done
+  report "$tmp/v5.md" 5 "$F_SQL"
+  run_case 'the second security round after a convergence at the cap is recorded' 0 -- record --state "$S" --input "$tmp/v5.md" --changed-files "$tmp/changed-both"
+  check 'a security finding reported after a convergence at the cap escalates when the security rounds are spent' "$(q '.verdict == "escalated" and .escalation_reason == "security-rounds-spent" and .iteration == 5')"
+  for extra in 'Moderate outside security:F_STRUCT' 'Critical outside security:F_CRIT' 'security finding and a Moderate outside security:F_LOW_SEC F_STRUCT' 'clean round:'; do
+    IFS=: read -r extra probe_changed <<<"$extra"
+    cp "$tmp/converged-at-cap" "$repo/$S"
+    local blocks=()
+    for probe_numstat in $probe_changed; do blocks+=("${!probe_numstat}"); done
+    report "$tmp/v4.md" 4 ${blocks[@]+"${blocks[@]}"}
+    run_case "a $extra after a convergence at the cap is refused" 5 -- record --state "$S" --input "$tmp/v4.md" --changed-files "$tmp/changed-both"
+    check "a $extra after a convergence at the cap escalates with cap-spent-after-convergence and is not recorded" "$(jq -e '.status == "escalated" and .escalation_reason == "cap-spent-after-convergence" and .iteration == 3' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  done
+  # A convergence in the last security round leaves no security round to take.
+  manifest '{ "review": { "max-iterations": 1 } }'
+  cp "$tmp/security-round" "$repo/$S"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1b.md" --changed-files "$tmp/changed-both" >/dev/null)
+  report "$tmp/w3.md" 3
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/w3.md" --changed-files "$tmp/changed-render" >/dev/null)
+  report "$tmp/w4.md" 4 "$F_LOW_SEC"
+  run_case 'a security finding after a convergence in the last security round is refused' 5 -- record --state "$S" --input "$tmp/w4.md" --changed-files "$tmp/changed-both"
+  check 'a security finding after a convergence in the last security round escalates with cap-spent-after-convergence' "$(q '.escalation_reason == "cap-spent-after-convergence" and .iteration == 3')"
+
+  # --- an operator-authorised round past the cap: only the operator's own comment that names the round ---------
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1i.md" >/dev/null)
+  cp "$repo/$S" "$tmp/escalated-hard"
+  pr_comments "$(comment 31 OWNER 'I authorise round 2.')" "$(comment 32 CONTRIBUTOR 'I authorise round 2.')" \
+    "$(comment 33 OWNER $'authorise round 2\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 34 OWNER 'I authorise round 3.')" \
+    "$(comment 35 OWNER 'Please carry on with the review.')" "$(comment 36 OWNER 'I authorise round 23.')" \
+    "$(comment 37 MEMBER 'Authorized round 3, go ahead.')" "$(comment 38 OWNER 'authorise round 4')" "$(comment 39 NONE 'authorise round 2')"
+  report "$tmp/o2.md" 2 "$F_CRIT"
+  run_case 'a round after an escalation without an authorisation is refused' 5 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both"
+  local refused
+  for refused in '32:a CONTRIBUTOR author' '33:a comment with an agent marker' '34:a comment that names another round' \
+    '35:a comment that names no round' '36:a comment that names round 23' '39:an author with no association' '99:a comment the pull request does not carry'; do
+    run_case "an authorisation by ${refused#*:} is refused" 4 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}${refused%%:*}"
+    check "the refused authorisation by ${refused#*:} leaves the state untouched" "$(cmp -s "$tmp/escalated-hard" "$repo/$S" && echo 0 || echo 1)"
+  done
+  run_case 'an authorisation URL that is not a pull-request comment is a usage error' 1 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised https://evil.example/acme/shop/pull/7#issuecomment-31
+  mv "$tmp/pr.json" "$tmp/pr.saved"
+  run_case 'an authorisation the loader cannot load is refused' 4 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}31"
+  mv "$tmp/pr.saved" "$tmp/pr.json"
+  check 'every refused authorisation leaves the state untouched' "$(cmp -s "$tmp/escalated-hard" "$repo/$S" && echo 0 || echo 1)"
+  run_case 'the operator authorises a round after cap-reached-hard-blockers' 0 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}31"
+  check 'the authorised round is recorded with the operator as its actor' "$(jq -e --arg c "${C}31" '.iteration == 2 and .operator_rounds == [{iteration: 2, comment: $c, actor: "operator", association: "OWNER", after: "cap-reached-hard-blockers"}]' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  check 'an operator-authorised round never lifts a Critical from the convergence gate' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-hard-blockers" and ([.blocking[] | select(.severity == "critical")] | length) == 1')"
+  run_case 'the state after an authorised round stays valid' 0 -- evaluate --state "$S"
+  run_case 'one authorisation is never reused for the next round' 4 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}31"
+  report "$tmp/o3.md" 3
+  printf 'src/Foo/Total.php\nsrc/View/Render.php\nsrc/Foo/Bar.php\n' >"$tmp/changed-fixed"
+  run_case 'a member authorises the next round' 0 -- record --state "$S" --input "$tmp/o3.md" --changed-files "$tmp/changed-fixed" --operator-authorised "${C}37"
+  check 'a round the operator authorised converges when it leaves no blocking finding' "$(q '.verdict == "converged" and .iteration == 3')"
+  check 'every authorised round keeps its own entry' "$(jq -e '[.operator_rounds[].iteration] == [2, 3] and .operator_rounds[1].association == "MEMBER"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  jq -c '.operator_rounds[0].actor = "reviewer"' "$repo/$S" >"$tmp/forged" && cp "$tmp/forged" "$repo/$S"
+  run_case 'an operator round with another actor is invalid' 3 -- evaluate --state "$S"
+  cp "$tmp/security-round" "$repo/$S"
+  run_case 'an authorisation of a loop that did not escalate is refused' 4 -- record --state "$S" --input "$tmp/k1b.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}31"
+  check 'the refused authorisation of an open loop leaves the state untouched' "$(cmp -s "$tmp/security-round" "$repo/$S" && echo 0 || echo 1)"
+  # After the security rounds are spent, an authorised round still counts the security finding.
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1b.md" --changed-files "$tmp/changed-both" >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1c.md" --changed-files "$tmp/changed-both" >/dev/null)
+  run_case 'the operator authorises a round after security-rounds-spent' 0 -- record --state "$S" --input "$tmp/k1d.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}38"
+  check 'an operator-authorised round never lifts a security finding from the convergence gate' "$(q '.iteration == 4 and .verdict == "escalated" and .escalation_reason == "security-rounds-spent" and (.blocking | length) == 1 and .blocking[0].security == true')"
+  check 'the authorisation after security-rounds-spent is recorded' "$(jq -e '.operator_rounds[0].after == "security-rounds-spent"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  # After a convergence at the cap and after an undeferred Moderate, the operator may authorise one round too.
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/m1.md" >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/m2.md" --changed-files "$tmp/changed-both" >/dev/null 2>&1) || true
+  run_case 'the operator authorises a round after cap-spent-after-convergence' 0 -- record --state "$S" --input "$tmp/m2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}31"
+  check 'the round after cap-spent-after-convergence is recorded and its Moderate still needs a deferral' "$(q '.iteration == 2 and .verdict == "deferral-required"')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k2.md" >/dev/null)
+  (cd "$repo" && "$script" evaluate --state "$S" --final >/dev/null)
+  run_case 'the operator authorises a round after cap-reached-undeferred-blockers' 0 -- record --state "$S" --input "$tmp/o3.md" --changed-files "$tmp/changed-fixed" --operator-authorised "${C}31"
+  check 'the round after cap-reached-undeferred-blockers is recorded' "$(jq -e '.iteration == 2 and .operator_rounds[0].after == "cap-reached-undeferred-blockers"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+
   # --- scenario 11: recovery after an interrupted workflow -------------------------------------------------
   manifest '{}'
   rm -f "$repo/$S"
@@ -1209,6 +1383,32 @@ EOF
   printf '3 lines changed\n' >"$tmp/ns-prose"
   run_case 'a numstat list in another shape is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-prose"
   check 'a numstat list in another shape is never read as small' "$(q '.depth == "full" and .depth_reasons == ["delta-size-unknown"]')"
+  # A failed, partial, or mismatched diff must never read as a small delta: every probe below runs every lens.
+  printf 'src/Foo/Bar.php\nsrc/Foo/A.php\nsrc/Foo/B.php\n' >"$tmp/changed-3"
+  : >"$tmp/ns-empty"
+  printf '\n\n\n' >"$tmp/ns-blank"
+  numstat "$tmp/ns-partial" 1 1 src/Foo/Bar.php
+  numstat "$tmp/ns-other" 1 1 src/Foo/A.php src/Foo/B.php src/Foo/C.php src/Foo/D.php src/Foo/E.php src/Foo/F.php
+  printf '0\t0\tapp/{Http/Middleware/Authenticate.php => Support/Helper.php}\n' >"$tmp/ns-rename"
+  printf 'app/Support/Helper.php\n' >"$tmp/changed-renamed"
+  local probe probe_changed probe_numstat
+  for probe in 'empty:changed-3:ns-empty' 'blank:changed-3:ns-blank' 'partial:changed-3:ns-partial' 'other:changed-plain:ns-other' \
+    'rename:changed-renamed:ns-rename' 'nothing:changed-empty:ns-empty'; do
+    IFS=: read -r probe probe_changed probe_numstat <<<"$probe"
+    : >"$tmp/changed-empty"
+    run_case "the numstat probe '$probe' is scoped" 0 -- scope --state "$S" --changed-files "$tmp/$probe_changed" --numstat "$tmp/$probe_numstat"
+    check "the numstat probe '$probe' makes the delta size unknown and runs every lens" "$(q '.depth == "full" and (.depth_reasons | index("delta-size-unknown")) and .delta.lines == null')"
+  done
+  # The documented commands pass --no-renames, so a renamed security file reaches the classifier under its old path.
+  mkdir -p "$repo/app/Http/Middleware"
+  printf '<?php\n' >"$repo/app/Http/Middleware/Authenticate.php"
+  git -C "$repo" add app && git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m auth
+  git -C "$repo" mv app/Http/Middleware/Authenticate.php app/Http/Helper.php
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m rename
+  git -C "$repo" diff --no-renames --name-only HEAD~1..HEAD >"$tmp/changed-git"
+  git -C "$repo" diff --no-renames --numstat HEAD~1..HEAD >"$tmp/ns-git"
+  run_case 'a rename read with --no-renames is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-git" --numstat "$tmp/ns-git"
+  check 'a renamed security file read with --no-renames runs every lens' "$(q '.depth == "full" and (.depth_reasons | index("security-surface")) and .delta == {files: 2, lines: 2}')"
   numstat "$tmp/ns-auth" 2 1 src/Foo/Bar.php app/Http/Middleware/Authenticate.php
   run_case 'a small delta on a security path is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-auth" --numstat "$tmp/ns-auth"
   check 'a small delta on a security-relevant path runs every lens' "$(q '.scope == "full" and .depth == "full" and (.depth_reasons | index("security-surface")) and .delta == {files: 2, lines: 6}')"
