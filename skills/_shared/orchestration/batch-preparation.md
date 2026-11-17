@@ -74,6 +74,7 @@ time. Every worktree shares the test databases, so two heavy jobs at once give f
 (`Too many connections`, `Deadlock`, `Table doesn't exist`).
 - Run the `pr-gate` fixers before a push only as one `skills/_shared/run-gate.sh --exclusive` call,
   one `--command "<command>"` per entry, in the listed order.
+- Run the `fast-checks` before a push only as `skills/_shared/run-fast-checks.sh`.
 - Run the full gate only as `skills/_shared/run-gate.sh --tier full`.
 - Run every other heavy job only as `skills/_shared/run-gate.sh --exclusive --command "<command>"`
   (repeat `--command` for an ordered list): a dependency install (`composer install`, `npm ci`),

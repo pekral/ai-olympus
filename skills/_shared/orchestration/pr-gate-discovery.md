@@ -2,7 +2,7 @@
 
 Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** step 3 of *The end-to-end run* classifies the request as full delivery. Step 1 runs then. Steps 3 and 4 run in step 5, after the `Impl done` handoff.
 
-The `pr-gate` fixers run before every push, on every repository (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). That file owns when they run. This file states only how `krang` finds a project's fixers and proposes the manifest key. The manifest governs only after the proposal merges (`@rules/general/general.md` *Project manifest*).
+The `pr-gate` fixers run before every push, on every repository (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). That file owns when they run. This file states only how `krang` finds a project's fixers and proposes the manifest key. The manifest governs only after the proposal merges (`@rules/general/general.md` *Project manifest*). The same steps find and propose the project's `fast-checks` (*The fast checks* below).
 
 ## Steps
 
@@ -34,3 +34,13 @@ The `pr-gate` fixers run before every push, on every repository (`@skills/resolv
      - **The value.** The change sets `pr-gate` to `commands`: the recorded entries without the commands the head no longer declares, plus the commands it newly declares. Every other recorded entry stays.
      - **The body.** It names `added` and `removed`, and states that the proposal merges after the run's own pull request, because a command of an added tool exists only once that pull request merges.
    - A non-zero exit → write it into the brief and continue.
+
+## The fast checks
+
+The `fast-checks` run before every push on the changed files (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). `krang` runs steps 1 to 4 a second time for them, beside the `pr-gate` run, with these differences:
+
+- **Step 1** runs `skills/_shared/discover-fixers.sh --key fast-checks` and writes `fast-checks: <status>` into `## Gathered context`. The script finds the static analysis, the coding-standard checker, and the linters the project already installs, each as a `{"command", "files"}` entry. It assumes no tool the dependency files do not name.
+- **Step 2 and step 3** use the branch `chore/ai-olympus-fast-checks`, the worktree `.claude/worktrees/agent-impl-fast-checks-donatello`, and the ledger role `donatello:fast-checks`. The change is `composer config --json extra.ai-olympus.fast-checks '<the commands array>'`, with the lock-hash step of step 3, and the commit is `chore(manifest): propose the fast checks`.
+- **The body** states what the discovery searched and found, that the checks run before every push on the changed files only, and that they never replace CI or the pre-merge gate. It also states that the key does not opt the project into the machine gate record. It invites the owner to add the project's own fast tests that pin text, size, or structure, which no dependency file names.
+- **Step 4** runs `skills/_shared/discover-fixers.sh --key fast-checks --compare <base SHA> <head SHA>`, on the branch `chore/ai-olympus-fast-checks-<source-slug>`. A refresh keeps every entry the owner added by hand.
+- **A proposal never stops the delivery**, exactly as above. A project with no `fast-checks` keeps working as before: the implementer runs no fast check.

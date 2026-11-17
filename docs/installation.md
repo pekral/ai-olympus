@@ -71,6 +71,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
     "ai-olympus": {
       "gate": ["vendor/bin/castor php-fast-fix", "vendor/bin/castor php-check"],
       "pr-gate": ["composer fix"],
+      "fast-checks": [{ "command": "vendor/bin/phpstan analyse --no-progress", "files": "\\.php$" }, "vendor/bin/pest tests/Unit/PinTest.php"],
       "gate-fresh": ["composer audit"],
       "gate-evidence": "storage/logs/gates",
       "coverage": "vendor/bin/pest --coverage --min=100",
@@ -90,6 +91,7 @@ The same `extra.ai-olympus` object is the **project manifest**: settings the rul
 |---|---|---|
 | `gate` | quality gate (`skills/resolve-issue/references/quality-gates.md`) | The project's full quality gate, run in order. Replaces discovery through Phing or Composer scripts. |
 | `pr-gate` | `run-gate.sh --exclusive`, the implementer before each push; `discover-fixers.sh` | The project's fixers, and fixers only. They run before each push on every repository, and the implementer commits what they change. Checkers and tests stay with CI and the pre-merge gate on a repository with CI (a `.yml` or `.yaml` workflow under `.github/workflows/` on the default branch). Without CI, or after a CI billing failure, they run locally before each push too. When the key is absent, `krang` proposes it once through a pull request, with the fixers `skills/_shared/discover-fixers.sh` finds in `composer.json` and `package.json`. Absent: no fixer runs before a push. |
+| `fast-checks` | `run-fast-checks.sh`, the implementer before each push; `discover-fixers.sh --key fast-checks` | The project's own fast checks: static analysis, a coding-standard checker, linters, and fast tests that pin text, size, or structure. They run before each push on every repository, on the files the branch changes only, under the machine lock. A string runs as written; an object `{"command", "files"}` receives each changed file that matches the `files` regex as its own argument, and is skipped when none matches. They never replace CI or the pre-merge gate. When the key is absent, `krang` proposes it once through a pull request, with the checkers `discover-fixers.sh --key fast-checks` finds. Absent: no fast check runs before a push. |
 | `gate-fresh` | `run-gate.sh`, `verify-gate.sh` | Commands whose result is never reused from a record; they run fresh on every verification. Absent or empty: `composer audit` when `composer.lock` exists. |
 | `gate-evidence` | `run-gate.sh`, `verify-gate.sh` | The directory for gate records and logs. It must be relative, git-ignored, and hold no tracked file. Absent: `.claude/run/gates`. |
 | `coverage` | test and review skills | The project's coverage command. |
