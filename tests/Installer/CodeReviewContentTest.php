@@ -331,7 +331,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
         expect($skill)->toContain('Every CR run **posts a new review**');
         expect($skill)->toContain(
             'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
-                . '<reviewed head SHA> --meta-file <record-file> <findings-file>',
+                . '<reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>',
         );
         expect($skill)->not->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>');
         expect($skill)->not->toContain('updated in place');
@@ -526,7 +526,7 @@ test('GitHub PR comment templates use a compact AI-parseable header with severit
         expect($content)->toContain('- **Rule:**');
         expect($content)->toContain('- **Faulty Example:**');
         expect($content)->toContain('- **Suggested fix:**');
-        expect($content)->toContain('```php');
+        expect($content)->not->toContain('```php');
     }
 });
 
@@ -1721,30 +1721,31 @@ test(
     },
 );
 
-test('code-review rule requires a concrete SQL rewrite in Database Analysis, not just a category label (issue #132)', function (): void {
+test('code-review rule requires a sentence that names the change in Database Analysis, never a category label or a query (issue #132)', function (): void {
     $rule = codeReviewRuleContents();
 
     expect($rule)->toContain(
-        'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
-        . 'snippet implementing that fix per `@rules/sql/optimalize.md` (issue #132) — a category label alone '
-        . '(e.g. "query rewrite to reuse an existing index") is never sufficient by itself.',
+        'and one sentence that names the change per `@rules/sql/optimalize.md` (issue #132) — the query rewritten to reuse '
+        . 'an existing index, the batch operation, or the new index — with the table, the columns, and the existing function it uses. '
+        . 'A category label alone is never sufficient, and a query, a DDL statement, or a fenced block is never published',
     );
 });
 
-test('code-review-github and code-review-jira Output Rules require the same concrete SQL Database Analysis fix (issue #132)', function (): void {
+test('code-review-github and code-review-jira Output Rules require the same Database Analysis fix sentence (issue #132)', function (): void {
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
     foreach ([$github, $jira] as $content) {
         expect($content)->toContain(
-            'a one-sentence fix category, and a concrete SQL / query-builder rewrite, index DDL, or batch-operation '
-            . 'snippet implementing that fix per `@rules/sql/optimalize.md` (issue #132) — never a category label alone.',
+            'and one sentence that names the change (the query rewritten to reuse an existing index, the batch operation, or the new index, '
+            . 'with the table, the columns, and the existing function it uses) per `@rules/sql/optimalize.md` (issue #132) — never a category '
+            . 'label alone, and never a query, a DDL statement, or a fenced block.',
         );
     }
 });
 
 test(
-    'every code review template renders a concrete SQL Suggested Fix in Database Analysis, before Architecture and Coverage (issue #132)',
+    'every code review template renders a Suggested Fix sentence without SQL in Database Analysis, before Architecture and Coverage (issue #132)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $templates = [
@@ -1758,12 +1759,9 @@ test(
             $content = crContractText($template);
     
             expect($content)->toContain("\n## Database Analysis\n");
-            expect($content)->toContain('{one-sentence fix category — query rewrite to reuse an existing index');
-            expect($content)->toContain(
-                '-- concrete rewritten query, index DDL, or batch-operation replacement implementing the fix above '
-                . '(issue #132) — never a category label alone',
-            );
-            expect($content)->toContain("```sql\n");
+            expect($content)->toContain('{one sentence that names the change — the query rewritten to reuse an existing index');
+            expect($content)->toContain('no query, no DDL, no fenced block}');
+            expect($content)->not->toContain("```sql\n");
     
             $databaseAnalysisPos = strpos($content, "\n## Database Analysis\n");
             $architecturePos = strpos($content, "\n## Architecture\n");
@@ -1782,7 +1780,7 @@ test(
     },
 );
 
-test('full-tree grep finds every CR skill/template/rule references the concrete SQL Database Analysis contract (issue #132)', function (): void {
+test('full-tree grep finds every CR skill/template/rule references the Database Analysis fix contract (issue #132)', function (): void {
     $expectedFiles = [
         // The Database Analysis contract sits in the review-process half of the code-review rule
         // set, not in `general.md`, since the split that took the set under Claude Code's
@@ -4743,7 +4741,7 @@ test('every code-review report is published as a new comment on each destination
         ->and(preg_match_all($updateInPlace, $krang))->toBe(0);
     expect(substr_count($leonardo, 'skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>'))->toBe(0)
         ->and(substr_count($leonardo, 'post-inline-review.sh post <PR-NUMBER|URL> --commit-id <reviewed head SHA> --meta-file '
-            . '<record-file> <findings-file>'))->toBe(1)
+            . '<record-file> --walkthrough-file <walkthrough-file> <findings-file>'))->toBe(1)
         ->and(substr_count($leonardo, 'without `--create`'))->toBe(0);
     expect($rule)->toContain(
         '**That one report is new on every run.** On GitHub every run posts a new pull-request review and never edits an earlier one.',

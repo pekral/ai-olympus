@@ -77,10 +77,10 @@ Each finding includes:
 - concrete fix
 
 Each **Critical** and **Moderate** finding additionally includes:
-- **Faulty Example** — minimal endpoint / route / payload snippet that reproduces the issue (redact secrets/PII)
+- **Faulty Example** — one sentence that describes the endpoint, the route, or the payload that reproduces the issue, with no code (redact secrets/PII)
 - **Expected Behavior** — single assertable statement (status code, response shape, idempotent outcome, rejection before side effect)
 - **Test Hint** — one sentence pointing at the test layer (feature/HTTP, integration) and the entry point
-- **Suggested Fix** — minimal corrected snippet that complies with `@rules/api/general.md`, `@rules/php/core-standards.md`, and on Laravel projects `@rules/laravel/architecture.md`. Use `n/a — <reason>` only when a snippet adds nothing over the one-line fix.
+- **Suggested Fix** — one plain sentence that says what to change and where, with no snippet and no fenced block (`@rules/code-review/general.md` *A review carries no code*); the change complies with `@rules/api/general.md`, `@rules/php/core-standards.md`, and on Laravel projects `@rules/laravel/architecture.md`.
 
 These fields exist so `@skills/process-code-review/SKILL.md` can turn each finding into a reproducer test and apply the fix without re-deriving context.
 

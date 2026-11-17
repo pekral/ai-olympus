@@ -1,0 +1,34 @@
+[
+  {
+    "filename": "app/Http/Controllers/Workspace/InvitationController.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "app/Http/Controllers/Api/InvitationController.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "app/Mail/WorkspaceInvitation.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "app/Models/Invitation.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "database/migrations/2026_11_17_000000_create_invitations_table.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "app/Http/Controllers/InvitationAcceptController.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "routes/web.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  },
+  {
+    "filename": "tests/Feature/Workspace/InvitationTest.php",
+    "patch": "@@ -0,0 +1,40 @@\n+line1\n+line2\n+line3\n+line4\n+line5\n+line6\n+line7\n+line8\n+line9\n+line10\n+line11\n+line12\n+line13\n+line14\n+line15\n+line16\n+line17\n+line18\n+line19\n+line20\n+line21\n+line22\n+line23\n+line24\n+line25\n+line26\n+line27\n+line28\n+line29\n+line30\n+line31\n+line32\n+line33\n+line34\n+line35\n+line36\n+line37\n+line38\n+line39\n+line40"
+  }
+]

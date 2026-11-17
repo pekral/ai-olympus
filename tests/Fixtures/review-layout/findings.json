@@ -1,0 +1,32 @@
+[
+  {
+    "finding_id": "r-aaaaaaaaaaaaaaaa",
+    "severity": "Critical",
+    "title": "An invitation link can be used more than once",
+    "path": "app/Http/Controllers/InvitationAcceptController.php",
+    "line": 22,
+    "problem": "The controller finds the invitation by token and never marks it accepted, so a forwarded link adds another member.",
+    "impact": "Anyone who receives a forwarded link joins the workspace.",
+    "fix": "accept only an invitation that is not accepted yet, and mark it accepted in the same step."
+  },
+  {
+    "finding_id": "r-bbbbbbbbbbbbbbbb",
+    "severity": "Critical",
+    "title": "An expired invitation still lets the colleague in",
+    "path": "app/Http/Controllers/InvitationAcceptController.php",
+    "line": 22,
+    "problem": "`expires_at` is written but never read, so a link older than 7 days still adds a member (issue #593, *The rules*).",
+    "impact": "An expired link keeps working.",
+    "fix": "accept only an invitation whose expiry is still in the future."
+  },
+  {
+    "finding_id": "r-cccccccccccccccc",
+    "severity": "Moderate",
+    "title": "The daily invitation limit has its own counter",
+    "path": "app/Http/Controllers/Workspace/InvitationController.php",
+    "line": 27,
+    "problem": "`app/Support/RateLimit/DailyQuota.php:12` already counts a per-user daily quota, and the API entry point skips the new counter.",
+    "impact": "The two entry points count differently.",
+    "fix": "use the existing daily quota in both entry points, with a limit of 20 invitations per owner a day."
+  }
+]

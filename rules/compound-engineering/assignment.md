@@ -21,6 +21,17 @@ An agent that writes a task in a tracker today produces an implementation plan: 
 - **Every fact appears once.** A sentence in one part is never repeated in another part.
 - **A requirement keeps its number and its limit.** Business detail that the user can see stays: a limit of 50 characters, ten results per page, a file of 250,000 names.
 
+### The shape in a GitHub issue body — every section is a collapsed block
+
+This section is the one owner of how the five parts, *Dependencies*, and the preserved original text are written into the body of a GitHub issue. `@skills/create-issues-from-text/templates/issue-structure.md` renders it, and `@skills/create-issue/templates/issue-body.md` follows it for a preserved text.
+
+- **One collapsed block for each section.** A section is a `<details>` block whose `<summary>` is `<strong>{section name}</strong>`, followed by `<dl>`, `<dd>`, and `<br>`, then a blank line, the content, and a blank line before `</dd>`, `</dl>`, and `</details>`. The blank line lets Markdown render inside the block, and it is the same markup the blocks of a code review use (`@skills/code-review-github/templates/review-body.md`).
+- **The summary carries the section name, verbatim.** It is the heading of the section. The names are *What this is about*, *What the user must be able to do*, *The rules*, *What we are not doing now*, *Open questions for the owner*, *Dependencies*, and *Original assignment*.
+- **Order, and empty sections.** The order is the one above. A part with nothing to say is left out, and no block is empty.
+- **The preserved original is the last block, *Original assignment*.** Only the issue that carries the preserved original text has it (`@skills/create-issues-from-text/SKILL.md` *Constraints*).
+- **Every reader finds a section by its name.** This package writes `## Dependencies` for brevity when it names a section in its instructions. In a body it is the block with the summary `<strong>Dependencies</strong>`. A reader (`agents/krang.md` and `@skills/_shared/orchestration/batch-preparation.md` for the order of the work, `@skills/prepare-issue-context/SKILL.md`, and the assignment-conformance check) takes the content between the opening `<dd>` and the closing `</dd>` of that block. A body written before this shape, with a plain `## <name>` heading, is read the same way: the two forms hold the same sections.
+- **A tracker that renders no HTML takes plain headings.** The collapsed form is for a GitHub issue body only.
+
 ### What an assignment never contains
 
 - A class, file, route, table, index, or query name.

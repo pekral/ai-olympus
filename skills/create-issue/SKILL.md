@@ -40,4 +40,4 @@ metadata:
 
 ## Output Format
 
-Render the issue body from `skills/create-issue/templates/issue-body.md`.
+Render the issue body from `skills/create-issue/templates/issue-body.md`. Every section of the body is a collapsed block, as `@rules/compound-engineering/assignment.md` *The shape in a GitHub issue body — every section is a collapsed block* states. A preserved text that is already business-only takes the blocks of `@skills/create-issues-from-text/templates/issue-structure.md` instead.

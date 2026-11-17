@@ -220,10 +220,10 @@ When the findings fold into a code review, the CR severity scale has only Critic
 - recommended fix
 
 ### Reproducer fields (mandatory for every finding)
-- **Faulty Example** — minimal code snippet or attacker payload that reproduces the vulnerability (redact secrets, tokens, and PII)
+- **Faulty Example** — one sentence that describes the input, the request, or the state that reproduces the vulnerability, with no code and no runnable attacker payload (redact secrets, tokens, and PII)
 - **Expected Behavior** — single assertable security guarantee (rejection, authorization denial, escaped output, no side effect)
 - **Test Hint** — one sentence pointing at the test layer (unit, feature, HTTP) and entry point
-- **Suggested Fix** — minimal corrected code snippet that closes the vulnerability (parameterized query, authorization check, output escaping, signature verification, safer SDK call, etc.). Must comply with `@rules/php/core-standards.md`, `@rules/security/backend.md`, and, for Laravel projects, `@rules/laravel/architecture.md`. Use `n/a — <reason>` only when the fix is purely configurational (env var, web-server header) and is described in the Recommended Fix narrative.
+- **Suggested Fix** — one plain sentence that says what closes the vulnerability (a parameterized query, an authorization check, output escaping, signature verification, a safer SDK call, etc.), with no snippet and no fenced block (`@rules/code-review/general.md` *A review carries no code*). The change complies with `@rules/php/core-standards.md`, `@rules/security/backend.md`, and, for Laravel projects, `@rules/laravel/architecture.md`. Use `n/a — <reason>` only when the fix is purely configurational (env var, web-server header) and is described in the Recommended Fix narrative.
 
 These fields exist so `@skills/process-code-review/SKILL.md` can turn each finding into a regression test and apply the fix without re-deriving the attack vector. Every severity maps to Critical or Moderate in a code review, and a Moderate needs the same fields.
 

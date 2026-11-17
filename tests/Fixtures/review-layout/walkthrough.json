@@ -1,0 +1,62 @@
+{
+  "tldr": "A workspace owner can now invite a colleague by e-mail from the workspace settings or the API. The colleague opens a one-time link, sets a password and joins as a member; the owner sees open invitations and can cancel them. Two Critical findings block the merge: a link works more than once, and an expired link still lets the colleague in.",
+  "title": "Workspace invitations",
+  "description": "The change lets a workspace owner invite a colleague by e-mail. The colleague accepts through a one-time link and joins as a member. Invitations are stored with a token and an expiry, the owner can list and cancel open invitations, and both the web settings and the API can send them.",
+  "areas": [
+    {
+      "layer": "Send, list and cancel invitations",
+      "files": [
+        "app/Http/Controllers/Workspace/InvitationController.php",
+        "app/Http/Controllers/Api/InvitationController.php",
+        "app/Mail/WorkspaceInvitation.php"
+      ],
+      "summary": "The owner sends an invitation from the settings or the API; the e-mail carries the link. Open invitations are listed and can be cancelled."
+    },
+    {
+      "layer": "Store invitations",
+      "files": [
+        "app/Models/Invitation.php",
+        "database/migrations/2026_11_17_000000_create_invitations_table.php"
+      ],
+      "summary": "A new invitation record holds the e-mail, the token, the expiry and the acceptance time."
+    },
+    {
+      "layer": "Accept an invitation",
+      "files": [
+        "app/Http/Controllers/InvitationAcceptController.php",
+        "routes/web.php"
+      ],
+      "summary": "The link signs the colleague up and adds them to the workspace as a member."
+    },
+    {
+      "layer": "Tests",
+      "files": [
+        "tests/Feature/Workspace/InvitationTest.php"
+      ],
+      "summary": "Send and accept happy path."
+    }
+  ],
+  "effort": {
+    "level": 3,
+    "minutes": 25
+  },
+  "change_type": "Feature",
+  "diagram": "sequenceDiagram\n  participant Owner\n  participant InvitationController\n  participant Mail\n  participant Colleague\n  participant InvitationAcceptController\n  Owner->>InvitationController: Send invitation (e-mail)\n  InvitationController->>Mail: Queue invitation e-mail with token link\n  Mail-->>Colleague: Invitation e-mail\n  Colleague->>InvitationAcceptController: Open link with token\n  InvitationAcceptController-->>Colleague: Set password, join workspace",
+  "test_routes": [
+    {
+      "method": "GET",
+      "path": "/settings/workspace/invitations",
+      "try": "Send an invitation to a new e-mail, see it in the open list, cancel it."
+    },
+    {
+      "method": "POST",
+      "path": "/api/workspace/invitations",
+      "try": "Send the 21st invitation of the day and check it is refused."
+    },
+    {
+      "method": "GET",
+      "path": "/invitations/{token}",
+      "try": "Open the link, set a password, join; open the same link again and an 8-day-old link — both must show \"This invitation is no longer valid\"."
+    }
+  ]
+}

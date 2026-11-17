@@ -333,7 +333,7 @@ When a project publishes documentation describing what its product **promises** 
 
 **A mismatch is reported, never dropped, and it reaches both surfaces.** Four shapes count, and each is one finding: the change contradicts a documented behaviour; the change alters a documented behaviour and the assignment says nothing about the documentation; the change relies on a behaviour the documentation describes differently; or an acceptance criterion itself asks for a behaviour the documentation describes differently. The fourth shape names the criterion and where it comes from, and it never leaves the criterion unmet: the owner decides which side changes. Which of the three it is decides **which side changes** — the code or the article — never whether it is reported.
 
-- **On the pull-request comment** — a **Moderate** finding carrying the article URL, the sentence stating the documented behaviour, and the `file:line` that contradicts it. The **Suggested Fix** names the side that changes: the corrected code, or the article and the sentence that needs rewriting. Naming the discrepancy in prose does not satisfy the requirement.
+- **On the pull-request comment** — a **Moderate** finding carrying the article URL, the sentence stating the documented behaviour, and the `file:line` that contradicts it. The **Suggested Fix** names the side that changes: the code that needs the correction, or the article and the sentence that needs rewriting. Naming the discrepancy in prose does not satisfy the requirement.
 - **In the non-technical tracker comment** — as a *Clarifying questions* entry, in one plain-language sentence carrying the article URL, with no `file:line`, no snippet, and no severity label. On JIRA the entry closes the bullet it concerns: the acceptance criterion in the fourth shape, otherwise the retold finding (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The change ships either way; the answer decides whether the shipped behaviour is the intended one, which is exactly what a clarifying question is for.
 
 Routing it to the tracker is not optional. A mismatch visible only on the pull request never reaches the person who maintains the promise, and that is the only person who can decide which side is wrong. **Never silence one because the code looks deliberate** — a change that intentionally supersedes the documentation is the second shape above, and the article still has to follow.
@@ -392,7 +392,7 @@ A review raises questions from two sources. A reviewer asks one on the pull requ
 
 1. **Answer** — the direct reply in one or two sentences. Put *yes*, *no*, a number, or the name of the responsible code first.
 2. **Evidence** — a short list. Each item is one verified fact with its `file:line` link, command, or article URL.
-3. **Recommendation** — what to change, in which existing layer, and why it fits the application. Add a code snippet only when the snippet is the recommendation itself.
+3. **Recommendation** — what to change, in which existing layer, and why it fits the application. Never a code snippet: name the change in words (*A review carries no code* below).
 4. **Not verified** — every open point, with the step that settles it.
 
 Apply `@skills/agent-voice/SKILL.md` to the prose inside this shape. Never add severity labels, round numbers, diff fingerprints, or the names of review passes to an answer. The asker wanted an answer, not a report about the review.
@@ -592,14 +592,14 @@ Another round runs only when one of exactly two things changed since the reviewe
 
 **On a GitHub pull request the one report is one pull-request review, and no `cr-comment` pull-request comment is posted.** `skills/code-review-github/scripts/post-inline-review.sh` posts it, on every publishing run, a round with no finding included (`@skills/code-review-github/references/cr-wrapper-contract.md` *GitHub pull-request review*):
 
-1. **Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it. `@skills/code-review-github/templates/inline-review-comment.md` fixes its shape, from the findings-file keys `problem`, `impact`, and `faulty_example` (5 lines at most), or `kind: "dry"` with `existing` for a DRY finding.
-2. **Each finding that cannot anchor is one short visible line in the review body**: a finding outside the diff, and a functional gap with no line.
-3. **The review body opens with a visible TL;DR of the round.** It is the summary a person reads first. `@skills/code-review-github/templates/inline-review-comment.md` fixes its shape.
-   - It has one line for each finding that is open as an inline comment, posted in this round or already open from an earlier one, Critical first: the severity, the finding title, and a link to the commented line.
-   - Its last line is the CI result of the reviewed head: how many checks passed, failed, are pending, and were skipped, and the name of each failing check. The publisher reads the CI result from GitHub when it publishes, and a failed lookup says so instead of stopping the publish.
-   - The TL;DR is visible text, so the finding title follows *Visible review text names none of the package's own tooling* below. A check name in the CI line is the project's own text, so that check never reads the CI line. The hidden record does not change, and the merge gate never reads the TL;DR.
+1. **Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it. `@skills/code-review-github/templates/inline-review-comment.md` fixes its shape, from the findings-file keys `problem`, `impact`, and `fix`, or `kind: "dry"` with `existing` for a DRY finding.
+2. **Each finding that cannot anchor has no inline comment.** A finding outside the diff, and a functional gap with no line, is an entry of the Actionable comments block of the review body.
+3. **The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`.** The body shows these blocks in this order and nothing else: a summary paragraph of what the pull request changes (at most 4,000 characters, with no label and no heading), a collapsed **Merge Risk** block, a collapsed **Walkthrough** block, a collapsed **Where to test** block (only when the change touches a page or a route), and a collapsed **Actionable comments** block (only when a finding is published). It shows no pre-merge checks, no recent review information, no CI result, no button, and no share link.
+   - **The sources.** The review run derives the summary, the walkthrough, and the routes of **Where to test** from the diff, the assignment, and the route inventory of `@skills/security-review/SKILL.md` *Route Access of Changed Routes* (a second inventory is never built), and passes them to the wrapper as one JSON object. The Merge Risk grade and sentence come from the `Merge risk:` line of the hidden record. The Actionable comments come from the findings file.
+   - **The limit.** The wrapper counts the code points of the normalised summary and refuses a longer text (exit `1`, nothing posted). It never cuts a text.
+   - The body is visible text (*Visible review text names none of the package's own tooling* below), and the merge gate never reads it.
 4. **The machine record is hidden HTML in the review body.** It is this template's report — the header block, every published finding in full, and every section below — without the human prose of *Quick overview* below. It carries the `<!-- cr-comment:lines=… -->` and `<!-- cr-comment:actor=<login> -->` markers, so the trust test and every reader read it as before.
-5. **A security finding marked `do not file publicly` on a public repository reaches none of the four**, the TL;DR and the hidden record included: hidden HTML is public.
+5. **A security finding marked `do not file publicly` on a public repository reaches none of the four**, the visible body, the inline comments, and the hidden record included: hidden HTML is public.
 
 Every reader reads the newest trusted report across both homes: the review and a legacy `cr-comment` comment of an earlier run. The JIRA ticket, the Bugsnag error, and the non-technical tracker summary are unchanged.
 
@@ -649,7 +649,7 @@ The answers come from `@skills/security-review/SKILL.md` *Change Security Assess
 
 **Quick overview — the comment opens with it, and ends with a prompt to fix the open findings.** A review report published as a comment carries three parts in its header block, the section after it, and its last section. The merge gate still reads every value from the same report, because no value moves out of the header block or out of the technical sections.
 
-**On GitHub the review carries none of the three parts.** The report there is the hidden record of a pull-request review (*One published comment per review run* above), and hidden prose has no reader: the visible TL;DR, the short inline comments, and the visible lines are the human part of the review (*One published comment per review run* item 3). The record leaves out the `Overview:` line, `## Changed areas`, `## TL;DR`, and `## Prompt to fix all issues`, and keeps every other line and section.
+**On GitHub the review carries none of the three parts.** The report there is the hidden record of a pull-request review (*One published comment per review run* above), and hidden prose has no reader: the visible body, the short inline comments, and the Actionable comments are the human part of the review (*One published comment per review run* item 3). The record leaves out the `Overview:` line, `## Changed areas`, `## TL;DR`, and `## Prompt to fix all issues`, and keeps every other line and section.
 
 1. **`Overview:` is the first line of the header block.** It holds one or two sentences on what the change does, derived from the assignment and the diff, on one line. `Counts:`, `Merge verdict:` and `Merge risk:` follow in the same block, so the first lines of the comment answer what changed, what was found, whether it can merge, and how risky it is. The header block takes no table and no list, because `skills/_shared/cr-header.sh` rejects them there.
 2. **`## Changed areas` follows the header block.** It is one table with the columns `Layer`, `Files`, and `Summary`. A row is one changed area of `git diff --name-only <base>..<head>`: the layer (the project's own layer name, or the top-level directory), the changed paths or, past four paths, a count, and a one-line summary of the change there. Every changed file belongs to exactly one row. The section repeats none of the header lines.
@@ -708,11 +708,21 @@ A comment namespace that is not a code-review report — for example `mysql-repo
 
 **What every gate depends on:** the header block above carries each value a later round or the merge gate needs, and every publish writes it again in the new comment. *Incremental Review Scope* resolves the next round's baseline from `Reviewed revision:` and `Reviewed diff fingerprint:`, never from the number of comments. The previous round's finding dispositions travel in `@skills/process-code-review/SKILL.md`'s own loop state, never off the thread.
 
+### A review carries no code
+
+An agent that reviews a change never proposes code to paste in. This section is the one owner of the rule. Every output, template, and rule that mentions a fix points here and restates none of it.
+
+- **The fix is a plain sentence.** `Suggested Fix` (and `Fix:` in a comment) says what to change and where. It names the existing function, class, setting, or file in an inline code span. It never carries a replacement expression, a corrected block, a query, or a diff.
+- **The faulty example is a description.** `Faulty Example` states in a sentence the input, call, or state that triggers the failure. `@skills/process-code-review/SKILL.md` writes the reproducer test from it. An attack input is described, never a runnable payload.
+- **No fenced block and no `suggestion` block** in an inline comment, in the visible body, or in a field of a finding. The wrapper refuses both.
+- **Allowed:** an inline code span that names an existing identifier, path, or command; the mermaid sequence diagram of the Walkthrough; the fenced `text` block of `## Prompt to fix all issues`, which holds sentences; the advisory report of `casey`.
+- **A rule that asks for a snippet, a corrected block, or a replacement query is a Moderate finding.** A rule that says what a **Suggested Fix** names (the existing Action, the seam class, the rename) is correct.
+
 ### Visible review text names none of the package's own tooling
 
 A published review reads as the review of a person who works in the project. A name of this package's own tooling tells the reader nothing about the change, and it shows where the review came from. This section is the one owner of the rule. The review templates, the wrapper contract, and both platforms reference it.
 
-- **Visible text** is every text of a review that a person reads where it is published: an inline review comment, the TL;DR and a visible line of the review body, every rendered value of a review published as a comment, and the tracker summary of a review.
+- **Visible text** is every text of a review that a person reads where it is published: an inline review comment, the visible body of the review, every rendered value of a review published as a comment, and the tracker summary of a review.
 - **Package tooling** is a path or a name of this package's own scripts, skills, agents, rules, and installed directories:
   1. a path under the package's `skills/`, `rules/`, `agents/`, or `codex/agents/`, and an `@skills/…` or `@rules/…` reference;
   2. an installed directory: `.claude/`, `.codex/`, or `.agents/`;
