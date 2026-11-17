@@ -44,5 +44,5 @@ No tests were added: the change carries none. The full test suite is the CI resu
 
 <the block of skills/resolve-issue/templates/pull-request-body.md, with its standalone-run fallback>
 
-<!-- Folding: a section whose content is longer than 600 characters is a <details> block with its heading text as the summary; one of 600 or fewer stays an open ## section; Merge risk is never folded. rules/git/pull-requests.md PR Content Requirements owns the rule and the exact form. -->
+<!-- Folding: fold the sections as rules/git/pull-requests.md PR Content Requirements "Fold the long sections, and only those" states. -->
 <!-- Sections in this order; Merge risk comes first. Summary: a category only when it has a bullet; every value comes from the script output and the diff. Omit Major updates when no package has level major, and omit Other changed files when no path other than composer.json and composer.lock changed. -->

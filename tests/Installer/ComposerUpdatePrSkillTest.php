@@ -97,7 +97,7 @@ test('the pull request body renders the Testing section open under the same head
         ->and($template)->not->toContain("<details>\n")
         ->and($template)->not->toContain('## Testing')
         ->and($skill)->toContain('`## ✅ Testing`')
-        ->and($skill)->toContain('Fold a section into a `<details>` block only when its content is longer than 600 characters')
+        ->and($skill)->toContain('*Fold the long sections, and only those*')
         ->and($skill)->not->toContain('`## Testing`');
 });
 
