@@ -54,6 +54,13 @@ test('a visible text that names a shared script of the package by its path is re
         ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["skills/_shared/run-gate.sh"]}');
 });
 
+test('a package path written with HTML entities is refused as the name a reader sees', function (): void {
+    $process = runCheckVisibleReviewText('Coverage ran through <code>skills/&#95;shared/run-gate.sh</code>.', ['src/A.php']);
+
+    expect($process->getExitCode())->toBe(3)
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["skills/_shared/run-gate.sh"]}');
+});
+
 test('the installed package directories of Claude Code and Codex are refused', function (string $name): void {
     $process = runCheckVisibleReviewText("The step reads {$name}.", ['src/A.php']);
 

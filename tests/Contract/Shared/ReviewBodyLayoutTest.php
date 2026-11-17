@@ -357,8 +357,8 @@ test('Where to test is present when the change touches routes and absent when it
     $block = reviewLayoutBlock($with['visible'], 'Where to test');
 
     expect($block)->toContain("| Method and path | What to try |\n| :--- | :--- |\n")
-        ->and($block)->toContain('| `GET /invitations/{token}` | ')
-        ->and(preg_match_all('/^\| `(GET|POST|PUT|PATCH|DELETE) \/[^`]*` \| .+ \|$/m', $block))->toBe(3)
+        ->and($block)->toContain('| <code>GET /invitations/{token}</code> | ')
+        ->and(preg_match_all('#^\| <code>(GET|POST|PUT|PATCH|DELETE) /[^<]*</code> \| .+ \|$#m', $block))->toBe(3)
         ->and($without['exit'])->toBe(0, $without['stderr'])
         ->and($without['visible'])->not->toContain('Where to test')
         ->and(reviewLayoutBlocks($without['visible']))->toHaveCount(3)
@@ -370,7 +370,7 @@ test('every finding carries a Fix sentence, in the Actionable comments and in th
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
     expect(preg_match_all('/^\*\*Fix:\*\* \S.+\.$/m', $actionable))->toBe(3)
-        ->and(preg_match_all('/^\*\*(🔴|🟠) (Critical|Moderate) \d+ — .+\*\* · `[^`]+:\d+`$/m', $actionable))->toBe(3);
+        ->and(preg_match_all('~^\*\*(🔴|🟠) (Critical|Moderate) \d+ — .+\*\* · <code>[^<]+&#58;\d+</code>$~m', $actionable))->toBe(3);
 
     foreach ($review['comments'] as $comment) {
         expect($comment)->toMatch('/\n\n\*\*Fix:\*\* \S.+\.\n\n/');
@@ -489,30 +489,66 @@ test('no value of the walkthrough, the record, or a finding renders as HTML or b
     }
 
     foreach ($review['comments'] as $comment) {
-        expect((string) preg_replace('/<!-- cr-inline:(actor|finding)=\S+ -->/', '', $comment))->not->toContain('<')
+        expect((string) preg_replace(['/<!-- cr-inline:(actor|finding)=\S+ -->/', '#</?code>#'], '', $comment))->not->toContain('<')
             ->and($comment)->not->toContain('![');
     }
 });
 
-test('an identifier in a code span shows as written, and markup outside a span stays encoded, byte for byte', function (): void {
+test(
+    'an identifier in a code span is a code element with entity-encoded content, and markup outside a span stays encoded, byte for byte',
+    function (): void {
+        $findings = reviewLayoutFindings();
+        $findings[0] = [
+            ...$findings[0],
+            'fix' => 'call `$this->authorize()` before the query. An unclosed `tick before <img src=x> stays text.',
+            'impact' => 'A guest reads every order of `App\Models\Order`.',
+            'problem' => '`App\Http\Controllers\OrderController` returns `Collection<int, Order>` to a guest.',
+            'title' => '`$this->authorize()` is never called',
+        ];
+        $walkthrough = reviewLayoutJson('walkthrough.json');
+        $areas = $walkthrough['areas'];
+        assert(is_array($areas) && is_array($areas[0]));
+        $areas[0] = [...$areas[0], 'summary' => 'Returns `Collection<int, Order>` and `a|b` | c.'];
+        $review = renderReview(['areas' => $areas], $findings);
+        $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+
+        expect($review['exit'])->toBe(0, $review['stderr'])
+            ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-code-spans.md', $actionable))
+            ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-code-spans.md', $review['comments'][0]))
+            ->and($review['visible'])->toContain('|Returns <code>Collection&#60;int, Order&#62;</code> and <code>a&#124;b</code> &#124; c.|')
+            ->and($actionable)->toContain('<code>$this-&#62;authorize&#40;&#41;</code>')
+            ->and($actionable)->toContain('<code>App&#92;Http&#92;Controllers&#92;OrderController</code>')
+            ->and($actionable)->toContain('An unclosed &#96;tick before &lt;img src=x&gt; stays text.');
+    },
+);
+
+test('a backtick in a link target, a link title, or a table cell leaves no backtick and no raw tag, byte for byte', function (): void {
+    $target = 'See [the guide](u`) `z`<details open><summary>Merge Risk: Low</summary></details><img src=https://e/x.png>`.';
+    $title = 'See [x](a "`") `y`<b>bold</b>` z.';
     $findings = reviewLayoutFindings();
-    $findings[0] = [
-        ...$findings[0],
-        'fix' => 'call `$this->authorize()` before the query. An unclosed `tick before <img src=x> stays text.',
-        'impact' => 'A guest reads every order of `App\Models\Order`.',
-        'problem' => '`App\Http\Controllers\OrderController` returns `Collection<int, Order>` to a guest.',
-        'title' => '`$this->authorize()` is never called',
-    ];
+    $findings[0] = [...$findings[0], 'fix' => $target, 'impact' => $title, 'problem' => $target, 'title' => 'Link ' . $title];
     $walkthrough = reviewLayoutJson('walkthrough.json');
     $areas = $walkthrough['areas'];
     assert(is_array($areas) && is_array($areas[0]));
-    $areas[0] = [...$areas[0], 'summary' => 'Returns `Collection<int, Order>` and `a|b` | c.'];
-    $review = renderReview(['areas' => $areas], $findings);
+    $areas[0] = [...$areas[0], 'layer' => $title, 'summary' => $target];
+    $review = renderReview(['areas' => $areas, 'diagram' => null], $findings);
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+    $layoutTags = '#</?(details|summary|strong|code|dl|dd)>|<br>#';
 
     expect($review['exit'])->toBe(0, $review['stderr'])
-        ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-code-spans.md', $actionable))
-        ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-code-spans.md', $review['comments'][0]))
-        ->and($review['visible'])->toContain('|Returns `Collection<int, Order>` and `a\|b` &#124; c.|')
-        ->and($actionable)->toContain('An unclosed &#96;tick before &lt;img src=x&gt; stays text.');
+        ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-link-backticks.md', $actionable))
+        ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-link-backticks.md', $review['comments'][0]))
+        ->and($review['visible'])->not->toContain('`')
+        ->and((string) preg_replace($layoutTags, '', $review['visible']))->not->toContain('<');
+
+    foreach (explode("\n", $review['visible']) as $line) {
+        if (str_starts_with($line, '|')) {
+            expect(substr_count($line, '|'))->toBe(3, $line);
+        }
+    }
+
+    foreach ($review['comments'] as $comment) {
+        expect($comment)->not->toContain('`')
+            ->and((string) preg_replace(['/<!-- cr-inline:(actor|finding)=\S+ -->/', '#</?code>#'], '', $comment))->not->toContain('<');
+    }
 });

@@ -1,4 +1,4 @@
-🟠 **Problem:** `app/Support/RateLimit/DailyQuota.php:12` already counts a per-user daily quota, and the API entry point skips the new counter.
+🟠 **Problem:** <code>app/Support/RateLimit/DailyQuota.php&#58;12</code> already counts a per-user daily quota, and the API entry point skips the new counter.
 
 **Impact:** The two entry points count differently.
 

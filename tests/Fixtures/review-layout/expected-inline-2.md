@@ -1,4 +1,4 @@
-🔴 **Problem:** `expires_at` is written but never read, so a link older than 7 days still adds a member (issue #593, *The rules*).
+🔴 **Problem:** <code>expires&#95;at</code> is written but never read, so a link older than 7 days still adds a member (issue #593, *The rules*).
 
 **Impact:** An expired link keeps working.
 

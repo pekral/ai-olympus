@@ -74,12 +74,14 @@
 #      anything else, a failed check included, is public. On a public repository a finding marked
 #      `do_not_file_publicly` is withheld: it is in no inline comment and in no line of the Actionable comments block,
 #      and not in its count. The flag holds for the finding id, so every entry that shares the id of a marked entry is
-#      withheld too. A record, a walkthrough, or a published finding that names a withheld finding (its finding id or its
-#      title) is refused, nothing is posted (exit 1): hidden HTML is public too. The check reads the decoded string values
+#      withheld too, and it is set on every such entry before a duplicate of one id, path, and line is dropped. A record,
+#      a walkthrough, or a published finding that names a withheld finding (its finding id, or the title of any entry of
+#      it) is refused, nothing is posted (exit 1): hidden HTML is public too. The check reads the decoded string values
 #      of the JSON inputs and compares one scan key, the words a reader sees: control characters, every invisible
 #      character (Unicode category Cf and every default ignorable code point), and the inline Markdown markup (backtick,
-#      `*`, `_`, `~`, link brackets and targets) removed, case folded, every kind of whitespace collapsed. So a JSON escape,
-#      an invisible character, or other markup hides no title.
+#      `*`, `_`, `~`, the brackets and the target of every link form, a link definition included) removed, every kind of
+#      whitespace collapsed, and the Unicode case folded. So a JSON escape, an invisible character, or other markup hides
+#      no title.
 #   4. Read the changed lines of the pull request. A finding whose line (or any line of its range) is not in the diff,
 #      or that has no line, is reported as `outside_diff`: it has no inline comment, because GitHub rejects the whole
 #      review for one comment off the diff, and it stays in the Actionable comments block.
@@ -104,10 +106,12 @@
 #   sense of `rules/code-review/general.md` *Authorship trust*: a reader never takes the comment as a trusted reviewer
 #   request. The icon is 🔴 for Critical and 🟠 for Moderate.
 #   Every value the body or an inline comment renders goes through one encoder (`inert` in JQ_DEFS). A closed code span
-#   on one line shows its content as written (`<!` excepted, and a pipe in a table cell becomes `\|`). Outside it, `&`,
-#   `<`, `>`, `|`, and `\` become HTML entities, `![` loses its image markup, a backtick that closes no span on its line
-#   becomes an entity, and a line loses its indent, a leading `#`, and a run of `-`, `=`, `*`, or `_`. No value renders
-#   as HTML, an image, a table cell break, a heading, or a code block. The checks
+#   on one line becomes a `<code>` element whose content encodes every character Markdown or a GitHub autolink reads as
+#   syntax as an entity, so it renders as written. Outside it, `&`, `<`, `>`, `|`, and `\` become HTML entities, `![`
+#   loses its image markup, a backtick that closes no span on its line becomes an entity, and a line loses its indent, a
+#   leading `#`, and a run of `-`, `=`, `*`, or `_`. The output holds no literal backtick, so GitHub pairs no code span
+#   another way, a backtick in a link target included. No value renders as HTML, an image, a table cell break, a
+#   heading, or a code block. The checks
 #   of the walkthrough and the findings (line starts, fences, the diagram comment marker) read the text after the control
 #   characters are removed. The mermaid diagram is the one value rendered as written, inside its fence.
 #   The body shows nothing but the layout of templates/review-body.md: the TL;DR, the Merge Risk block, the Walkthrough
@@ -206,37 +210,44 @@ def isint: type == "number" and . == floor and . >= 1;
 def isstr($max): type == "string" and length >= 1 and length <= $max;
 def printable: explode | map(select((. >= 32 and . != 127) or . == 10 or . == 9)) | implode;
 # inert: the one encoder of every value the visible body or an inline comment renders. It removes the control
-# characters and works line by line. A closed code span (a single backtick, its content, and the next single backtick of
-# the same line) keeps its content as written, because a code span renders no markup: only `<!` is encoded there, so no
-# raw reader finds a comment marker, and in a table cell (inert_as(true)) a pipe becomes `\|`. Outside a closed span it
-# encodes `&`, `<`, `>`, `|`, and `\` as HTML entities, `![` as `&#33;[`, and a backtick that closes no span on its line
-# (an unpaired single backtick and every run of two or more) as `&#96;`. Then it takes the markup off the start of the
-# line: the indent, a heading `#`, and a line made only of `-`, `=`, `*`, or `_`. No value then renders as HTML, a
-# comment marker, an image, a table cell break, a heading, a setext underline, an indented code block, or a code span
-# that reaches past its own line.
+# characters and works line by line. Outside a code span it encodes `&`, `<`, `>`, `|`, and `\` as HTML entities and `![`
+# as `&#33;[`. A closed code span (a single backtick, its content, and the next single backtick of the same line) becomes
+# a `<code>` element whose content encodes every character Markdown reads as inline syntax (`&`, `<`, `>`, `\`, `|`, a
+# backtick, `*`, `_`, `~`, `[`, `]`, `(`, `)`) and the characters that start a GitHub autolink (`:`, and the dot of
+# `www.`) as a numeric entity. A backtick that closes no span (an unpaired single backtick and every run of two or more)
+# becomes `&#96;`. So the output holds no literal backtick: no code span is left for GitHub to pair another way, no link,
+# emphasis, or autolink starts or ends inside a code element, and an entity renders as its character, so
+# `$this->authorize()` and `Collection<int, Order>` read as written. Then it takes the markup off the start
+# of the line: the indent, a heading `#`, and a line made only of `-`, `=`, `*`, or `_`. No value then renders as HTML, a
+# comment marker, an image, a table cell break, a heading, a setext underline, or an indented code block.
 def inert_text: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\|"; "&#124;") | gsub("\\\\"; "&#92;") | gsub("!\\["; "&#33;[");
-def inert_span($cell): gsub("<!"; "&lt;!") | if $cell then gsub("\\\\(?=\\\\*\\|)"; "&#92;") | gsub("\\|"; "\\|") else . end;
-def inert_line($cell):
+def inert_code: gsub("(?<c>[&<>\\\\|`*_~\\[\\]():])"; "&#\(.c | explode[0]);") | gsub("(?<w>[Ww]{3})\\."; "\(.w)&#46;");
+def inert_line:
   [scan("`+|[^`]+")] as $parts
   | ([$parts[] | select(. == "`")] | length) as $singles
   | reduce $parts[] as $p ({out: "", inside: false, seen: 0};
-      if $p == "`" and .seen < ($singles - $singles % 2) then .out += $p | .inside = (.inside | not) | .seen += 1
-      elif .inside then .out += (if ($p | startswith("`")) then $p else ($p | inert_span($cell)) end)
+      if $p == "`" and .seen < ($singles - $singles % 2) then .out += (if .inside then "</code>" else "<code>" end) | .inside = (.inside | not) | .seen += 1
+      elif .inside then .out += ($p | inert_code)
       elif ($p | startswith("`")) then .out += ($p | gsub("`"; "&#96;"))
       else .out += ($p | inert_text) end)
   | .out;
-def inert_as($cell): printable
+def inert: printable
   | split("\n")
-  | map(sub("^[ \t]+"; "") | inert_line($cell) | if test("^#") or test("^[-=*_][-=*_ \t]*$") then "&#\(explode[0]);" + .[1:] else . end)
+  | map(sub("^[ \t]+"; "") | inert_line | if test("^#") or test("^[-=*_][-=*_ \t]*$") then "&#\(explode[0]);" + .[1:] else . end)
   | join("\n");
-def inert: inert_as(false);
 # scan_key: the text the withheld-finding check compares, the same for a title and for every scanned value: the words a
 # reader sees. It removes the control characters, every invisible character (Unicode category Cf and every default
-# ignorable code point), and the inline Markdown markup (a backtick, `*`, `_`, `~`, and the brackets and the target of a
-# link), folds the case, and collapses every kind of whitespace.
+# ignorable code point), and the inline Markdown markup: an inline link and a full or collapsed reference link become
+# their text (nested brackets in the text and balanced or escaped parentheses in the target included), every remaining
+# bracket goes (a shortcut reference link and a link definition), and a backtick, `*`, `_`, and `~` go. Every kind of
+# whitespace collapses. The comparison folds the Unicode case (`test(...; "i")`).
 def scan_key: printable | gsub("[\\p{Cf}\\p{Default_Ignorable_Code_Point}]"; "")
-  | gsub("\\[(?<t>[^\\]]*)\\]\\([^)]*\\)"; .t) | gsub("\\[(?<t>[^\\]]*)\\]\\[[^\\]]*\\]"; .t) | gsub("[`*_~]"; "")
-  | ascii_downcase | gsub("[\\s\\p{Z}]+"; " ");
+  | gsub("\\[(?<t>(?:[^\\[\\]]|(?<b>\\[(?:[^\\[\\]]|\\g<b>)*\\]))*)\\](?<p>\\((?:\\\\.|[^()\\\\]|\\g<p>)*\\))"; .t)
+  | gsub("\\[(?<t>(?:[^\\[\\]]|(?<b>\\[(?:[^\\[\\]]|\\g<b>)*\\]))*)\\]\\[[^\\]]*\\]"; .t)
+  | gsub("[\\[\\]`*_~]"; "")
+  | gsub("[\\s\\p{Z}]+"; " ");
+# re_quote: a literal string as an Oniguruma pattern, every ASCII punctuation character escaped.
+def re_quote: gsub("(?<c>[!-/:-@\\[-`{-~])"; "\\\(.c)");
 def nocode: type == "string" and ((test("```|~~~")) | not);
 def relpath: type == "string" and isstr(500) and (startswith("/") | not) and (explode | all(. >= 32 and . != 127)) and ((split("/") | index("..")) == null);
 JQ
@@ -278,7 +289,6 @@ req(type == "array"; "the findings document must be a JSON array")
         finding_id,
         severity,
         title: (.title | inert),
-        title_key: (.title | scan_key | ltrimstr(" ") | rtrimstr(" ")),
         path,
         line,
         start_line,
@@ -293,6 +303,10 @@ req(type == "array"; "the findings document must be a JSON array")
       }
     | req([.problem, .impact, .fix, .existing] | all(marker_free); "a text field must not contain an agent marker")
   )
+# The flag holds for the finding id, and no merge drops it: every entry of a marked id carries it before the dedup below
+# keeps one entry per id, path, and line.
+| ([.[] | select(.withhold) | .finding_id] | unique) as $withheld_ids
+| map(.withhold = (.finding_id | IN($withheld_ids[])))
 | reduce .[] as $f ({seen: {}, out: []};
     ("\($f.finding_id) \($f.path) \($f.line)") as $k
     | if .seen[$k] then . else .seen[$k] = true | .out += [$f] end)
@@ -363,7 +377,7 @@ JQ
 # The data of the Walkthrough block, checked against the files of the pull request: a row names changed files only.
 IFS= read -r -d '' JQ_WALK <<'JQ' || true
 def oneline: printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
-def cell: oneline | inert_as(true);
+def cell: oneline | inert;
 def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
@@ -388,11 +402,11 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
     title: (.title | if . == null then null else oneline | inert end),
     description: (.description | oneline | inert),
     areas: [.areas[] | {layer: (.layer | cell), summary: (.summary | cell),
-        files: ((.files | length) as $n | (.files[0:4] | map("`" + gsub("`"; "") + "`" | inert_as(true)) | join(", ")) + (if $n > 4 then " and \($n - 4) more" else "" end))}],
+        files: ((.files | length) as $n | (.files[0:4] | map("`" + gsub("`"; "") + "`" | inert) | join(", ")) + (if $n > 4 then " and \($n - 4) more" else "" end))}],
     effort: "\(.effort.level) (\(.effort.level | level_name)) | ~\(.effort.minutes) minutes",
     change_type,
     diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
-    routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert_as(true)) | \(.try | cell) |"]
+    routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"]
   }
 | req((.tldr | length) >= 1 and (.tldr | length) <= 4000; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 4000, so write it shorter")
 JQ
@@ -615,16 +629,16 @@ cmd_post() {
   # Hidden HTML is public, and the walkthrough and the other findings are visible: a record, a walkthrough, or a published
   # finding that names a withheld finding by its id or its title is refused. The check reads the decoded string values
   # of the JSON inputs, never their bytes, so a JSON escape (`\/`, `\"`, `\\`, `\uXXXX`) hides nothing, and it
-  # compares one scan key (scan_key) on both sides. It reads every entry whose id is not withheld.
+  # compares one scan key (scan_key) on both sides, with the Unicode case folded. It reads the title of every raw entry of
+  # a withheld id, a duplicate the dedup dropped included, and every raw entry whose id is not withheld.
   local leaked
   leaked="$(jq -n -r --rawfile meta "$TMP_ROOT/meta.md" --slurpfile walk "$walk_file" --slurpfile raw "$TMP_ROOT/findings.raw" \
     --slurpfile classified "$TMP_ROOT/classified.json" "$JQ_DEFS"$'\n''
-    [$classified[0][] | select(.class == "withheld") | .f] as $withheld
-    | [$withheld[] | .finding_id] as $ids
+    ([$classified[0][] | select(.class == "withheld") | .f.finding_id] | unique) as $ids
     | ([$meta] + [$walk[0] | .. | strings] + [$raw[0][] | select((.finding_id | IN($ids[])) | not) | .. | strings]
        | map(scan_key) | join("\n")) as $m
-    | [$withheld[] | .finding_id as $id | .title_key as $t
-       | select(($m | contains($id)) or ($t != "" and ($m | contains($t)))) | $id]
+    | [$raw[0][] | select(.finding_id | IN($ids[])) | {id: .finding_id, t: (.title | scan_key | ltrimstr(" ") | rtrimstr(" "))}
+       | select(.id as $id | .t as $t | ($m | test($id | re_quote; "i")) or ($t != "" and ($m | test($t | re_quote; "i")))) | .id]
     | unique | join(",")')"
   [[ -z "$leaked" ]] || die 1 "the review record, the walkthrough, or a published finding names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of every public text on a public repository, nothing was published"
 
@@ -943,7 +957,7 @@ The change lets a workspace owner invite a colleague by e-mail.
 
 |Layer / File(s)|Summary|
 |:---|:---|
-|**Controllers** <br> ${tk}src/A.php${tk}|Send and accept an invitation.|
+|**Controllers** <br> <code>src/A.php</code>|Send and accept an invitation.|
 
 **Estimated code review effort:** 3 (Moderate) | ~25 minutes
 **Change:** Feature
@@ -969,8 +983,8 @@ ${bt}
 
 | Method and path | What to try |
 | :--- | :--- |
-| ${tk}GET /invitations/{token}${tk} | Open the link and set a password. |
-| ${tk}POST /workspace/invitations${tk} | Send an invitation from the settings. |
+| <code>GET /invitations/{token}</code> | Open the link and set a password. |
+| <code>POST /workspace/invitations</code> | Send an invitation from the settings. |
 
 </dd>
 </dl>
@@ -982,15 +996,15 @@ ${bt}
 <dd>
 <br>
 
-**🔴 Critical 1 — Unescaped output** · ${tk}src/A.php:11${tk}
+**🔴 Critical 1 — Unescaped output** · <code>src/A.php&#58;11</code>
 The value reaches the page unescaped.
 **Fix:** Escape the value before it is printed.
 
-**🟠 Moderate 1 — Query in a loop** · ${tk}src/A.php:10${tk}
+**🟠 Moderate 1 — Query in a loop** · <code>src/A.php&#58;10</code>
 One query per row.
 **Fix:** Load the rows with one query.
 
-**🟠 Moderate 2 — Duplicate query** · ${tk}src/A.php:100${tk}
+**🟠 Moderate 2 — Duplicate query** · <code>src/A.php&#58;100</code>
 Outside the diff.
 **Fix:** Reuse the existing query.
 
@@ -1003,7 +1017,7 @@ Outside the diff.
   check 'the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments' \
     "$(yes_if review_has '.body | (index("Workspace owners can now") < index("Merge Risk:</strong>")) and (index("Merge Risk:</strong>") < index("<strong>Walkthrough</strong>")) and (index("<strong>Walkthrough</strong>") < index("<strong>Where to test</strong>")) and (index("<strong>Where to test</strong>") < index("<strong>Actionable comments"))')"
   check 'the Where to test block lists the method and the path of each route with one line to try' \
-    "$(yes_if review_has '.body | contains("| Method and path | What to try |\n| :--- | :--- |\n| `GET /invitations/{token}` | Open the link and set a password. |\n| `POST /workspace/invitations` | Send an invitation from the settings. |\n")')"
+    "$(yes_if review_has '.body | contains("| Method and path | What to try |\n| :--- | :--- |\n| <code>GET /invitations/{token}</code> | Open the link and set a password. |\n| <code>POST /workspace/invitations</code> | Send an invitation from the settings. |\n")')"
   check 'the visible body shows no CI line, pre-merge checks, recent review info, button, or share link' \
     "$(yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | test("(?i)CI\\*\\*|pre-merge|recent review|explain change|share|re-?run|\\*\\*TL;DR") | not')"
   check 'the only fenced block of the visible body is the sequence diagram' \
@@ -1022,7 +1036,7 @@ Outside the diff.
     "$(yes_if review_has '.body | startswith("Workspace owners") and contains("<summary><strong>Merge Risk:</strong>") and contains("<strong>Walkthrough</strong>") and (contains("Actionable comments") | not)')"
   run_post "[$f_out]"
   check 'only outside-diff findings post one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if out_has '.review_url != null and (.posted | length) == 0' || echo no)"
-  check 'an outside-diff finding is a line of the Actionable comments block' "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Duplicate query** · `src/A.php:100`\nOutside the diff.\n**Fix:** Reuse the existing query.")')"
+  check 'an outside-diff finding is a line of the Actionable comments block' "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Duplicate query** · <code>src/A.php&#58;100</code>\nOutside the diff.\n**Fix:** Reuse the existing query.")')"
   local f_gap_noline
   f_gap_noline="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Criterion 2 unmet\",\"problem\":\"The export ignores the selection.\",\"impact\":\"Every order is exported.\",\"fix\":\"Export only the selected orders.\"}"
   run_post "[$f_gap_noline]"
@@ -1095,7 +1109,7 @@ JSON
   check 'an open thread on the same line is not duplicated' "$(yes_if review_has '.comments == []')"
   check 'the open finding is reported as already_open' "$(yes_if out_has ".already_open[0].finding_id == \"$id1\"")"
   check 'a finding already open as an inline comment stays in the Actionable comments block' \
-    "$(yes_if review_has '.body | contains("<strong>Actionable comments (1)</strong>") and contains("**🔴 Critical 1 — Unescaped output** · `src/A.php:11`")')"
+    "$(yes_if review_has '.body | contains("<strong>Actionable comments (1)</strong>") and contains("**🔴 Critical 1 — Unescaped output** · <code>src/A.php&#58;11</code>")')"
 
   # 7. a resolved thread, a forged marker by another author, or another line do not block a new comment
   cat >"$tmp/threads.2" <<JSON
@@ -1165,20 +1179,22 @@ JSON
     problem: "Out <details open> | ![o](https://e/o.png)", impact: "i", fix: "Fix <b>x</b> | f"}')"
   GH_FILES_FILE="$tmp/files.markup.json" WALK_FILE="$tmp/walk-markup.json" META_FILE="$tmp/meta-markup.md" run_post "[$f_markup_in,$f_markup_out]"
   check 'a walkthrough, a record, and findings that hold markup are published as text' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
-  check 'the visible body holds no HTML tag outside a code span but the tags of the layout' \
-    "$([[ "$(visible_of | sed -E 's/`[^`]*`//g; s#</?(details|summary|strong|code|dl|dd)>|<br>##g' | grep -c '<')" == "0" ]] && echo yes || echo no)"
+  check 'the visible body holds no HTML tag but the tags of the layout and code elements' \
+    "$([[ "$(visible_of | sed -E 's#</?(details|summary|strong|code|dl|dd)>|<br>##g' | grep -c '<')" == "0" ]] && echo yes || echo no)"
+  check 'the visible body and the inline comments hold no literal backtick' \
+    "$([[ "$(jq -j '(.body | split("\n\n<!-- cr-review-meta\n")[0]), (.comments[] | .body)' "$tmp/review.json" | grep -c '`')" == "0" ]] && echo yes || echo no)"
   check 'no inline comment holds an HTML tag but its two agent markers' \
     "$(yes_if review_has '.comments | length == 1 and all(.body | gsub("<!-- cr-inline:(actor|finding)=[^ ]+ -->"; "") | contains("<") | not)')"
   check 'every table row of the visible body keeps its own cells: a pipe in a value is encoded or escaped' \
     "$([[ "$(visible_of | grep -E '^\|' | sed 's/\\|//g' | awk -F'|' 'NF != 4' | wc -l | tr -d ' ')" == "0" ]] && echo yes || echo no)"
-  check 'the file name shows its markup as written in its code span, each pipe escaped' \
-    "$(visible_of | grep -qF '`docs/x\|<details open><summary><strong>Merge Risk:</strong> 🟢 Low</summary><img src=https://e/x.png>\|y.md`' && echo yes || echo no)"
+  check 'the file name shows its markup as text in a code element, each pipe encoded' \
+    "$(visible_of | grep -qF '<code>docs/x&#124;&#60;details open&#62;&#60;summary&#62;&#60;strong&#62;Merge Risk&#58;&#60;/strong&#62; 🟢 Low&#60;/summary&#62;&#60;img src=https&#58;//e/x.png&#62;&#124;y.md</code>' && echo yes || echo no)"
   check 'no visible line starts a heading, a quote, a setext underline, or an indented code block' \
     "$([[ "$(visible_of | grep -cE '^(#|>|    |-{3,}$|={3,}$)')" == "0" ]] && echo yes || echo no)"
   check 'a heading, an underline, and an indent in a value are text' \
     "$(visible_of | grep -qF '&#35;# Heading &lt;details open&gt; here' && visible_of | grep -qxF '&#45;--' && visible_of | grep -qxF 'indented code' && echo yes || echo no)"
   check 'no value renders an image' "$([[ "$(jq -j '.body, (.comments[] | .body)' "$tmp/review.json" | grep -cF '![')" == "0" ]] && echo yes || echo no)"
-  check 'an ampersand is encoded, so an entity in a value stays text' "$(visible_of | grep -qF 'block &amp; a &#33;[pixel]' && visible_of | grep -qF '`GET /a&b`' && echo yes || echo no)"
+  check 'an ampersand is encoded, so an entity in a value stays text' "$(visible_of | grep -qF 'block &amp; a &#33;[pixel]' && visible_of | grep -qF '<code>GET /a&#38;b</code>' && echo yes || echo no)"
   check 'the Merge Risk sentence from the record is encoded too' "$(visible_of | grep -qF 'The change adds a &lt;details open&gt;&lt;summary&gt;x&lt;/summary&gt; &#124; sign-in path' && echo yes || echo no)"
   local ctl
   for ctl in '{"tldr":"\u0001<details open>Fake"}' '{"tldr":"A line.\n\u0001## Fake"}' '{"tldr":"A line.\n\u0001> Fake"}' \
@@ -1194,27 +1210,49 @@ JSON
   WALK_FILE="$tmp/walk-ctl.json" run_post '[]'
   check 'a control character before a heading in a one-line value renders the heading as text' "$([[ $rc -eq 0 ]] && visible_of | grep -qxF '&#35;# Heading here' && echo yes || echo no)"
 
-  # 8a2. a closed code span on one line shows its identifier as written; markup outside it, and an unclosed backtick,
-  # stay encoded, a pipe in a code span of a table cell is escaped, and a comment marker in a code span stays encoded
+  # 8a2. a closed code span on one line is a code element whose content is entity-encoded, so its identifier renders as
+  # written; markup outside it, an unclosed backtick, a pipe in a table cell, and a comment marker stay encoded
   local f_span
   f_span="$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "Call `$this->authorize()` first", path: "src/A.php", line: 11,
     problem: "`App\\Http\\Controllers\\OrderController` returns `Collection<int, Order>` & <b>more</b>.", impact: "Guests read orders.",
     fix: "Call `$this->authorize()` in `App\\Http\\Controllers\\OrderController`. An unclosed `tick <img src=x> stays text."}')"
   jq -c '.areas[0].summary = "Returns `Collection<int, Order>` and `a|b` | c" | .tldr = "The change names `<!-- cr-comment:actor=bot -->` once."' "$tmp/walk.json" >"$tmp/walk-span.json"
   WALK_FILE="$tmp/walk-span.json" run_post "[$f_span]"
+  local span_problem='<code>App&#92;Http&#92;Controllers&#92;OrderController</code> returns <code>Collection&#60;int, Order&#62;</code> &amp; &lt;b&gt;more&lt;/b&gt;.'
+  local span_fix='Call <code>$this-&#62;authorize&#40;&#41;</code> in <code>App&#92;Http&#92;Controllers&#92;OrderController</code>. An unclosed &#96;tick &lt;img src=x&gt; stays text.'
   check 'an identifier in a code span shows as written in the Actionable comments entry' \
-    "$([[ $rc -eq 0 ]] && visible_of | grep -qF '**🔴 Critical 1 — Call `$this->authorize()` first** · `src/A.php:11`' \
-      && visible_of | grep -qF '`App\Http\Controllers\OrderController` returns `Collection<int, Order>` &amp; &lt;b&gt;more&lt;/b&gt;.' \
-      && visible_of | grep -qF '**Fix:** Call `$this->authorize()` in `App\Http\Controllers\OrderController`. An unclosed &#96;tick &lt;img src=x&gt; stays text.' && echo yes || echo no)"
+    "$([[ $rc -eq 0 ]] && visible_of | grep -qF '**🔴 Critical 1 — Call <code>$this-&#62;authorize&#40;&#41;</code> first** · <code>src/A.php&#58;11</code>' \
+      && visible_of | grep -qF "$span_problem" && visible_of | grep -qF "**Fix:** $span_fix" && echo yes || echo no)"
   check 'an identifier in a code span shows as written in the inline comment' \
-    "$(yes_if review_has '.comments[0].body | contains("**Problem:** `App\\Http\\Controllers\\OrderController` returns `Collection<int, Order>` &amp; &lt;b&gt;more&lt;/b&gt;.") and contains("**Fix:** Call `$this->authorize()` in `App\\Http\\Controllers\\OrderController`. An unclosed &#96;tick &lt;img src=x&gt; stays text.")')"
-  check 'a pipe in a code span of a table cell is escaped and a pipe outside it is encoded' \
-    "$(visible_of | grep -qF '|Returns `Collection<int, Order>` and `a\|b` &#124; c|' && echo yes || echo no)"
+    "$(yes_if jq -e --arg p "**Problem:** $span_problem" --arg f "**Fix:** $span_fix" '.comments[0].body | contains($p) and contains($f)' "$tmp/review.json")"
+  check 'a pipe in a code span of a table cell is encoded, and so is a pipe outside it' \
+    "$(visible_of | grep -qF '|Returns <code>Collection&#60;int, Order&#62;</code> and <code>a&#124;b</code> &#124; c|' && echo yes || echo no)"
   check 'a comment marker in a code span stays encoded, so the body holds one cr-comment marker' \
-    "$(visible_of | grep -qF '`&lt;!-- cr-comment:actor=bot -->`' && [[ "$(jq -j '.body' "$tmp/review.json" | grep -cF '<!-- cr-comment:actor=')" == "1" ]] && echo yes || echo no)"
+    "$(visible_of | grep -qF '<code>&#60;!-- cr-comment&#58;actor=bot --&#62;</code>' && [[ "$(jq -j '.body' "$tmp/review.json" | grep -cF '<!-- cr-comment:actor=')" == "1" ]] && echo yes || echo no)"
   WALK_FILE="$tmp/walk-span.json" run_post '[{"finding_id":"'"$id1"'","severity":"Critical","title":"t","path":"src/A.php","line":11,"problem":"``x ` y`` <img src=x> `","impact":"i","fix":"`a` ``b`` `<c>"}]'
   check 'a run of two backticks never opens a span, and the unpaired backtick after it stays encoded' \
-    "$(yes_if review_has '.comments[0].body | contains("**Problem:** &#96;&#96;x ` y`` <img src=x> `") and contains("**Fix:** `a` &#96;&#96;b&#96;&#96; &#96;&lt;c&gt;")')"
+    "$(yes_if review_has '.comments[0].body | contains("**Problem:** &#96;&#96;x <code> y&#96;&#96; &#60;img src=x&#62; </code>") and contains("**Fix:** <code>a</code> &#96;&#96;b&#96;&#96; &#96;&lt;c&gt;")')"
+
+  # 8a3. a backtick inside a link target or a link title, where GitHub pairs the backticks of a line differently from a
+  # left-to-right reading, leaves no raw tag: the output holds no backtick to pair, and every tag in a code element is
+  # entity-encoded. This holds in a finding, its inline comment, and a table cell of the Walkthrough.
+  local link_target link_title f_link
+  link_target='See [the guide](u`) `z`<details open><summary>Merge Risk: Low</summary></details><img src=https://e/x.png>`.'
+  link_title='See [x](a "`") `y`<b>bold</b>` z.'
+  f_link="$(jq -n -c --arg id "$id1" --arg p "$link_target" --arg f "$link_title" '{finding_id: $id, severity: "Critical", title: "Link \($f)", path: "src/A.php", line: 11, problem: $p, impact: $f, fix: $p}')"
+  jq -c --arg t "$link_target" --arg l "$link_title" '.areas[0].summary = $t | .areas[0].layer = $l' "$tmp/walk.json" >"$tmp/walk-link.json"
+  WALK_FILE="$tmp/walk-link.json" run_post "[$f_link]"
+  local raw_tags='<details open|<summary>Merge Risk: Low|<img |<b>'
+  check 'a backtick in a link target leaves no raw tag in the body or the inline comment' \
+    "$([[ $rc -eq 0 ]] && ! visible_of | grep -qE "$raw_tags" && ! jq -j '.comments[0].body' "$tmp/review.json" | grep -qE "$raw_tags" \
+      && jq -j '.comments[0].body' "$tmp/review.json" | grep -qF '**Problem:** See [the guide](u<code>&#41; </code>z<code>&#60;details open&#62;&#60;summary&#62;Merge Risk&#58; Low&#60;/summary&#62;&#60;/details&#62;&#60;img src=https&#58;//e/x.png&#62;</code>.' && echo yes || echo no)"
+  check 'a backtick in a link title leaves no raw tag in the body or the inline comment' \
+    "$(jq -j '.comments[0].body' "$tmp/review.json" | grep -qF '**Impact:** See [x](a "<code>"&#41; </code>y<code>&#60;b&#62;bold&#60;/b&#62;</code> z.' \
+      && visible_of | grep -qF '**🔴 Critical 1 — Link See [x](a "<code>"&#41; </code>y<code>&#60;b&#62;bold&#60;/b&#62;</code> z.**' && echo yes || echo no)"
+  check 'a backtick in a link target of a table cell leaves no raw tag and keeps the cells' \
+    "$(visible_of | grep -E '^\|' | grep -qF 'See [the guide](u<code>&#41; </code>z<code>&#60;details open&#62;' \
+      && [[ "$(visible_of | grep -E '^\|' | awk -F'|' 'NF != 4' | wc -l | tr -d ' ')" == "0" ]] \
+      && [[ "$(jq -j '(.body | split("\n\n<!-- cr-review-meta\n")[0]), (.comments[] | .body)' "$tmp/review.json" | grep -v '^```' | grep -c '`')" == "0" ]] && echo yes || echo no)"
 
   # 8b. a finding with no inline comment carries the author mention as the last line of its Actionable comments entry;
   # a finding with an inline comment carries it there only
@@ -1223,9 +1261,9 @@ JSON
   f_dry_out="{\"finding_id\":\"$id5\",\"severity\":\"Moderate\",\"title\":\"Repeated total\",\"problem\":\"The total is computed again.\",\"kind\":\"dry\",\"existing\":\"app/Totals.php:42\",\"author\":\"@octocat\"}"
   run_post "[$f_mod,$f_test_gap,$f_dry_out]"
   check 'an outside-diff finding with an author ends its Actionable comments entry with the mention' \
-    "$(yes_if review_has '.body | contains("**🟠 Moderate 2 — Missing test** · `src/A.php:100`\nNo test covers the export.\n**Fix:** Add a feature test for the export.\n@octocat\n")')"
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 2 — Missing test** · <code>src/A.php&#58;100</code>\nNo test covers the export.\n**Fix:** Add a feature test for the export.\n@octocat\n")')"
   check 'a DRY finding with no line and an author ends its entry with the mention' \
-    "$(yes_if review_has '.body | contains("**🟠 Moderate 3 — Repeated total**\nThe total is computed again.\n**Fix:** Use the existing implementation in `app/Totals.php:42` instead of repeating the logic.\n@octocat\n")')"
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 3 — Repeated total**\nThe total is computed again.\n**Fix:** Use the existing implementation in <code>app/Totals.php&#58;42</code> instead of repeating the logic.\n@octocat\n")')"
   check 'a finding with an inline comment carries the mention in the comment and not in its entry' \
     "$(yes_if review_has '(.body | contains("**Fix:** Load the rows with one query.\n\n")) and (.comments[0].body | contains("\n\n@octocat\n\n"))')"
   check 'the visible body mentions the author once for each finding with no inline comment' \
@@ -1262,11 +1300,13 @@ JSON
   check 'a walkthrough and findings that do not name the withheld finding are published' "$([[ $rc -eq 0 ]] && out_has ".withheld[0].finding_id == \"$id3\"" && echo yes || echo no)"
 
   # 8c2. the check compares the words a reader sees: Markdown inline markup (a code span, bold, emphasis, strikethrough,
-  # a link) and every invisible character (Unicode category Cf, a default ignorable code point, a no-break space) hide no
-  # title, on either side
-  local f_wh_span f_wh_plain wh_walk
+  # an inline link with parentheses in its target, a shortcut reference link and its definition), every invisible
+  # character (Unicode category Cf, a default ignorable code point, a no-break space), and a Unicode case difference hide
+  # no title, on either side
+  local f_wh_span f_wh_plain f_wh_accent wh_walk
   f_wh_span="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reaches the export page at `/admin/export`", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f", do_not_file_publicly: true}')"
   f_wh_plain="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reaches the export page at /admin/export", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f", do_not_file_publicly: true}')"
+  f_wh_accent="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reaches the éxport page", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f", do_not_file_publicly: true}')"
   # Each case is the title kind and the TL;DR as a JSON string, so an invisible character is written as its escape.
   for wh_walk in \
     'span|"Note: Guest reaches the export page at /admin/export."' \
@@ -1274,13 +1314,16 @@ JSON
     'plain|"Note: ~~Guest~~ reaches the _export_ page at [/admin/export](https://e/x)."' \
     'plain|"Note: Guest reaches the export⁢ page at /admin/export."' \
     'plain|"Note: Guest reaches the ex͏port page at /admin/export."' \
-    'plain|"Note: Guest reaches the export page at /admin/export."'; do
+    'plain|"Note: Guest reaches the export page at /admin/export."' \
+    'plain|"Note: [Guest reaches](https://e/(a)) the export page at /admin/export."' \
+    'plain|"Note: [Guest reaches] the export page at /admin/export.\n\n[guest reaches]: https://e/x"' \
+    'accent|"Note: GUEST REACHES THE ÉXPORT PAGE."'; do
     jq -c --argjson t "${wh_walk#*|}" '.tldr = $t' "$tmp/walk.json" >"$tmp/walk-markup-leak.json"
-    if [[ "${wh_walk%%|*}" == "span" ]]; then
-      WALK_FILE="$tmp/walk-markup-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_wh_span,$f_in]"
-    else
-      WALK_FILE="$tmp/walk-markup-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_wh_plain,$f_in]"
-    fi
+    case "${wh_walk%%|*}" in
+      span) WALK_FILE="$tmp/walk-markup-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_wh_span,$f_in]" ;;
+      accent) WALK_FILE="$tmp/walk-markup-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_wh_accent,$f_in]" ;;
+      *) WALK_FILE="$tmp/walk-markup-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_wh_plain,$f_in]" ;;
+    esac
     check "a walkthrough that names a withheld title in other markup or with an invisible character is refused: ${wh_walk#*|}" \
       "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
   done
@@ -1300,6 +1343,24 @@ JSON
   f_names_span="$(jq -n -c --arg id "$id2" '{finding_id: $id, severity: "Moderate", title: "Related", path: "src/A.php", line: 100, problem: "See **guest reads** the `export`.", impact: "i", fix: "f"}')"
   GH_PRIVATE_VALUE=false run_post "[$f_wh_a,$f_wh_b,$f_names_span]"
   check 'a published entry beside two entries of a withheld id that names the title in markup is refused' \
+    "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
+
+  # 8c4. no dedup drops the flag: two entries of one id on one path and line are withheld whichever of them carries the
+  # flag, and the title of the duplicate the dedup dropped is scanned too
+  local f_dup_plain f_dup_flag f_dup_other dup_order
+  f_dup_plain="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reads the export", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f"}')"
+  f_dup_flag="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reads the export", path: "src/A.php", line: 10, problem: "p2", impact: "i2", fix: "f2", do_not_file_publicly: true}')"
+  for dup_order in "$f_dup_plain,$f_dup_flag" "$f_dup_flag,$f_dup_plain"; do
+    GH_PRIVATE_VALUE=false run_post "[$dup_order,$f_mod]"
+    check "two entries of one id on one path and line are withheld whichever of them carries the flag: ${dup_order:0:60}" \
+      "$([[ $rc -eq 0 ]] && out_has "(.withheld | length) == 1 and .withheld[0].finding_id == \"$id3\" and (.posted | length) == 1" \
+        && review_has ".comments | length == 1 and all(.[]; .body | contains(\"$id3\") | not)" \
+        && review_has '.body | (contains("Guest reads the export") | not) and contains("<strong>Actionable comments (1)</strong>")' && echo yes || echo no)"
+  done
+  f_dup_other="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Admin token leaks", path: "src/A.php", line: 10, problem: "p2", impact: "i2", fix: "f2", do_not_file_publicly: true}')"
+  jq -c '.tldr = "The change stops the admin token leaks."' "$tmp/walk.json" >"$tmp/walk-dup.json"
+  WALK_FILE="$tmp/walk-dup.json" GH_PRIVATE_VALUE=false run_post "[$f_dup_plain,$f_dup_other]"
+  check 'the title of a dropped duplicate of a withheld id is scanned too' \
     "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
 
   # 9. a failed write exits 3 and leaves a note line, never an external-write line
@@ -1390,6 +1451,8 @@ JSON
   f_tool="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"Coverage ran through skills/_shared/run-gate.sh.\",\"impact\":\"i\",\"fix\":\"f\"}"
   run_post "[$f_tool]"
   check 'an inline comment that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling skills/_shared/run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"Coverage ran through \`skills/_shared/run-gate.sh\`.\",\"impact\":\"i\",\"fix\":\"f\"}]"
+  check 'a package path in a code span, whose content is entity-encoded, is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling skills/_shared/run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"The grade of classify-risk.sh is wrong.\",\"impact\":\"i\",\"fix\":\"f\"}]"
   check 'an Actionable comments entry that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Run run-gate.sh again.\"}]"
@@ -1429,7 +1492,7 @@ JSON
   # 13. the DRY shape, the author mention, and a Moderate icon
   local f_dry shape_dry
   f_dry="{\"finding_id\":\"$id5\",\"severity\":\"Moderate\",\"title\":\"Repeated total\",\"path\":\"src/A.php\",\"line\":12,\"problem\":\"The total is computed again.\",\"kind\":\"dry\",\"existing\":\"app/Totals.php:42\",\"author\":\"@octocat\"}"
-  shape_dry="🟠 **Moderate · DRY:** This repeats the logic of ${tk}app/Totals.php:42${tk}. Please unify it and call the existing implementation instead.
+  shape_dry="🟠 **Moderate · DRY:** This repeats the logic of <code>app/Totals.php&#58;42</code>. Please unify it and call the existing implementation instead.
 
 @octocat
 
@@ -1441,7 +1504,7 @@ JSON
   check 'a Moderate finding carries the orange icon, the Fix line, and the author mention line before the markers' \
     "$(yes_if review_has '.comments[] | select(.line == 10) | .body | startswith("🟠 **Problem:** One query per row.\n\n**Impact:** The page slows down with the row count.\n\n**Fix:** Load the rows with one query.\n\n@octocat\n\n<!-- cr-inline:actor=bot -->")')"
   check 'a DRY finding is an Actionable comments entry whose Fix names the existing implementation' \
-    "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Repeated total** · `src/A.php:12`\nThe total is computed again.\n**Fix:** Use the existing implementation in `app/Totals.php:42` instead of repeating the logic.")')"
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Repeated total** · <code>src/A.php&#58;12</code>\nThe total is computed again.\n**Fix:** Use the existing implementation in <code>app/Totals.php&#58;42</code> instead of repeating the logic.")')"
 
   # 12. resolve: only the threads of this actor for the given ids, and a failed mutation is a failure
   cat >"$tmp/threads.1" <<JSON
