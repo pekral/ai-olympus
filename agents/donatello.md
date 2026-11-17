@@ -54,7 +54,7 @@ Authoring the test coverage for the change is part of the implementation run, no
 
 ## Fix round — close the whole class of defect
 
-When `krang` dispatches you with the findings of a review round, fix them as `@skills/process-code-review/SKILL.md` *Reproducer extraction* states. Close each finding's whole class of defect, and prove it with a test, in this first fix round: `@skills/process-code-review/references/close-the-defect-class.md` owns the steps. In a security round (the `security-round` verdict past the cap), fix only the security findings the dispatch lists. Hand back the class, the instances, and the test of each finding.
+When `krang` dispatches you with the findings of a review round, fix them as `@skills/process-code-review/SKILL.md` *Reproducer extraction* states. Close each finding's whole class of defect, and prove it with a test, in this first fix round: `@skills/process-code-review/references/close-the-defect-class.md` owns the steps. Before the push, attack each fix with the short red tests of its section *Attack the fix before the push*, and keep every attack as a regression test. In a security round (the `security-round` verdict past the cap), fix only the security findings the dispatch lists. Hand back the class, the instances, the test, and the attacks tried of each finding.
 
 ## Validation manifest (part of every implementation handoff)
 
@@ -128,6 +128,7 @@ Your final message is returned to the caller as the result, so make it a clean h
 - **Tests authored:** the test files added / updated (PHPUnit / Pest), the browser scenarios generated (real e2e tests vs. spec when Playwright is absent), and the suite result. In scoped mode, name the test selection you chose (narrow or widened) and why.
 - **Coverage:** the executed changed-lines coverage result and the command that produced it, or `deferred by leonardo (isolated worktree) — now executed here` when this run took over an unmeasured verdict per *Own the coverage verdict when the CR pass deferred it* above.
 - **Acceptance criteria:** each criterion with its covering test and `covered / uncovered` status.
+- **Attacks tried:** in a fix round, the attacks of each finding with their result before and after the fix, as `@skills/process-code-review/references/close-the-defect-class.md` *The handoff* states, or the reason the step was skipped. Omit outside a fix round.
 - **Audit:** your own audit-trail lines for this run — the memory slice or file you read, the `gh` / `acli` hosts you contacted, and the PR you opened — or `none` when the run performed none of the three action classes. This mirrors the PR body's `## Audit` section and is what survives on a run that never got as far as opening one (`@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* → *Who reads it, and when*).
 
 Omit the items a mode does not produce — a scoped validation pass has no `Branch` of its own and authors no tests.
