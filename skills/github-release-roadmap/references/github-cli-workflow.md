@@ -119,6 +119,8 @@ gh api --method POST "/repos/OWNER/REPO/milestones" \
 gh issue create --repo OWNER/REPO --title "<title>" --body "<body>" --label "<existing-label>"
 ```
 
+Triage each issue created here, and only those, right after it is created, as `@rules/compound-engineering/tracker.md` *Triage every GitHub issue an agent creates, right after it is created* states. A failed triage never fails the creation, and the report names the untriaged issue.
+
 **Project** — copy a template when one was approved, otherwise create blank, then link it:
 
 ```bash

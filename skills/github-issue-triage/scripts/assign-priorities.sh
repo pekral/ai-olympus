@@ -4,11 +4,18 @@
 # the missing labels.
 #
 # Usage:
-#   assign-priorities.sh [--dry-run]
+#   assign-priorities.sh [--dry-run] [--issue <number>]...
 #   assign-priorities.sh --self-test
 #
 # Options:
 #   --dry-run    print the label changes without writing anything to GitHub
+#   --issue N    limit the walk to the named issue; repeat it for several. The
+#                derivation, the add / remove / keep rules, and the output are
+#                exactly those of the full walk, and no other issue is read or
+#                written. A named issue that is not open is reported as skipped.
+#                An agent that creates an issue triages exactly that issue with
+#                this option (`rules/compound-engineering/tracker.md` *Triage
+#                every GitHub issue an agent creates, right after it is created*).
 #   --self-test  run the offline test suite (no network, `gh` is stubbed)
 #
 # Type derivation (deterministic, first match wins):
@@ -61,11 +68,11 @@
 #   does not name the repository it wrote to cannot be audited afterwards.
 #
 # Exit codes:
-#   0  every open issue is triaged (or reported as skipped / kept)
+#   0  every open issue (or every issue named with --issue) is triaged, or reported as skipped / kept
 #   1  wrong usage, or a failing self-test
 #   2  required tool not found (gh, jq)
-#   3  a `gh` call failed (auth, permissions, API error). The run stops at that
-#      issue; the labels already applied stand and a re-run resumes from there,
+#   3  a `gh` call failed (auth, permissions, API error, a named issue that does not
+#      exist). The run stops at that issue; the labels already applied stand and a re-run resumes from there,
 #      because the pass is idempotent.
 
 set -euo pipefail
@@ -75,19 +82,22 @@ set -euo pipefail
 # actually reaches the cap is reported, never silently truncated.
 OPEN_ISSUE_LIMIT=500
 
+AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
+
 # Types that a title prefix can derive. `security` and `question` are topic
 # labels: they are never derived and never removed.
 PRIMARY_TYPES="bug enhancement documentation test refactor chore marketing plan"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: assign-priorities.sh [--dry-run]
+Usage: assign-priorities.sh [--dry-run] [--issue <number>]...
        assign-priorities.sh --self-test
 
   Derives the type and priority of every open issue from its title (falling
   back to the issue body) and applies the missing labels.
 
   --dry-run    print the planned label changes, write nothing
+  --issue N    limit the walk to issue N (repeatable); nothing else is touched
   --self-test  run the offline test suite (derivation table + end-to-end run
                against a stubbed gh)
 EOF
@@ -265,8 +275,8 @@ end_to_end_cases() {
 
   cat >"$stub/gh" <<'STUB'
 #!/usr/bin/env bash
-# Stand-in for the three `gh` calls the triage makes: `repo view` and
-# `issue list` are answered from the fixture, and every `issue edit` argv is
+# Stand-in for the `gh` calls the triage makes: `repo view`, `issue list`, and
+# `issue view` are answered from the fixture, and every `issue edit` argv is
 # recorded — pipe-joined, one call per line — so the test asserts the exact
 # write and not merely the printed plan.
 set -euo pipefail
@@ -277,6 +287,9 @@ case "${1:-} ${2:-}" in
     ;;
   'issue list')
     cat "$GH_STUB_ISSUES"
+    ;;
+  'issue view')
+    jq -ce --argjson n "$3" '[.[] | select(.number == $n)] | if length == 0 then error("no such issue") else .[0] | . + {state: (.state // "OPEN")} end' "$GH_STUB_ISSUES"
     ;;
   'issue edit')
     shift 2
@@ -425,6 +438,90 @@ STUB
     '[{"number":21,"title":"fix(core): boom","body":"","labels":[{"name":"priority: critical"}]},{"number":22,"title":"fix(core): bang","body":"","labels":[{"name":"bug"},{"name":"priority: high"}]},{"number":23,"title":"A free-form note","body":"nothing to match","labels":[]}]' '' \
     'assign-priorities.sh: 3 open issues — 1 changed, 1 already triaged, 1 skipped, 1 kept a manual priority' \
     '21|--add-label|bug'
+
+  # --issue limits the walk to the named issues: issue 1 is untriaged too, and stays untouched.
+  local two_open='[{"number":1,"title":"fix(core): one","body":"","labels":[]},{"number":2,"title":"feat(core): two","body":"","labels":[]}]'
+
+  e2e '--issue — only the named issue is written' "$two_open" '--issue 2' \
+    'assign-priorities.sh: 1 named issues — 1 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
+    '2|--add-label|enhancement|--add-label|priority: medium'
+
+  e2e '--issue — repeated, each named issue is written and the others are not' \
+    '[{"number":1,"title":"fix(core): one","body":"","labels":[]},{"number":2,"title":"feat(core): two","body":"","labels":[]},{"number":3,"title":"docs: three","body":"","labels":[]}]' \
+    '--issue 3 --issue 1' \
+    'assign-priorities.sh: 2 named issues — 2 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
+    '3|--add-label|documentation|--add-label|priority: low
+1|--add-label|bug|--add-label|priority: high'
+
+  e2e '--issue — dry-run writes nothing' "$two_open" '--dry-run --issue 2' \
+    '#2  enhancement (title) — would apply: +enhancement +priority: medium' \
+    '-'
+
+  # The same derivation as the full walk: the prefix regex is lowercase-only.
+  e2e '--issue — an uppercase prefix derives no type' \
+    '[{"number":3,"title":"Fix(api): x","body":"","labels":[]}]' '--issue 3' \
+    '#3  skipped — type not derivable from title or body' \
+    '-'
+
+  e2e '--issue — a body matching both forms is ambiguous' \
+    '[{"number":4,"title":"Both forms","body":"### Expected behavior\n\nx\n\n### What problem does this solve?\n\ny","labels":[]}]' '--issue 4' \
+    '#4  skipped — the body matches both the bug and the feature form' \
+    '-'
+
+  e2e '--issue — the body form labels an unlabelled issue' \
+    '[{"number":5,"title":"A skill for labels","body":"### What problem does this solve?\n\nx\n\n### Proposed solution\n\ny","labels":[]}]' '--issue 5' \
+    '#5  enhancement (body) — applied: +enhancement +priority: medium' \
+    '5|--add-label|enhancement|--add-label|priority: medium'
+
+  e2e '--issue — an existing type label wins over the body' \
+    '[{"number":6,"title":"A skill for labels","body":"### What problem does this solve?\n\nx\n\n### Proposed solution\n\ny","labels":[{"name":"bug"}]}]' '--issue 6' \
+    "#6  skipped — body suggests 'enhancement' but the issue is labelled 'bug'" \
+    '-'
+
+  e2e '--issue — a manual priority is kept' \
+    '[{"number":7,"title":"fix(core): boom","body":"","labels":[{"name":"priority: critical"}]}]' '--issue 7' \
+    '#7  bug (title) — applied: +bug (kept the existing priority — human decision)' \
+    '7|--add-label|bug'
+
+  e2e '--issue — a closed issue is skipped and never written' \
+    '[{"number":8,"title":"fix(core): boom","body":"","state":"CLOSED","labels":[]}]' '--issue 8' \
+    '#8  skipped — not an open issue' \
+    '-'
+
+  # A named issue that does not exist stops the run with exit 3 and writes nothing; a bad number is a usage error.
+  local rc
+  set +e
+  (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" "$script" --issue 999 >"$SELF_TEST_TMP/out" 2>&1)
+  rc=$?
+  checks=$((checks + 1))
+  if [[ "$rc" -ne 3 ]]; then
+    echo "self-test FAIL: --issue of a missing issue -> exit $rc, expected 3" >&2
+    failures=$((failures + 1))
+  fi
+
+  (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" "$script" --issue abc >"$SELF_TEST_TMP/out" 2>&1)
+  rc=$?
+  checks=$((checks + 1))
+  if [[ "$rc" -ne 1 ]]; then
+    echo "self-test FAIL: --issue abc -> exit $rc, expected 1" >&2
+    failures=$((failures + 1))
+  fi
+
+  # With a ledger named, the write leaves its own audit line.
+  printf '%s' "$two_open" >"$SELF_TEST_TMP/issues.json"
+  : >"$SELF_TEST_TMP/edits"
+  : >"$SELF_TEST_TMP/run.audit"
+  (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" AUDIT_TRAIL_ROLE=donatello \
+    "$script" --issue 2 >"$SELF_TEST_TMP/out" 2>&1)
+  rc=$?
+  checks=$((checks + 1))
+  if [[ "$rc" -ne 0 ]] || ! grep -q '^donatello|.*|external-write|gh issue edit #2 on stub-owner/stub-repo|' "$SELF_TEST_TMP/run.audit"; then
+    echo "self-test FAIL: the write of --issue 2 left no audit line" >&2
+    failures=$((failures + 1))
+  fi
+  set -e
 }
 
 self_test() {
@@ -546,18 +643,10 @@ Nothing labels it.|!'
 # --- arguments --------------------------------------------------------------
 
 DRY_RUN=false
-
-if [[ $# -gt 1 ]]; then
-  echo "assign-priorities.sh: too many arguments" >&2
-  usage
-  exit 1
-fi
+ISSUE_NUMBERS=()
 
 if [[ $# -eq 1 ]]; then
   case "$1" in
-    --dry-run)
-      DRY_RUN=true
-      ;;
     --self-test)
       # The end-to-end cases run this script for real, so they need `jq` —
       # only `gh` is stubbed.
@@ -572,13 +661,31 @@ if [[ $# -eq 1 ]]; then
       usage
       exit 0
       ;;
+  esac
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --dry-run)
+      DRY_RUN=true
+      shift
+      ;;
+    --issue)
+      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "assign-priorities.sh: --issue needs an issue number" >&2
+        usage
+        exit 1
+      fi
+      ISSUE_NUMBERS+=("$2")
+      shift 2
+      ;;
     *)
       echo "assign-priorities.sh: unknown argument: $1" >&2
       usage
       exit 1
       ;;
   esac
-fi
+done
 
 for bin in gh jq; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -601,7 +708,38 @@ echo "assign-priorities.sh: target repository: $repo_nwo"
 ISSUES_JSON="$(mktemp)"
 trap 'rm -f "$ISSUES_JSON"' EXIT
 
-if ! gh_error="$(gh issue list --state open --limit "$OPEN_ISSUE_LIMIT" --json number,title,body,labels 2>&1 >"$ISSUES_JSON")"; then
+if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
+  # The walk is limited to the named issues. Each one is read by its own number,
+  # so no other issue is read, and an issue beyond the listing's page limit is
+  # still reached. The array keeps only the open ones, in the order named.
+  NAMED_JSON="$(mktemp)"
+  trap 'rm -f "$ISSUES_JSON" "$NAMED_JSON"' EXIT
+  : >"$NAMED_JSON"
+  named_skipped=0
+  named_seen=' '
+
+  for number in "${ISSUE_NUMBERS[@]}"; do
+    if [[ "$named_seen" == *" $number "* ]]; then
+      continue
+    fi
+    named_seen="$named_seen$number "
+
+    if ! issue_json="$(gh issue view "$number" --json number,title,body,labels,state 2>&1)"; then
+      echo "assign-priorities.sh: failed to read issue #$number: $issue_json" >&2
+      exit 3
+    fi
+
+    if [[ "$(jq -r '.state' <<<"$issue_json" 2>/dev/null)" != 'OPEN' ]]; then
+      echo "#$number  skipped — not an open issue"
+      named_skipped=$((named_skipped + 1))
+      continue
+    fi
+
+    printf '%s\n' "$issue_json" >>"$NAMED_JSON"
+  done
+
+  jq -s '.' "$NAMED_JSON" >"$ISSUES_JSON"
+elif ! gh_error="$(gh issue list --state open --limit "$OPEN_ISSUE_LIMIT" --json number,title,body,labels 2>&1 >"$ISSUES_JSON")"; then
   echo "assign-priorities.sh: failed to list open issues: $gh_error" >&2
   exit 3
 fi
@@ -611,7 +749,7 @@ if ! TOTAL="$(jq 'length' "$ISSUES_JSON")"; then
   exit 3
 fi
 
-if [[ "$TOTAL" -ge "$OPEN_ISSUE_LIMIT" ]]; then
+if [[ "${#ISSUE_NUMBERS[@]}" -eq 0 && "$TOTAL" -ge "$OPEN_ISSUE_LIMIT" ]]; then
   echo "assign-priorities.sh: warning: the listing hit its page limit of $OPEN_ISSUE_LIMIT open issues, so the backlog below may be truncated — re-run after this page is triaged" >&2
 fi
 
@@ -619,6 +757,13 @@ updated=0
 unchanged=0
 kept=0
 skipped=0
+scope='open issues'
+
+if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
+  scope='named issues'
+  skipped=$named_skipped
+  TOTAL=$((TOTAL + named_skipped))
+fi
 
 # One jq pass over the whole document instead of four per issue: the four
 # fields are emitted NUL-separated (`[0]|implode` is a one-character NUL
@@ -763,8 +908,17 @@ while IFS= read -r -d '' number <&3 &&
     echo "#$number  $type ($type_source) — would apply:$actions$priority_note"
   else
     if ! gh_error="$(gh issue edit "$number" "${args[@]}" 2>&1 >/dev/null)"; then
+      if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
+        bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo" --status 1 || true
+      fi
+
       echo "assign-priorities.sh: failed to edit issue #$number: $gh_error" >&2
       exit 3
+    fi
+
+    # An agent run names its ledger in AUDIT_TRAIL_FILE; the write leaves its own line.
+    if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
+      bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo" --status 0 --detail "triage labels:$actions" || true
     fi
 
     echo "#$number  $type ($type_source) — applied:$actions$priority_note"
@@ -774,7 +928,7 @@ while IFS= read -r -d '' number <&3 &&
 done 3< <(jq -j "$ISSUE_FIELDS" "$ISSUES_JSON")
 
 if [[ "$DRY_RUN" == true ]]; then
-  echo "assign-priorities.sh: $TOTAL open issues — $updated would change, $unchanged already triaged, $skipped skipped, $kept kept a manual priority"
+  echo "assign-priorities.sh: $TOTAL $scope — $updated would change, $unchanged already triaged, $skipped skipped, $kept kept a manual priority"
 else
-  echo "assign-priorities.sh: $TOTAL open issues — $updated changed, $unchanged already triaged, $skipped skipped, $kept kept a manual priority"
+  echo "assign-priorities.sh: $TOTAL $scope — $updated changed, $unchanged already triaged, $skipped skipped, $kept kept a manual priority"
 fi
