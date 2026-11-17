@@ -72,8 +72,8 @@ Every HTTP route the application serves is either **internal** or **public by de
   - A callback that does not deny a guest, for example one that returns true or skips the gate, leaves the dashboard reachable without signing in. So does a gate closure whose user parameter accepts null (`?User $user`, `$user = null`) and returns true for a guest. Each is the finding of the severity below.
   - A `Gate::before` or `Gate::after` hook runs around every gate check, so it decides the access of a dashboard while the gate, the callback, and the middleware stay unchanged.
   - A hook whose user parameter accepts null and returns true, or otherwise allows a guest, is the finding of the severity below.
-  - Ignition (`_ignition/execute-solution`, `_ignition/update-config`) has no gate. Its access control is the runnable-solutions guard, which decides from `app.debug` and `ignition.enable_runnable_solutions`.
-  - A change that lets that guard pass outside the local environment is the finding of the severity below.
+  - Ignition (`_ignition/execute-solution`, `_ignition/update-config`) has no gate. Its access control is the runnable-solutions guard. The guard denies when `app.debug` is off, returns `ignition.enable_runnable_solutions` when that flag is set, and otherwise passes only in the `local` and `development` environments.
+  - A change that lets that guard pass outside a `local` or `development` environment, or that sets a hosted environment to `development` with `app.debug` on, is the finding of the severity below.
   - For a dashboard whose access middleware sits in its config file, the gate runs only through the authorization entry of the `middleware` list: the `Authorize::class` entry of `config/telescope.php` and `config/pulse.php`.
   - A `middleware` list without that entry leaves the gate unchanged and the dashboard reachable without signing in, so it is the finding of the severity below.
   - The `enabled` flag of such a config file, such as `enabled` in `config/telescope.php`, and the environment registration of the dashboard belong to the same control.
