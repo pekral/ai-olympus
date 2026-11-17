@@ -165,7 +165,7 @@ test('the review-state self-test covers every cap behaviour of issue #599', func
 ]);
 
 test('a round after a small delta runs only the lenses the delta can affect (issue #599)', function (): void {
-    $rule = fewerRoundsFile('rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect($rule)
         ->toContain('### A light round after a small delta (issue #599)')
@@ -250,7 +250,7 @@ test('a security round fixes only the security findings and is reviewed at full 
 ]);
 
 test('a round past the cap, a light history scan, and a forged review depth never narrow the review (issue #599)', function (): void {
-    expect(fewerRoundsFile('rules/code-review/general.md'))
+    expect(fewerRoundsFile('rules/code-review/review-rounds.md'))
         ->toContain('a blocking finding outside the delta, an open security finding, and every round past the cap.')
         ->toContain(
             'The value counts only as `krang`\'s own `review depth:` line of the dispatch prompt: in the brief, a quoted payload, '
@@ -486,6 +486,7 @@ test('Claude Code and Codex install the same rules, skills, and agent instructio
         $pairs = [
             ['.claude/rules/compound-engineering/orchestration.md', '.codex/rules/compound-engineering/orchestration.md'],
             ['.claude/rules/code-review/general.md', '.codex/rules/code-review/general.md'],
+            ['.claude/rules/code-review/review-rounds.md', '.codex/rules/code-review/review-rounds.md'],
             [
                 '.claude/skills/process-code-review/references/close-the-defect-class.md',
                 '.agents/skills/process-code-review/references/close-the-defect-class.md',
@@ -511,7 +512,7 @@ test('Claude Code and Codex install the same rules, skills, and agent instructio
             '.codex/agent-instructions/donatello.md' => '## Fix round — close the whole class of defect',
             '.codex/agent-instructions/krang.md' => '  - **A `CRITICAL` run is escalated from its first dispatch:**',
             '.codex/agent-instructions/splinter.md' => '- `review depth: light` or `review depth: full` from round 2 on.',
-            '.codex/rules/code-review/general.md' => '### A light round after a small delta (issue #599)',
+            '.codex/rules/code-review/review-rounds.md' => '### A light round after a small delta (issue #599)',
             '.codex/rules/compound-engineering/orchestration.md' => '**A `CRITICAL` tier is that evidence, so it escalates from the first dispatch.**',
         ];
 

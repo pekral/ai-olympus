@@ -89,7 +89,7 @@ test('deliver-page-redesign writes no code before the user approves the previews
     $skill = (string) file_get_contents($packageDir . '/skills/deliver-page-redesign/SKILL.md');
     $command = (string) file_get_contents($packageDir . '/commands/redesign-page.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = krangContractText();
 
     expect($skill)->toContain('**No code before approval.**');
     expect($skill)->toContain('### 3. Get the design approved');

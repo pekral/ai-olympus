@@ -4720,7 +4720,7 @@ test('every code-review report is published as a new comment on each destination
     $severalPullRequests = (string) file_get_contents($packageDir . '/skills/pr-summary/references/several-pull-requests.md');
     $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $updateInPlace = '/\b(?:update|updates|updated|rewrites?)\b[^.\n]{0,60}\bin place\b(?! of)/i';
 
     expect(substr_count($contract, 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
@@ -4811,7 +4811,7 @@ test('no other JIRA publish and no merge-preparation cleanup rewrites or deletes
 
 test('a run that only processes the owner answers and lands no change publishes nothing', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 

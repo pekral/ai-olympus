@@ -217,7 +217,7 @@ test('leonardo records each round on instruction, writes the analysis file in a 
 });
 
 test('krang runs the feedback analysis as an analysis-only run and never starts an implementation from it', function (): void {
-    $krang = feedbackFile('agents/krang.md');
+    $krang = krangContractText();
 
     expect($krang)
         ->toContain('## Feedback-analysis mode — recurring review findings')

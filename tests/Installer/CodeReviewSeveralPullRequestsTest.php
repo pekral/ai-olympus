@@ -8,6 +8,8 @@ test('an issue with several pull requests gets its remarks and findings split pe
 
     expect((string) file_get_contents($packageDir . '/rules/code-review/general.md'))
         ->toContain('## An issue with several pull requests — remarks and findings split per pull request')
+        ->toContain('read and apply `@rules/code-review/several-pull-requests.md` first');
+    expect((string) file_get_contents($packageDir . '/rules/code-review/several-pull-requests.md'))
         ->toContain('- **The technical report stays on its own pull request.**')
         ->toContain('- **The tracker comment groups per pull request.**')
         ->toContain('- **A run that reviews one of the pull requests renders only its own group.**');

@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 test('the acceptance criteria are compared with the product documentation in review and in testing', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
+    $rule = (string) file_get_contents($packageDir . '/rules/code-review/product-documentation.md');
     $compliance = (string) file_get_contents($packageDir . '/skills/assignment-compliance-check/SKILL.md');
     $testing = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
 

@@ -242,7 +242,9 @@ test(
         $script = codeReviewMemoryFile('skills/_shared/promote-learning.sh');
 
         expect($krang)->toContain('`gh issue close <N> --reason completed` on the proposal issue of that written `memory` candidate')
-            ->and($krang)->toContain('and closing the proposal issue of a written `memory` candidate as completed, are **L1** here and nowhere else')
+            ->and(krangContractText())->toContain(
+                'and closing the proposal issue of a written `memory` candidate as completed, are **L1** here and nowhere else',
+            )
             ->and(strlen($krang))->toBeLessThanOrEqual(135_000)
             ->and($orchestration)->toContain(
                 '| `krang` | Close the proposal issue of a `memory` candidate as completed, after `promote-learning.sh written` recorded its write',

@@ -58,6 +58,11 @@ runs the activity names the file with `@rules/…` and reads it; `compound-engin
 | [`code-review/general.md`](../rules/code-review/general.md) | Review constraints, gates, and the two-part output contract | Code review |
 | [`code-review/core-analysis.md`](../rules/code-review/core-analysis.md) | The Core Analysis walk-through — what counts as a finding on a diff | Code review |
 | [`code-review/review-process.md`](../rules/code-review/review-process.md) | The passes a review runs and how it reports — coverage gate, findings verification, output rules | Code review |
+| [`code-review/review-rounds.md`](../rules/code-review/review-rounds.md) | A review round after the first — what the delta scopes, the light round, later rounds that raise only new Critical findings, how a finding is settled, and whether another round runs at all | Later review rounds |
+| [`code-review/hotfix-review.md`](../rules/code-review/hotfix-review.md) | What a review declared a HOTFIX does differently — two questions, every security lens, the waived coverage gate, the mode line | HOTFIX reviews |
+| [`code-review/several-pull-requests.md`](../rules/code-review/several-pull-requests.md) | Remarks and findings split per pull request when an issue links more than one | Several pull requests |
+| [`code-review/product-documentation.md`](../rules/code-review/product-documentation.md) | Published product documentation as a requirement the assignment need not restate, and how a mismatch is reported | Product documentation |
+| [`code-review/publishing-cases.md`](../rules/code-review/publishing-cases.md) | A run that only processes the owner's answers, and the operator's line that survives a comment rewrite | Publishing cases |
 | [`refactoring/general.md`](../rules/refactoring/general.md) | What refactoring is: behavior-preserving, incremental, never a big-bang rewrite | Refactoring |
 | [`jira/general.md`](../rules/jira/general.md) | JIRA CLI usage, the two sanctioned transitions, and the ADF comment format | JIRA |
 

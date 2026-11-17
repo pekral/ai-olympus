@@ -518,6 +518,7 @@ function ruleScopingExpectedGlobs(): array
         ruleScopingGlobsTranslatedFromCursorGlobs(),
         ruleScopingGlobsAddedByIssue45(),
         ruleScopingGlobsAddedByTotalBudget(),
+        codeReviewOnDemandCompanionGlobs(),
     );
 }
 
@@ -648,6 +649,25 @@ function ruleScopingGlobsAddedByTotalBudget(): array
 }
 
 /**
+ * The code-review companions issue #607 moved out of `general.md`. Each one holds a part that only
+ * some review runs need, so it is scoped to its own installed path alone: it attaches when an agent
+ * reads it through the pointer `general.md` keeps, and on no other run. The directory glob of the
+ * three always-applied files would load every companion with them, which is the cost the move removes.
+ *
+ * @return array<string, array<int, string>>
+ */
+function codeReviewOnDemandCompanionGlobs(): array
+{
+    $globs = [];
+
+    foreach (['hotfix-review.md', 'product-documentation.md', 'publishing-cases.md', 'review-rounds.md', 'several-pull-requests.md'] as $file) {
+        $globs['rules/code-review/' . $file] = ['.claude/rules/code-review/' . $file];
+    }
+
+    return $globs;
+}
+
+/**
  * The git rule set as one string: the always-on `general.md` plus the on-demand
  * `pull-requests.md` its pull-request and merge sections moved into to keep the always-on total
  * inside the instruction budget. A test asking whether the git rules state something asks it of
@@ -680,17 +700,46 @@ function compoundEngineeringRuleContents(): string
  * file passed the 150 000-character limit Claude Code enforces per rule file and the loader
  * stopped loading it. A test that asks whether the rule set states something asks it of all three,
  * so the split cannot make an assertion pass or fail by which file a sentence landed in.
+ *
+ * The on-demand companions in the same directory (issue #607) are part of the set too: a section
+ * moved out of `general.md` so that only the runs that need it load it is still a rule of the set.
  */
 function codeReviewRuleContents(): string
 {
     $packageDir = dirname(__DIR__);
     $contents = '';
 
-    foreach (['general.md', 'core-analysis.md', 'review-process.md'] as $file) {
-        $contents .= (string) file_get_contents($packageDir . '/rules/code-review/' . $file) . "\n";
+    foreach (codeReviewRuleFiles() as $file) {
+        $contents .= (string) file_get_contents($packageDir . '/' . $file) . "\n";
     }
 
     return $contents;
+}
+
+/**
+ * Every file of the code-review rule set, as a package-relative path: the three files every review
+ * applies first, then the on-demand companions `general.md` points to, in name order.
+ *
+ * @return array<int, string>
+ */
+function codeReviewRuleFiles(): array
+{
+    $packageDir = dirname(__DIR__);
+    $always = ['rules/code-review/general.md', 'rules/code-review/core-analysis.md', 'rules/code-review/review-process.md'];
+    $found = glob($packageDir . '/rules/code-review/*.md');
+    $companions = [];
+
+    foreach ($found === false ? [] : $found as $path) {
+        $relativePath = 'rules/code-review/' . basename($path);
+
+        if (!in_array($relativePath, $always, strict: true)) {
+            $companions[] = $relativePath;
+        }
+    }
+
+    sort($companions);
+
+    return [...$always, ...$companions];
 }
 
 /**
@@ -826,6 +875,11 @@ function ruleScopingConsumerPathsOutsideAppTree(): array
         'vendor/pekral/arch-app-services/src/Concerns/DataValidator.php',
         '.claude/run/gh-123.md',
         '.claude/rules/code-review/general.md',
+        '.claude/rules/code-review/hotfix-review.md',
+        '.claude/rules/code-review/product-documentation.md',
+        '.claude/rules/code-review/publishing-cases.md',
+        '.claude/rules/code-review/review-rounds.md',
+        '.claude/rules/code-review/several-pull-requests.md',
         '.claude/rules/compound-engineering/tracker.md',
         '.claude/rules/jira/general.md',
         '.claude/rules/refactoring/general.md',
