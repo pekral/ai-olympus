@@ -32,7 +32,13 @@ A fix can close the reported case and leave a way around it open. A short set of
 
 1. **Write a handful of attacks.** Each attack is one short case against the class, not only against the reported case. Write it as a row of the class test of step 4. Keep the set small and fast, so it runs locally before the push.
 2. **Try to get around the fix itself.** Write the same input in another form: another encoding, another letter case, added whitespace or separators, a nested or repeated form, another entry point to the same code, or a value of a type the fix does not check.
-3. **Make each attack fail on the code before the fix.** A failure there shows that the attack reproduces the defect. Before you commit the fix, take only the fixed source files out of the working tree (`git stash push -- <the fixed source files>`), run the attacks with the project's own test runner, and restore the files (`git stash pop`). An attack that passes there reproduces nothing: rewrite it until it fails, or drop it.
+3. **Make each attack fail on the code before the fix.** A failure there shows that the attack reproduces the defect. An attack written before the fix, as the RED step of `@skills/test-driven-development/SKILL.md`, already ran on that code and needs no swap. For an attack written after the fix, swap the fix out of your own working tree only, and never touch a ref that another worktree or session reads. Run the swap before you commit the fix, while `HEAD` still holds the code before the fix:
+   1. Copy every fixed source file, tracked and new, into the run's own scratch directory, and save the `git diff` of the fixed tracked files there. The attack tests stay in place.
+   2. Restore the fixed tracked files with `git restore --source=HEAD --worktree -- <the fixed tracked files>`, and move the new files out of the working tree into the scratch directory.
+   3. Run the attacks.
+   4. Copy every file back, and confirm that the `git diff` of the fixed tracked files equals the saved diff and that each new file matches its copy.
+
+   Run every attack, in this step and in step 4, with the project's test command through `skills/_shared/run-gate.sh --exclusive --command "<command>"` (`@skills/resolve-issue/references/quality-gates.md` *Targeted checks take the machine lock too*). An attack that passes on the code before the fix reproduces nothing: rewrite it until it fails, or drop it.
 4. **Make each attack pass on the fixed code.** An attack that still fails got through the fix. Change the fix before the push, then run every attack again.
 5. **Keep every attack as a regression test.** The attacks stay in the class test and land in the fix commit.
 
