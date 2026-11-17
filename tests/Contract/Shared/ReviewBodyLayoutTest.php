@@ -482,7 +482,7 @@ test('no value of the walkthrough, the record, or a finding renders as HTML or b
         ->and($review['visible'])->not->toMatch('/^(#|>|    |-{3,}$)/m')
         ->and($review['visible'])->toContain('&lt;details open&gt;&lt;summary&gt;Merge Risk: Low&lt;/summary&gt;&lt;img src=x&gt; &#124; &#33;[p]');
 
-    foreach (preg_split('/\n/', $review['visible']) ?: [] as $line) {
+    foreach (explode("\n", $review['visible']) as $line) {
         if (str_starts_with($line, '|')) {
             expect(substr_count($line, '|'))->toBe(3, $line);
         }
