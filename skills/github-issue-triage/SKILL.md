@@ -1,6 +1,6 @@
 ---
 name: github-issue-triage
-description: "Use when GitHub issues must be prioritized, sorted, or labelled by type, when the open backlog must be swept — issues already merged closed, epics kept flat, issues re-parented under the epic that owns them — when a new issue must be checked against the code — already implemented, reproducible, or missing detail the reporter must supply — or when the issues labelled `analyze` must be analysed and the analysis published on them. Seeds the priority and type label taxonomy and assigns the derived priority to every open issue, so work can be filtered and picked in priority order."
+description: "Use when GitHub issues must be prioritized, sorted, or labelled by type, when the open backlog must be swept — issues already merged closed, epics kept flat, issues re-parented under the epic that owns them — when a new issue must be checked against the code — already implemented, reproducible, or missing detail the reporter must supply — or when the issues labelled `analyze` must be analysed and the analysis published on them. Seeds the priority, type, and effort label taxonomy and assigns the derived priority to every open issue, so work can be filtered and picked in priority order. An analysed issue also gets one effort label, so small tasks can be picked and large ones split."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -10,6 +10,7 @@ metadata:
 - Script output and this skill's text are in English; a comment published on an issue follows `@rules/reports/general.md`
 - Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - The taxonomy below is fixed — never rename a label, change a color, or invent a new one
+- The effort size is derived only by `scripts/derive-effort.sh`: an agent never picks a size, states a threshold, or writes a time in hours or days (`@rules/general/general.md` *Verified statements only*)
 - `priority: critical` is a **human decision**: no script assigns it, and an existing one is never removed or downgraded
 - Never delete a label from the repository. In the label-taxonomy mode the only sanctioned removal is a label on an issue that an explicit title prefix proves wrong; the backlog sweep and the pending-analysis pass remove a label only where their reference file says so
 - `security` and `question` are topic labels, not primary types — they are never removed from an issue
@@ -26,6 +27,7 @@ metadata:
 - Someone asks which issue to work on next
 - Open issues may already be done on the default branch, an epic may contain another epic, or issues sit under the wrong epic
 - Issues labelled `analyze` wait for an analysis
+- An analysed issue must show its size, so small tasks can be picked quickly and large ones split
 - A new issue must be checked against the code before it gets a type: the request may exist already, a bug may not reproduce, or the reporter may have left out a detail
 
 ---
@@ -71,6 +73,14 @@ The label-taxonomy mode only labels. Closing an issue, moving a sub-issue, and p
 | `security` | `ee0701` | no — topic |
 | `question` | `d876e3` | no — topic |
 
+**Effort labels** — at most one per issue. They state a size, never a time. A new analysis replaces the old label. `scripts/derive-effort.sh` derives the label (*Effort derivation*), and the pending-analysis pass applies it.
+
+| Label | Color | Meaning |
+| --- | --- | --- |
+| `effort: small` | `c2e0c6` | A small task |
+| `effort: medium` | `fef2c0` | A medium task |
+| `effort: large` | `e99695` | A large task and a candidate for splitting |
+
 ---
 
 ## Priority derivation
@@ -112,11 +122,23 @@ The body is the weaker signal, so it never overrules a person: when the body sug
 
 ---
 
+## Effort derivation
+
+`scripts/derive-effort.sh --assignment <file>` derives the label from the text of the assignment. It reuses the two signals the package already has, and it owns every threshold. This file states none, so the numbers live in one place.
+
+1. **Count** — the method `files-and-criteria` of `@skills/do-it/SKILL.md` *Derive the keys of each item*: the distinct files the assignment names plus its criteria (the behaviours and the rules).
+2. **Tier** — the `tier` line of `skills/_shared/classify-risk.sh --assignment <file>`. The script runs it, or takes `--tier` from a caller that ran it already. A `CRITICAL` tier raises the size by one step.
+3. **Label** — the script compares the count with its thresholds and prints `label=effort: <size>`, the count, the method, the tier, and `split-candidate=yes|no`. `large` means yes.
+
+The same text gives the same label, because every input is a count read from the text and a tier from a deterministic classifier. The label never carries a time. A count of an unstructured text reads every bullet, and a text with no bullet counts 1, so the output states `criteria-source` for the reader.
+
+---
+
 ## Execution
 
 ### 1. Seed the labels
 
-Run `scripts/seed-labels.sh` in the target checkout. It creates the 14 labels above with `gh label create --force`, so it also repairs a drifted color or description and is safe to re-run. It deletes nothing.
+Run `scripts/seed-labels.sh` in the target checkout. It creates the 17 labels above with `gh label create --force`, so it also repairs a drifted color or description and is safe to re-run. It deletes nothing.
 
 ```bash
 skills/github-issue-triage/scripts/seed-labels.sh
@@ -238,6 +260,7 @@ GitHub Projects v2 has a native single-select **Priority** field, and it is the 
 Every script opens with the repository it resolved from the working directory — `<script>: target repository: <owner>/<repo>` — printed **before** the first write, so a transcript always names where the labels landed.
 
 - **Seed:** the target repository, one `ok <label>` line per label, plus a count of labels in sync.
+- **Effort:** the `key=value` lines of `scripts/derive-effort.sh`: the label, the count with its method, the tier with its source, and `split-candidate`.
 - **Triage:** the target repository, one line per open issue with its derived type, the derivation source (`title` / `body`), and the labels applied, would-be-applied (`--dry-run`), or the reason it was skipped or kept — closed with a summary of changed / already-triaged / skipped / kept counts. A backlog large enough to hit the listing's page limit is reported on stderr rather than silently truncated.
 - **Intake check:** per issue, the redundancy result with the paths and patterns searched and the `path:line` found, the reproduction outcome (*confirmed*, *not confirmed*, or *missing detail*) with its evidence, and either the published comment URL or the drafted comment.
 - **Sweep evidence:** the target repository and its default branch, one line per open issue with its epic, parent, labels, referencing pull requests and an `evidence:` pointer (`merged` / `open-pr` / `unmerged` / `no-pr`), one `structure:` line per defect of the epic tree, and a `summary:` line. It writes nothing.
@@ -252,4 +275,4 @@ Every script opens with the repository it resolved from the working directory �
 - The backlog can be listed in priority order with `gh issue list --label "priority: …"`
 - After an intake check: every checked issue has a stated redundancy result with the places searched, every `bug` has one reproduction outcome, an already-implemented request is reported to the user and not triaged as new work by hand, and a *missing detail* issue carries one needs-info comment and the `question` label, or a drafted comment when no write was requested
 - After a backlog sweep: every closed issue carries a comment naming the merged pull requests that delivered it, `collect-sweep-evidence.sh` reports no nesting violation, and every issue left without an epic is in the report
-- After a pending-analysis pass: every selected issue carries its analysis as a new comment and no longer carries `analyze`
+- After a pending-analysis pass: every selected issue carries its analysis as a new comment, no longer carries `analyze`, and carries exactly one effort label that the comment names with its derivation; a `large` issue is reported as a split candidate

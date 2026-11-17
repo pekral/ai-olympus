@@ -35,7 +35,7 @@ link to read the skill itself.
 | [`pr-summary`](../skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`create-issue`](../skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
-| [`github-issue-triage`](../skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type, the open backlog swept (merged issues closed, epics kept flat, issues re-parented), a new issue checked against the code (already implemented, reproducible, or missing detail), or the issues labelled `analyze` analysed |
+| [`github-issue-triage`](../skills/github-issue-triage/) | GitHub issues must be prioritized, sorted, or labelled by type, the open backlog swept (merged issues closed, epics kept flat, issues re-parented), a new issue checked against the code (already implemented, reproducible, or missing detail), or the issues labelled `analyze` analysed and labelled with their effort size |
 | [`github-release-roadmap`](../skills/github-release-roadmap/) | Planning a GitHub release roadmap for one repository |
 | [`composer-update-pr`](../skills/composer-update-pr/) | Updating the Composer dependencies of a project and opening a Draft pull request with a TL;DR of the updates |
 

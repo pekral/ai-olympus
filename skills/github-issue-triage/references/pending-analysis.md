@@ -49,7 +49,15 @@ Read every report in full. Publish it only when:
 
 A report that fails a check goes back to its subagent with the concrete defect; it is never patched silently.
 
-## 4. Publish the analysis
+## 4. Derive the effort and publish the analysis
+
+Derive the effort label of each report before you publish it. Save the issue body to a file outside the repository, then run the helper on it. The helper owns the method and every threshold (`SKILL.md` *Effort derivation*), so never state a size or a time yourself.
+
+```bash
+skills/github-issue-triage/scripts/derive-effort.sh --assignment <issue-body-file>
+```
+
+Add an **Effort:** field after the **Priority:** field of section 11 of the report. The field names the `label=` line, the count with its method (`files-and-criteria`: the `files` and `criteria` values), the `tier` and its source, and, for `effort: large`, that the issue is a candidate for splitting. It states no hours or days. When the helper exits non-zero, publish the report without the field, name the reason in the report to the user, and leave the effort labels of the issue unchanged.
 
 The report is the one `skills/analyze-problem/templates/analysis-report.md` renders. The prose of the report follows `@skills/agent-voice/SKILL.md`. Every marker, heading, field, identifier, and link stays as this skill defines it.
 
@@ -66,6 +74,7 @@ In one `gh issue edit` per issue, so the issue is never left half-relabelled:
 - **remove `analyze`** — the issue no longer waits for an analysis;
 - **set the primary type label** the analysis settled (`enhancement`, `chore`, …), and remove the type label it replaces;
 - **set the priority** from the analysis *Priority* field, and remove the priority label it replaces — with two exceptions that keep the current priority and report the difference: a person set it after the last triage (read the label history as `references/backlog-sweep.md` step 5 shows), or it is `priority: critical`. The pass never assigns `priority: critical`, and never removes or lowers it;
+- **set the effort label** that `scripts/derive-effort.sh` printed (`effort: small`, `effort: medium`, or `effort: large`) when it printed one, and remove the other effort labels the issue carries. An issue carries one effort label at most, so a new analysis replaces the old one. Run `scripts/seed-labels.sh` first when the repository lacks the label, because `gh issue edit --add-label` fails on a missing label;
 - **add `question`** when the verdict leaves a decision to the owner.
 
 The pass **never adds or removes `Resolve_by_AI`**. It is a workflow label that routes an issue to autonomous resolution (`@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*), and routing is the owner's decision. When the verdict is *do not adopt* or *defer* and the issue still carries it, the report asks the owner to remove it; when the analysis produced an assignment an agent could implement, the report recommends adding it.
@@ -73,7 +82,8 @@ The pass **never adds or removes `Resolve_by_AI`**. It is a workflow label that 
 ```bash
 gh issue edit <N> --remove-label analyze \
   --remove-label "<replaced type>" --add-label "<type>" \
-  --remove-label "<replaced priority>" --add-label "priority: <level>"
+  --remove-label "<replaced priority>" --add-label "priority: <level>" \
+  --remove-label "<replaced effort>" --add-label "<effort label>"
 ```
 
 Leave out a `--remove-label` / `--add-label` pair when the label does not change.
@@ -82,6 +92,6 @@ Re-read the issue afterwards (`gh issue view <N> --json labels,comments`) and co
 
 ## Report
 
-Close with one report to the user, in their language: per issue, the verdict in one sentence, the comment URL, the label changes, and the recommended next step. Batch every decision the analyses left open — adopting a dependency, adding or removing `Resolve_by_AI`, closing a rejected idea — and every issue the selection dropped into one round of questions.
+Close with one report to the user, in their language: per issue, the verdict in one sentence, the comment URL, the label changes including the effort label, and the recommended next step. An issue labelled `effort: large` is named as a split candidate; the pass never splits it. Batch every decision the analyses left open — adopting a dependency, adding or removing `Resolve_by_AI`, closing a rejected idea — and every issue the selection dropped into one round of questions.
 
 **Handoff status:** `Analyses published` + the count + the comment URLs; or `Blocked` with the reason.
