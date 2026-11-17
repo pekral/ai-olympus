@@ -13,7 +13,7 @@ function inlineReviewContract(): string
 {
     return installerDocsSection(
         inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md'),
-        '#### Inline review comments',
+        '#### Findings in the review body',
     );
 }
 
@@ -38,13 +38,11 @@ test('the build runs the wrapper self-test exactly once', function (): void {
 });
 
 dataset('wrapper self-test scenarios', [
-    'agent markers' => ['comment carries both agent markers'],
     'approved layout byte for byte' => ['the visible body is the approved layout, byte for byte'],
-    'backtick in a link target' => ['a backtick in a link target leaves no raw tag in the body or the inline comment'],
+    'backtick in a link target' => ['a backtick in a link target leaves no raw tag in the body'],
     'backtick in a link target of a table cell' => ['a backtick in a link target of a table cell leaves no raw tag and keeps the cells'],
-    'backtick in a link title' => ['a backtick in a link title leaves no raw tag in the body or the inline comment'],
+    'backtick in a link title' => ['a backtick in a link title leaves no raw tag in the body'],
     'code span identifier in the entry' => ['an identifier in a code span shows as written in the Actionable comments entry'],
-    'code span identifier in the inline comment' => ['an identifier in a code span shows as written in the inline comment'],
     'code span marker stays encoded' => ['a comment marker in a code span stays encoded, so the body holds one cr-comment marker'],
     'code span pipe in a table cell' => ['a pipe in a code span of a table cell is encoded, and so is a pipe outside it'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
@@ -54,67 +52,72 @@ dataset('wrapper self-test scenarios', [
     'double backtick run opens no span' => ['a run of two backticks never opens a span, and the unpaired backtick after it stays encoded'],
     'dropped duplicate title is scanned' => ['the title of a dropped duplicate of a withheld id is scanned too'],
     'DRY author mention without a line' => ['a DRY finding with no line and an author ends its entry with the mention'],
-    'DRY entry of the Actionable comments' => ['a DRY finding is an Actionable comments entry whose Fix names the existing implementation'],
-    'DRY shape' => ['the DRY finding is the Moderate DRY shape with the existing implementation, byte for byte'],
+    'DRY entry on a changed line' => ['a DRY finding on a changed line is an entry whose Fix names the existing implementation, with the mention'],
+    'DRY finding posts no inline comment' => ['a review with a DRY finding carries no inline comment'],
     'duplicate of a withheld id' => ['two entries of one id on one path and line are withheld whichever of them carries the flag'],
     'escaped walkthrough naming a withheld title' => ['that names a withheld title through JSON escapes is refused and nothing is posted'],
     'event COMMENT' => ['event is COMMENT'],
-    'exactly two markers per comment' => ['every inline comment holds exactly two cr-inline markers and the review body none'],
     'external-write audit line' => ['the review is one external-write audit line'],
     'failed tree lookup' => ['a failed repository tree lookup publishes nothing'],
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
     'fenced fix is refused' => ['a fix that holds a fenced block is refused with its own message'],
     'file name markup is text' => ['the file name shows its markup as text in a code element, each pipe encoded'],
+    'finding on a changed line is an entry' => ['a finding on a changed line is an entry of the Actionable comments block, byte for byte'],
+    'finding outside the diff posts no inline comment' => ['a finding outside the diff posts one review with no inline comment'],
+    'finding with markup is never an inline comment' => ['a finding that holds markup is an entry, never an inline comment'],
     'finding with no line' => ['a finding with no line is an Actionable comments entry without a place'],
-    'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
-    'forged marker in the text' => ['a forged marker in the problem or the fix text is neutralised in the comment and in the body'],
+    'forged marker in the text' => ['a forged marker in the problem or the fix text is neutralised in the body'],
     'hidden record in the review body' => ['the review body holds one hidden record, one fingerprint marker, and the cr-comment actor marker'],
     'hidden record keeps a package path' => ['the hidden record may keep a package path'],
     'hidden record round trip' => ['the hidden record comes back byte for byte, --> and --!> and &lt; and <!-- included'],
-    'inline author mention stays inline' => ['a finding with an inline comment carries the mention in the comment and not in its entry'],
-    'inline comment holds no fence' => ['the inline comment holds no fenced block, a suggestion block included'],
     'invalid document' => ['invalid document is refused'],
     'invalid walkthrough' => ['invalid walkthrough is refused'],
     'marker rebuilt after a backtick' => ['a rule marker rebuilt after a backtick is refused with its own message'],
     'markup renders as text' => ['a walkthrough, a record, and findings that hold markup are published as text'],
+    'mention on a changed line' => ['a finding on a changed line with an author ends its entry with the mention'],
+    'mention once per finding that sets it' => ['the visible body mentions the author once for each finding that sets it'],
     'merge risk line is required' => ['a record with no Merge risk line publishes nothing'],
     'merge risk sentence is encoded' => ['the Merge Risk sentence from the record is encoded too'],
     'merge risk sentence tooling' => ['a Merge Risk sentence that names a package script is refused and nothing is posted'],
-    'moderate icon and mention' => ['a Moderate finding carries the orange icon, the Fix line, and the author mention line before the markers'],
-    'multi-line range' => ['multi-line comment carries start_line and start_side'],
-    'no CI line, checks, buttons, or share link' => ['the visible body shows no CI line, pre-merge checks, recent review info, button, or share link'],
-    'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
+    'moderate icon and mention' => ['a Moderate finding carries the orange icon, the Fix line, and the author mention line'],
+    'multi-line, removed line, and hunk gap are entries' => [
+        'a multi-line finding, a removed line, and a range across a hunk gap are entries at their last line, with no inline comment',
+    ],
+    'no CI line, checks, buttons, or share link' => [
+        'the visible body shows no CI line, pre-merge checks, recent review info, button, or share link',
+    ],
+    'no comments key' => ['the review request carries no inline comment: it has no comments key'],
+    'no cr-inline marker in the body' => ['the review body holds no cr-inline marker'],
     'no HTML tag but the layout' => ['the visible body holds no HTML tag but the tags of the layout and code elements'],
-    'no HTML tag in an inline comment' => ['no inline comment holds an HTML tag but its two agent markers'],
     'no image' => ['no value renders an image'],
+    'no inline comment with three findings' => ['a review with three findings carries no inline comment'],
     'no line-start markup' => ['no visible line starts a heading, a quote, a setext underline, or an indented code block'],
-    'no literal backtick' => ['the visible body and the inline comments hold no literal backtick'],
-    'no other visible field' => ['the inline comment renders no Rule, Provenance, Raised by, Level, Evidence, Expected '
-        . 'behavior, Test hint, Suggested fix, or suggestion block',
+    'no literal backtick' => ['the visible body holds no literal backtick'],
+    'no other visible field' => [
+        'the entry renders no Rule, Provenance, Raised by, Level, Evidence, Expected behavior, Test hint, Impact, Suggested fix, or suggestion block',
     ],
     'no raw end of comment in the record' => ['the hidden block holds no raw --> of the record'],
+    'no review thread read' => ['post reads no review thread'],
     'no Where to test without a route' => ['a change that touches no page or route has no Where to test block'],
-    'one review of inline comments' => ['one review request'],
+    'one review request' => ['one review request'],
     'only fence is the diagram' => ['the only fenced block of the visible body is the sequence diagram'],
-    'open finding stays in the Actionable comments' => ['a finding already open as an inline comment stays in the Actionable comments block'],
-    'outdated thread is not duplicated' => ['an outdated thread of the same finding id is not duplicated'],
+    'output lists every finding' => ['output lists every finding, on a changed line or not'],
     'outside-diff author mention' => ['an outside-diff finding with an author ends its Actionable comments entry with the mention'],
     'outside-diff finding is an Actionable comments entry' => ['an outside-diff finding is a line of the Actionable comments block'],
-    'outside-diff finding stays out' => ['outside-diff finding is not an inline comment'],
     'package path in a code span' => ['a package path in a code span, whose content is entity-encoded, is refused and nothing is posted'],
     'package tooling in a finding title' => ['a finding title that names a package script is refused and nothing is posted'],
     'package tooling in a fix' => ['a Fix sentence that names a package script is refused and nothing is posted'],
-    'package tooling in an Actionable comments entry' => ['an Actionable comments entry that names a package script is refused and nothing is posted'],
-    'package tooling in an inline comment' => ['an inline comment that names a package script is refused and nothing is posted'],
+    'package tooling in an Actionable comments entry' => [
+        'an Actionable comments entry that names a package script is refused and nothing is posted',
+    ],
+    'package tooling in an entry on a changed line' => ['an entry on a changed line that names a package script is refused and nothing is posted'],
     'package tooling in the walkthrough' => ['a Walkthrough that names a package script is refused and nothing is posted'],
-    'path, line, and side' => ['comment anchors path, line, and side'],
-    'private repository posts a security finding' => ['a private repository posts a security finding inline'],
-    'problem, impact, and fix shape' => ['the inline comment is the Problem, Impact, and Fix shape, byte for byte'],
+    'private repository lists both entries' => ['a private repository lists both entries of the id'],
+    'private repository posts a security finding' => ['a private repository posts a security finding with no inline comment'],
     'project own command and path' => ['the reviewed project own command and path are posted'],
     'public repository withholds a security finding' => ['a public repository withholds the marked finding'],
     'published finding naming a withheld title' => ['a published finding that names a withheld title is refused and nothing is posted'],
-    'range across a hunk gap' => ['a range across a hunk gap is outside the diff'],
     'record naming a withheld id is refused' => ['a record that names a withheld finding by its id is refused and nothing is posted'],
     'record naming a withheld title is refused' => ['a record that names a withheld finding by its title is refused and nothing is posted'],
     'record refused by the header check' => ['a record that check-cr-header.sh refuses publishes nothing'],
@@ -125,6 +128,7 @@ dataset('wrapper self-test scenarios', [
     'repository own script name' => ['a script name that the reviewed repository holds is the project own and is posted'],
     'resolve only the fixed thread of this actor' => ['resolve closes only the open thread of this actor for a fixed id'],
     'stale head is refused' => ['a stale commit id exits 4'],
+    'stderr names the listed count' => ['the review stderr names the listed count and no inline count'],
     'suggestion is refused' => ['a suggestion is refused with its own message: a review carries no code'],
     'summary is plain sentences' => ['a TL;DR with a heading, a quote, a table, or a tag line is refused: it holds plain sentences'],
     'summary limit counts characters' => ['the TL;DR limit counts characters, not bytes: 4000 two-byte characters pass'],
@@ -141,15 +145,17 @@ dataset('wrapper self-test scenarios', [
     'walkthrough without a diagram' => ['a walkthrough with no diagram renders no sequence diagram and no fenced block in the body'],
     'Where to test lists the routes' => ['the Where to test block lists the method and the path of each route with one line to try'],
     'withheld finding stays out of the visible body' => ['a withheld finding is in no visible line, not in the count, and not in the hidden record'],
-    'withheld id scan covers every other entry' => ['a published entry beside two entries of a withheld id that names the title in markup is refused'],
-    'withheld id shared by another entry' => [
-        'an entry that shares the id of a withheld entry is withheld too, in no inline comment and in no visible line',
+    'withheld id scan covers every other entry' => [
+        'a published entry beside two entries of a withheld id that names the title in markup is refused',
     ],
+    'withheld id shared by another entry' => ['an entry that shares the id of a withheld entry is withheld too, in no visible line'],
     'withheld title in other markup or invisible' => [
         'a walkthrough that names a withheld title in other markup or with an invisible character is refused',
     ],
     'zero-finding round' => ['a round with no finding posts one review with no inline comment'],
-    'zero-finding round shows the layout' => ['a round with no finding shows the summary, Merge Risk, and Walkthrough, and no Actionable comments block'],
+    'zero-finding round shows the layout' => [
+        'a round with no finding shows the summary, Merge Risk, and Walkthrough, and no Actionable comments block',
+    ],
     'zero-width character in a withheld title' => ['a zero-width character inside a withheld title does not hide it'],
 ]);
 
@@ -177,30 +183,30 @@ test('the wrapper writes through the audited path and never from a stale head', 
         ->and($script)->toContain('commit_id: $commit');
 });
 
-test('the contract section states the inline review end to end', function (): void {
+test('the contract section states that every finding is an Actionable comments entry and no inline comment is posted', function (): void {
     $section = inlineReviewContract();
 
-    expect($section)->toContain(
-        'every finding that anchors to a line of the diff is published as an inline review comment on that line, whatever lens raised it',
-    )
-        ->and($section)->toContain('**The shapes live in two templates, which the script renders.**')
-        ->and($section)->toContain('and nothing else defines either. The findings file supplies these keys for them:')
+    expect($section)->toContain('On a GitHub pull request the review carries **no inline comment**.')
+        ->and($section)->toContain('Every published finding, on a changed line or not and whatever lens raised it, is one entry of that block')
+        ->and($section)->toContain('**The shape lives in one template, which the script renders.**')
         ->and($section)->toContain(
-            '- `title`, the short name of the finding in the Actionable comments block: a few plain words, written under the visible-text rule below.',
+            '- `title`, the short name of the finding in the entry: a few plain words, written under the visible-text rule below.',
         )
-        ->and($section)->toContain('refuses an inline comment, the summary, the Merge Risk sentence, the Walkthrough, the Where to test block')
+        ->and($section)->toContain(
+            'refuses the summary, the Merge Risk sentence, the Walkthrough, the Where to test block, or an Actionable comments entry',
+        )
         ->and($section)->toContain('`kind: "dry"` with `existing`, the `<path>:<line>` of the existing implementation')
         ->and($section)->toContain('the script refuses `suggestion`, `faulty_example`, `faulty_example_lang`')
-        ->and($section)->not->toContain('This repeats the logic of')
+        ->and($section)->toContain('The request carries no `comments` key.')
+        ->and($section)->not->toContain('already_open')
+        ->and($section)->not->toContain('outside_diff')
         ->and($section)->not->toContain('**Problem:**')
-        ->and($section)->toContain(
-            '`already_open`: the finding has an unresolved inline thread of this actor on the same path and line, so nothing is posted again',
-        )
+        ->and($section)->not->toContain('inline-review-comment.md')
         ->and($section)->toContain('post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
+        ->and($section)->toContain('A review that an earlier release of this package published opened one inline thread')
         ->and($section)->toContain('A quiet loop iteration posts nothing')
         ->and($section)->toContain('The JIRA ticket, the Bugsnag error, and the non-technical tracker summary are unchanged')
-        ->and($section)->toContain('An outdated thread, which GitHub reports without a line, counts for any line of that path')
-        ->and($section)->toContain('`cr-inline` marker is an agent marker')
+        ->and($section)->toContain('The `cr-inline` marker stays an agent marker')
         ->and($section)->toContain('Classify each comment of the thread on its own.')
         ->and($section)->toContain('the script lists it under `has_reply`');
 });
@@ -227,18 +233,18 @@ test('the contract publishes one review whose body carries the hidden record and
         ->and($contract)->not->toContain('write the line `Inline: not posted (<reason>)`');
 });
 
-test('the contract posts a security finding inline on a private repository and withholds it everywhere on a public one', function (): void {
+test('the contract lists a security finding on a private repository and withholds it everywhere on a public one', function (): void {
     $section = inlineReviewContract();
 
     expect($section)->toContain('Only the value `true` is private.')
-        ->and($section)->toContain('On a private repository the finding is posted inline like any other, so the developers have the fix next to the code.')
+        ->and($section)->toContain('On a private repository the finding is an entry like any other, so the developers have the fix in writing.')
         ->and($section)->toContain(
             'On a public repository, and when the check fails, the finding is withheld, and so is every entry that shares its finding id',
         )
         ->and(
             $section,
         )->toContain(
-            'it is in no inline comment, in no entry or count of the Actionable comments block, and not in the hidden record, because '
+            'it is in no entry or count of the Actionable comments block, and not in the hidden record, because '
                 . 'hidden HTML is readable through the API',
         )
         ->and($section)->toContain(
@@ -265,11 +271,12 @@ test('the review templates keep a withheld finding out of the hidden record', fu
     'skills/code-review/templates/review-output.md',
 ]);
 
-test('the contract no longer forbids line-anchored review comments', function (): void {
+test('the contract publishes no inline review comment', function (): void {
     $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
 
-    expect($contract)->not->toContain('never as line-anchored review comments')
-        ->and($contract)->toContain('every finding that anchors to a line of the diff is published as an inline review comment on that line')
+    expect($contract)->not->toContain('is published as an inline review comment on that line')
+        ->and($contract)->not->toContain('#### Inline review comments')
+        ->and($contract)->toContain('It carries no inline comment.')
         ->and($contract)->toContain('the machine record of the round as hidden HTML in the `cr-comment` marker namespace');
 });
 
@@ -277,7 +284,8 @@ test('the review templates list every published finding in full in the hidden re
     $content = inlineReviewSource($template);
 
     expect($content)->toContain('**GitHub — this section lists every published finding in full.**')
-        ->and($content)->toContain('the findings posted inline, the `already_open` ones, and the `outside_diff` ones alike')
+        ->and($content)->toContain('The review carries no inline comment: every published finding, inside or outside the diff, is also an entry')
+        ->and($content)->not->toContain('`already_open`')
         ->and($content)->toContain('It carries no `Inline:` line; a legacy comment with the line `Inline: <n> finding(s) in <review url>` stays readable.')
         ->and($content)->not->toContain('`Inline: not posted (<reason>)`')
         ->and($content)->toContain('The `Counts:` line and the round report of the review loop keep every finding.');
@@ -297,13 +305,13 @@ test('the review templates keep the header block and the merge risk text of the 
     'skills/code-review/templates/review-output.md',
 ]);
 
-test('the agent marker family names cr-inline, and the trust filter reads it as agent output', function (): void {
+test('the agent marker family keeps cr-inline for the threads of an earlier release, and the trust filter reads it as agent output', function (): void {
     $rule = inlineReviewSource('rules/code-review/general.md');
     $trust = inlineReviewSource('skills/_shared/review-trust.jq');
 
     expect($rule)->toContain(
-        '`cr-inline` (the inline review comments of a review round, '
-        . 'which `skills/code-review-github/scripts/post-inline-review.sh` posts on the changed lines of a pull request)',
+        '`cr-inline` (the inline review comments that an earlier release of '
+        . '`skills/code-review-github/scripts/post-inline-review.sh` posted on the changed lines of a pull request)',
     )
         ->and($trust)->toContain('def agent_marker: type == "string" and test("[a-z][a-z0-9-]*:actor=");');
 });
@@ -317,13 +325,13 @@ test('the review rule publishes one review on GitHub and moves the machine recor
     expect($rule)->toContain('**A review run publishes exactly one report per destination, in the `cr-comment` namespace.**')
         ->and($rule)->toContain('**On a GitHub pull request the one report is one pull-request review, and no `cr-comment` '
             . 'pull-request comment is posted.**')
-        ->and($rule)->toContain('**Each finding that anchors to a line of the diff is a short inline comment on that line**, whatever lens raised it')
-        ->and($rule)->toContain('`@skills/code-review-github/templates/inline-review-comment.md` fixes its shape')
+        ->and($rule)->toContain('1. **The review carries no inline comment.** No finding is posted on a line of the diff, whatever lens raised it.')
+        ->and($rule)->toContain('2. **Every finding is an entry of the Actionable comments block of the review body**')
+        ->and($rule)->not->toContain('inline-review-comment.md')
         ->and($rule)->not->toContain('**Impact** in one sentence')
-        ->and($rule)->toContain('**Each finding that cannot anchor has no inline comment.**')
         ->and($rule)->toContain('**The machine record is hidden HTML in the review body.**')
         ->and($rule)->toContain(
-            'reaches none of the four**, the visible body, the inline comments, and the hidden record included: hidden HTML is public.',
+            'reaches no part of the review**, the visible body and the hidden record included: hidden HTML is public.',
         )
         ->and($rule)->toContain('3. **The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`.**')
         ->and($rule)->toContain('a summary paragraph of what the pull request changes (at most 4,000 characters, with no label and no heading)')
@@ -333,16 +341,16 @@ test('the review rule publishes one review on GitHub and moves the machine recor
         ->and($rule)->toContain('Every reader reads the newest trusted report across both homes');
 });
 
-test('leonardo publishes inline through the wrapper only, and the consent table names the write', function (): void {
+test('leonardo publishes the review through the wrapper only, with no inline comment, and the consent table names the write', function (): void {
     $leonardo = inlineReviewSource('agents/leonardo.md');
     $orchestration = inlineReviewSource('rules/compound-engineering/orchestration.md');
 
     expect($leonardo)->toContain(
-        'post the findings that anchor to a line of the diff as one pull-request review, '
-        . 'and resolve the inline thread of a fixed finding, only through `skills/code-review-github/scripts/post-inline-review.sh`',
+        'publish the one pull-request review of a round, and resolve the inline thread an earlier release opened for a fixed finding, '
+        . 'only through `skills/code-review-github/scripts/post-inline-review.sh`',
     )
         ->and($leonardo)->toContain(
-            'post the findings that anchor to a line of the diff first, as one pull-request review '
+            'post every finding as an entry of the Actionable comments block of one pull-request review, with no inline comment, '
             . 'through `skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> '
                 . '--commit-id <reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>`',
         )
@@ -350,18 +358,19 @@ test('leonardo publishes inline through the wrapper only, and the consent table 
         ->and($leonardo)->toContain('reaches the handoff only')
         ->and($orchestration)->toContain('(`upsert-comment.sh`, `post-inline-review.sh`, `delete-owned-github-comment.sh`,')
         ->and($orchestration)->toContain(
-            '| `leonardo` | Publish the findings of a review round as inline review comments on a pull request, '
-            . 'and resolve the inline thread of a fixed finding | L1 |',
+            '| `leonardo` | Publish the findings of a review round in the Actionable comments block of one pull-request review, '
+            . 'with no inline comment, and resolve the inline thread an earlier release opened for a fixed finding | L1 |',
         )
         ->and($orchestration)->toContain('A security finding marked `do not file publicly` is never posted on a public repository');
 });
 
-test('the review loop reads an inline thread as the agent own finding and resolves it through the wrapper', function (): void {
+test('the review loop reads an inline thread of an earlier release as the agent own finding and resolves it through the wrapper', function (): void {
     $skill = inlineReviewSource('skills/process-code-review/SKILL.md');
     $reference = inlineReviewSource('skills/process-code-review/references/resolve-reviewer-threads.md');
 
     expect($skill)->toContain('Classify each comment on its own')
         ->and($skill)->toContain('only a comment the current actor wrote with its `cr-inline` marker is its own finding')
+        ->and($reference)->toContain('A review publishes no inline comment, so only a review of an earlier release opened such a thread.')
         ->and($skill)->toContain('every other comment, a reply included, is a reviewer comment')
         ->and($reference)->toContain('**A thread of the agent\'s own finding is resolved through the wrapper.**')
         ->and($reference)->toContain('skills/code-review-github/scripts/post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
@@ -372,7 +381,7 @@ test('the review loop reads an inline thread as the agent own finding and resolv
 test('the merge gate keeps reading the cr-comment and ignores the inline findings as reviewer feedback', function (): void {
     $merge = inlineReviewSource('skills/merge-github-pr/SKILL.md');
 
-    expect($merge)->toContain('The inline review comments of a round (the `cr-inline` marker')
+    expect($merge)->toContain('Older inline review comments (the `cr-inline` marker')
         ->and($merge)->toContain('They are never read as reviewer feedback and add no verdict')
         ->and($merge)->toContain(
             'this gate reads the `Counts:` line and the `## Deferred to sub-issues` section of the '
@@ -380,12 +389,14 @@ test('the merge gate keeps reading the cr-comment and ignores the inline finding
         );
 });
 
-test('the github review skill delegates the inline review to the contract', function (): void {
+test('the github review skill delegates the review to the contract and posts no inline comment', function (): void {
     $skill = inlineReviewSource('skills/code-review-github/SKILL.md');
 
-    expect($skill)->toContain('one pull-request review of inline comments through `scripts/post-inline-review.sh`')
-        ->and($skill)->toContain('#### Inline review (the one publication on the pull request)')
-        ->and($skill)->toContain('`references/cr-wrapper-contract.md` *GitHub pull-request review* and *Inline review comments*');
+    expect($skill)->toContain('one pull-request review through `scripts/post-inline-review.sh`')
+        ->and($skill)->toContain('The review carries no inline comment')
+        ->and($skill)->toContain('#### Pull-request review (the one publication on the pull request)')
+        ->and($skill)->toContain('`references/cr-wrapper-contract.md` *GitHub pull-request review* and *Findings in the review body*')
+        ->and($skill)->not->toContain('inline-review-comment.md');
 });
 
 test('the gate and the thread rule bind agent status to the actor and read the other comments of an inline thread', function (): void {
@@ -401,11 +412,13 @@ test('the gate and the thread rule bind agent status to the actor and read the o
         ->and($script)->toContain('((.author.login // "") == $actor) and ((.body // "") | contains("<!-- cr-inline:actor=');
 });
 
-test('an outdated thread is matched without its line', function (): void {
+test('the publisher builds a review request with no comments key and refuses one that has it', function (): void {
     $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
 
-    expect($script)->toContain('and (.line == null or .line == $f.line)')
-        ->and($script)->not->toContain('(.line // .originalLine) == $f.line');
+    expect($script)->toContain('{commit_id: $commit, event: "COMMENT", body: $body} as $r')
+        ->and($script)->toContain('| if has("comments") then error("a review carries no inline comment") else . end')
+        ->and($script)->not->toContain('open_here(')
+        ->and($script)->not->toContain('file_anchors');
 });
 
 test('both GitHub wrappers resolve the target and the actor through one shared helper', function (): void {
@@ -452,7 +465,7 @@ test('a published report with an Inline line resolves nothing by absence, and th
 });
 
 test(
-    'the marker guard runs after the last transformation, covers the rule field, and a rendered comment holds exactly its own markers',
+    'the marker guard runs after the last transformation, covers the rule field, and the review body holds no cr-inline marker',
     function (): void {
         $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
         $contract = inlineReviewContract();
@@ -461,15 +474,15 @@ test(
             . 'must not contain an agent marker")')
             ->and($script)->toContain('| req([.problem, .impact, .fix, .existing] | all(marker_free); "a text field must not contain an agent marker")')
             ->and($script)->not->toContain('"suggestion must not contain an agent marker"')
-            ->and($script)->toContain('[match("<!--\\\\s*cr-inline:"; "g")] | length')
+            ->and($script)->toContain('if ($body | count("<!--\\\\s*cr-inline:")) == 0')
             ->and($script)->toContain('the rendered review was refused, nothing was published')
             ->and($script)->toContain('error("the review body does not hold exactly its own markers")')
             ->and($contract)->toContain('**A marker in the finding text is refused.**')
-            ->and($contract)->toContain('does not hold exactly its own two `cr-inline` markers');
+            ->and($contract)->toContain('that holds a `cr-inline` marker');
     },
 );
 
-test('the wrapper accepts the finding fields for the hidden record and renders none of their labels inline', function (): void {
+test('the wrapper accepts the finding fields for the hidden record and renders none of their labels', function (): void {
     $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
     $payload = substr($script, (int) strpos($script, 'IFS= read -r -d \'\' JQ_PAYLOAD'), 4_000);
 
@@ -482,36 +495,33 @@ test('the wrapper accepts the finding fields for the hidden record and renders n
         expect($script)->toContain('"' . $key . '"');
     }
 
-    $labels = ['Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Evidence', 'Expected behavior', 'Test hint', 'Suggested fix', 'suggestion'];
+    $labels = [
+        'Rule', 'Provenance', 'Answered', 'Raised by', 'Level', 'Evidence',
+        'Expected behavior', 'Test hint', 'Impact', 'Suggested fix', 'suggestion',
+    ];
 
     foreach ($labels as $label) {
         expect($payload)->not->toContain('"' . $label . '"')
             ->and($payload)->not->toContain('**' . $label . ':**');
     }
 
-    expect($payload)->toContain('"\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", "**Fix:** \(.fix)"')
-        // `existing` is normalised to its own closed code span, so the line renders it as `<path>:<line>`.
-        ->and($payload)->toContain('def dry_line: "🟠 **Moderate · DRY:** This repeats the logic of \(.existing). Please '
-            . 'unify it and call the existing implementation instead.";')
+    expect($payload)->not->toContain('**Problem:**')
+        ->and($payload)->not->toContain('def dry_line')
+        // `existing` is normalised to its own closed code span, so the Fix of a DRY entry renders it as `<path>:<line>`.
+        ->and($payload)->toContain('Use the existing implementation in \(.existing) instead of repeating the logic.')
         ->and($script)->toContain('existing: (.existing | if . == null then null else "`" + codespan + "`" | inert end),')
         ->and($script)->toContain('a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang');
 });
 
-test('the inline comment template pins both shapes and the two markers', function (): void {
-    $template = inlineReviewSource('skills/code-review-github/templates/inline-review-comment.md');
-    $first = substr($template, (int) strpos($template, 'Every finding except DRY:'));
-    $markers = "<!-- cr-inline:actor={login} -->\n<!-- cr-inline:finding={finding id} -->";
+test('the inline comment template is gone and the review body template owns the entry', function (): void {
+    $template = inlineReviewSource('skills/code-review-github/templates/review-body.md');
 
-    expect($first)->toContain(
-        "````markdown\n{🔴 | 🟠} **Problem:** {the problem, in one or two plain sentences}\n\n"
-        . "**Impact:** {what breaks or what risk this introduces, in one sentence}\n\n"
-        . "**Fix:** {what to change, in one plain sentence}\n\n@{login}\n\n" . $markers . "\n````",
-    )
+    expect(file_exists(dirname(__DIR__, 2) . '/skills/code-review-github/templates/inline-review-comment.md'))->toBeFalse()
         ->and($template)->toContain(
-            '🟠 **Moderate · DRY:** This repeats the logic of `{existing file:line}`. '
-            . "Please unify it and call the existing implementation instead.\n\n@{login}\n\n" . $markers,
+            "**🔴 Critical 1 — {title}** · `{file:line}`\n{the problem, in one sentence}\n**Fix:** {what to change, in one sentence}\n@{login}",
         )
-        ->and($template)->toContain('**A finding that cannot anchor has no inline comment.**')
+        ->and($template)->toContain('The review carries no inline comment, so this block is the one place a person reads a finding.')
+        ->and($template)->toContain('**An entry ends with the `@login` mention line only when the finding sets `author`**')
         ->and($template)->not->toContain('**Suggested fix:**')
         ->and($template)->not->toContain('```suggestion');
 });

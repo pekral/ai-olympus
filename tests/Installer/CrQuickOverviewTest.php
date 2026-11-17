@@ -15,11 +15,11 @@ test('the rule owns the quick overview once and defines its three parts', functi
         ->and($section)->toContain('1. **`Overview:` is the first line of the header block.**')
         ->and($section)->toContain('2. **`## Changed areas` follows the header block.** It is one table with the columns `Layer`, `Files`, and `Summary`.')
         ->and($section)->toContain('3. **`## Prompt to fix all issues` is the last section, and only while a finding is open.**')
-        ->and($section)->toContain('The block lists the findings posted as inline review comments and the findings that stay in `## Findings` alike')
+        ->and($section)->not->toContain('posted as inline review comments')
         ->and($section)->toContain('The merge gate still reads every value from the same report')
         ->and($section)->toContain('**On GitHub the review carries none of the three parts.**')
         ->and($section)->toContain(
-            'the visible body, the short inline comments, and the Actionable comments are the human part of the review '
+            'the visible body with its Actionable comments is the human part of the review '
             . '(*One published comment per review run* item 3)',
         );
 });
@@ -78,7 +78,7 @@ test('the fix-all prompt of every template puts the guard before the findings an
     expect($guard)->toBeGreaterThan(0)
         ->and($guard)->toBeLessThan($first)
         ->and($section)->toContain(
-            'the findings posted as inline review comments and the findings kept in `## Findings` alike, so the `Inline:` line never shortens it',
+            'The block lists every open finding of the round, so the `Inline:` line of a legacy comment never shortens it.',
         )
         ->and($section)->toContain('Verify each finding against the current code before you change anything.')
         ->and($section)->toContain('Keep each change minimal. When you finish')
