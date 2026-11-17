@@ -71,7 +71,7 @@ test('a fix round closes the whole class of each finding with a test (issue #599
         ->toContain('   - a differential test: the fixed code and a reference implementation give the same result for every variant;')
         ->toContain('   - a property test: an invariant holds for generated inputs.')
         ->toContain('The test fails on the code before the fix and passes after it')
-        ->toContain('5. **Push only then.**')
+        ->toContain('6. **Push only then.**')
         ->toContain('A finding without those three items is reported as not closed.');
 
     expect(fewerRoundsFile('skills/process-code-review/SKILL.md'))

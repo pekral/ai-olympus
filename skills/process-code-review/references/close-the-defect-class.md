@@ -15,14 +15,36 @@ A review finding names one example of a defect. A fix of that example alone leav
    - a property test: an invariant holds for generated inputs.
 
    The variants are the reported example, every instance of step 2, and the boundaries of the class: the empty input, the value at the limit, the value one over the limit, and an input of an unexpected type or shape. The test fails on the code before the fix and passes after it (`@skills/test-driven-development/SKILL.md`).
-5. **Push only then.** The class, its instances, and its test land together in this fix round.
+5. **Attack the fix.** Run the short red tests of *Attack the fix before the push* below when that section applies.
+6. **Push only then.** The class, its instances, and its test land together in this fix round.
+
+## Attack the fix before the push
+
+A fix can close the reported case and leave a way around it open. A short set of attacks on the whole class finds that hole before the next review round does.
+
+**When the step applies:**
+
+- A security finding always gets it.
+- Any other finding gets it when its class has more than one form: the same defect reaches the code through more than one input form, encoding, entry point, or state.
+- A finding whose class has one form skips it. The handoff names that reason.
+
+**How to run it:**
+
+1. **Write a handful of attacks.** Each attack is one short case against the class, not only against the reported case. Write it as a row of the class test of step 4. Keep the set small and fast, so it runs locally before the push.
+2. **Try to get around the fix itself.** Write the same input in another form: another encoding, another letter case, added whitespace or separators, a nested or repeated form, another entry point to the same code, or a value of a type the fix does not check.
+3. **Make each attack fail on the code before the fix.** A failure there shows that the attack reproduces the defect. Before you commit the fix, take only the fixed source files out of the working tree (`git stash push -- <the fixed source files>`), run the attacks with the project's own test runner, and restore the files (`git stash pop`). An attack that passes there reproduces nothing: rewrite it until it fails, or drop it.
+4. **Make each attack pass on the fixed code.** An attack that still fails got through the fix. Change the fix before the push, then run every attack again.
+5. **Keep every attack as a regression test.** The attacks stay in the class test and land in the fix commit.
 
 ## Limits
 
 - **A finding whose Test Hint reads `none is needed`** changes no behaviour, so it needs no test (`@skills/test-audit/SKILL.md`). Steps 1 to 3 still apply.
 - **A free-form reviewer thread** that describes a behaviour bug gets the same steps. A naming, readability, or dead-code remark has no class to close.
 - **The class is the defect's own kind, never a refactoring of nearby code.** A cleanup that no instance needs is outside the assignment.
+- **The attacks never replace the review.** The next review round still checks the fix on its own.
 
 ## The handoff
 
 For each finding, the fix handoff names the class sentence, the number of instances found and fixed, and the test that proves the class closed. A finding without those three items is reported as not closed.
+
+For a finding that *Attack the fix before the push* covers, the handoff also lists the attacks tried. Each attack takes one line: the case, its result on the code before the fix (fails), and its result on the fixed code (passes). The list names every attack that got through the first version of the fix, and every attack that was dropped. A covered finding without that list is reported as not closed too. A finding that skips the step names its one form.
