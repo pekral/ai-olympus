@@ -320,7 +320,8 @@ user → krang                                         (top-level; resolves sour
          │     │ no
        Task ▶ leonardo ∥ splinter ∥ raphael ∥ casey   (one parallel CR round, each appends to the brief; leonardo: quality / architecture / optimisation / security, splinter: independent security view, raphael: interactive testing, casey: database report)
          │        └─ barrier → findings (incl. failed test scenarios) → Task ▶ donatello fixes → next round (maxIterations default 3)
-         │        └─ converged (both security views clean) → Task ▶ leonardo (publish) → one CR review with the merged security view + Interactive testing + database report
+         │        └─ converged, every other view already reported clean → leonardo publishes in its own round run; krang promotes the PR after Finalization
+         │        └─ converged otherwise (both security views clean) → Task ▶ leonardo (publish) → one CR review with the merged security view + Interactive testing + database report
          │           (leonardo dispatch guarded by registration check — fallback: review inline in code-review-github)
          ▼
        Task ▶ donatello    (fast scoped validation mode — final gate after convergence; skipped over an already-validated head, never skipped on a FAST run)

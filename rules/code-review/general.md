@@ -655,6 +655,6 @@ Five more files in this directory hold the parts of this rule set that only some
 - `@rules/code-review/hotfix-review.md` — a review run its caller declared a HOTFIX.
 - `@rules/code-review/several-pull-requests.md` — an issue that links more than one pull request.
 - `@rules/code-review/product-documentation.md` — a project that names a product documentation source.
-- `@rules/code-review/publishing-cases.md` — a run that only processes the owner's answers, and a helper that rewrites a comment in place.
+- `@rules/code-review/publishing-cases.md` — a run that only processes the owner's answers, a helper that rewrites a comment in place, and a `leonardo` round dispatched with `publish: when-final`.
 
 Each moved section keeps its name, so a `@rules/code-review/general.md *Section*` reference to it resolves through the pointer that names it.

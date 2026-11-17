@@ -41,7 +41,11 @@ function onDemandCodeReviewParts(): array
     return [
         'hotfix-review.md' => ['## HOTFIX runs — what the review does differently'],
         'product-documentation.md' => ['- **"Undocumented" is a conclusion to be earned.**'],
-        'publishing-cases.md' => ['## The owner\'s answers', '## A line the operator added survives the rewrite'],
+        'publishing-cases.md' => [
+            '## The owner\'s answers',
+            '## A line the operator added survives the rewrite',
+            '## The last round publishes in its own run',
+        ],
         'review-rounds.md' => [
             '### What the delta scopes, and what it never scopes',
             '### A light round after a small delta (issue #599)',
