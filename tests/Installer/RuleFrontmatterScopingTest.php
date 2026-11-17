@@ -467,7 +467,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the visible review body has one owner, `review-body.md`, and a review carries no code (issue #595).
         // Re-baselined: the code ban covers the published review outputs only, rules keep their code examples, and the entry of a
         // finding with no inline comment carries the author mention (issue #595, fix round 1).
-        'rules/code-review/general.md' => '479b4937121ad0a0e13b5dbffa343c11b635ea303bfbacbb9557ac9abb6a1ae0',
+        // Re-baselined: rebased onto #599, with restated sentences tightened so the file stays under its size limit (issue #595).
+        'rules/code-review/general.md' => '162e4c03f4c451d5ad6b3ddc1f549aa5600fcd547d3215ceb1d0dcc4de960384',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

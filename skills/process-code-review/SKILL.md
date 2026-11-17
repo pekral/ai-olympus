@@ -67,10 +67,10 @@ If the rebase changed `composer.lock`, run `skills/_shared/run-gate.sh --exclusi
 
 For every Critical and Moderate finding, extract the reproducer fields published by the CR skills (`@skills/code-review/SKILL.md`, `@skills/code-review-github/SKILL.md`, `@skills/code-review-jira/SKILL.md`, `@skills/security-review/SKILL.md`):
 
-- **Faulty Example** — the sentence that describes the input or state that reproduces the bug
+- **Faulty Example** — the input or state that reproduces the bug, in words
 - **Expected Behavior** — the assertion target the test must verify
 - **Test Hint** — the layer (unit, integration, feature) and entry point
-- **Suggested Fix** — the sentence that says what to change and where (no code: `@rules/code-review/general.md` *A review carries no code*; may be `n/a — <reason>` when the Fix narrative is sufficient)
+- **Suggested Fix** — what to change and where, never as code (`@rules/code-review/general.md` *A review carries no code*); `n/a — <reason>` when the Fix narrative suffices
 
 Read the reproducer fields off `comments[]` and `body` / `descriptionText` returned by the deterministic loader for the originating tracker instead of re-fetching the issue:
 - **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
@@ -80,9 +80,9 @@ Read the reproducer fields off `comments[]` and `body` / `descriptionText` retur
 
 Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` because the fix changes no behaviour (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
 
-1. Turn the Faulty Example sentence into a new test case at the layer named in the Test Hint.
+1. Turn the Faulty Example into a test at the layer of the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.
-3. Write the change the Suggested Fix states (or the Fix narrative when it is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
+3. Make the Suggested Fix change (or the Fix narrative when it is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
 
 If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing. Suggested Fix may legitimately be `n/a` per the CR rules.
 
