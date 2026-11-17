@@ -155,8 +155,11 @@ gate_load_commands() {
 # write and every read, so a link planted in the tree cannot redirect either.
 gate_no_symlink() {
   local path="$1" prefix="" part
-  local IFS='/'
-  for part in $path; do
+  local -a parts=()
+  # A read, never an unquoted expansion: a component such as `[a]b.php` must not glob into
+  # another file's name, or the link it names would never be tested.
+  IFS='/' read -r -d '' -a parts < <(printf '%s\0' "$path") || true
+  for part in ${parts[@]+"${parts[@]}"}; do
     [[ -n "$part" ]] || continue
     prefix="${prefix:+$prefix/}$part"
     if [[ -L "$prefix" ]]; then
@@ -733,8 +736,8 @@ gate_lock_timeout() {
   return 1
 }
 
-# The one entry into the machine lock of run-gate.sh and run-validation.sh: the cleanup traps
-# that release the lock however the script ends, then the wait for the lock.
+# The one entry into the machine lock of run-gate.sh, run-validation.sh, and run-fast-checks.sh:
+# the cleanup traps that release the lock however the script ends, then the wait for the lock.
 #   returns what gate_lock_acquire returns
 gate_lock_enter() {
   trap gate_cleanup EXIT
