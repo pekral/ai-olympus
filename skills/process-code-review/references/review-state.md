@@ -7,7 +7,7 @@ The state makes four things deterministic that the loop used to decide in prose:
 - **Identity.** One defect keeps one `finding_id` from round to round, so it is never counted as new twice.
 - **Evidence.** A finding without independently assessable evidence does not block, except a security finding.
 - **Status.** Only the reviewer's own re-read, or a trusted author, changes a status — never a claim.
-- **The cap.** The loop stops at a configured round, reports what is left and why, and escalates.
+- **The cap.** The loop stops at a configured round, decides what is left without the operator, and escalates only what it cannot decide.
 
 ## What a round is
 
@@ -23,7 +23,7 @@ Two keys of the project manifest (`@rules/general/general.md` *Project manifest*
 
 | Key | Allowed values | Default | Effect |
 | --- | --- | --- | --- |
-| `review.max-iterations` | an integer from 1 to 10 | 3 | The round cap: the loop runs at most this many rounds, and the last one is the deferral boundary. |
+| `review.max-iterations` | an integer from 1 to 10 | 3 | The round cap: the loop runs at most this many rounds, and the last one is the deferral boundary. Only a security finding left there adds up to two security rounds (*The cap round decides automatically*). |
 | `review.blocking-threshold` | `critical`, `high`, `medium`, `low` | `critical` | The lowest severity that is a **hard blocker** at the cap: never deferred, always an escalation. |
 
 - **A value outside its range is refused, never clamped.** The script falls back to the default and prints `refused: …` on stderr. `0`, a negative number, a string such as `"3"`, a fraction, and a value above 10 all fall back to 3.
@@ -35,8 +35,8 @@ Two keys of the project manifest (`@rules/general/general.md` *Project manifest*
 Keep the state at `.claude/run/review-state/<owner>-<name>-<pr>.json` (Codex: `.codex/run/review-state/…`). Create the directory first. The script refuses a state path outside the git-ignored `.claude/run/` or `.codex/run/` of the git toplevel, a symbolic link, and a tracked file. Run every command from the project root.
 
 1. **Round 1:** `review-state.sh init --state <file> --repo <owner/name> --pr <n>`, then `review-state.sh record --state <file> --input <round report>`.
-2. **Every later round:** before the review, `review-state.sh scope --state <file> --changed-files <delta paths>`; after it, `review-state.sh record --state <file> --input <round report> --changed-files <delta paths>`. The delta paths are `git diff --name-only <reviewedRevision>..HEAD`, or the whole PR diff when the baseline is not an ancestor. `scope` stores its result in the state, and `record` reads it: a round for which `scope` did not run counts as a delta round.
-3. **The cap round, when deferrable findings are left:** file each sub-issue through `scripts/file-deferred-moderate.sh`, record each one that landed with `review-state.sh defer --state <file> --finding <id> --url <sub-issue URL>`, then run `review-state.sh evaluate --state <file> --final`.
+2. **Every later round:** before the review, `review-state.sh scope --state <file> --changed-files <delta paths> --numstat <delta line counts>`; after it, `review-state.sh record --state <file> --input <round report> --changed-files <delta paths>`. The delta paths are `git diff --name-only <reviewedRevision>..HEAD`, and the delta line counts are `git diff --numstat <reviewedRevision>..HEAD`, or the whole PR diff when the baseline is not an ancestor. `scope` stores its result in the state, and `record` reads it: a round for which `scope` did not run counts as a delta round.
+3. **The cap round, when deferrable findings are left:** file each sub-issue through `scripts/file-deferred-moderate.sh`, record each one that landed with `review-state.sh defer --state <file> --finding <id> --url <sub-issue URL>`, then run `review-state.sh evaluate --state <file> --final`. When the verdict is then `security-round`, fix the security findings and record the next round as step 2 states.
 4. **A trusted rejection** of a non-security finding: `review-state.sh dismiss --state <file> --finding <id> --comment <URL of the rejection comment on the pull request>`. The script checks the author itself; see *Who may change a status*.
 
 Every command except `scope` prints the verdict as one line of JSON. Act on its typed fields, never on its `reason` text.
@@ -82,8 +82,22 @@ A finding may block only when it names a concrete defect or a violated explicit 
 | --- | --- | --- |
 | `continue` | No round is recorded yet, or blocking findings are left before the cap. | Fix and run the next round. |
 | `converged` | No blocking finding is left. | Exit the loop to *Finalization*. |
-| `deferral-required` | At the cap, every blocking finding left is non-security and below the threshold. | Defer what clears the filing bar, then `evaluate --final`. |
-| `escalated` | At the cap, a hard blocker is left (`cap-reached-hard-blockers`), `--final` found a blocker neither fixed nor deferred (`cap-reached-undeferred-blockers`), or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`). | Stop. |
+| `deferral-required` | At the cap, no hard blocker outside security is left, and at least one blocking finding is non-security and below the threshold. | Defer what clears the filing bar, then `evaluate --final`. |
+| `security-round` | At the cap, or in a security round after it, only security findings are left, and fewer than two security rounds ran. | Fix the security findings and run the next round, limited to them. |
+| `escalated` | At the cap, a hard blocker outside security is left (`cap-reached-hard-blockers`), `--final` found a blocker neither fixed nor deferred (`cap-reached-undeferred-blockers`), a security finding is still open after the two security rounds (`security-rounds-spent`), or a round was recorded after the loop converged in the cap round or later (`cap-spent-after-convergence`). | Stop. |
+
+### The cap round decides automatically
+
+The cap round never waits for the operator while the loop can still decide. Each finding left at the cap takes exactly one path:
+
+| Finding left at the cap | What the loop does | Operator |
+| --- | --- | --- |
+| A Critical, or a Moderate at or above the threshold, that is not security-relevant | Escalates at once (`cap-reached-hard-blockers`). It is never deferred and never waits for a round. | Decides. |
+| A non-security Moderate below the threshold | Is deferred into a sub-issue when it clears the filing bar (`references/round-three-deferral.md`), and blocks otherwise. The loop defers first, before any security round. | Is not asked. A blocking one escalates (`cap-reached-undeferred-blockers`). |
+| A security finding (S1–S3) at any severity | Gets up to two more rounds, limited to the security findings: the fix touches only them, and the review reports only them and any new Critical. `record` accepts these rounds and no other round past the cap. | Is not asked. Still open after the two rounds → `security-rounds-spent`, and the operator decides. |
+
+- **Nothing about the gate changes.** A security finding is never deferred and never dismissed, a Critical is never deferred, and every security round counts in `rounds`. A new Critical outside security in a security round escalates at once.
+- **The operator still decides beyond.** An escalation is terminal for the loop: a human decides what happens next, and only a human's decision starts a new loop.
 
 **A change after a convergence in the cap round escalates.** The converged verdict covers only the diff the cap round reviewed. When a later commit needs another review round — a gate fix that changes business logic (`SKILL.md` *Finalization*) — `record` refuses the round, stores the escalation `cap-spent-after-convergence`, prints the verdict, and exits 5. Never promote the pull request on that verdict.
 
@@ -91,7 +105,7 @@ A finding may block only when it names a concrete defect or a violated explicit 
 
 ## Incremental scope and the broad review
 
-Round 1 reviews the whole PR diff. A later round reviews the delta since the last reviewed revision (`@rules/code-review/general.md` *Incremental Review Scope*), the security lenses excepted: they read the whole PR diff in every round. The state keeps every open finding in view whether or not the delta touched it. `scope` widens the next round to the whole PR diff when the delta is not enough:
+Round 1 reviews the whole PR diff. A later round reviews the delta since the last reviewed revision (`@rules/code-review/general.md` *Incremental Review Scope*), the security lenses excepted: in a round of `full` depth they read the whole PR diff. The state keeps every open finding in view whether or not the delta touched it. `scope` widens the next round to the whole PR diff when the delta is not enough:
 
 | Reason | Trigger |
 | --- | --- |
@@ -100,6 +114,15 @@ Round 1 reviews the whole PR diff. A later round reviews the delta since the las
 | `security-surface` | A changed path is an authentication, secret, payment, or migration surface, or a project critical path (the forces of `skills/_shared/classify-risk.sh`). |
 | `shared-surface` | A changed path is shared or core architecture, or a public API (the same classifier). |
 | `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file the delta did not change, so only a full round can show whether it is gone. |
+
+`scope` also prints the **depth** of the round: `light` runs only the lenses the delta can affect, and `full` runs every lens (`@rules/code-review/general.md` *A light round after a small delta* owns which lenses each runs). The depth is `light` only when none of these reasons applies:
+
+| Depth reason | Trigger |
+| --- | --- |
+| every scope reason above | The scope is `full`, so the round reads the whole PR diff. |
+| `large-delta` | The delta changes more than 5 files, or more than 100 lines (added plus deleted). 5 files and 100 lines are still small. |
+| `delta-size-unknown` | No `--numstat` list was passed, or it holds a binary entry or a line in another shape. |
+| `open-security-finding` | A blocking security finding is open, so the next delta is a security fix. |
 
 ## Recovery after an interruption
 
@@ -120,6 +143,6 @@ The verdict carries `counts` (new, confirmed, resolved, dismissed, reopened, nee
 | 2 | `git` or `jq` is missing. | Install it. |
 | 3 | The state or the round report is missing or invalid; nothing was written. | Read the stderr line. A report the extractor refuses needs the template fields. A finding under `## Findings` without an `Evidence` field is refused (`Evidence is required; move an unproven point under ## Needs verification`): render the evidence, or move the point under `## Needs verification`, and record the round again. A damaged state is evidence: report it, and start a new loop only on a human's decision. |
 | 4 | The policy refused the operation: a security finding cannot be dismissed, the author of the rejection is not trusted or cannot be verified, the rejection comment does not name the `finding_id`, or a deferral came before the cap or for a hard blocker. | Fix the finding instead. For a refused rejection, read the stderr line: pass the URL of the trusted author's own comment on this pull request that names the `finding_id`, or check that `gh` can load the pull request. Never edit the state to record the dismissal. |
-| 5 | The loop is closed: it escalated, its cap is spent, or a round came after a convergence in the cap round (`cap-spent-after-convergence`). | Report the escalation. Do not start another round, and do not promote the pull request. |
+| 5 | The loop is closed: it escalated, its cap is spent and the verdict is not `security-round`, or a round came after a convergence in the cap round (`cap-spent-after-convergence`). | Report the escalation. Do not start another round, and do not promote the pull request. When the verdict is `deferral-required`, defer first: the security round starts after it. |
 
 A `refused: review.max-iterations …` line on stderr means the default-branch manifest holds a value outside its range; the loop runs with the default until the manifest is fixed on the default branch.

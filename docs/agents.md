@@ -334,7 +334,7 @@ user → krang                                         (top-level; resolves sour
 
 The scoped validation dispatch runs at **push-level granularity** — after `donatello` opens the PR (high-risk changes only) and once after the `leonardo` CR converges (every run whose converged head is not already validated — see `agents/krang.md` step 6). Running it inside the `leonardo` loop would require `leonardo` to dispatch a subagent, and `leonardo` dispatches nobody. `krang` is therefore the correct dispatcher for both scoped passes.
 
-The convergence gate is **0 Critical with no undeferred Moderate** (`@skills/process-code-review/SKILL.md` *Review loop* step 4); at the cap round (`review.max-iterations`, default 3) a non-security Moderate that clears the filing bar is deferred into a tracker sub-issue, and anything left blocking stops the run and escalates instead of reporting success.
+The convergence gate is **0 Critical with no undeferred Moderate** (`@skills/process-code-review/SKILL.md` *Review loop* step 4); at the cap round (`review.max-iterations`, default 3) a non-security Moderate that clears the filing bar is deferred into a tracker sub-issue, a security finding gets up to two more rounds limited to the security findings, and anything left blocking stops the run and escalates instead of reporting success.
 
 ## Adaptive routing (always on)
 

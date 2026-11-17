@@ -17,7 +17,7 @@
 #   review-state.sh init     --state <file> --repo <owner/name> --pr <number>
 #   review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
 #   review-state.sh evaluate --state <file> [--final]
-#   review-state.sh scope    --state <file> --changed-files <file|->
+#   review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
 #   review-state.sh --self-test
@@ -27,6 +27,9 @@
 #   --input          the findings report of one review round (skills/_shared/extract-findings.sh --round).
 #   --changed-files  the paths the round's delta changed, one per line (`git diff --name-only <baseline>..HEAD`).
 #                    Required by `record` once an earlier round exists, and by `scope`.
+#   --numstat        the line counts of the same delta (`git diff --numstat <baseline>..HEAD`). `scope` reads it
+#                    to tell a small delta from a large one; without it the delta size is unknown and the round
+#                    runs every lens.
 #   --final          at the cap round, escalate when a blocking finding is still neither fixed nor deferred.
 #   --comment        the URL of the rejection: a comment on the pull request of the state
 #                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
@@ -48,8 +51,12 @@
 #   record, evaluate, dismiss, defer
 #             the verdict: {"verdict", "status", "escalation_reason", "iteration", "max_iterations",
 #             "blocking_threshold", "reason", "counts", "rounds", "blocking", "deferrable", "carried"}
-#   scope     {"scope": "delta"|"full", "reasons": [...], "baseline": <sha>|null}; the scope is also stored
-#             for the next `record`
+#   scope     {"scope": "delta"|"full", "reasons": [...], "baseline": <sha>|null, "depth": "light"|"full",
+#             "depth_reasons": [...], "delta": {"files", "lines"}}; the scope is also stored for the next
+#             `record`. A `light` depth runs only the lenses the delta can affect
+#             (rules/code-review/general.md *A light round after a small delta*): a later round whose scope is
+#             `delta`, whose delta has at most SMALL_DELTA_FILES files and SMALL_DELTA_LINES changed lines, and
+#             whose state holds no open security finding. Every other round is `full`.
 #
 # Exit codes
 #   0  success — the verdict is in the output, never in the exit code
@@ -58,7 +65,9 @@
 #   3  the state or the round report is missing, unreadable, or invalid; nothing was written, and the loop is
 #      not converged
 #   4  the policy refused the operation (a security finding, an untrusted author, a deferral before the cap)
-#   5  the loop is closed: it escalated, or its round cap is spent
+#   5  the loop is closed: it escalated, or its round cap is spent. A security finding left at the cap round
+#      gets up to two more rounds, limited to the security findings (the `security-round` verdict); `record`
+#      accepts a round past the cap only then.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -70,13 +79,16 @@ LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 DEFAULT_CAP=3
 MAX_CAP=10
 MAX_CHANGED_FILES=20000
+# A small delta: at most this many changed files and changed lines (added plus deleted), both inclusive.
+SMALL_DELTA_FILES=5
+SMALL_DELTA_LINES=100
 
 usage() {
   cat >&2 <<'EOF'
 Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->]
        review-state.sh evaluate --state <file> [--final]
-       review-state.sh scope    --state <file> --changed-files <file|->
+       review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
        review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
        review-state.sh --self-test
@@ -108,6 +120,8 @@ IFS= read -r -d '' JQ_STATE <<'EOF' || true
 include "finding-defs";
 
 def isint($v; $min): ($v | type) == "number" and ($v | floor) == $v and $v >= $min;
+# The automatic rounds after the cap round for a security finding, limited to the security findings.
+def security_rounds: 2;
 def is_open: .status == "new" or .status == "confirmed" or .status == "needs-verification";
 # A finding blocks when it carries evidence, or when it is security-relevant even without evidence (the S1-S3 floor).
 def is_blocking: .status == "new" or .status == "confirmed" or (.status == "needs-verification" and .security);
@@ -139,7 +153,7 @@ def state_errors:
                 "reopened", "resolved", "revision", "verdict"]))
               and all(.new, .confirmed, .resolved, .dismissed, .reopened, .needs_verification, .remaining_blocking; isint(.; 0))
               and isstr(.revision; "^[0-9a-f]{7,64}$")
-              and (.verdict as $v | ["continue", "converged", "deferral-required", "escalated"] | index([$v])) != null)
+              and (.verdict as $v | ["continue", "converged", "deferral-required", "security-round", "escalated"] | index([$v])) != null)
          then empty else "a round entry is malformed" end),
         (if isint($s.max_iterations; 1) and $s.max_iterations <= 10 then empty else "max_iterations must be an integer from 1 to 10" end),
         (if (["critical", "high", "medium", "low"] | index([$s.blocking_threshold])) != null then empty
@@ -148,8 +162,8 @@ def state_errors:
         (if ($s.status == "escalated") == ($s.escalation_reason != null) then empty
          else "escalation_reason must be set exactly when the status is escalated" end),
         (if $s.escalation_reason == null
-            or (["cap-reached-hard-blockers", "cap-reached-undeferred-blockers", "cap-spent-after-convergence"]
-                | index([$s.escalation_reason])) != null
+            or (["cap-reached-hard-blockers", "cap-reached-undeferred-blockers", "cap-spent-after-convergence",
+                 "security-rounds-spent"] | index([$s.escalation_reason])) != null
          then empty else "escalation_reason is not a known reason" end),
         (if $s.status == "converged" and $s.iteration == 0 then "a state without a review round is never converged" else empty end),
         (if $s.revision == null or isstr($s.revision; "^[0-9a-f]{7,64}$") then empty else "revision must be null or a commit SHA" end),
@@ -175,24 +189,33 @@ def state_errors:
     end;
 
 # The verdict of the state under the effective configuration. A state without a review round never converges.
+# At the cap round a hard blocker that is not security-relevant escalates at once: a Critical is never deferred
+# and never waits. A security finding gets up to `security_rounds` more rounds, limited to the security findings,
+# and escalates when they are spent. Every other blocking finding is deferrable, and the loop defers it first.
 def verdict($cap; $threshold):
   . as $s
   | ($s.deferrals | map(.finding_id)) as $deferred
   | [ $s.findings[] | select(is_blocking)
       | select(is_hard($threshold) or (.finding_id as $id | $deferred | index([$id])) == null) ] as $open
-  | ($open | map(select(is_hard($threshold)))) as $hard
+  | ($open | map(select(is_hard($threshold) and (.security | not)))) as $hard
+  | ($open | map(select(.security))) as $sec
+  | ($open | map(select(is_hard($threshold) | not))) as $deferrable
   | (if $s.status == "escalated" then "escalated"
      elif $s.iteration == 0 then "continue"
      elif ($open | length) == 0 then "converged"
      elif $s.iteration < $cap then "continue"
      elif ($hard | length) > 0 then "escalated"
-     else "deferral-required" end) as $v
+     elif ($sec | length) > 0 and $s.iteration >= $cap + security_rounds then "escalated"
+     elif ($deferrable | length) > 0 then "deferral-required"
+     else "security-round" end) as $v
   | {
       verdict: $v,
       escalation_reason: (if $s.status == "escalated" then $s.escalation_reason
-                          elif $v == "escalated" then "cap-reached-hard-blockers" else null end),
+                          elif $v == "escalated" and ($hard | length) > 0 then "cap-reached-hard-blockers"
+                          elif $v == "escalated" then "security-rounds-spent" else null end),
       open: $open,
-      deferrable: ($open | map(select(is_hard($threshold) | not)))
+      security: $sec,
+      deferrable: $deferrable
     };
 
 def brief: {finding_id, severity, security, status, file, line};
@@ -211,6 +234,8 @@ def output($cap; $threshold; $carried):
                elif $v.verdict == "continue" and $s.iteration == 0 then "no review round is recorded yet"
                elif $v.verdict == "continue" then "\($v.open | length) blocking finding(s) are left after round \($s.iteration) of \($cap)"
                elif $v.verdict == "deferral-required" then "the round cap of \($cap) is reached; \($v.deferrable | length) blocking finding(s) are left that are neither security-relevant nor at or above the blocking threshold: fix or defer each one, or escalate"
+               elif $v.verdict == "security-round" then "the round cap of \($cap) is reached and \($v.security | length) security finding(s) are left: round \($s.iteration + 1) of at most \($cap + security_rounds) runs, limited to them"
+               elif $s.escalation_reason == "security-rounds-spent" then "the round cap of \($cap) and the \(security_rounds) security rounds after it are spent, and \($v.security | length) security finding(s) are left: the operator decides"
                elif $s.escalation_reason == "cap-spent-after-convergence" then "the loop converged in the cap round of \($cap), and a later change needs a review round the cap no longer allows"
                elif $s.escalation_reason == "cap-reached-undeferred-blockers" then "the round cap of \($cap) is reached and \($v.open | length) blocking finding(s) were neither fixed nor deferred"
                else "the round cap of \($cap) is reached and \($v.open | length) blocking finding(s) are left, at least one of them security-relevant or at or above the blocking threshold" end),
@@ -454,7 +479,13 @@ cmd_record() {
     jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
     fail 5 "the loop converged in the cap round of $cap; a later change needs a review round the cap no longer allows: escalated (cap-spent-after-convergence)"
   fi
-  [[ "$iteration" -lt "$cap" ]] || fail 5 "the round cap of $cap is spent; no further automatic review round starts"
+  # Past the cap a round starts only as a security round: a security finding is left, every other finding is
+  # deferred, and the security rounds are not spent. The verdict decides it, never the caller.
+  if [[ "$iteration" -ge "$cap" ]]; then
+    local current
+    current="$(jq -r -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' verdict($cap; $threshold).verdict' "$TMP/state.json")"
+    [[ "$current" == 'security-round' ]] || fail 5 "the round cap of $cap is spent and the verdict is $current, not security-round; no further automatic review round starts"
+  fi
   if [[ "$iteration" -gt 0 && -z "$changed" ]]; then
     die_usage '--changed-files is required once an earlier round exists'
   fi
@@ -518,20 +549,37 @@ cmd_evaluate() {
 }
 
 cmd_scope() {
-  local state='' changed=''
+  local state='' changed='' numstat=''
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
     --changed-files) [[ $# -ge 2 ]] || die_usage '--changed-files needs a value'; changed="$2"; shift 2 ;;
+    --numstat) [[ $# -ge 2 ]] || die_usage '--numstat needs a value'; numstat="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
   [[ -n "$changed" ]] || die_usage '--changed-files is required'
+  [[ "$changed" != '-' || "$numstat" != '-' ]] || die_usage '--changed-files and --numstat cannot both read standard input'
   check_writable "$state"
   new_tmp
   load_state "$state" "$TMP/state.json"
   read_paths "$changed" "$TMP/changed.json"
+
+  # The size of the delta: its changed lines (added plus deleted) from `git diff --numstat`. A binary entry or a
+  # line in another shape makes the size unknown, and an unknown size is never small.
+  local lines='null'
+  if [[ -n "$numstat" ]]; then
+    if [[ "$numstat" == '-' ]]; then
+      head -n "$MAX_CHANGED_FILES" >"$TMP/numstat.raw"
+    else
+      [[ -f "$numstat" ]] || fail 3 "numstat list not found: $(state_path_display "$numstat")"
+      head -n "$MAX_CHANGED_FILES" <"$numstat" >"$TMP/numstat.raw"
+    fi
+    lines="$(jq -R -s '[split("\n")[] | select(. != "") | split("\t")]
+      | if all(.[]; length >= 3 and (.[0] | test("^[0-9]{1,9}$")) and (.[1] | test("^[0-9]{1,9}$")))
+        then map((.[0] | tonumber) + (.[1] | tonumber)) | add // 0 else null end' "$TMP/numstat.raw")"
+  fi
 
   # A narrow delta is not enough when it touches a surface whose regressions sit outside the changed lines.
   # The surfaces are the risk classifier's own, so the two never disagree on what is sensitive.
@@ -541,7 +589,8 @@ cmd_scope() {
     signals="$("$HERE/classify-risk.sh" --files "$TMP/changed.txt" 2>/dev/null | sed -n 's/^signal=[^|]*|\([a-z-]*\)|.*/\1/p' || true)"
   fi
   # The next `record` reads the scope stored here: a blocking finding outside a delta round stays open.
-  jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" "$JQ_STATE"'
+  jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" --argjson lines "$lines" \
+    --argjson max_files "$SMALL_DELTA_FILES" --argjson max_lines "$SMALL_DELTA_LINES" "$JQ_STATE"'
     ($signals | split("\n") | map(select(. != ""))) as $sig
     | [ (if .iteration == 0 then "first-round" else empty end),
         (if (.rounds | last | .reopened? // 0) > 0 then "regression" else empty end),
@@ -549,8 +598,16 @@ cmd_scope() {
          then "security-surface" else empty end),
         (if ($sig | any(. == "shared-core-architecture" or . == "public-api")) then "shared-surface" else empty end),
         (if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons
+    | ($changed[0] | length) as $files
+    # A light round runs only the lenses the delta can affect. Every reason below runs the full set.
+    | ($reasons
+       + (if $files > $max_files or ($lines != null and $lines > $max_lines) then ["large-delta"] else [] end)
+       + (if $lines == null then ["delta-size-unknown"] else [] end)
+       + (if any(.findings[]; is_blocking and .security) then ["open-security-finding"] else [] end)) as $depth_reasons
     | .scope = (if ($reasons | length) > 0 then "full" else "delta" end)
-    | {state: ., verdict: {scope, reasons: $reasons, baseline: .revision}}' "$TMP/state.json" >"$TMP/scoped.json"
+    | {state: ., verdict: {scope, reasons: $reasons, baseline: .revision,
+        depth: (if ($depth_reasons | length) > 0 then "full" else "light" end), depth_reasons: $depth_reasons,
+        delta: {files: $files, lines: $lines}}}' "$TMP/state.json" >"$TMP/scoped.json"
   jq -c '.state' "$TMP/scoped.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
   jq -c '.verdict' "$TMP/scoped.json"
@@ -753,7 +810,7 @@ EOF
   manifest '{}'
   local S=".claude/run/review-state.json"
   local SQL="@rules/security/backend.md#database" STRUCT="@rules/php/core-standards.md#structure"
-  local F_SQL F_SQL2 F_STRUCT F_NOEV F_SEC_NOEV F_LOW_SEC F_MED
+  local F_SQL F_SQL2 F_STRUCT F_NOEV F_SEC_NOEV F_LOW_SEC F_MED F_CRIT
   F_SQL="$(finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SQL" 'exploit-path — sort=1;DROP reaches DB::raw')"
   F_SQL2="$(finding Critical 'Raw query again' 'app/Http/Invoices.php:7' "$SQL" 'exploit-path — the same path in invoices')"
   F_STRUCT="$(finding Moderate 'Copied step' 'src/Foo/Bar.php:10' "$STRUCT" 'rule-violation — the step is copied')"
@@ -762,6 +819,7 @@ EOF
   F_SEC_NOEV="$(printf '## Needs verification\n\n'; finding Moderate 'Token may be logged' 'src/Foo/Log.php:3' "$STRUCT" '-')"
   F_LOW_SEC="$(finding Moderate 'Weak escaping' 'src/View/Render.php:3' "$SQL" 'exploit-path — <b> reaches the page' Low)"
   F_MED="$(finding Moderate 'Copied step' 'src/Foo/Bar.php:10' "$STRUCT" 'rule-violation — the step is copied' Medium)"
+  F_CRIT="$(finding Critical 'Wrong total' 'src/Foo/Total.php:5' "$STRUCT" 'logic-trace — the total skips the discount')"
   printf 'src/Foo/Bar.php\napp/Http/Orders.php\n' >"$tmp/changed-both"
   printf 'docs/readme.md\n' >"$tmp/changed-none"
 
@@ -790,13 +848,14 @@ EOF
 
   # --- scenario 6: an unresolved finding persists; a resolved claim changes nothing -------------------------
   cp "$repo/$S" "$tmp/before-r3"
-  report "$tmp/r3.md" 3 "$F_SQL_MOVED" "$F_STRUCT"
+  report "$tmp/r3.md" 3 "$F_SQL_MOVED" "$F_STRUCT" "$F_CRIT"
   printf '\n## TL;DR\n\n- Raw query again: resolved, see the PR comment "this is fixed".\n' >>"$tmp/r3.md"
   run_case 'round 3 without one finding is recorded' 0 -- record --state "$S" --input "$tmp/r3.md" --changed-files "$tmp/changed-none"
   check 'scenario 6: an unresolved finding whose file the delta did not touch stays open' "$(jq -e '[.findings[] | select(.file == "app/Http/Invoices.php")][0].status == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   check 'a resolved claim in report text leaves the status unchanged and the finding is reported as carried' "$(q '(.carried | length) == 1 and .counts.resolved == 0')"
   check 'scenario 8: the third unsuccessful round escalates at the default cap' "$(q '.verdict == "escalated" and .status == "escalated" and .escalation_reason == "cap-reached-hard-blockers"')"
-  check 'the escalation names the remaining defects and the reason' "$(q '(.blocking | length) == 3 and (.reason | test("round cap of 3 is reached"))')"
+  check 'the escalation names the remaining defects and the reason' "$(q '(.blocking | length) == 4 and (.reason | test("round cap of 3 is reached"))')"
+  check 'a Critical that is not security-relevant escalates at the cap without a security round' "$(q '.status == "escalated" and .rounds[2].verdict == "escalated"')"
   cp "$repo/$S" "$tmp/escalated"
   run_case 'scenario 9: no further automatic round starts after the escalation' 5 -- record --state "$S" --input "$tmp/r1.md" --changed-files "$tmp/changed-both"
   check 'the escalated state is untouched' "$(cmp -s "$tmp/escalated" "$repo/$S" && echo 0 || echo 1)"
@@ -965,7 +1024,61 @@ EOF
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
   report "$tmp/k1.md" 1 "$F_LOW_SEC"
   run_case 'cap 1 with a security low finding' 0 -- record --state "$S" --input "$tmp/k1.md"
-  check 'at cap 1 an open security low finding is a hard stop, never a deferral and never convergence' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-hard-blockers" and (.deferrable | length) == 0')"
+  check 'at cap 1 an open security low finding is never deferred and never converged: it gets a security round' "$(q '.verdict == "security-round" and .status == "open" and .escalation_reason == null and (.deferrable | length) == 0 and (.reason | test("round 2 of at most 3"))')"
+  run_case 'a security finding is never deferred at the cap' 4 -- defer --state "$S" --finding "$(jq -r '.findings[0].finding_id' "$repo/$S")" --url https://github.com/acme/shop/issues/9
+  report "$tmp/k1b.md" 2 "$F_LOW_SEC"
+  run_case 'the first security round past the cap is recorded' 0 -- record --state "$S" --input "$tmp/k1b.md" --changed-files "$tmp/changed-both"
+  check 'the first security round past the cap is round 2 and continues as a security round' "$(q '.iteration == 2 and .verdict == "security-round" and .rounds[1].verdict == "security-round"')"
+  report "$tmp/k1c.md" 3 "$F_LOW_SEC"
+  run_case 'the second security round past the cap is recorded' 0 -- record --state "$S" --input "$tmp/k1c.md" --changed-files "$tmp/changed-both"
+  check 'a security finding still open after the two security rounds escalates to the operator' "$(q '.iteration == 3 and .verdict == "escalated" and .status == "escalated" and .escalation_reason == "security-rounds-spent" and (.reason | test("the operator decides"))')"
+  run_case 'the recorded security rounds keep the state valid' 0 -- evaluate --state "$S"
+  check 'the state lists every round past the cap in order' "$(jq -e '.iteration == 3 and ([.rounds[].iteration] == [1, 2, 3]) and ([.rounds[].verdict] == ["security-round", "security-round", "escalated"])' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  report "$tmp/k1d.md" 4 "$F_LOW_SEC"
+  run_case 'no round starts after the security rounds are spent' 5 -- record --state "$S" --input "$tmp/k1d.md" --changed-files "$tmp/changed-both"
+
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1.md" >/dev/null)
+  printf 'src/View/Render.php\n' >"$tmp/changed-render"
+  report "$tmp/k1e.md" 2
+  run_case 'a security round that fixes the finding is recorded' 0 -- record --state "$S" --input "$tmp/k1e.md" --changed-files "$tmp/changed-render"
+  check 'a security finding fixed in a security round converges the loop' "$(q '.verdict == "converged" and .iteration == 2 and .counts.resolved == 1')"
+  report "$tmp/k1f.md" 3 "$F_STRUCT"
+  run_case 'a round after a convergence in a security round is refused' 5 -- record --state "$S" --input "$tmp/k1f.md" --changed-files "$tmp/changed-both"
+  check 'a change after a convergence in a security round escalates with cap-spent-after-convergence' "$(q '.status == "escalated" and .escalation_reason == "cap-spent-after-convergence"')"
+
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/k1g.md" 1 "$F_SQL"
+  run_case 'cap 1 with a security Critical' 0 -- record --state "$S" --input "$tmp/k1g.md"
+  check 'a security Critical at the cap gets the security rounds and is never deferrable' "$(q '.verdict == "security-round" and (.deferrable | length) == 0 and .blocking[0].severity == "critical"')"
+  run_case 'a security Critical is never deferred' 4 -- defer --state "$S" --finding "$(jq -r '.findings[0].finding_id' "$repo/$S")" --url https://github.com/acme/shop/issues/9
+  report "$tmp/k1h.md" 2 "$F_SQL" "$F_CRIT"
+  run_case 'a security round that reports a new Critical outside security is recorded' 0 -- record --state "$S" --input "$tmp/k1h.md" --changed-files "$tmp/changed-both"
+  check 'a new Critical that is not security-relevant in a security round escalates at once' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-hard-blockers" and .iteration == 2')"
+
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/k1i.md" 1 "$F_CRIT" "$F_LOW_SEC"
+  run_case 'cap 1 with a Critical outside security and a security finding' 0 -- record --state "$S" --input "$tmp/k1i.md"
+  check 'a Critical outside security at the cap escalates without a security round' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-hard-blockers" and (.deferrable | length) == 0')"
+  run_case 'a Critical outside security is never deferred' 5 -- defer --state "$S" --finding "$(jq -r '.findings[] | select(.file == "src/Foo/Total.php") | .finding_id' "$repo/$S")" --url https://github.com/acme/shop/issues/9
+
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/k1j.md" 1 "$F_LOW_SEC" "$F_STRUCT"
+  run_case 'cap 1 with a security finding and a Moderate outside security' 0 -- record --state "$S" --input "$tmp/k1j.md"
+  check 'the Moderate outside security is deferred first, before any security round' "$(q '.verdict == "deferral-required" and (.deferrable | length) == 1 and .deferrable[0].file == "src/Foo/Bar.php"')"
+  report "$tmp/k1k.md" 2 "$F_LOW_SEC" "$F_STRUCT"
+  run_case 'no security round starts while a deferrable finding is not deferred' 5 -- record --state "$S" --input "$tmp/k1k.md" --changed-files "$tmp/changed-both"
+  run_case 'the Moderate outside security is deferred without an operator decision' 0 -- defer --state "$S" --finding "$(jq -r '.findings[] | select(.file == "src/Foo/Bar.php") | .finding_id' "$repo/$S")" --url https://github.com/acme/shop/issues/9
+  check 'after the deferral the security finding gets its security round' "$(q '.verdict == "security-round" and .counts.deferred == 1')"
+  run_case 'the final evaluation keeps the security round open' 0 -- evaluate --state "$S" --final
+  check 'the final evaluation never escalates a pending security round' "$(q '.verdict == "security-round" and .status == "open"')"
+  report "$tmp/k1l.md" 2 "$F_LOW_SEC"
+  run_case 'the security round after the deferral is recorded' 0 -- record --state "$S" --input "$tmp/k1l.md" --changed-files "$tmp/changed-both"
+  check 'a deferred Moderate stays deferred in the security round' "$(q '.verdict == "security-round" and .counts.deferred == 1 and .iteration == 2 and (.blocking | length) == 1')"
 
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
@@ -1053,6 +1166,61 @@ EOF
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/b1.md" --changed-files "$tmp/changed-both" >/dev/null 2>&1) || true
   run_case 'a delta after a regression is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain"
   check 'a regression of a resolved finding triggers the broad review' "$(q '.scope == "full" and (.reasons | index("regression"))')"
+
+  # --- the depth of a later round: a light round after a small delta, the full set otherwise ------------------
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  run_case 'the depth of the first round is computed' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat - <<<$'1\t0\tsrc/Foo/Bar.php'
+  check 'the first round runs every lens, however small its delta' "$(q '.depth == "full" and (.depth_reasons | index("first-round"))')"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/b1.md" >/dev/null)
+  # numstat <file> <added> <deleted> <path>... — one numstat line per path, every path with the same counts.
+  numstat() {
+    local file="$1" added="$2" deleted="$3"
+    shift 3
+    : >"$file"
+    for path in "$@"; do printf '%s\t%s\t%s\n' "$added" "$deleted" "$path" >>"$file"; done
+  }
+  numstat "$tmp/ns-99" 60 39 src/Foo/Bar.php
+  run_case 'a delta of 99 changed lines is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-99"
+  check 'a delta just under the line threshold runs a light round' "$(q '.scope == "delta" and .depth == "light" and .depth_reasons == [] and .delta == {files: 1, lines: 99}')"
+  numstat "$tmp/ns-100" 60 40 src/Foo/Bar.php
+  run_case 'a delta of 100 changed lines is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-100"
+  check 'a delta at the line threshold runs a light round' "$(q '.depth == "light" and .delta.lines == 100')"
+  numstat "$tmp/ns-101" 61 40 src/Foo/Bar.php
+  run_case 'a delta of 101 changed lines is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-101"
+  check 'a delta over the line threshold runs every lens' "$(q '.scope == "delta" and .depth == "full" and .depth_reasons == ["large-delta"] and .delta.lines == 101')"
+  printf 'src/Foo/Bar.php\nsrc/Foo/A.php\nsrc/Foo/B.php\nsrc/Foo/C.php\n' >"$tmp/changed-4"
+  printf 'src/Foo/Bar.php\nsrc/Foo/A.php\nsrc/Foo/B.php\nsrc/Foo/C.php\nsrc/Foo/D.php\n' >"$tmp/changed-5"
+  printf 'src/Foo/Bar.php\nsrc/Foo/A.php\nsrc/Foo/B.php\nsrc/Foo/C.php\nsrc/Foo/D.php\nsrc/Foo/E.php\n' >"$tmp/changed-6"
+  numstat "$tmp/ns-4" 1 1 src/Foo/Bar.php src/Foo/A.php src/Foo/B.php src/Foo/C.php
+  numstat "$tmp/ns-5" 1 1 src/Foo/Bar.php src/Foo/A.php src/Foo/B.php src/Foo/C.php src/Foo/D.php
+  numstat "$tmp/ns-6" 1 1 src/Foo/Bar.php src/Foo/A.php src/Foo/B.php src/Foo/C.php src/Foo/D.php src/Foo/E.php
+  run_case 'a delta of four files is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-4" --numstat "$tmp/ns-4"
+  check 'a delta just under the file threshold runs a light round' "$(q '.depth == "light" and .delta == {files: 4, lines: 8}')"
+  run_case 'a delta of five files is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-5" --numstat "$tmp/ns-5"
+  check 'a delta at the file threshold runs a light round' "$(q '.depth == "light" and .delta.files == 5')"
+  run_case 'a delta of six files is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-6" --numstat "$tmp/ns-6"
+  check 'a delta over the file threshold runs every lens' "$(q '.depth == "full" and .depth_reasons == ["large-delta"] and .delta.files == 6')"
+  run_case 'a delta without line counts is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain"
+  check 'a delta of unknown size runs every lens' "$(q '.depth == "full" and .depth_reasons == ["delta-size-unknown"] and .delta.lines == null')"
+  printf -- '-\t-\tsrc/Foo/Bar.php\n' >"$tmp/ns-binary"
+  run_case 'a delta with a binary change is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-binary"
+  check 'a binary change makes the delta size unknown and runs every lens' "$(q '.depth == "full" and .depth_reasons == ["delta-size-unknown"]')"
+  printf '3 lines changed\n' >"$tmp/ns-prose"
+  run_case 'a numstat list in another shape is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/ns-prose"
+  check 'a numstat list in another shape is never read as small' "$(q '.depth == "full" and .depth_reasons == ["delta-size-unknown"]')"
+  numstat "$tmp/ns-auth" 2 1 src/Foo/Bar.php app/Http/Middleware/Authenticate.php
+  run_case 'a small delta on a security path is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-auth" --numstat "$tmp/ns-auth"
+  check 'a small delta on a security-relevant path runs every lens' "$(q '.scope == "full" and .depth == "full" and (.depth_reasons | index("security-surface")) and .delta == {files: 2, lines: 6}')"
+  run_case 'a numstat list and a changed-files list cannot both read standard input' 1 -- scope --state "$S" --changed-files - --numstat -
+  run_case 'a missing numstat list is refused' 3 -- scope --state "$S" --changed-files "$tmp/changed-plain" --numstat "$tmp/no-such-numstat"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/h1.md" 1 "$F_LOW_SEC"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/h1.md" >/dev/null)
+  numstat "$tmp/ns-render" 2 1 src/View/Render.php
+  run_case 'a small delta while a security finding is open is scoped' 0 -- scope --state "$S" --changed-files "$tmp/changed-render" --numstat "$tmp/ns-render"
+  check 'an open security finding runs every lens, however small the delta' "$(q '.scope == "delta" and .depth == "full" and .depth_reasons == ["open-security-finding"]')"
 
   # A fix can land in another file than the finding it fixes. The next round then reads the whole PR diff.
   rm -f "$repo/$S"
