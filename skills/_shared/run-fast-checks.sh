@@ -22,16 +22,23 @@
 #   Every entry runs, also after a failure, so one push round reports every failing check.
 #
 # The changed files
-#   `git diff -z --name-only --diff-filter=ACMRT <merge base of HEAD and the base ref> HEAD`: the files
-#   the push carries, deleted files excluded. The base ref is the default branch, or `--base <ref>`
-#   for a branch that starts from another branch. A file path is never part of a command string: it is
+#   `git diff -z --relative --name-only --no-renames --diff-filter=ACMRT <merge base> HEAD`, run in the
+#   project directory (the directory whose composer.json read-manifest.sh reads): the files the push
+#   carries inside that directory, as paths relative to it, deleted files excluded and a renamed or
+#   copied file listed under its new path. A `files` ERE is matched against that relative form. The
+#   base ref is the default branch, or `--base <ref>` for a branch that starts from another branch. A file path is never part of a command string: it is
 #   read NUL-separated and passed as its own argv element, so no character in a path is ever a shell
 #   operator. A path that starts with `-` is passed as `./<path>`, so a tool never reads it as an option.
 #   A path that is a symbolic link, that runs through a linked directory, or that has a `..` component
 #   is never passed and is not counted: a branch could point it at a file outside the worktree, a
 #   `.env*` file included, and the checker would read that file into the log. The check reuses
-#   `gate_no_symlink` of gate-record.sh. Every command runs through `run_command` of
+#   `gate_no_symlink` of gate-record.sh. A path is checked again just before it is passed; a path that
+#   an earlier check turned into a link refuses the run. Every command runs through `run_command` of
 #   project-commands.sh, the one executor of a project command.
+#
+# No silent pass
+#   A run that cannot read what it needs never reports success: an unreadable default-branch
+#   composer.json, a failed `git status`, and a failed `git diff` each refuse the run with exit 3.
 #
 # The machine lock
 #   The checks are heavy commands, so they run under the machine-wide lock of run-gate.sh
@@ -105,6 +112,10 @@ emit() {
 
 stop() {
   local status="$1" code="$2" reason="$3"
+  if [[ -n "$LOG" ]]; then
+    rm -f -- "$LOG"
+    LOG=''
+  fi
   emit "$status" "$(safe_display "$reason")"
   exit "$code"
 }
@@ -169,6 +180,8 @@ main() {
   default_ref="$(bash "$SCRIPT_DIR/read-manifest.sh" --default-ref 2>/dev/null)" \
     || stop refused 3 'no default-branch ref; run: git remote set-head origin --auto'
 
+  bash "$SCRIPT_DIR/read-manifest.sh" >/dev/null 2>&1 \
+    || stop refused 3 'the default-branch composer.json cannot be read as a manifest; the declared fast checks are unknown'
   load_project_manifest || stop refused 3 "$PROJECT_REFUSAL"
   printf '%s' "$PROJECT_MANIFEST" | jq -e 'has("fast-checks")' >/dev/null 2>&1 \
     || stop not-configured 5 'the default-branch manifest sets no fast-checks; no fast check runs before a push'
@@ -202,8 +215,10 @@ main() {
     patterns+=("$pattern")
   done
 
-  [[ -z "$(git status --porcelain --untracked-files=no 2>/dev/null)" ]] \
-    || stop unclean 7 'the working tree has uncommitted changes; commit them, then run the fast checks'
+  local tree_status
+  tree_status="$(git status --porcelain --untracked-files=no 2>/dev/null)" \
+    || stop refused 3 'git status failed; the working tree cannot be read'
+  [[ -z "$tree_status" ]] || stop unclean 7 'the working tree has uncommitted changes; commit them, then run the fast checks'
 
   # --- The changed files ---------------------------------------------------------------------------
   if [[ -z "$base_ref" ]]; then
@@ -213,12 +228,18 @@ main() {
   fi
   BASE="$(git merge-base "$base_ref" HEAD 2>/dev/null)" || stop refused 3 "no merge base of HEAD and $base_ref"
 
-  local path
+  local path list tmp_dir="${TMPDIR:-/tmp}"
   local -a changed=()
+  list="$(mktemp "${tmp_dir%/}/run-fast-checks-files.XXXXXX")" || stop refused 3 'cannot create the file list'
+  if ! git diff -z --relative --name-only --no-renames --diff-filter=ACMRT "$BASE" HEAD >"$list" 2>/dev/null; then
+    rm -f -- "$list"
+    stop refused 3 "git diff failed; the changed files of HEAD against $base_ref cannot be listed"
+  fi
   while IFS= read -r -d '' path; do
     inside_worktree "$path" || continue
     changed+=("$path")
-  done < <(git diff -z --name-only --no-renames --diff-filter=ACMRT "$BASE" HEAD)
+  done <"$list"
+  rm -f -- "$list"
   CHANGED_COUNT="${#changed[@]}"
 
   # --- The plan: which entry runs, with which files ------------------------------------------------
@@ -258,7 +279,6 @@ main() {
   *) stop refused 3 "$GATE_REASON" ;;
   esac
 
-  local tmp_dir="${TMPDIR:-/tmp}"
   LOG="$(mktemp "${tmp_dir%/}/run-fast-checks.XXXXXX")" || stop refused 3 'cannot create the log file'
 
   # --- Execute -------------------------------------------------------------------------------------
@@ -273,14 +293,10 @@ main() {
     if [[ -n "${patterns[index]}" ]]; then
       for path in "${changed[@]}"; do
         [[ "$path" =~ ${patterns[index]} ]] || continue
-        inside_worktree "$path" || continue
+        inside_worktree "$path" || stop refused 3 'a changed path became a link or disappeared during the run; an earlier check changed the tree'
         [[ "$path" != -* ]] || path="./$path"
         files+=("$path")
       done
-      if [[ "${#files[@]}" -eq 0 ]]; then
-        add_check "${commands[index]}" 0 skipped 0
-        continue
-      fi
     fi
 
     printf '== %s (%d file(s))\n' "${commands[index]}" "${#files[@]}" >>"$LOG"
@@ -343,7 +359,7 @@ self_test() {
   run() {
     rm -f "$FAST_CHECKS_SELFTEST_CALLS"
     set +e
-    out="$(cd "$repo" && "$script" "$@" 2>/dev/null)"
+    out="$(cd "${RUN_DIR:-$repo}" && "$script" "$@" 2>/dev/null)"
     code=$?
     set -e
   }
@@ -415,7 +431,7 @@ STUB
   check 'a deleted file is never passed' "$(calls | grep -q 'removed.php' || echo pass)"
   check 'a command string runs once as written, without the changed files' "$([[ "$(calls | tail -n 1)" == 'argv-ok 0' ]] && echo pass)"
   check 'an entry whose pattern matches no changed file is skipped' "$([[ "$(json '[.status, [.checks[] | [.status, .files]]]')" == '["passed",[["passed",4],["passed",0],["skipped",0]]]' && "$(json .changed)" == 5 ]] && echo pass)"
-  check 'a passed run deletes its log and reports none' "$([[ "$(json .log)" == '""' && -z "$(find "$tmp" -maxdepth 1 -name 'run-fast-checks.*')" ]] && echo pass)"
+  check 'a passed run deletes its log and its file list and reports none' "$([[ "$(json .log)" == '""' && -z "$(find "$tmp" -maxdepth 1 -name 'run-fast-checks*')" ]] && echo pass)"
   check 'the machine lock is released after the run' "$([[ ! -e "$tmp/machine/ai-olympus-gate.lock" ]] && echo pass)"
 
   manifest ', "fast-checks": [{ "command": "vendor/bin/argv-fail", "files": "\\.md$" }, { "command": "vendor/bin/argv-ok", "files": "\\.md$" }]'
@@ -501,8 +517,18 @@ STUB
   local outside="$tmp/outside"
   mkdir -p "$outside/dir"
   printf 'FAKE_OUTSIDE_SECRET\n' >"$outside/.env"
-  printf 'x\n' >"$outside/dir/inner.php"
+  printf 'FAKE_OUTSIDE_DIR_SECRET\n' >"$outside/dir/inner.php"
   export FAST_CHECKS_SELFTEST_OUTSIDE="$outside/.env"
+  export FAST_CHECKS_SELFTEST_READS="$tmp/reads"
+  # A checker that reads what it receives, as phpcs does: a file is read, a directory is walked.
+  cat >"$repo/vendor/bin/argv-cat" <<'STUB'
+#!/usr/bin/env bash
+{ echo "argv-cat $#"; [[ $# -eq 0 ]] || printf '%s\n' "$@"; } >>"$FAST_CHECKS_SELFTEST_CALLS"
+for file in "$@"; do
+  if [[ -d "$file" ]]; then find "$file/" -type f -exec cat {} + >>"$FAST_CHECKS_SELFTEST_READS"; else cat -- "$file" >>"$FAST_CHECKS_SELFTEST_READS"; fi
+done
+STUB
+  chmod +x "$repo/vendor/bin/argv-cat"
   cat >"$repo/vendor/bin/argv-swap" <<'STUB'
 #!/usr/bin/env bash
 echo "argv-swap $#" >>"$FAST_CHECKS_SELFTEST_CALLS"
@@ -519,18 +545,64 @@ STUB
   printf 'real\n' >"$repo/real.php"
   git -C "$repo" add -A
   git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m 'links'
-  gate_selftest_manifest "$repo" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/argv-ok", "vendor/bin/argv-swap"] }, "fast-checks": [{ "command": "vendor/bin/argv-ok", "files": "\\.php$" }] } } }'
+  gate_selftest_manifest "$repo" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/argv-cat", "vendor/bin/argv-ok", "vendor/bin/argv-swap"] }, "fast-checks": [{ "command": "vendor/bin/argv-cat", "files": "\\.php$" }] } } }'
+  rm -f "$FAST_CHECKS_SELFTEST_READS"
   run --base stacked
-  check 'a link to an outside file or directory, an inside link, a glob-shaped link name, and a file turned into a link never reach a checker' "$([[ "$code" -eq 0 && "$(calls)" == "$(printf '%s\n' 'argv-ok 2' 'ab.php' 'real.php')" && "$(json .changed)" == 2 ]] && echo pass)"
-  check 'no checker output quotes the outside file' "$(grep -rqs FAKE_OUTSIDE_SECRET "$FAST_CHECKS_SELFTEST_CALLS" || echo pass)"
+  check 'a link to an outside file or directory, an inside link, a glob-shaped link name, and a file turned into a link never reach a checker' "$([[ "$code" -eq 0 && "$(calls)" == "$(printf '%s\n' 'argv-cat 2' 'ab.php' 'real.php')" && "$(json .changed)" == 2 ]] && echo pass)"
+  check 'a checker that reads its files reads only files inside the worktree, never the outside secret' "$([[ "$(cat "$FAST_CHECKS_SELFTEST_READS" 2>/dev/null)" == "$(printf '%s\n' 'ab' 'real')" ]] && ! grep -qs FAKE_OUTSIDE "$FAST_CHECKS_SELFTEST_READS" && echo pass)"
 
   # An earlier check runs branch code: a path it turns into a link is checked again before it is passed.
   gate_selftest_manifest "$repo" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/argv-ok", "vendor/bin/argv-swap"] }, "fast-checks": ["vendor/bin/argv-swap", { "command": "vendor/bin/argv-ok", "files": "^real\\.php$" }] } } }'
   run --base stacked
-  check 'a path an earlier check replaced with a link is not passed, and its entry is skipped' "$([[ "$code" -eq 0 && "$(calls)" == "$(printf '%s\n' 'argv-swap 0')" && "$(json '[.checks[] | .status]')" == '["passed","skipped"]' ]] && echo pass)"
+  check 'a path an earlier check replaced with a link is never passed, and the run is refused instead of passing' "$([[ "$code" -eq 3 && "$(json .status)" == '"refused"' && "$(calls)" == "$(printf '%s\n' 'argv-swap 0')" && "$(json .log)" == '""' && ! -e "$tmp/machine/ai-olympus-gate.lock" ]] && echo pass)"
   git -C "$repo" checkout -q -- real.php
 
   check 'a path with a .. component is outside the worktree' "$( (cd "$repo" && ! inside_worktree 'src/../ab.php' && inside_worktree 'ab.php') && echo pass)"
+
+  # --- No silent pass: every input the run cannot read refuses it -----------------------------------
+  gate_selftest_manifest "$repo" '{ "extra": { "ai-olympus": '
+  run --base stacked
+  check 'a default-branch composer.json that is not JSON refuses the run instead of reading no checks' "$([[ "$code" -eq 3 && "$(json .status)" == '"refused"' && -z "$(calls)" ]] && echo pass)"
+  gate_selftest_manifest "$repo" '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/argv-ok"] }, "fast-checks": [{ "command": "vendor/bin/argv-ok", "files": "\\.php$" }] } } }'
+
+  # A missing tree object of HEAD fails `git status`; a missing tree object of the merge base fails
+  # only `git diff`. Each runs in a copy, so the fixture keeps every object.
+  local broken object
+  broken="$tmp/broken-status"
+  cp -R "$repo" "$broken"
+  object="$(git -C "$broken" rev-parse "HEAD^{tree}")"
+  rm -f "$broken/.git/objects/${object:0:2}/${object:2}"
+  RUN_DIR="$broken" run --base stacked
+  check 'a git status that fails refuses the run instead of reading a clean tree' "$([[ "$code" -eq 3 && "$(json .reason)" == *'git status failed'* && -z "$(calls)" ]] && echo pass)"
+  broken="$tmp/broken-diff"
+  cp -R "$repo" "$broken"
+  object="$(git -C "$broken" rev-parse "$(git -C "$broken" merge-base stacked HEAD)^{tree}")"
+  rm -f "$broken/.git/objects/${object:0:2}/${object:2}"
+  RUN_DIR="$broken" run --base stacked
+  check 'a git diff that fails refuses the run instead of reading no changed file' "$([[ "$code" -eq 3 && "$(json .reason)" == *'git diff failed'* && -z "$(calls)" && -z "$(find "$tmp" -maxdepth 1 -name 'run-fast-checks*')" ]] && echo pass)"
+
+  # --- A project in a subdirectory: paths are relative to the project directory ---------------------
+  # Its manifest is app/composer.json, so the script runs in app/. A change outside app/ is not the
+  # project's; a renamed file, and a name with a newline and a non-ASCII letter, are checked.
+  local mono="$tmp/mono"
+  mkdir -p "$mono/app/vendor/bin" "$mono/app/src"
+  cp "$repo/vendor/bin/argv-ok" "$mono/app/vendor/bin/argv-ok"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "validation": { "executables": ["vendor/bin/argv-ok"] }, "fast-checks": [{ "command": "vendor/bin/argv-ok", "files": "^src/.*\\.php$" }] } } }' >"$mono/app/composer.json"
+  printf 'old\n' >"$mono/app/src/old.php"
+  git -C "$mono" init -q
+  git -C "$mono" add -A
+  git -C "$mono" -c user.name=t -c user.email=t@t commit -q -m init
+  git -C "$mono" update-ref refs/remotes/origin/master HEAD
+  git -C "$mono" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  git -C "$mono" switch -q -c feature
+  git -C "$mono" mv app/src/old.php app/src/renamed.php
+  printf 'a\n' >"$mono/app/src/a.php"
+  printf 'n\n' >"$mono/app/src/new"$'\n'"line-ž.php"
+  printf 'r\n' >"$mono/root.php"
+  git -C "$mono" add -A
+  git -C "$mono" -c user.name=t -c user.email=t@t commit -q -m 'subdirectory change'
+  RUN_DIR="$mono/app" run
+  check 'a project in a subdirectory checks its changed files relative to its directory, renamed and unusual names included' "$([[ "$code" -eq 0 && "$(json .status)" == '"passed"' && "$(calls)" == "$(printf '%s\n' 'argv-ok 3' 'src/a.php' "src/new"$'\n'"line-ž.php" 'src/renamed.php')" && "$(json .changed)" == 3 ]] && echo pass)"
 
   if [[ "$failures" -gt 0 ]]; then
     printf '%s self-test: %d failure(s)\n' "$PROG" "$failures" >&2
