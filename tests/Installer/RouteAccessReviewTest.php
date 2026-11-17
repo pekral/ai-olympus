@@ -231,8 +231,10 @@ test('every decision point of a dashboard access path must deny a guest, gate ho
             . 'and otherwise passes only in the `local` and `development` environments.',
         )
         ->and($section)->toContain(
-            'A change that lets that guard pass outside a `local` or `development` environment, '
-            . 'or that sets a hosted environment to `development` with `app.debug` on, is the finding of the severity below.',
+            'Any change that lets the runnable-solutions guard pass anywhere other than a developer\'s own machine '
+            . 'is the finding of the severity below: the flag set to true, '
+            . 'a hosted environment set to `local` or `development` with `app.debug` on, '
+            . 'or `app.debug` turned on in a hosted environment that is `local` or `development`.',
         )
         ->and($step)->toContain('a `Gate::before` or `Gate::after` hook, `app.debug`, `ignition.enable_runnable_solutions`, or `app.env`')
         ->and($step)->toContain('`config/horizon.php`, `config/ignition.php`) and `config/app.php` for `debug` and `env`')
