@@ -762,7 +762,7 @@ test(
         expect($casey)->toContain(
             'Pipe the whole body, its `TL;DR` included, into `skills/code-review-github/scripts/upsert-comment.sh <PR-URL> - mysql-report`.',
         )
-            ->and($casey)->toContain('the full report, and its `TL;DR`. The publishing `leonardo` renders it as the `## Database report` section')
+            ->and($casey)->toContain('with the full report and its `TL;DR`. The publishing `leonardo` renders it as the `## Database report` section')
             ->and($casey)->toContain('and `skills/mysql-problem-solver/SKILL.md` `MODE=cr-report` owns when the report carries a `TL;DR`.')
             ->and($reference)->toContain('Both places carry the whole report, its `TL;DR` included.')
             ->and($reference)->toContain(
