@@ -54,14 +54,18 @@ test('label seed script pins the exact priority and type taxonomy', function ():
         'security' => 'ee0701',
         'marketing' => 'f9d0c4',
         'plan' => '5319e7',
+        'effort: small' => 'c2e0c6',
+        'effort: medium' => 'fef2c0',
+        'effort: large' => 'e99695',
     ];
 
     foreach ($taxonomy as $name => $color) {
         expect($content)->toContain('"' . $name . '|' . $color . '|');
     }
 
-    // Nothing beyond the taxonomy is seeded: 14 entries, no more.
+    // Nothing beyond the taxonomy is seeded: 17 entries, no more.
     expect(substr_count($content, '"priority: '))->toBe(4);
+    expect(substr_count($content, '"effort: '))->toBe(3);
 });
 
 test('triage script is shipped, executable, and offers dry-run plus self-test', function (): void {

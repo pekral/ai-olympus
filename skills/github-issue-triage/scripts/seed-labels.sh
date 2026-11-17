@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # seed-labels.sh — create or update the triage label taxonomy on the current
-# GitHub repository: 4 priority labels and 10 type labels.
+# GitHub repository: 4 priority labels, 10 type labels, and 3 effort labels.
 #
 # Usage:
 #   seed-labels.sh
@@ -31,8 +31,8 @@ usage() {
   cat >&2 <<'EOF'
 Usage: seed-labels.sh
 
-  Creates or updates the 4 priority labels and the 10 type labels of the
-  triage taxonomy on the repository resolved from the current directory.
+  Creates or updates the 4 priority labels, the 10 type labels, and the 3
+  effort labels of the triage taxonomy on the repository resolved from the current directory.
   Takes no arguments and deletes nothing.
 EOF
 }
@@ -56,7 +56,7 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 2
 fi
 
-# name|color|description — the taxonomy, in triage order (priority first).
+# name|color|description — the taxonomy, in triage order (priority first, effort last).
 # Descriptions are the ones the repository already uses; they are data, not
 # prose, so the script and the repository must stay in step.
 LABELS=(
@@ -74,10 +74,13 @@ LABELS=(
   "security|ee0701|A security topic: hardening, a vulnerability, the capability model"
   "marketing|f9d0c4|Launch, communication, content"
   "plan|5319e7|A planning meta-issue that breaks down a larger intent"
+  "effort: small|c2e0c6|A small task: a size derived from its files and criteria, never a time"
+  "effort: medium|fef2c0|A medium task: a size derived from its files and criteria, never a time"
+  "effort: large|e99695|A large task and a candidate for splitting: a size derived from its files and criteria, never a time"
 )
 
 # Name the target before touching it: `gh` resolves the repository implicitly
-# from the working directory, and this script writes 14 labels unconditionally.
+# from the working directory, and this script writes 17 labels unconditionally.
 if ! repo_nwo="$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>&1)"; then
   echo "seed-labels.sh: failed to resolve the target repository: $repo_nwo" >&2
   exit 3
