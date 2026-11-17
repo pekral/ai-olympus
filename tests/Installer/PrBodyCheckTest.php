@@ -128,31 +128,59 @@ test('every step that writes a pull-request body runs the check first', function
         ->and(substr_count($leonardo, 'skills/_shared/check-pr-body.sh --file "$file" --template "$template"'))->toBe(1);
 });
 
-test('the fold rule has one owner, and the templates, the fill instructions, and the check point to it', function (): void {
+test('the fold rule has one owner, and every other file points to it and states no copy of the limit', function (): void {
     $rule = prBodyCheckSource('rules/git/pull-requests.md');
     $script = prBodyCheckSource('skills/_shared/check-pr-body.sh');
-    $reference = prBodyCheckSource('skills/resolve-issue/references/pull-request.md');
-    $update = prBodyCheckSource('skills/composer-update-pr/SKILL.md');
-    $folding = 'is a <details> block with its heading text as the summary; one of 600 or fewer stays an open ## section; Merge risk is never folded. '
-        . 'rules/git/pull-requests.md PR Content Requirements owns the rule and the exact form.';
+    $pointer = '*Fold the long sections, and only those*';
 
-    expect(substr_count($rule, '**Fold every section longer than 600 characters, and only those.**'))->toBe(1)
+    expect(substr_count($rule, '**Fold the long sections, and only those.**'))->toBe(1)
         ->and($rule)->toContain('**`## Merge risk` is never folded,** whatever its length.')
         ->and($rule)->toContain('**No fixed list of folded sections exists.**')
         ->and($rule)->toContain('**Over 600 characters, the section is a `<details>` block.**')
         ->and($rule)->toContain('**At most 600 characters, the section stays an open `##` section.**')
+        ->and($rule)->toContain('The `<details>` opener line above the `<summary>` of a following folded section belongs to that section.')
+        ->and($rule)->toContain('a line break between two lines counts as one code point')
+        ->and($rule)->toContain('**No text stands between a `</details>` and the next section.**')
+        ->and($rule)->toContain('**A folded section is the same section for every reader of the body.**')
         ->and(substr_count($script, 'FOLD_LIMIT=600'))->toBe(1)
-        ->and($script)->toContain('rules/git/pull-requests.md *PR Content Requirements*; this script enforces it')
-        ->and($reference)->toContain('*Fold every section longer than 600 characters* owns the rule and states no second copy here')
-        ->and($update)->toContain(
-            'only when its content is longer than 600 characters, as `@rules/git/pull-requests.md` *PR Content Requirements* states',
-        );
+        ->and($script)->toContain('rules/git/pull-requests.md *PR Content Requirements*; this')
+        ->and(prBodyCheckSource('skills/resolve-issue/SKILL.md'))->toContain('(folded as `@rules/git/pull-requests.md` *PR Content Requirements* states)')
+        ->and(str_contains(prBodyCheckSource('skills/resolve-issue/SKILL.md'), '600 characters'))->toBeFalse();
+
+    // Every other file carries a pointer to the owner and no copy of the limit.
+    $pointers = [
+        'skills/resolve-issue/templates/pull-request-body.md',
+        'skills/composer-update-pr/templates/pull-request-body.md',
+        'skills/composer-update-pr/SKILL.md',
+        'skills/resolve-issue/references/pull-request.md',
+        'skills/code-review/references/specialized-reviews.md',
+        'skills/resolve-issue/references/safeguard-implementation.md',
+    ];
+
+    foreach ($pointers as $path) {
+        $text = prBodyCheckSource($path);
+
+        expect(str_contains($text, 'Fold the long sections, and only those'))->toBeTrue($path)
+            ->and(str_contains($text, '600'))->toBeFalse($path);
+    }
 
     foreach (['skills/resolve-issue/templates/pull-request-body.md', 'skills/composer-update-pr/templates/pull-request-body.md'] as $template) {
         $text = prBodyCheckSource($template);
 
-        expect(substr_count($text, $folding))->toBe(1)
+        expect(substr_count($text, '<!-- Folding: '))->toBe(1)
             ->and($text)->not->toContain('<summary>')
             ->and($text)->not->toContain("<details>\n");
     }
+
+    expect(prBodyCheckSource('skills/composer-update-pr/SKILL.md'))->toContain($pointer);
+});
+
+test('the merge-risk refresh refolds a body that an earlier template rendered, and leonardo names the step', function (): void {
+    $reference = prBodyCheckSource('skills/resolve-issue/references/pull-request.md');
+    $leonardo = prBodyCheckSource('agents/leonardo.md');
+
+    expect($reference)->toContain('`skills/_shared/check-pr-body.sh --refold "$file" --template "$template"')
+        ->and($reference)->toContain('every problem it reports starts with `Folding:`')
+        ->and($reference)->toContain('Write with the one named `gh pr edit --body-file` exception of that section only after the check exits `0`.')
+        ->and($leonardo)->toContain('`skills/_shared/check-pr-body.sh --refold` repairs as *Refresh after the gate* item 6 states');
 });

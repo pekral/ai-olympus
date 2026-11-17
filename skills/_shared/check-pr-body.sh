@@ -20,8 +20,16 @@
 #
 # Usage
 #   check-pr-body.sh --file <body-file|-> [--template resolve-issue|composer-update]
+#   check-pr-body.sh --refold <body-file> [--template resolve-issue|composer-update]
 #   check-pr-body.sh --self-test
 #
+#   --refold    print the body with each section in the form the fold rule asks: an open section over the
+#               limit becomes a <details> block, and a <details> block of this script's own form at or
+#               under the limit becomes an open section. It changes nothing else. The one use is the
+#               merge-risk refresh of a body that was rendered before the fold rule: the caller checks
+#               the result again before it publishes it. Exit 0 with the body on standard output, 3 with
+#               nothing on standard output when the body has any other problem or a folded section it
+#               cannot unfold.
 #   --file      the rendered body (Markdown), or `-` to read it from standard input.
 #   --template  which template the body renders. `resolve-issue` is the default.
 #
@@ -46,16 +54,17 @@
 #                container ends at a fence line of its own character and at least its length, or
 #                with the container. A heading nested inside a list item or a block quote is not
 #                read, as an ATX heading there is not.
-#   Folding      a section whose content is longer than 600 code points (FOLD_LIMIT) is a <details>
-#                block, and a section of 600 or fewer is an open `##` section. `## Merge risk` is
-#                never a <details> block, whatever its length. The one owner of the rule is
-#                rules/git/pull-requests.md *PR Content Requirements*; this script enforces it and
-#                states no second copy of the wording. The content is counted from the line after the
-#                heading (for a <details> block, the line after its <summary>) to the line before the
-#                next section (for a <details> block, before its </details>), with the blank lines at
-#                both ends left out and a line break between two lines counted as one code point. A
-#                `<details>` opener line directly above a <summary> belongs to no content. Text after a
-#                </details> and before the next section belongs to no section and is not counted.
+#   Folding      the fold rule has one owner, rules/git/pull-requests.md *PR Content Requirements*; this
+#                script enforces it and states no second copy of the wording. A heading read while a
+#                <details> block is open (a bare <details>, a plain <summary>, a <summary> over several lines)
+#                is a folded section, so a Merge risk heading there and a short section folded that way are
+#                refused. The content is counted from the line after the heading (for a <details> block, the
+#                line after its <summary>) to the line before the next section, or to the </details> that
+#                closes the block the section sits in, with the blank lines at both ends left out and a line
+#                break between two lines counted as one code point. A <details> block nested in a folded
+#                section ends nothing. A `<details>` opener line directly above a <summary> belongs to no
+#                content. Text between a </details> and the next section is refused, and the problem names
+#                its line number only. A section is judged only when its name equals a name of the template.
 #   Depth        a block quote or a list item nests at most 16 levels deep (MAX_DEPTH). No real body
 #                nests beyond a handful, and the cap bounds the work for each line. A deeper body is
 #                refused with a problem that names the line number and never the text.
@@ -107,11 +116,16 @@ source "$HERE/cr-header.sh"
 usage() {
   cat >&2 <<'EOF'
 Usage: check-pr-body.sh --file <body-file|-> [--template resolve-issue|composer-update]
+       check-pr-body.sh --refold <body-file> [--template resolve-issue|composer-update]
        check-pr-body.sh --self-test
+
+--refold prints the body with every section in the form the fold rule asks, and exits 3 with nothing
+printed when the body has a problem other than a folding one.
 
 Exit 3 when the body is over the length limit, misses a section of its template, carries a
 section the template does not define, orders the sections differently, folds a section of 600
-characters or fewer, leaves a section over 600 characters open, folds `## Merge risk`, nests
+characters or fewer, leaves a section over 600 characters open, folds `## Merge risk`, leaves text
+between a </details> and the next section, nests
 block quotes or list items deeper than 16 levels, or renders the `## Merge risk` block in
 another shape.
 EOF
@@ -133,6 +147,9 @@ SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
 DETAILS_OPEN='^[[:space:]]*<details([[:space:]][^>]*)?>[[:space:]]*$'
 DETAILS_END='^ {0,3}</details>[[:space:]]*$'
+# A <details> tag of a line, opener or closer, in lower case: `<details>`, `<details open>`, `</details>`.
+DETAILS_TAG='<(/?)details([[:space:]/>]|$)'
+SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]*$'
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
 # no container holds is a heading of the body. What the line starts with decides nothing:
@@ -591,6 +608,27 @@ merge_risk_line() {
   return 0
 }
 
+# details_step <line> — add the <details> openers of a line to DET_DEPTH and take its </details> closers
+# away, in the order they stand on the line. The depth never goes below 0. The tag is read in lower
+# case, as GitHub reads it.
+details_step() {
+  local lower rest
+
+  # The glob needs no process; only a line that names `details` is lowercased.
+  [[ "$1" == *'<'*[dD][eE][tT][aA][iI][lL][sS]* ]] || return 0
+  lower="$(lowercase "$1")"
+  rest="$lower"
+  while [[ "$rest" =~ $DETAILS_TAG ]]; do
+    if [[ -n "${BASH_REMATCH[1]}" ]]; then
+      [[ "$DET_DEPTH" -gt 0 ]] && DET_DEPTH=$((DET_DEPTH - 1))
+    else
+      DET_DEPTH=$((DET_DEPTH + 1))
+    fi
+    rest="${rest#*"${BASH_REMATCH[0]}"}"
+  done
+  return 0
+}
+
 # report_depth <line number> — print the too-deep record and succeed when the last step asked for a
 # container below MAX_DEPTH. The record carries the line number and never the text of the line.
 report_depth() {
@@ -600,15 +638,20 @@ report_depth() {
 
 # scan_body — read the body and print what the section check reads, one record per line:
 #   section|<line number>|<heading|details>:<name>
-#   details-end|<line number>   a </details> line outside every container
+#   fold|<line number>|<depth>  before a `details` section: the <details> blocks open at its line
+#   details-end|<line number>|<depth>   a </details> line outside every container, and the blocks
+#                               still open after it
 #   merge-risk-heading|<the whole heading line>
 #   merge-risk-line|<a **Door:** or **Blast radius:** line under that heading>
 #   too-deep|<line number>      the first line that nests deeper than MAX_DEPTH; the scan stops there
-# A line that cr_header_fence_step skips is a quotation and is never read.
+# A line that cr_header_fence_step skips is a quotation and is never read. A heading read while a
+# <details> block is open is a folded section, whatever the block holds above it: a bare <details>,
+# a plain <summary>, and a <summary> over several lines render the heading collapsed in the same way.
 scan_body() {
-  local line number=0 in_merge_risk=0 text block=none was_html skipped
+  local line number=0 in_merge_risk=0 text block=none was_html skipped form
 
   CS_N=0
+  DET_DEPTH=0
   DEEP=0
   LEAF=none
   cr_header_fence_reset
@@ -651,13 +694,18 @@ scan_body() {
     if [[ "$block" != container && "$line" =~ $ATX_SHAPE ]]; then
       text="${BASH_REMATCH[2]}"
       block=none
+      form=heading
+      if [[ "$DET_DEPTH" -gt 0 ]]; then
+        form=details
+        printf 'fold|%s|%s\n' "$number" "$DET_DEPTH"
+      fi
       if [[ "$text" == 'Merge risk'* ]]; then
         in_merge_risk=1
-        printf 'section|%s|heading:Merge risk\n' "$number"
+        printf 'section|%s|%s:Merge risk\n' "$number" "$form"
         printf 'merge-risk-heading|%s\n' "$line"
       else
         in_merge_risk=0
-        printf 'section|%s|heading:%s\n' "$number" "$text"
+        printf 'section|%s|%s:%s\n' "$number" "$form" "$text"
       fi
       continue
     fi
@@ -669,8 +717,10 @@ scan_body() {
       continue
     fi
 
-    # The end of a <details> block. The fold check counts the content of a folded section up to it.
-    [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s\n' "$number"
+    # The <details> blocks open at this line. The fold check counts the content of a folded section up
+    # to the </details> that closes the block the section sits in, so a block nested in it ends nothing.
+    details_step "$line"
+    [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s|%s\n' "$number" "$DET_DEPTH"
 
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
       text="${BASH_REMATCH[1]}"
@@ -678,6 +728,8 @@ scan_body() {
       block=container
       # A folded Merge risk carries its grade in the summary; it is named as the section it folds.
       [[ "$text" == 'Merge risk'* ]] && text='Merge risk'
+      # A summary with no opener above it still folds the section, as the first block it closes.
+      printf 'fold|%s|%s\n' "$number" "$((DET_DEPTH > 0 ? DET_DEPTH : 1))"
       printf 'section|%s|details:%s\n' "$number" "$text"
       continue
     fi
@@ -760,19 +812,30 @@ check_sections() {
   done
 }
 
+# plan_record <record> — append a repair record of the refold to FOLD_PLAN_FILE when the refold asked for one.
+plan_record() {
+  if [[ -n "${FOLD_PLAN_FILE:-}" ]]; then
+    printf '%s\n' "$1" >>"$FOLD_PLAN_FILE"
+  fi
+  return 0
+}
+
 # check_folding <template> <scanned records> — judge the fold rule: a section of the template whose
 # content is longer than FOLD_LIMIT code points is a <details> block, a section of at most that many is an
-# open `##` section, and `## Merge risk` is never a <details> block. The body is on standard input.
+# open `##` section, `## Merge risk` is never a <details> block, and no text stands between the
+# </details> of a folded section and the next section. The body is on standard input.
 # Every line is read once and the sections do not overlap, so the run time grows with the length of the
 # body alone. A section the template does not define is refused by check_sections and is not judged here.
+# A section is named by an exact match with a name of the template, so the text of a heading that
+# merely contains template names is never repeated.
 check_folding() {
   local template="$1" scanned="$2"
-  local -a sec_line=() sec_kind=() sec_name=() det_end=() cp=() blank=() text=()
-  local record kind value line number=0 total=0 allowed="|" i n m j d start end next first last len
-  local name form stripped
+  local -a sec_line=() sec_kind=() sec_name=() sec_depth=() end_line=() end_depth=() cp=() blank=() text=() tnames=()
+  local record kind value line number=0 total=0 i n m j k d start end next first last len depth=0 tname known
+  local name form stripped stray=0 closer want
 
   while IFS= read -r record; do
-    [[ -n "$record" ]] && allowed="$allowed${record#*|}|"
+    [[ -n "$record" ]] && tnames[${#tnames[@]}]="${record#*|}"
   done < <(template_sections "$template")
 
   # One line of the body per entry; <text> is the line and <cp> its code points. One pass of `tr`
@@ -794,26 +857,37 @@ check_folding() {
     kind="${record%%|*}"
     value="${record#*|}"
     case "$kind" in
+    fold) depth="${value#*|}" ;;
     section)
       sec_line[${#sec_line[@]}]="${value%%|*}"
+      sec_depth[${#sec_depth[@]}]="$depth"
+      depth=0
       value="${value#*|}"
       sec_kind[${#sec_kind[@]}]="${value%%:*}"
       sec_name[${#sec_name[@]}]="${value#*:}"
       ;;
-    details-end) det_end[${#det_end[@]}]="$value" ;;
+    details-end)
+      end_line[${#end_line[@]}]="${value%%|*}"
+      end_depth[${#end_depth[@]}]="${value#*|}"
+      ;;
     esac
   done <<<"$scanned"
 
   n=${#sec_line[@]}
-  m=${#det_end[@]}
+  m=${#end_line[@]}
   j=0
   i=0
   while [[ "$i" -lt "$n" ]]; do
     name="${sec_name[$i]}"
     form="${sec_kind[$i]}"
     start="${sec_line[$i]}"
+    want="${sec_depth[$i]}"
     i=$((i + 1))
-    [[ "$allowed" == *"|$name|"* ]] || continue
+    known=0
+    for tname in ${tnames[@]+"${tnames[@]}"}; do
+      [[ "$name" == "$tname" ]] && known=1
+    done
+    [[ "$known" -eq 1 ]] || continue
 
     if [[ "$name" == 'Merge risk' ]]; then
       [[ "$form" == details ]] && printf '%s\n' 'Folding: "Merge risk" is a <details> block; the Merge risk section is never folded'
@@ -830,11 +904,22 @@ check_folding() {
     if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details && "$((next - 1))" -gt "$start" ]]; then
       [[ "${text[$((next - 1))]}" =~ $DETAILS_OPEN ]] && end=$((next - 1))
     fi
+    # The section of a folded form ends at the </details> that closes the block it sits in: the first
+    # one that leaves fewer blocks open than the section's line had. A block nested in it ends nothing.
+    closer=0
     if [[ "$form" == details ]]; then
-      while [[ "$j" -lt "$m" && "${det_end[$j]}" -le "$start" ]]; do
+      while [[ "$j" -lt "$m" && "${end_line[$j]}" -le "$start" ]]; do
         j=$((j + 1))
       done
-      [[ "$j" -lt "$m" && "${det_end[$j]}" -lt "$end" ]] && end="${det_end[$j]}"
+      k="$j"
+      while [[ "$k" -lt "$m" && "${end_line[$k]}" -lt "$end" ]]; do
+        if [[ "${end_depth[$k]}" -lt "$want" ]]; then
+          end="${end_line[$k]}"
+          closer=1
+          break
+        fi
+        k=$((k + 1))
+      done
     fi
 
     first=$((start + 1))
@@ -857,8 +942,35 @@ check_folding() {
 
     if [[ "$form" == heading && "$len" -gt "$FOLD_LIMIT" ]]; then
       printf 'Folding: the open section "%s" has %s characters, over the limit of %s; fold it in a <details> block\n' "$name" "$len" "$FOLD_LIMIT"
+      plan_record "fold|$start|$last|$name"
     elif [[ "$form" == details && "$len" -le "$FOLD_LIMIT" ]]; then
       printf 'Folding: the folded section "%s" has %s characters, at most %s; render it as an open ## section\n' "$name" "$len" "$FOLD_LIMIT"
+      # Only the form this script renders is unfolded: a <details> opener line, the <summary><strong>
+      # line, and the closing </details> line.
+      if [[ "$closer" -eq 1 && "$start" -gt 1 && "${text[$start]}" =~ $SUMMARY_STRONG && "${text[$((start - 1))]}" =~ $DETAILS_OPEN ]]; then
+        plan_record "unfold|$start|$end|$name"
+      else
+        plan_record "stuck|$start"
+      fi
+    fi
+
+    # No text stands between the </details> of a folded section and the next section: it would be
+    # visible text that belongs to no section and that no count reads. The first line is named.
+    if [[ "$closer" -eq 1 && "$stray" -eq 0 ]]; then
+      d=$((end + 1))
+      last=$((next - 1))
+      # The <details> opener directly above the next summary is the one non-content line.
+      if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details && "$last" -ge "$d" && "${text[$last]}" =~ $DETAILS_OPEN ]]; then
+        last=$((last - 1))
+      fi
+      while [[ "$d" -le "$last" ]]; do
+        if [[ "${blank[$d]}" -eq 0 && ! "${text[$d]}" =~ $DETAILS_END ]]; then
+          printf 'Folding: line %s holds text outside every section\n' "$d"
+          stray=1
+          break
+        fi
+        d=$((d + 1))
+      done
     fi
   done
 }
@@ -1010,6 +1122,93 @@ check() {
   fi
 
   emit
+  return 0
+}
+
+# refold <file> <template> — print the body of <file> with every section in the form the fold rule asks:
+# an open section over FOLD_LIMIT code points becomes a <details> block, and a <details> block of this
+# script's own form with at most FOLD_LIMIT code points becomes an open `##` section. Nothing else
+# changes. It refuses (exit 3, nothing on standard output) a body that has any other problem, and a
+# folded section it cannot unfold. The caller checks the result again before it publishes it.
+refold() {
+  local file="$1" template="$2" body found record kind rest plan lines_n=0 n line i skip_blank result again
+  local -a action=() rename=() after=() raw=()
+
+  [[ -r "$file" ]] || { echo "$PROG: cannot read the pull-request body" >&2; return 1; }
+  template_sections "$template" >/dev/null || { echo "$PROG: unknown template" >&2; return 1; }
+  body="$(cat -- "$file")"
+  [[ "$(printf '%s' "$body" | count_chars)" -le "$MAX_CHARS" && "$body" != *"$OUTLINE_MARKER"* ]] || return 3
+
+  plan="$(mktemp)"
+  # shellcheck disable=SC2064
+  trap "rm -f '$plan'" RETURN
+  FOLD_PLAN_FILE="$plan"
+  found="$(set -e; printf '%s\n' "$body" | judge_body "$template")" || return 2
+  FOLD_PLAN_FILE=""
+
+  # Only a folding problem is repaired; a body with any other problem is refused as it is.
+  while IFS= read -r record; do
+    [[ -z "$record" || "$record" == 'Folding:'* ]] || return 3
+  done <<<"$found"
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lines_n=$((lines_n + 1))
+    raw[lines_n]="$line"
+  done <<<"$body"
+
+  while IFS='|' read -r kind n rest; do
+    [[ -z "$kind" ]] && continue
+    case "$kind" in
+    fold)
+      # rest is `<last content line>|<name>`
+      action[n]='fold'
+      rename[n]="${rest#*|}"
+      after[${rest%%|*}]=close
+      ;;
+    unfold)
+      # rest is `<closer line>|<name>`
+      action[n]='unfold'
+      rename[n]="${rest#*|}"
+      action[n - 1]=drop
+      action[${rest%%|*}]=drop
+      [[ "${raw[${rest%%|*} - 1]}" =~ ^[[:space:]]*$ ]] && action[${rest%%|*} - 1]=drop
+      ;;
+    *) return 3 ;;
+    esac
+  done <"$plan"
+
+  result=""
+  skip_blank=0
+  i=1
+  while [[ "$i" -le "$lines_n" ]]; do
+    line="${raw[i]}"
+    case "${action[i]:-}" in
+    drop) ;;
+    fold)
+      result="$result<details>"$'\n'"<summary><strong>${rename[i]}</strong></summary>"$'\n\n'
+      skip_blank=1
+      ;;
+    unfold) result="$result## ${rename[i]}"$'\n' ;;
+    *)
+      if [[ "$skip_blank" -eq 1 && "$line" =~ ^[[:space:]]*$ ]]; then
+        skip_blank=0
+      else
+        skip_blank=0
+        result="$result$line"$'\n'
+      fi
+      ;;
+    esac
+    if [[ "${after[i]:-}" == close ]]; then
+      result="$result"$'\n</details>\n'
+    fi
+    i=$((i + 1))
+  done
+
+  # The result is checked before it is printed: a body that still has a problem is refused as it is.
+  FOLD_PLAN_FILE=""
+  again="$(set -e; printf '%s' "$result" | judge_body "$template")" || return 2
+  [[ -z "$again" ]] || return 3
+  printf '%s' "$result"
   return 0
 }
 
@@ -1196,10 +1395,89 @@ $(filler 300)")" render)" 'has 601 characters'
   # The <details> opener above the next <summary> belongs to no content: 600 characters stay open.
   scenario 'the <details> opener under a section of 600 characters is not counted' 0 \
     "$(SUMMARY="$(section Summary open "$f600")" WALKTHROUGH="$(section Walkthrough folded "$f601")" render)" '"valid": true'
-  scenario 'a stray line after a </details> belongs to no section' 0 \
+  # No text stands between a </details> and the next section: nothing counts it, and the reader sees it.
+  scenario 'text after a </details> and before the next section is refused' 3 \
     "$(WALKTHROUGH="$(section Walkthrough folded "$f601")
 
-$f601" render)" '"valid": true'
+$f601" render)" 'Folding: line 20 holds text outside every section'
+  scenario 'text after the last </details> of the body is refused' 3 \
+    "$(printf 'Closes #42\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nok\n\n%s\n\ntrailing text\n' "$risk_ok" "$(section Audit folded "$f601")")" 'Folding: line 27 holds text outside every section'
+  scenario 'a blank line and the next opener after a </details> are no text' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" SUMMARY="$(section Summary folded "$f601")" render)" '"valid": true'
+
+  # A folding message names a section of the template, by an exact match, and never repeats body text: a
+  # heading made of two template names joined by `|` is a section the template does not define.
+  scenario_never_echoes() {
+    local label="$1" body="$2" echoed="$3" output status
+    printf '%s\n' "$body" >"$tmp/body.md"
+    set +e
+    output="$("$script" --file "$tmp/body.md" 2>/dev/null)"
+    status=$?
+    set -e
+    if [[ "$status" -eq 3 && "$output" == *'is not a section of the template'* && "$output" != *"$echoed"* && "$output" != *'Folding:'* ]]; then
+      printf 'ok    %-66s exit %s\n' "$label" "$status"
+    else
+      printf 'FAIL  %-66s expected exit 3, the heading refused by its line, and no "%s" in the output, got %s\n' "$label" "$echoed" "$status" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  scenario_never_echoes 'a folding message never repeats a heading of two joined names' \
+    "$(SUMMARY="$(section 'Summary|Open decisions for the operator' open "$f601")" render)" 'Summary|Open decisions'
+  scenario_never_echoes 'a folding message never repeats a joined name of a folded section' \
+    "$(WALKTHROUGH="$(section 'Walkthrough|✅ Testing' folded "$f600")" render)" 'Walkthrough|'
+
+  local risk_two_way='**Door:** two-way no rollback signal
+**Blast radius:** STANDARD (production-code-changed)'
+  # The refold (the merge-risk refresh of a body rendered before the fold rule): it repairs a folding problem
+  # and nothing else, and its result passes the check.
+  refold_scenario() {
+    local label="$1" expected="$2" body="$3" template="${4:-resolve-issue}" output status verdict=0
+    printf '%s\n' "$body" >"$tmp/body.md"
+    set +e
+    output="$("$script" --refold "$tmp/body.md" --template "$template" 2>/dev/null)"
+    status=$?
+    if [[ "$status" -eq 0 ]]; then
+      printf '%s\n' "$output" >"$tmp/refolded.md"
+      "$script" --file "$tmp/refolded.md" --template "$template" >/dev/null 2>&1
+      verdict=$?
+    fi
+    set -e
+    if [[ "$status" -eq "$expected" && "$verdict" -eq 0 && ( "$expected" -eq 0 || -z "$output" ) ]]; then
+      printf 'ok    %-66s exit %s\n' "$label" "$status"
+    else
+      printf 'FAIL  %-66s expected exit %s and a refolded body that passes the check, got %s and %s\n' "$label" "$expected" "$status" "$verdict" >&2
+      failures=$((failures + 1))
+    fi
+  }
+  refold_scenario 'the refold folds a long open section and opens a short folded one' 0 \
+    "$(printf 'Closes #42\n\n%s\n\n%s\n\n## Walkthrough\n\nrow\n\n%s\n\n## Audit\n\nnone\n' "$risk_ok" "$(section Summary open "$f601")" "$(section '✅ Testing' folded ok)")"
+  refold_scenario 'the refold keeps a body that follows the rule as it is' 0 "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" render)"
+  refold_scenario 'the refold refuses a body with a problem that is not a folding one' 3 "$(render '' '## Problem
+x')"
+  refold_scenario 'the refold refuses a Merge risk heading under a bare <details>' 3 \
+    "$(render "$(printf '<details>\n\n## Merge risk 🟡 medium\n\n%s\n\n</details>' "$risk_two_way")")"
+
+  # A heading read inside any <details> is folded, whatever the block holds above it.
+  scenario 'a Merge risk heading inside a bare <details> is refused' 3 \
+    "$(render "$(printf '<details>\n\n## Merge risk 🟡 medium\n\n%s\n\n</details>' "$risk_two_way")")" 'the Merge risk section is never folded'
+  scenario 'a Merge risk heading under a plain <summary> is refused' 3 \
+    "$(render "$(printf '<details>\n<summary>Risk</summary>\n\n## Merge risk 🟡 medium\n\n%s\n\n</details>' "$risk_two_way")")" 'the Merge risk section is never folded'
+  scenario 'a Merge risk heading under a multi-line <summary> is refused' 3 \
+    "$(render "$(printf '<details>\n<summary>\nRisk\n</summary>\n\n## Merge risk 🟡 medium\n\n%s\n\n</details>' "$risk_two_way")")" 'the Merge risk section is never folded'
+  scenario 'a Merge risk heading inside an upper-case <DETAILS> is refused' 3 \
+    "$(render "$(printf '<DETAILS>\n\n## Merge risk 🟡 medium\n\n%s\n\n</DETAILS>' "$risk_two_way")")" 'the Merge risk section is never folded'
+  scenario 'a short section under a bare <details> is refused as folded' 3 \
+    "$(WALKTHROUGH="$(printf '<details>\n\n## Walkthrough\n\nrow\n\n</details>')" render)" 'the folded section \"Walkthrough\" has 3 characters'
+  scenario 'a long section under a bare <details> is valid folded' 0 \
+    "$(WALKTHROUGH="$(printf '<details>\n\n## Walkthrough\n\n%s\n\n</details>' "$f601")" render)" '"valid": true'
+  scenario 'a Merge risk heading after a closed <details> is an open section' 0 \
+    "$(printf 'Closes #42\n\n<details>\n<summary>Intro</summary>\n\nx\n\n</details>\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nok\n\n## Audit\n\nnone\n' "$risk_ok")" '"valid": true'
+
+  # A folded section ends at its own </details>: a block nested in it ends nothing.
+  scenario 'a folded section with a nested <details> is counted to its own </details>' 0 \
+    "$(WALKTHROUGH="$(printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n<details>\n<summary>more</summary>\n\nshort\n\n</details>\n\n%s\n\n</details>' "$f601")" render)" '"valid": true'
+  scenario 'a short folded section with a nested <details> is refused' 3 \
+    "$(WALKTHROUGH="$(printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n<details>\n<summary>more</summary>\n\nshort\n\n</details>\n\nmore\n\n</details>')" render)" 'the folded section \"Walkthrough\" has 58 characters'
   scenario 'the fold rule applies to the dependency-update template' 3 \
     "$(OTHER_UPDATES="$(section 'Other updates' open "$f601")" render_update)" 'the open section \"Other updates\" has 601 characters' composer-update
   scenario 'a folded long section is valid in the dependency-update template' 0 \
@@ -1477,6 +1755,24 @@ $f601" render)" '"valid": true'
 if [[ "${1:-}" == "--self-test" ]]; then
   self_test
   exit $?
+fi
+
+if [[ "${1:-}" == "--refold" ]]; then
+  [[ $# -ge 2 ]] || { usage; exit 1; }
+  refold_file="$2"
+  refold_template=resolve-issue
+  if [[ "${3:-}" == "--template" ]]; then
+    [[ $# -eq 4 ]] || { usage; exit 1; }
+    refold_template="$4"
+  elif [[ $# -ne 2 ]]; then
+    usage
+    exit 1
+  fi
+  set +e
+  refold "$refold_file" "$refold_template"
+  refold_status=$?
+  set -e
+  exit "$refold_status"
 fi
 
 check "$@"

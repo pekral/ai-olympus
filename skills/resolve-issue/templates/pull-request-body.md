@@ -52,6 +52,6 @@ Plan: <plan issue link>
 <!-- Summary: a TL;DR for a reader who opens only this section. Each bullet is one or two short sentences in plain words on what changes for the user of the project, never which file changed. A category only when it has a bullet; Tests, Chores, and Refactoring follow the same shape. The pre-existing bullet only when a pre-existing security fix landed. -->
 <!-- Evidence line: only on a bug fix. The pull request this one replaces: only when it replaces one. Open decisions: only when the run made a choice without a fact. Security acceptance checklist: only when a pre-implementation security plan was passed into the run. Safeguard: only when the source issue is a prevention proposal. TODO: only when a point was deferred. -->
 <!-- Merge risk, Summary, Walkthrough, Testing, and Audit are always present. -->
-<!-- Folding: a section whose content is longer than 600 characters is a <details> block with its heading text as the summary; one of 600 or fewer stays an open ## section; Merge risk is never folded. rules/git/pull-requests.md PR Content Requirements owns the rule and the exact form. -->
+<!-- Folding: fold the sections as rules/git/pull-requests.md PR Content Requirements "Fold the long sections, and only those" states. -->
 <!-- The body follows the language rule of rules/git/pull-requests.md Pull Requests. -->
 <!-- The whole body is at most 6,500 characters (rules/git/pull-requests.md PR Content Requirements): shorten the wording, never drop a section. -->

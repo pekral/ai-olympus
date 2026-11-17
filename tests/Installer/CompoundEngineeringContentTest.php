@@ -216,7 +216,7 @@ test(
             ->and($template)->toContain('* **Documentation**')
             ->and($template)->not->toContain("<details>\n")
             ->and($template)->not->toContain('<summary>')
-            ->and($template)->toContain('Folding: a section whose content is longer than 600 characters is a <details> block')
+            ->and($template)->toContain('<!-- Folding: fold the sections as rules/git/pull-requests.md PR Content Requirements')
             ->and($template)->not->toContain('## Changes')
             ->and($template)->not->toContain('## Testing')
             ->and($template)->not->toContain('## Merge danger')
