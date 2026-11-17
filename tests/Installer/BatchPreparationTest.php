@@ -295,9 +295,10 @@ test('the merge step is opt-in, rebases on the latest default branch, re-verifie
         )
         ->and($batch)->toContain('With CI, it puts the worktree on the unit branch as step 2.1 states')
         ->and($batch)->toContain(
-            '**With CI, the same pull request.** It runs the `pr-gate` fixers and commits what they change. It pushes with `git -C <worktree> push '
+            '**With CI, the same pull request.** It runs the `pr-gate` fixers and commits what they change, then runs the `fast-checks` '
+            . 'through `skills/_shared/run-fast-checks.sh` and commits what it fixes. It pushes with `git -C <worktree> push '
             . '--force-with-lease="refs/heads/<branch>:<head SHA confirmed above>" origin "HEAD:refs/heads/<branch>"`, '
-            . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no local checker and no local test.',
+            . 'through `skills/_shared/audit-trail.sh run --`, and waits for CI on the new head with no other local checker and no local test.',
         )
         ->and($batch)->toContain('No pull request is opened or closed, and the bullets below do not apply.')
         ->and($batch)->toContain('**Without CI, a new pull request.**')

@@ -280,7 +280,7 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
 
     expect($read('agents/donatello.md'))->toContain('The checks run as `skills/_shared/run-gate.sh --tier full --actor donatello`.');
-    expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --exclusive` for the `pr-gate` fixers before each push, and the project');
+    expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --exclusive` for the `pr-gate` fixers before each push, `skills');
     expect($read('agents/donatello.md'))->toContain('unless CI on the PR head is green and the push follows no rebase that resolved a conflict');
 
     $gates = $read('skills/resolve-issue/references/quality-gates.md');
