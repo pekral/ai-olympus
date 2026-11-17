@@ -503,3 +503,17 @@ test('pending-analysis reference runs analyze-problem read-only and publishes a 
     $backlog = (string) file_get_contents($packageDir . '/rules/compound-engineering/backlog.md');
     expect($backlog)->toContain('**Leave the pending-analysis pass to the top-level session.**');
 });
+
+test('assign-priorities.sh refuses an issue number that is not a positive integer right before the write', function (): void {
+    $content = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/scripts/assign-priorities.sh');
+    $check = '[[ ! "$number" =~ ^[1-9][0-9]*$ ]]';
+
+    $checkAt = (int) strpos($content, $check);
+    $editAt = (int) strpos($content, 'gh issue edit "$number"');
+
+    expect(substr_count($content, $check))->toBe(1)
+        ->and($checkAt)->toBeGreaterThan(0)
+        ->and($checkAt)->toBeLessThan($editAt)
+        ->and($content)->toContain('refusing to write: the issue number is not a positive integer')
+        ->and($content)->toContain('the number \'$bad_number\' was not refused before the write');
+});
