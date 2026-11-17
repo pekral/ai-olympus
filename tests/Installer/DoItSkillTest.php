@@ -392,16 +392,15 @@ test('a Base branch is checked before it enters a dispatch and again by donatell
         ->and($brief)->toContain('It is written in double quotes in every shell line.');
 });
 
-test('the skill writes only the issues of its items, applies no backlog-wide labelling, and the consent table carries a row for it', function (): void {
+test('the skill writes only the issues of its items, triages only those, and the consent table has a row', function (): void {
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
     $orchestration = normalizedPackageSource('rules/compound-engineering/orchestration.md');
+    $row = '| top-level session (holds the `krang` role for a `/do-it` queue) | Create one flat issue for each item of the queue that has no issue | L1 |';
 
-    expect($skill)->toContain('The run writes to the tracker only to create the issues of the items that have none.')
-        ->and($skill)->toContain('The run applies no priority label and runs no labelling script.')
-        ->and($orchestration)->toContain(
-            '| top-level session (holds the `krang` role for a `/do-it` queue) | Create one flat issue for each item of the queue that has no issue | L1 |',
-        )
-        ->and($orchestration)->toContain('writes no priority label and runs no backlog-wide labelling, and posts no comment.');
+    expect($skill)->toContain('only to create the issues of the items that have none, and to triage exactly those issues')
+        ->and($skill)->toContain('The run triages no reused issue and runs no backlog-wide labelling script.')
+        ->and($orchestration)->toContain($row)
+        ->and($orchestration)->toContain('runs no backlog-wide labelling, and posts no comment.');
 });
 
 test('the Bash boundary of krang says what both helpers read and stays under the instruction size guard', function (): void {

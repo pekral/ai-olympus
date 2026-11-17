@@ -30,9 +30,11 @@ metadata:
 - One issue per step
 - Ensure each is independently deliverable: it delivers a working result on its own (*Split into vertical slices*)
 - For every issue created — flat breakdown, EPIC parent, and sub-issues alike — select and apply the single most relevant existing label per `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*; this is additive to, and independent of, the structural `EPIC` label from *EPIC parent & sub-issues* below
+- Right after the issues are created and verified, triage every issue this run created — flat breakdown, EPIC parent, and sub-issues alike — and no other, as `@rules/compound-engineering/tracker.md` *Triage every GitHub issue an agent creates, right after it is created*. A withheld item has no issue and is not triaged
 
 ### 4. Output
 - Return list of created issues with URLs, and the list of withheld items with their reasons
+- Report the triage result of each created issue, and name each untriaged issue with the reason
 
 ---
 
@@ -97,4 +99,5 @@ Use this when the assignment bundles **several behaviours that are each delivere
    - In each sub-issue body, reference the parent with `Part of #<parent>` so the relationship is visible from the child. Place the line after the last block of the body, never before the opening text, so *What this is about* stays the first text of the body.
    - In the parent body, keep a checkable task list of the children — `- [ ] #<child>` per sub-issue — under a `## Sub-issues` heading, so the parent shows the full breakdown and progress. Place the heading and the list after the last block of the parent body, never before the opening text.
 5. **Order.** Fill each sub-issue's `## Dependencies` so a resolving run (e.g. `krang`) can pick a dependency-aware order — dependencies before dependents.
-6. **Output.** Return the `EPIC`-labelled parent URL plus the list of linked sub-issue URLs and the planned resolve order.
+6. **Triage.** Triage the parent only when step 1 created it, and every sub-issue, right after they are created, as step 3 of *Execution* states. An existing tracker item that became the parent is not triaged.
+7. **Output.** Return the `EPIC`-labelled parent URL plus the list of linked sub-issue URLs, the planned resolve order, and the untriaged issues with their reasons.

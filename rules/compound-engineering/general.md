@@ -18,7 +18,7 @@ Durable solutions of resolved Critical code-review findings live in a per-user, 
 
 ## Tracker workflow — the companion file
 
-The sections that govern a run taking its assignment from a tracker item live in `@rules/compound-engineering/tracker.md`, not in this file: *Analyze every comment before you act on a tracker assignment*, *Fix the cause first, then repair the data it already wrote*, *Claim a tracker issue before working on it*, *Tracker status tracks the phase of work*, *Every pull request links back to its tracker issue*, *File deferred points as follow-up tracker issues*, and *Label tracker issues, and keep the labels true*. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
+The sections that govern a run taking its assignment from a tracker item live in `@rules/compound-engineering/tracker.md`, not in this file: *Analyze every comment before you act on a tracker assignment*, *Fix the cause first, then repair the data it already wrote*, *Claim a tracker issue before working on it*, *Tracker status tracks the phase of work*, *Every pull request links back to its tracker issue*, *File deferred points as follow-up tracker issues*, *Label tracker issues, and keep the labels true*, and *Triage every GitHub issue an agent creates, right after it is created*. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
 
 - **A run that reads, claims, updates, links, labels, or files a tracker item reads and applies `@rules/compound-engineering/tracker.md` first.** Every skill and agent that performs one of those steps names the file.
 
