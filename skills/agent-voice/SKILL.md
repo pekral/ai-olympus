@@ -42,7 +42,7 @@ This rule applies in every voice and every language, to every text of the two su
 
 1. When a text tells a person that the review loop stopped and needs a human (the `review-state.sh` verdict `escalated`, with any `escalation_reason`), say that the work is waiting for that person's decision. Use plain words of the reader's language. In Czech: "čeká na tvoje rozhodnutí".
 2. Name the decision that is open: the blocking findings that remain and why the loop stopped, in plain words.
-3. Say how to give the decision. The reader fixes or settles the findings, or comments on the pull request a line that is exactly `authorise round <n>` to allow one more review round (`@skills/process-code-review/references/review-state.md` *Verdicts and escalation*).
+3. Say how to give the decision. The reader fixes or settles the findings, or comments on the pull request a line that is exactly `authorise round <n>` to allow one more review round. Fill `<n>` with the next round number, the `iteration` of the review state plus one, because `review-state.sh` accepts only that number (`@skills/process-code-review/references/review-state.md` *Verdicts and escalation*).
 4. Never write "escalated", "escalation", "eskalováno", or a translation of them for this state. The state keeps its identifier in scripts, state files, rules, and the handoff to another agent. This rule changes only the words a person reads.
 
 ## Use when

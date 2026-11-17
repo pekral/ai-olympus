@@ -147,7 +147,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
    - **Critical outside security → hard stop.** Never deferred, never filed as a sub-issue.
    - **Security finding (the S1–S3 carve-out, at any severity) → up to two more rounds, fixing only the security findings.** Still open after them → hard stop.
    - **Every other Moderate → deferred automatically as a sub-issue, or blocking.** The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar* decides which (cross-referenced, never restated). Passing it files a sub-issue via `scripts/file-deferred-moderate.sh`; failing it leaves the finding **blocking**, so it never silently vanishes.
-   - Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`. Otherwise a run left with a blocking finding **has not converged**: stop, surface the findings with the verdict's `reason`, publish nothing, and escalate to the caller.
+   - Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`. Otherwise a run left with a blocking finding **has not converged**: stop, surface the findings with the verdict's `reason`, publish nothing, and report to the caller that the work waits for the user's decision (`@skills/agent-voice/SKILL.md` *A review loop that needs the reader waits for their decision*).
 
 #### Quiet review runs and incremental review scope
 
@@ -236,7 +236,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
   - reviewer comments fulfilled (the final `M/N fulfilled` verdict) — every actionable reviewer instruction satisfied, rejected/deferred with its recorded reason, or delegated to the account the reviewer addressed it to
   - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
   - Moderate findings deferred at the cap round with the sub-issue URL each was filed as, or `none` when the loop converged before the deferral boundary (`references/round-three-deferral.md`)
-  - loop iteration count and final convergence status with the `review-state.sh` `counts` and any `escalation_reason`, plus the review scope the final publish carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
+  - loop iteration count and final convergence status with the `review-state.sh` `counts` and any `escalation_reason`, worded for the reader as (`@skills/agent-voice/SKILL.md` *A review loop that needs the reader waits for their decision*) requires when the loop stopped, plus the review scope the final publish carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
   - `report: not-published (no-orchestrator)` when the run ended with no `april` reporting step and the source is a tracker — this skill publishes no post-convergence report, it only refuses to leave a missing one silent
   - remaining blockers (if any — should be empty when convergence was reached)
 
