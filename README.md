@@ -173,7 +173,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
 - [`docs/skills.md`](docs/skills.md) — the catalog of all 70 skills
-- [`docs/rules.md`](docs/rules.md) — the 34 rule files, grouped by scope
+- [`docs/rules.md`](docs/rules.md) — the 39 rule files, grouped by scope
 
 ## Testing
 
