@@ -378,22 +378,37 @@ test('the review loop reads an inline thread of an earlier release as the agent 
         ->and($reference)->toContain('is listed under `has_reply` and not resolved');
 });
 
-test('no file cites the renamed section Inline review comments of the contract', function (): void {
+/**
+ * @return list<string>
+ */
+function inlineReviewFilesCiting(string $citation): array
+{
     $root = dirname(__DIR__, 2);
-    $citation = '*' . implode(' ', ['Inline', 'review', 'comments']) . '*';
-    $citing = [];
+    $directories = array_filter(
+        array_map(static fn (string $directory): string => $root . '/' . $directory, ['agents', 'codex', 'docs', 'rules', 'skills', 'tests']),
+        is_dir(...),
+    );
+    $files = [];
 
-    foreach (['agents', 'codex', 'docs', 'rules', 'skills', 'tests'] as $directory) {
-        if (!is_dir($root . '/' . $directory)) {
-            continue;
-        }
-
-        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)) as $file) {
-            if ($file->isFile() && str_contains((string) file_get_contents($file->getPathname()), $citation)) {
-                $citing[] = substr($file->getPathname(), strlen($root) + 1);
-            }
-        }
+    foreach ($directories as $directory) {
+        $files = [...$files, ...iterator_to_array(
+            new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)),
+            preserve_keys: false,
+        ),
+        ];
     }
+
+    return array_values(array_map(
+        static fn (SplFileInfo $file): string => substr($file->getPathname(), strlen($root) + 1),
+        array_filter(
+            $files,
+            static fn (SplFileInfo $file): bool => $file->isFile() && str_contains((string) file_get_contents($file->getPathname()), $citation),
+        ),
+    ));
+}
+
+test('no file cites the renamed section Inline review comments of the contract', function (): void {
+    $citing = inlineReviewFilesCiting('*' . implode(' ', ['Inline', 'review', 'comments']) . '*');
 
     expect($citing)->toBe([])
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
