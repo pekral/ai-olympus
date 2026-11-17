@@ -1,6 +1,6 @@
 # Rules Overview
 
-The 34 rule files this package installs. A rule is a binding instruction file — not a
+The 39 rule files this package installs. A rule is a binding instruction file — not a
 suggestion an agent may weigh, and not documentation. Every run applies the always-on baseline;
 scoped rules apply to the files they name, and on-demand rules apply to the activity that names them.
 
@@ -19,11 +19,11 @@ skill or an agent that names it reads it.
 | Group | Rules | Applies to |
 |---|---|---|
 | [Always-on baseline](#always-on-baseline) | 5 | Every run, whatever it touches |
-| [On-demand activity rules](#on-demand-activity-rules) | 9 | The review, tracker, memory, pull-request, report, JIRA, or refactoring activity that names them |
+| [On-demand activity rules](#on-demand-activity-rules) | 15 | The review, tracker, memory, pull-request, report, JIRA, or refactoring activity that names them |
 | [Orchestration](#orchestration) | 3 | Runs that dispatch subagents |
 | [PHP & Composer](#php--composer) | 3 | PHP code and dependency choices |
 | [Laravel](#laravel) | 7 | Laravel projects |
-| [Security](#security) | 4 | Every run; three are surface-scoped |
+| [Security](#security) | 3 | Surface-scoped: backend, frontend, mobile (`security/general.md` is in the baseline) |
 | [Data & API](#data--api) | 2 | SQL and HTTP API surfaces |
 | [Testing](#testing) | 1 | Test files |
 
