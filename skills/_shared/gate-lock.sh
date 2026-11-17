@@ -4,10 +4,10 @@
 # Why this exists
 #   One lock, `ai-olympus-gate.lock` in the machine directory (gate-record.sh `gate_machine_dir`),
 #   serialises every heavy command of the account: the gate, a dependency install, a full test
-#   suite, and the targeted checks of run-validation.sh. A waiter reclaims the lock of a dead
-#   holder by itself. A holder that is alive and stuck (a hung test, a process that waits on
-#   input) keeps the lock until every waiter times out. This script finds that holder and repairs
-#   the lock, and `krang` runs it (skills/_shared/orchestration/stale-lock-repair.md).
+#   suite, and the targeted checks of run-validation.sh and run-fast-checks.sh. A waiter reclaims
+#   the lock of a dead holder by itself. A holder that is alive and stuck (a hung test, a process
+#   that waits on input) keeps the lock until every waiter times out. This script finds that holder
+#   and repairs the lock, and `krang` runs it (skills/_shared/orchestration/stale-lock-repair.md).
 #
 # Usage
 #   gate-lock.sh status
@@ -34,7 +34,8 @@
 # Repair — what it may stop
 #   A dead holder: repair removes the lock and stops nothing.
 #   A stuck holder: repair stops one process tree, and only after it proves all of these:
-#     1. the holder file names a wrapper of this package (run-gate.sh or run-validation.sh);
+#     1. the holder file names a wrapper of this package (run-gate.sh, run-validation.sh, or
+#        run-fast-checks.sh);
 #     2. the live process at the recorded PID runs that wrapper, by its command line;
 #     3. its start time equals the recorded PROCESS_START (a recycled PID fails here);
 #     4. two samples, AI_OLYMPUS_GATE_PROBE seconds apart (default 5), show no progress, and
@@ -123,7 +124,7 @@ gate_holder_verified() {
   wrapper="$(gate_file_field "$dir/holder" WRAPPER)"
   recorded="$(gate_file_field "$dir/holder" PROCESS_START)"
   [[ "$pid" =~ ^[0-9]{1,7}$ && "$recorded" =~ ^[0-9]{9,12}$ ]] || return 1
-  [[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh ]] || return 1
+  [[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == run-fast-checks.sh ]] || return 1
   command="$(ps -o command= -p "$pid" 2>/dev/null || true)"
   # The wrapper is the script the interpreter runs (`bash <path>/run-gate.sh ...`) or the program
   # itself: its name is the first or second word, never a substring of another word.
@@ -191,7 +192,7 @@ audit_ledger_writable() {
 # the ledger, which a public PR body transcribes.
 holder_scope() {
   local wrapper="$1" project="$2" name='an unknown wrapper' where='another project'
-  [[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh ]] || name="$wrapper"
+  [[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh ]] || name="$wrapper"
   [[ -z "$project" || "$project" != "$(gate_project_path)" ]] || where='this repository'
   printf '%s, %s' "$name" "$where"
 }
@@ -656,6 +657,20 @@ self_test() {
   check 'a command line that holds the wrapper name only as a substring is refused' \
     "$([[ "$code" -eq 3 ]] && gate_pid_running "$stranger2" && echo pass)"
   { kill "$stranger2" && wait "$stranger2"; } 2>/dev/null || true
+
+  # The fast checks before a push are a wrapper of this package too, so a hung one can be repaired.
+  local fast_checks
+  printf 'sleep 300\n' >"$tmp/run-fast-checks.sh"
+  bash "$tmp/run-fast-checks.sh" &
+  fast_checks=$!
+  SELF_TEST_PIDS+=("$fast_checks")
+  sleep 0.3
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nPROCESS_START=%s\nWRAPPER=run-fast-checks.sh\nPROJECT=%s\nCOMMAND=%s\n' \
+    "$fast_checks" "$(gate_now)" "$now_epoch" "$(gate_process_start "$fast_checks")" "$project" 'fast checks' >"$lock/holder"
+  code=0; status_of || code=$?
+  check 'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package' \
+    "$([[ "$code" -eq 11 && "$(jq -r .wrapper_verified <<<"$OUT")" == true ]] && echo pass)"
+  { kill "$fast_checks" && wait "$fast_checks"; } 2>/dev/null || true
 
   # A holder file of an older format carries no heartbeat and is never stuck.
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$stranger" "$(gate_now)" "$now_epoch" >"$lock/holder"

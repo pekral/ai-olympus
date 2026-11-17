@@ -68,11 +68,15 @@ test('the pre-push gate runs the pr-gate fixers on every repository and the chec
         ->and($gates)->toContain('Commit every file they change, then push.')
         ->and($gates)->toContain('A second exit `4` is a problem the fixers cannot fix')
         ->and($gates)->toContain('Without `pr-gate` no fixer runs before a push.')
-        ->and($gates)->toContain('2. **The checkers and tests, only where CI cannot check.**')
-        ->and($gates)->toContain('On a repository with CI no checker and no test runs locally before a push.')
+        ->and($gates)->toContain('3. **The checkers and tests, only where CI cannot check.**')
+        ->and($gates)->toContain('On a repository with CI no other checker and no test runs locally before a push.')
         ->and($gates)->toContain('On a repository without CI, and after a CI billing failure, they run locally too')
-        ->and($gates)->toContain('The CI result decides whether the local checkers and tests run. The `pr-gate` fixers run in every case.')
-        ->and($gates)->toContain('2. **CI → no local checker and no local test.** Run the `pr-gate` fixers before each push.');
+        ->and($gates)->toContain(
+            'The CI result decides whether the local checkers and tests run. The `pr-gate` fixers and the `fast-checks` run in every case.',
+        )
+        ->and($gates)->toContain(
+            '2. **CI → no local checker and no local test beyond the fast checks.** Run the `pr-gate` fixers and the `fast-checks` before each push.',
+        );
     expect($gates)->toContain('**`--tier pr` is not the pre-push path.** The `pr-gate` fixers run before a push through `run-gate.sh --exclusive`')
         ->and($gates)->toContain('(the merge asks `--tier full`; no step asks `--tier pr`)');
     expect(packageSource('docs/installation.md'))->toContain(

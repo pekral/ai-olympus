@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # discover-fixers.sh — find the fixer commands that a project's dependency files declare, so `krang`
-# can propose them as the manifest key `pr-gate`.
+# can propose them as the manifest key `pr-gate`, and, with `--key fast-checks`, the fast checks it
+# can propose as the manifest key `fast-checks`.
 #
 # Why this exists
 #   The `pr-gate` fixers run before every push (skills/resolve-issue/references/quality-gates.md
@@ -9,6 +10,11 @@
 #   the fixer commands it found. `krang` proposes them through a pull request
 #   (skills/_shared/orchestration/pr-gate-discovery.md). The manifest governs only after that pull
 #   request merges.
+#   The fast checks run before every push on the changed files (skills/_shared/run-fast-checks.sh).
+#   `--key fast-checks` finds the static analysis, the coding-standard checker, and the linters the
+#   project already installs, each as a `{"command", "files"}` entry that receives the changed files
+#   matching `files`. A project's own fast tests (a pin of text, size, or structure) have no package
+#   to find: the owner adds them by hand, and a refresh keeps them.
 #
 # What it reads
 #   composer.json  `scripts` and `require-dev`
@@ -29,9 +35,12 @@
 #   when the package is missing, instead of installing the latest registry version without a prompt.
 #
 # Usage
-#   discover-fixers.sh [--ref <git-ref>]
-#   discover-fixers.sh --compare <base-ref> <head-ref>
+#   discover-fixers.sh [--key pr-gate|fast-checks] [--ref <git-ref>]
+#   discover-fixers.sh [--key pr-gate|fast-checks] --compare <base-ref> <head-ref>
 #   discover-fixers.sh --self-test
+#
+#   --key  the manifest key to discover, `pr-gate` by default. The output names the recorded value
+#          `pr_gate` or `fast_checks`, and `commands` carries the entries of that key.
 #
 # Output (stdout): one line of JSON.
 #   Discovery:
@@ -56,6 +65,9 @@
 #                           fixer the owner added by hand is never dropped. Without a recorded
 #                           array: the fixer commands on <head-ref>.
 #     pr_gate               `pr-gate` on <base-ref>, or null
+#   With `--key fast-checks`, every `pr-gate` above reads `fast-checks`, the field `pr_gate` is
+#   `fast_checks`, and a fixer is a fast check. No project script is looked for: a script name says
+#   nothing about whether it accepts the changed files.
 #
 # Exit codes
 #   0  the result was printed
@@ -70,11 +82,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # The fixed tables. A project script is named only when its name is in the list; a tool only when
 # its package is. The order of a table is the run order: a rewriting refactor first, then the code
-# style, then the file layout. The jq program is single-quoted on purpose: `$name` is a jq variable.
+# style, then the file layout. A fast check is static analysis first, then the coding standard.
+# The jq program is single-quoted on purpose: `$name` is a jq variable.
 # shellcheck disable=SC2016
 JQ_TABLES='
 def composer_scripts: ["fix", "cs-fix", "cs:fix", "fix-cs", "fix:cs", "format", "lint:fix", "lint-fix"];
-def composer_tools: [
+def fixer_composer_tools: [
   {package: "rector/rector", command: "vendor/bin/rector process"},
   {package: "laravel/pint", command: "vendor/bin/pint"},
   {package: "friendsofphp/php-cs-fixer", command: "vendor/bin/php-cs-fixer fix"},
@@ -83,11 +96,25 @@ def composer_tools: [
   {package: "ergebnis/composer-normalize", command: "composer normalize"}
 ];
 def npm_scripts: ["fix", "lint:fix", "lint-fix", "format"];
-def npm_tools: [
+def fixer_npm_tools: [
   {package: "eslint", command: "npx --no eslint --fix ."},
   {package: "prettier", command: "npx --no prettier --write ."},
   {package: "stylelint", command: null}
 ];
+def php_files: "\\.php$";
+def check_composer_tools: [
+  {package: "phpstan/phpstan", command: {command: "vendor/bin/phpstan analyse --no-progress", files: php_files}},
+  {package: "vimeo/psalm", command: {command: "vendor/bin/psalm --no-progress", files: php_files}},
+  {package: "squizlabs/php_codesniffer", command: {command: "vendor/bin/phpcs", files: php_files}}
+];
+def check_npm_tools: [
+  {package: "eslint", command: {command: "npx --no eslint", files: "\\.(js|jsx|mjs|cjs|ts|tsx|vue)$"}},
+  {package: "stylelint", command: {command: "npx --no stylelint", files: "\\.(css|scss|sass|less)$"}}
+];
+def composer_tools($key): if $key == "fast-checks" then check_composer_tools else fixer_composer_tools end;
+def npm_tools($key): if $key == "fast-checks" then check_npm_tools else fixer_npm_tools end;
+def scripts_of($key; $names): if $key == "fast-checks" then [] else $names end;
+def field($key): $key | gsub("-"; "_");
 def names($object): ($object // {}) | if type == "object" then keys_unsorted else [] end;
 def has_name($list; $name): any($list[]; . == $name);
 def side($doc; $file; $deps_key; $scripts; $tools; $runner):
@@ -109,9 +136,9 @@ def side($doc; $file; $deps_key; $scripts; $tools; $runner):
                    packages: [$tools[].package]}
       }
   end;
-def analyse($composer; $package):
-  side($composer; "composer.json"; "require-dev"; composer_scripts; composer_tools; "composer") as $c
-  | side($package; "package.json"; "devDependencies"; npm_scripts; npm_tools; "npm run") as $n
+def analyse($composer; $package; $key):
+  side($composer; "composer.json"; "require-dev"; scripts_of($key; composer_scripts); composer_tools($key); "composer") as $c
+  | side($package; "package.json"; "devDependencies"; scripts_of($key; npm_scripts); npm_tools($key); "npm run") as $n
   | {
       commands: ($c.commands + $n.commands | reduce .[] as $x ([]; if index([$x]) then . else . + [$x] end)),
       tools: ($c.tools + $n.tools),
@@ -135,11 +162,12 @@ def refresh($recorded; $before; $after):
 
 usage() {
   cat >&2 <<'EOF'
-Usage: discover-fixers.sh [--ref <git-ref>]
-       discover-fixers.sh --compare <base-ref> <head-ref>
+Usage: discover-fixers.sh [--key pr-gate|fast-checks] [--ref <git-ref>]
+       discover-fixers.sh [--key pr-gate|fast-checks] --compare <base-ref> <head-ref>
        discover-fixers.sh --self-test
 
-Prints the fixer commands composer.json and package.json declare on the ref, as JSON.
+Prints the fixer commands (or, with --key fast-checks, the fast checks) composer.json and
+package.json declare on the ref, as JSON.
 EOF
 }
 
@@ -188,21 +216,21 @@ read_manifest_json() {
 }
 
 discover() {
-  local ref="$1" composer package manifest
+  local ref="$1" key="$2" composer package manifest
   composer="$(read_composer "$ref")" || return 3
   package="$(read_package "$ref")" || return 3
   manifest="$(read_manifest_json "$ref")" || return 3
 
-  jq -nc --arg ref "$ref" --argjson composer "$composer" --argjson package "$package" \
+  jq -nc --arg ref "$ref" --arg key "$key" --argjson composer "$composer" --argjson package "$package" \
     --argjson manifest "$manifest" "$JQ_TABLES"'
-    if $composer != null and ($manifest | has("pr-gate")) then
-        {status: "configured", ref: $ref, pr_gate: $manifest["pr-gate"]}
+    if $composer != null and ($manifest | has($key)) then
+        {status: "configured", ref: $ref, (field($key)): $manifest[$key]}
       else
-        analyse($composer; $package) as $a
+        analyse($composer; $package; $key) as $a
         | {
             status: (if $composer == null then "no-manifest" elif ($a.commands | length) > 0 then "propose" else "none" end),
             ref: $ref,
-            pr_gate: null,
+            (field($key)): null,
             commands: $a.commands,
             tools: $a.tools,
             unmapped: $a.unmapped,
@@ -212,19 +240,19 @@ discover() {
 }
 
 compare() {
-  local base="$1" head="$2" base_composer base_package base_manifest head_composer head_package
+  local base="$1" head="$2" key="$3" base_composer base_package base_manifest head_composer head_package
   base_composer="$(read_composer "$base")" || return 3
   base_package="$(read_package "$base")" || return 3
   base_manifest="$(read_manifest_json "$base")" || return 3
   head_composer="$(read_composer "$head")" || return 3
   head_package="$(read_package "$head")" || return 3
 
-  jq -nc --arg base "$base" --arg head "$head" \
+  jq -nc --arg base "$base" --arg head "$head" --arg key "$key" \
     --argjson bc "$base_composer" --argjson bp "$base_package" --argjson bm "$base_manifest" \
     --argjson hc "$head_composer" --argjson hp "$head_package" "$JQ_TABLES"'
-    analyse($bc; $bp) as $b
-    | analyse($hc; $hp) as $h
-    | $bm["pr-gate"] as $recorded
+    analyse($bc; $bp; $key) as $b
+    | analyse($hc; $hp; $key) as $h
+    | $bm[$key] as $recorded
     | ($h.tools - $b.tools) as $added
     | ($b.tools - $h.tools) as $removed
     | refresh($recorded; $b.commands; $h.commands) as $proposed
@@ -237,7 +265,7 @@ compare() {
         added: $added,
         removed: $removed,
         commands: $proposed,
-        pr_gate: $recorded
+        (field($key)): $recorded
       }'
 }
 
@@ -303,7 +331,7 @@ self_test() {
     while IFS= read -r command; do
       [[ -z "$command" ]] && continue
       validate_command "$command" >/dev/null 2>&1 || return 1
-    done < <(printf '%s' "$out" | jq -r '.commands[]?')
+    done < <(printf '%s' "$out" | jq -r '.commands[]? | if type == "object" then .command else . end')
     return 0
   }
 
@@ -399,6 +427,23 @@ self_test() {
   run --ref HEAD
   check 'a manifest read-manifest.sh cannot read exits 3' "$([[ "$code" -eq 3 ]] && echo pass)"
 
+  # --- The fast checks: the same discovery with the tables of the checkers -------------------------
+  local checks_only checks_base checks_head
+  checks_only="$(commit_files '{"require-dev": {"phpstan/phpstan": "^2", "squizlabs/php_codesniffer": "^3", "laravel/pint": "^1"}, "scripts": {"fix": "x", "analyse": "y"}}' '{"devDependencies": {"eslint": "^9", "stylelint": "^16"}}')"
+  run --key fast-checks --ref "$checks_only"
+  check 'fast-checks proposes each installed checker with the changed files it reads, and never a fixer or a project script' "$([[ "$code" -eq 0 && "$(printf '%s' "$out" | jq -c '[.status, .fast_checks, .commands]')" == '["propose",null,[{"command":"vendor/bin/phpstan analyse --no-progress","files":"\\.php$"},{"command":"vendor/bin/phpcs","files":"\\.php$"},{"command":"npx --no eslint","files":"\\.(js|jsx|mjs|cjs|ts|tsx|vue)$"},{"command":"npx --no stylelint","files":"\\.(css|scss|sass|less)$"}]]' ]] && echo pass)"
+  check 'every proposed fast check passes the gate allow-list' "$(all_commands_valid && echo pass)"
+  checks_base="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["composer fix"], "fast-checks": ["vendor/bin/pest tests/PinTest.php", {"command": "vendor/bin/phpcs", "files": "\\.php$"}]}}, "require-dev": {"squizlabs/php_codesniffer": "^3"}}' -)"
+  run --key fast-checks --ref "$checks_base"
+  check 'a recorded fast-checks is read and nothing is analysed' "$([[ "$code" -eq 0 && "$(printf '%s' "$out" | jq -c '[.status, (.fast_checks | length), has("commands")]')" == '["configured",2,false]' ]] && echo pass)"
+  run --ref "$checks_base"
+  check 'the pr-gate discovery is unchanged by a recorded fast-checks' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .pr_gate]')" == '["configured",["composer fix"]]' ]] && echo pass)"
+  checks_head="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["composer fix"], "fast-checks": ["vendor/bin/pest tests/PinTest.php", {"command": "vendor/bin/phpcs", "files": "\\.php$"}]}}, "require-dev": {"squizlabs/php_codesniffer": "^3", "phpstan/phpstan": "^2"}}' -)"
+  run --key fast-checks --compare "$checks_base" "$checks_head"
+  check 'a fast-checks refresh keeps the hand-added pin test and adds the new checker in run order' "$([[ "$(printf '%s' "$out" | jq -c '[.status, .added, [.commands[] | if type == "object" then .command else . end]]')" == '["propose",["composer.json:phpstan/phpstan"],["vendor/bin/pest tests/PinTest.php","vendor/bin/phpstan analyse --no-progress","vendor/bin/phpcs"]]' ]] && echo pass)"
+  run --key gate --ref "$checks_base"
+  check 'a key other than pr-gate or fast-checks is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
+
   run --compare "$base"
   check 'compare needs two refs' "$([[ "$code" -eq 1 ]] && echo pass)"
   run --unknown
@@ -412,7 +457,7 @@ self_test() {
 }
 
 main() {
-  local ref='' base='' head='' mode=discover
+  local ref='' base='' head='' mode=discover key=pr-gate
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -424,6 +469,11 @@ main() {
     --ref)
       [[ $# -ge 2 ]] || { usage; return 1; }
       ref="$2"
+      shift 2
+      ;;
+    --key)
+      [[ $# -ge 2 && ( "$2" == pr-gate || "$2" == fast-checks ) ]] || { usage; return 1; }
+      key="$2"
       shift 2
       ;;
     --compare)
@@ -449,7 +499,7 @@ main() {
   if [[ "$mode" == compare ]]; then
     valid_ref "$base" || { echo "$PROG: not a valid commit ref: $base" >&2; return 1; }
     valid_ref "$head" || { echo "$PROG: not a valid commit ref: $head" >&2; return 1; }
-    compare "$base" "$head"
+    compare "$base" "$head" "$key"
     return $?
   fi
 
@@ -460,7 +510,7 @@ main() {
     }
   fi
   valid_ref "$ref" || { echo "$PROG: not a valid commit ref: $ref" >&2; return 1; }
-  discover "$ref"
+  discover "$ref" "$key"
 }
 
 main "$@"

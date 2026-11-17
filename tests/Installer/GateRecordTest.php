@@ -391,7 +391,9 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
     }
 
     // The proof that a process is a wrapper this package started, before anything is stopped.
-    expect($lock)->toContain('[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh ]] || return 1');
+    expect($lock)->toContain(
+        '[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == run-fast-checks.sh ]] || return 1',
+    );
     expect($lock)->toContain('command="$(ps -o command= -p "$pid" 2>/dev/null || true)"');
     expect($lock)->toContain('actual="$(gate_process_start "$pid")" || return 1');
     // One copy of the process helpers, in the library every script sources.
@@ -498,7 +500,8 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
     expect($reference)->not->toContain('PID <pid>, project <project>, command <command>');
     expect($read('skills/resolve-issue/references/quality-gates.md'))
         ->toContain('a handoff or a report carries them only inside a fenced `text` block');
-    expect($read('skills/resolve-issue/references/quality-gates.md'))->toContain('every `run-validation.sh` call in a way');
+    expect($read('skills/resolve-issue/references/quality-gates.md'))
+        ->toContain('every `run-validation.sh` call, and every `run-fast-checks.sh` call in a way');
     expect($read('skills/_shared/run-validation.sh'))->toContain('"invalid" | "locked"');
 
     $concurrency = $read('rules/compound-engineering/concurrency.md');
