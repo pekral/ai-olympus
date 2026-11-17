@@ -126,11 +126,11 @@ The body is the weaker signal, so it never overrules a person: when the body sug
 
 `scripts/derive-effort.sh --assignment <file>` derives the label from the text of the assignment. It reuses the two signals the package already has, and it owns every threshold. This file states none, so the numbers live in one place.
 
-1. **Count** — the method `files-and-criteria` of `@skills/do-it/SKILL.md` *Derive the keys of each item*: the distinct files the assignment names plus its criteria (the behaviours and the rules).
+1. **Count** — the `count=` line of `skills/_shared/count-assignment.sh --assignment <file>`, the one owner of the method `files-and-criteria` that `@skills/do-it/SKILL.md` *Derive the keys of each item* reads as the duration of an item: the distinct files the assignment names plus its criteria (the behaviours and the rules).
 2. **Tier** — the `tier` line of `skills/_shared/classify-risk.sh --assignment <file>`. The script runs it, or takes `--tier` from a caller that ran it already. A `CRITICAL` tier raises the size by one step.
 3. **Label** — the script compares the count with its thresholds and prints `label=effort: <size>`, the count, the method, the tier, and `split-candidate=yes|no`. `large` means yes.
 
-The same text gives the same label, because every input is a count read from the text and a tier from a deterministic classifier. The label never carries a time. A count of an unstructured text reads every bullet, and a text with no bullet counts 1, so the output states `criteria-source` for the reader.
+The same text gives the same label, because every input is a count read from the text and a tier from a deterministic classifier. The label never carries a time. A text with none of the counted headings counts every bullet, and a text with no bullet counts 1, so the output states `criteria-source` for the reader. The text is the assignment the pending-analysis pass produced, or the issue body when it produced none (`references/pending-analysis.md` step 4).
 
 ---
 

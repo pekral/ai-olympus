@@ -51,10 +51,10 @@ A report that fails a check goes back to its subagent with the concrete defect; 
 
 ## 4. Derive the effort and publish the analysis
 
-Derive the effort label of each report before you publish it. Save the issue body to a file outside the repository, then run the helper on it. The helper owns the method and every threshold (`SKILL.md` *Effort derivation*), so never state a size or a time yourself.
+Derive the effort label of each report before you publish it. The helper owns the method and every threshold (`SKILL.md` *Effort derivation*), so never state a size or a time yourself. Derive it from the assignment text this pass produced for the issue, when it produced one: save that text to a file outside the repository. Only when the pass produced no assignment text, save the issue body instead. An issue that is only a link then gets its size from the assignment the analysis settled, never from the link.
 
 ```bash
-skills/github-issue-triage/scripts/derive-effort.sh --assignment <issue-body-file>
+skills/github-issue-triage/scripts/derive-effort.sh --assignment <assignment-file>
 ```
 
 Add an **Effort:** field after the **Priority:** field of section 11 of the report. The field names the `label=` line, the count with its method (`files-and-criteria`: the `files` and `criteria` values), the `tier` and its source, and, for `effort: large`, that the issue is a candidate for splitting. It states no hours or days. When the helper exits non-zero, publish the report without the field, name the reason in the report to the user, and leave the effort labels of the issue unchanged.

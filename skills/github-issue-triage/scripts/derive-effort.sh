@@ -9,21 +9,18 @@
 #   (@rules/general/general.md *Verified statements only*): it prints a count, the method that produced
 #   the count, and the label that the thresholds below assign to it.
 #
-# Method (the same one `@skills/do-it/SKILL.md` calls `files-and-criteria`)
-#   count = files + criteria
-#   files     the distinct file paths the assignment text names. A path is a token of segments joined by
-#             `/` that ends in a file extension. A URL is not a path. A fenced code block and the
-#             `Original assignment` section (a quotation of the operator) are not read.
-#   criteria  the bullets of the sections `What the user must be able to do`, `The rules`, and
-#             `Acceptance criteria`. A text with none of these headings counts every bullet of the text.
-#             A text with no bullet counts 1: an assignment holds at least one rule.
-#   tier      the `tier=` line of `skills/_shared/classify-risk.sh --assignment <file>`, or the value of
-#             `--tier` (the caller already ran the classifier).
+# Method
+#   count  the `count=` line of `skills/_shared/count-assignment.sh --assignment <file>`: the distinct
+#          files the assignment names plus its criteria. That script is the one owner of the method
+#          `files-and-criteria`, which `@skills/do-it/SKILL.md` reads as the duration of an item.
+#   tier   the `tier=` line of `skills/_shared/classify-risk.sh --assignment <file>`, or the value of
+#          `--tier` (the caller already ran the classifier).
 #
-# Thresholds (defined once, here)
-#   count  1-5  -> small     count 6-10 -> medium     count 11 or more -> large
-#   A CRITICAL tier raises the size by one step (small -> medium, medium -> large, large stays large).
-#   FAST and STANDARD never change it. `large` marks the issue as a candidate for splitting.
+# Thresholds
+#   SMALL_MAX and MEDIUM_MAX below are the only statement of them. A count up to SMALL_MAX is small, a
+#   count up to MEDIUM_MAX is medium, and a larger count is large. A CRITICAL tier raises the size by
+#   one step (small -> medium, medium -> large, large stays large). FAST and STANDARD never change it.
+#   `large` marks the issue as a candidate for splitting.
 #
 # Usage
 #   derive-effort.sh --assignment <file> [--tier FAST|STANDARD|CRITICAL]
@@ -41,7 +38,7 @@
 #   tier-source=classify-risk|argument
 #   tier-raise=yes|no
 #   split-candidate=yes|no
-#   thresholds=small<=5 medium<=10 large>=11
+#   thresholds=small<=<SMALL_MAX> medium<=<MEDIUM_MAX> large>=<MEDIUM_MAX + 1>
 #
 # Exit codes
 #   0  a label was derived
@@ -52,8 +49,9 @@ set -f
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLASSIFIER="$HERE/../../_shared/classify-risk.sh"
+COUNTER="$HERE/../../_shared/count-assignment.sh"
 
-# The thresholds. Nothing else in this script, and no other file, states them.
+# The thresholds. Every other place refers to these two names and prints their values from them.
 SMALL_MAX=5
 MEDIUM_MAX=10
 
@@ -67,53 +65,6 @@ usage() {
 Usage: derive-effort.sh --assignment <file> [--tier FAST|STANDARD|CRITICAL]
        derive-effort.sh --self-test
 USAGE
-}
-
-# scan_text <file> — print `sectioned=<0|1> section-bullets=<n> bullets=<n> files=<n>`.
-scan_text() {
-  awk '
-    function is_heading(line, lower) {
-      return (index(line, "<summary>") > 0 || line ~ /^#+[ ]/ || line ~ /^\*\*.*\*\*[ ]*$/)
-    }
-    BEGIN { sec = "none"; fence = 0; sectioned = 0; secbul = 0; bul = 0 }
-    {
-      line = $0
-      if (line ~ /^[ ]*```/) { fence = 1 - fence; next }
-      if (fence == 1) { next }
-      lower = tolower(line)
-      if (index(lower, "</details>") > 0) { sec = "none"; next }
-      if (is_heading(lower)) {
-        if (index(lower, "what the user must be able to do") > 0 || index(lower, "the rules") > 0 || index(lower, "acceptance criteria") > 0) {
-          sec = "count"; sectioned = 1
-        } else if (index(lower, "original assignment") > 0) {
-          sec = "original"
-        } else {
-          sec = "other"
-        }
-        next
-      }
-      if (line ~ /^[ ]?([-*]|[0-9]+[.)])[ ]+[^ ]/) {
-        bul++
-        if (sec == "count") { secbul++ }
-      }
-      if (sec == "original") { next }
-      rest = line
-      offset = 0
-      while (match(rest, /[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)+\.[A-Za-z0-9]+/)) {
-        token = substr(rest, RSTART, RLENGTH)
-        before = (RSTART + offset > 1) ? substr(line, RSTART + offset - 1, 1) : ""
-        before2 = (RSTART + offset > 2) ? substr(line, RSTART + offset - 2, 2) : ""
-        if (before != ":" && before2 != "//") { names[token] = 1 }
-        offset += RSTART + RLENGTH - 1
-        rest = substr(rest, RSTART + RLENGTH)
-      }
-    }
-    END {
-      nfiles = 0
-      for (name in names) { nfiles++ }
-      printf "sectioned=%d section-bullets=%d bullets=%d files=%d\n", sectioned, secbul, bul, nfiles
-    }
-  ' "$1"
 }
 
 # size_of <count> <tier> — print `<size> <raised yes|no>`.
@@ -133,9 +84,15 @@ size_of() {
   printf '%s %s' "$size" "$raised"
 }
 
+# counted <key> — the value of one key of the counter output held in $counted_output.
+counted() {
+  sed -n "s/^$1=//p" <<<"$counted_output"
+}
+
 derive() {
-  local file="$1" tier="$2" tier_source=argument scan sectioned secbul bullets files criteria source count result size raised split=no
+  local file="$1" tier="$2" tier_source=argument counted_output files criteria source count result size raised split=no
   [[ -r "$file" ]] || die "cannot read the assignment: $file"
+  [[ -x "$COUNTER" ]] || die "counter not found: $COUNTER"
 
   if [[ -z "$tier" ]]; then
     [[ -x "$CLASSIFIER" ]] || die "classifier not found: $CLASSIFIER"
@@ -147,25 +104,13 @@ derive() {
   *) die "no valid tier: ${tier:-empty}" ;;
   esac
 
-  scan="$(scan_text "$file")"
-  sectioned="$(sed -n 's/.*sectioned=\([0-9]*\).*/\1/p' <<<"$scan")"
-  secbul="$(sed -n 's/.*section-bullets=\([0-9]*\).*/\1/p' <<<"$scan")"
-  bullets="$(sed -n 's/.*[ ]bullets=\([0-9]*\).*/\1/p' <<<"$scan")"
-  files="$(sed -n 's/.*files=\([0-9]*\).*/\1/p' <<<"$scan")"
+  counted_output="$("$COUNTER" --assignment "$file")" || die "the counter failed on: $file"
+  files="$(counted files)"
+  criteria="$(counted criteria)"
+  source="$(counted criteria-source)"
+  count="$(counted count)"
+  [[ "$count" =~ ^[0-9]+$ && "$files" =~ ^[0-9]+$ && "$criteria" =~ ^[0-9]+$ ]] || die "the counter printed no count"
 
-  if [[ "$sectioned" -eq 1 ]]; then
-    criteria="$secbul"
-    source=sections
-  else
-    criteria="$bullets"
-    source=bullets
-  fi
-  if [[ "$criteria" -lt 1 ]]; then
-    criteria=1
-    source=minimum
-  fi
-
-  count=$((files + criteria))
   result="$(size_of "$count" "$tier")"
   size="${result% *}"
   raised="${result#* }"
@@ -173,7 +118,7 @@ derive() {
 
   printf 'label=effort: %s\n' "$size"
   printf 'size=%s\n' "$size"
-  printf 'method=files-and-criteria\n'
+  printf 'method=%s\n' "$(counted method)"
   printf 'count=%d\n' "$count"
   printf 'files=%d\n' "$files"
   printf 'criteria=%d\n' "$criteria"
@@ -222,88 +167,56 @@ expect_exit() {
   fi
 }
 
-# bullets_text <n> — n bullets of one business section, in the details format of an issue body.
-section() {
-  local title="$1" count="$2" i
-  printf '<details open>\n<summary><strong>%s</strong></summary>\n<dl>\n<dd>\n<br>\n\n' "$title"
-  for ((i = 1; i <= count; i++)); do
-    printf -- '- bullet %d\n' "$i"
-  done
-  printf '\n</dd>\n</dl>\n</details>\n\n'
+# fixture <file> <criteria> — a body whose business sections hold <criteria> bullets in all.
+fixture() {
+  local file="$1" total="$2" i
+  {
+    printf 'Problem today.\n\n<details open>\n<summary><strong>The rules</strong></summary>\n\n'
+    for ((i = 1; i <= total; i++)); do
+      printf -- '- bullet %d\n' "$i"
+    done
+    printf '\n</details>\n'
+  } >"$file"
 }
 
 self_test() {
   trap cleanup_self_test EXIT
   SELF_DIR="$(mktemp -d)"
-  local d="$SELF_DIR"
+  local d="$SELF_DIR" small_max=$SMALL_MAX medium_max=$MEDIUM_MAX
 
-  { echo 'Problem today.'; echo; section 'What the user must be able to do' 2; section 'The rules' 3; } >"$d/five.md"
-  expect_value 'five bullets and no file is a count of 5' "$d/five.md" FAST count 5
-  expect_value 'a count of 5 is small' "$d/five.md" FAST label 'effort: small'
-  expect_value 'the criteria come from the sections' "$d/five.md" FAST criteria-source sections
+  # Every case below is built from the constants, so a change of a threshold changes no expectation.
+  fixture "$d/at-small.md" "$small_max"
+  fixture "$d/over-small.md" "$((small_max + 1))"
+  fixture "$d/at-medium.md" "$medium_max"
+  fixture "$d/over-medium.md" "$((medium_max + 1))"
+  fixture "$d/one.md" 1
 
-  { section 'What the user must be able to do' 3; section 'The rules' 3; } >"$d/six.md"
-  expect_value 'a count of 6 is medium' "$d/six.md" STANDARD label 'effort: medium'
-  expect_value 'a STANDARD tier does not raise the size' "$d/six.md" STANDARD tier-raise no
+  expect_value 'a count at the small limit is small' "$d/at-small.md" STANDARD label 'effort: small'
+  expect_value 'a count over the small limit is medium' "$d/over-small.md" STANDARD label 'effort: medium'
+  expect_value 'a count at the medium limit is medium' "$d/at-medium.md" STANDARD label 'effort: medium'
+  expect_value 'a count over the medium limit is large' "$d/over-medium.md" STANDARD label 'effort: large'
+  expect_value 'a medium issue is no split candidate' "$d/at-medium.md" STANDARD split-candidate no
+  expect_value 'a large issue is a split candidate' "$d/over-medium.md" STANDARD split-candidate yes
+  expect_value 'a STANDARD tier does not raise the size' "$d/over-small.md" STANDARD tier-raise no
+  expect_value 'a FAST tier does not change the size' "$d/over-medium.md" FAST label 'effort: large'
+  expect_value 'a FAST tier keeps a small size' "$d/at-small.md" FAST label 'effort: small'
+  expect_value 'a CRITICAL tier raises small to medium' "$d/at-small.md" CRITICAL label 'effort: medium'
+  expect_value 'a CRITICAL tier raises medium to large' "$d/over-small.md" CRITICAL label 'effort: large'
+  expect_value 'a CRITICAL tier keeps large' "$d/over-medium.md" CRITICAL label 'effort: large'
+  expect_value 'a raised size says so' "$d/over-small.md" CRITICAL tier-raise yes
+  expect_value 'a small issue under a CRITICAL tier is medium and no split candidate' "$d/one.md" CRITICAL split-candidate no
 
-  { section 'What the user must be able to do' 5; section 'The rules' 5; } >"$d/ten.md"
-  expect_value 'a count of 10 is medium' "$d/ten.md" STANDARD label 'effort: medium'
-  expect_value 'a medium issue is no split candidate' "$d/ten.md" STANDARD split-candidate no
-
-  { section 'What the user must be able to do' 5; section 'The rules' 6; } >"$d/eleven.md"
-  expect_value 'a count of 11 is large' "$d/eleven.md" STANDARD label 'effort: large'
-  expect_value 'a large issue is a split candidate' "$d/eleven.md" STANDARD split-candidate yes
-
-  expect_value 'a FAST tier does not change the size' "$d/eleven.md" FAST label 'effort: large'
-  expect_value 'a CRITICAL tier raises small to medium' "$d/five.md" CRITICAL label 'effort: medium'
-  expect_value 'a CRITICAL tier raises medium to large' "$d/six.md" CRITICAL label 'effort: large'
-  expect_value 'a CRITICAL tier keeps large' "$d/eleven.md" CRITICAL label 'effort: large'
-  expect_value 'a raised size says so' "$d/six.md" CRITICAL tier-raise yes
-  expect_value 'a count of 5 and a CRITICAL tier is no split candidate' "$d/five.md" CRITICAL split-candidate no
-
-  { section 'What the user must be able to do' 1; section 'What we are not doing now' 4; section 'Open questions for the owner' 2; } >"$d/other.md"
-  expect_value 'a bullet outside the counted sections is not a criterion' "$d/other.md" FAST criteria 1
-
-  # shellcheck disable=SC2016
-  { section 'The rules' 2; printf 'Touch skills/github-issue-triage/SKILL.md and `tests/Installer/A.php`, then skills/github-issue-triage/SKILL.md again.\n'; } >"$d/files.md"
-  expect_value 'a path named twice counts once' "$d/files.md" FAST files 2
-  expect_value 'files and criteria add up' "$d/files.md" FAST count 4
-
-  { section 'The rules' 1; printf 'See https://example.com/docs/page.html and http://host/a/b.md for details.\n'; } >"$d/url.md"
-  expect_value 'a URL is not a file' "$d/url.md" FAST files 0
-
-  # shellcheck disable=SC2016
-  { section 'The rules' 1; printf '```text\nsrc/Hidden/File.php\n```\n'; } >"$d/fence.md"
-  expect_value 'a fenced block is not read for files' "$d/fence.md" FAST files 0
-
-  {
-    section 'The rules' 1
-    printf '<details>\n<summary><strong>Original assignment</strong></summary>\n\n- quoted bullet\nsrc/Quoted/File.php\n\n</details>\n'
-  } >"$d/original.md"
-  expect_value 'the original assignment is not counted as a file' "$d/original.md" FAST files 0
-  expect_value 'the original assignment is not counted as a criterion' "$d/original.md" FAST criteria 1
-
-  printf 'Intro.\n\n- first\n- second\n* third\n1. fourth\n' >"$d/plain.md"
-  expect_value 'a text without the headings counts every bullet' "$d/plain.md" FAST criteria 4
-  expect_value 'a text without the headings says so' "$d/plain.md" FAST criteria-source bullets
-
-  printf 'Only a sentence.\n' >"$d/none.md"
-  expect_value 'a text without a bullet counts one' "$d/none.md" FAST criteria 1
-  expect_value 'a text without a bullet says so' "$d/none.md" FAST criteria-source minimum
-  expect_value 'the tier given by the caller is named' "$d/none.md" FAST tier-source argument
-
-  printf -- '  - nested bullet\n- top bullet\n' >"$d/nested.md"
-  expect_value 'an indented bullet is no criterion' "$d/nested.md" FAST criteria 1
-
-  expect_value 'the same text always gives the same label (first run)' "$d/eleven.md" STANDARD label 'effort: large'
-  expect_value 'the same text always gives the same label (second run)' "$d/eleven.md" STANDARD label 'effort: large'
-  expect_value 'the method is named' "$d/five.md" FAST method files-and-criteria
-  expect_value 'the thresholds are printed' "$d/five.md" FAST thresholds 'small<=5 medium<=10 large>=11'
-
-  expect_value 'the tier comes from the classifier when none is given' "$d/five.md" '' tier-source classify-risk
+  expect_value 'the count is the counter count' "$d/at-small.md" STANDARD count "$small_max"
+  expect_value 'the method is the one the counter names' "$d/one.md" FAST method files-and-criteria
+  expect_value 'the criteria source of the counter is passed on' "$d/one.md" FAST criteria-source sections
+  expect_value 'the tier given by the caller is named' "$d/one.md" FAST tier-source argument
+  expect_value 'the thresholds are printed from the constants' "$d/one.md" FAST thresholds "small<=$small_max medium<=$medium_max large>=$((medium_max + 1))"
+  expect_value 'the same text always gives the same label (first run)' "$d/over-medium.md" STANDARD label 'effort: large'
+  expect_value 'the same text always gives the same label (second run)' "$d/over-medium.md" STANDARD label 'effort: large'
+  expect_value 'the tier comes from the classifier when none is given' "$d/one.md" '' tier-source classify-risk
 
   expect_exit 'a missing assignment is refused' 1 "$SELF_SCRIPT" --assignment "$d/missing.md" --tier FAST
-  expect_exit 'an unknown tier is refused' 1 "$SELF_SCRIPT" --assignment "$d/five.md" --tier HUGE
+  expect_exit 'an unknown tier is refused' 1 "$SELF_SCRIPT" --assignment "$d/one.md" --tier HUGE
   expect_exit 'a call with no argument is refused' 1 "$SELF_SCRIPT"
   expect_exit 'an unknown option is refused' 1 "$SELF_SCRIPT" --hours 3
 
