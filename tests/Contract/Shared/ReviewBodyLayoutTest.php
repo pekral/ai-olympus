@@ -6,7 +6,7 @@ use Symfony\Component\Process\Process;
 
 /**
  * Guards the visible layout of the GitHub pull-request review (templates/review-body.md): a golden file for the
- * rendered body and the inline comments, and the structural rules of the layout. Every test runs the real renderer,
+ * rendered body, the structural rules of the layout, and a review request that carries no inline comment. Every test runs the real renderer,
  * post-inline-review.sh, against a stand-in `gh`; no test judges text with a model.
  *
  * To change the layout on purpose, run `UPDATE_REVIEW_LAYOUT_GOLDEN=1 vendor/bin/pest tests/Contract/Shared/ReviewBodyLayoutTest.php`
@@ -68,7 +68,7 @@ function reviewLayoutGhStub(): string
         case "$*" in
           "api user --jq .login") echo bot ;;
           "repo view "*) echo true ;;
-          "api graphql "*) cat "$REVIEW_WORK/threads.json" ;;
+          "api graphql "*) echo "gh stub: the publisher reads no review thread" >&2; exit 1 ;;
           "api repos/o/r/pulls/7/files"*) cat "$REVIEW_WORK/files.json" ;;
           "api repos/o/r/git/trees/"*) cat "$REVIEW_WORK/tree.json" ;;
           "api repos/o/r/pulls/7/reviews"*)
@@ -112,10 +112,6 @@ function reviewLayoutPrepareWork(array $walkthroughChanges, ?array $findings): s
     $flags = JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
     file_put_contents($work . '/walkthrough.json', json_encode($walkthrough, $flags));
     file_put_contents($work . '/findings.json', json_encode($findings ?? reviewLayoutFindings(), $flags));
-    file_put_contents(
-        $work . '/threads.json',
-        '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}',
-    );
     file_put_contents($work . '/bin/gh', reviewLayoutGhStub());
     chmod($work . '/bin/gh', 0755);
 
@@ -123,14 +119,14 @@ function reviewLayoutPrepareWork(array $walkthroughChanges, ?array $findings): s
 }
 
 /**
- * @return array{exit: int, stderr: string, body: string, visible: string, comments: list<string>, requests: int}
+ * @return array{exit: int, stderr: string, body: string, visible: string, inline: bool, requests: int}
  */
 function reviewLayoutResult(Process $process, string $work): array
 {
     $result = [
         'body' => '',
-        'comments' => [],
         'exit' => (int) $process->getExitCode(),
+        'inline' => false,
         'requests' => 0,
         'stderr' => $process->getErrorOutput(),
         'visible' => '',
@@ -141,14 +137,10 @@ function reviewLayoutResult(Process $process, string $work): array
     }
 
     $review = json_decode((string) file_get_contents($work . '/review.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
-    assert(is_array($review) && is_string($review['body']) && is_array($review['comments']));
+    assert(is_array($review) && is_string($review['body']));
     $result['body'] = $review['body'];
     $result['visible'] = explode(REVIEW_LAYOUT_RECORD_MARKER, $review['body'])[0];
-
-    foreach ($review['comments'] as $comment) {
-        assert(is_array($comment) && is_string($comment['body']));
-        $result['comments'][] = $comment['body'];
-    }
+    $result['inline'] = array_key_exists('comments', $review);
 
     $calls = file($work . '/review.calls', FILE_IGNORE_NEW_LINES);
     $result['requests'] = $calls === false ? 0 : count($calls);
@@ -161,7 +153,7 @@ function reviewLayoutResult(Process $process, string $work): array
  *
  * @param array<string, mixed> $walkthroughChanges keys set on the walkthrough object; a null value removes the key
  * @param list<array<mixed>>|null $findings the findings document; the fixture findings when null
- * @return array{exit: int, stderr: string, body: string, visible: string, comments: list<string>, requests: int}
+ * @return array{exit: int, stderr: string, body: string, visible: string, inline: bool, requests: int}
  */
 function renderReview(array $walkthroughChanges = [], ?array $findings = null): array
 {
@@ -234,13 +226,18 @@ test('the visible review body is byte for byte the golden file', function (): vo
         ->and($review['visible'])->toBe(reviewLayoutGolden('expected-body.md', $review['visible']));
 });
 
-test('every inline comment is byte for byte its golden file', function (int $index): void {
+test('the review request carries no inline comment, and every finding on a changed line is an Actionable comments entry', function (): void {
     $review = renderReview();
+    $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
     expect($review['exit'])->toBe(0, $review['stderr'])
-        ->and($review['comments'])->toHaveCount(3)
-        ->and($review['comments'][$index - 1])->toBe(reviewLayoutGolden('expected-inline-' . $index . '.md', $review['comments'][$index - 1]));
-})->with([1, 2, 3]);
+        ->and($review['requests'])->toBe(1)
+        ->and($review['inline'])->toBeFalse()
+        ->and($review['body'])->not->toContain('cr-inline')
+        ->and($actionable)->toContain('<summary><strong>Actionable comments (3)</strong></summary>')
+        ->and($actionable)->toContain('**🟠 Moderate 1 — The daily invitation limit has its own counter** · '
+            . '<code>app/Http/Controllers/Workspace/InvitationController.php&#58;27</code>');
+});
 
 test('the visible body is the summary, then Merge Risk, Walkthrough, Where to test, and Actionable comments, in that order', function (): void {
     $review = renderReview();
@@ -328,18 +325,14 @@ test('without a diagram the visible body has no fenced block at all', function (
         ->and($review['visible'])->not->toContain('Sequence Diagram');
 });
 
-test('the Actionable comments, the review body, and every inline comment hold no fence and no suggestion block', function (): void {
+test('the Actionable comments and the review body hold no fence and no suggestion block', function (): void {
     $review = renderReview();
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
     expect($actionable)->not->toBe('')
         ->and($actionable)->not->toMatch('/```|~~~|suggestion/i')
         ->and($review['body'])->not->toMatch('/```\s*suggestion|~~~\s*suggestion/i')
-        ->and($review['comments'])->toHaveCount(3);
-
-    foreach ($review['comments'] as $comment) {
-        expect($comment)->not->toMatch('/```|~~~|suggestion/i');
-    }
+        ->and($review['inline'])->toBeFalse();
 });
 
 test('the visible body shows no pre-merge checks, recent review info, button, badge, image, or share link', function (): void {
@@ -365,16 +358,12 @@ test('Where to test is present when the change touches routes and absent when it
         ->and($empty['visible'])->not->toContain('Where to test');
 });
 
-test('every finding carries a Fix sentence, in the Actionable comments and in the inline comment', function (): void {
+test('every finding carries a Fix sentence in its Actionable comments entry', function (): void {
     $review = renderReview();
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
     expect(preg_match_all('/^\*\*Fix:\*\* \S.+\.$/m', $actionable))->toBe(3)
         ->and(preg_match_all('~^\*\*(🔴|🟠) (Critical|Moderate) \d+ — .+\*\* · <code>[^<]+&#58;\d+</code>$~m', $actionable))->toBe(3);
-
-    foreach ($review['comments'] as $comment) {
-        expect($comment)->toMatch('/\n\n\*\*Fix:\*\* \S.+\.\n\n/');
-    }
 });
 
 test('a round with no finding shows no Actionable comments block and keeps the rest of the layout', function (): void {
@@ -383,7 +372,7 @@ test('a round with no finding shows no Actionable comments block and keeps the r
     expect($review['exit'])->toBe(0, $review['stderr'])
         ->and($review['visible'])->not->toContain('Actionable comments')
         ->and(reviewLayoutBlocks($review['visible']))->toHaveCount(3)
-        ->and($review['comments'])->toBe([]);
+        ->and($review['inline'])->toBeFalse();
 });
 
 test('a finding that carries code or a suggestion is refused and nothing is posted', function (array $change): void {
@@ -411,8 +400,8 @@ test('the Merge Risk block reads its grade and its sentence from the record and 
 });
 
 /**
- * @return list<array<mixed>> the fixture findings plus two findings of a review-only run that have no inline comment: a
- *                            missing test outside the diff and a DRY finding with no line, both with the author set
+ * @return list<array<mixed>> the fixture findings plus two findings of a review-only run: a missing test outside the
+ *                            diff and a DRY finding with no line, both with the author set
  */
 function reviewLayoutReviewOnlyFindings(): array
 {
@@ -441,14 +430,28 @@ function reviewLayoutReviewOnlyFindings(): array
     ];
 }
 
-test('a finding with no inline comment ends its Actionable comments entry with the author mention, byte for byte', function (): void {
+test('a finding outside the diff or with no line ends its Actionable comments entry with the author mention, byte for byte', function (): void {
     $review = renderReview(findings: reviewLayoutReviewOnlyFindings());
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
     expect($review['exit'])->toBe(0, $review['stderr'])
-        ->and($review['comments'])->toHaveCount(3)
+        ->and($review['inline'])->toBeFalse()
         ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-review-only.md', $actionable))
         ->and(preg_match_all('/^@octocat$/m', $actionable))->toBe(2);
+});
+
+test('a finding on a changed line with an author ends its Actionable comments entry with the mention', function (): void {
+    $findings = reviewLayoutFindings();
+    $findings[2] = [...$findings[2], 'author' => '@octocat'];
+    $review = renderReview(findings: $findings);
+    $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+
+    expect($review['exit'])->toBe(0, $review['stderr'])
+        ->and($review['inline'])->toBeFalse()
+        ->and($actionable)->toContain(
+            "**Fix:** use the existing daily quota in both entry points, with a limit of 20 invitations per owner a day.\n@octocat\n",
+        )
+        ->and(preg_match_all('/^@octocat$/m', $actionable))->toBe(1);
 });
 
 test('no value of the walkthrough, the record, or a finding renders as HTML or breaks a table cell', function (): void {
@@ -487,11 +490,6 @@ test('no value of the walkthrough, the record, or a finding renders as HTML or b
             expect(substr_count($line, '|'))->toBe(3, $line);
         }
     }
-
-    foreach ($review['comments'] as $comment) {
-        expect((string) preg_replace(['/<!-- cr-inline:(actor|finding)=\S+ -->/', '#</?code>#'], '', $comment))->not->toContain('<')
-            ->and($comment)->not->toContain('![');
-    }
 });
 
 test(
@@ -514,7 +512,6 @@ test(
 
         expect($review['exit'])->toBe(0, $review['stderr'])
             ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-code-spans.md', $actionable))
-            ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-code-spans.md', $review['comments'][0]))
             ->and($review['visible'])->toContain('|Returns <code>Collection&#60;int, Order&#62;</code> and <code>a&#124;b</code> &#124; c.|')
             ->and($actionable)->toContain('<code>$this-&#62;authorize&#40;&#41;</code>')
             ->and($actionable)->toContain('<code>App&#92;Http&#92;Controllers&#92;OrderController</code>')
@@ -537,7 +534,6 @@ test('a backtick in a link target, a link title, or a table cell leaves no backt
 
     expect($review['exit'])->toBe(0, $review['stderr'])
         ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-link-backticks.md', $actionable))
-        ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-link-backticks.md', $review['comments'][0]))
         ->and($review['visible'])->not->toContain('`')
         ->and((string) preg_replace($layoutTags, '', $review['visible']))->not->toContain('<');
 
@@ -545,10 +541,5 @@ test('a backtick in a link target, a link title, or a table cell leaves no backt
         if (str_starts_with($line, '|')) {
             expect(substr_count($line, '|'))->toBe(3, $line);
         }
-    }
-
-    foreach ($review['comments'] as $comment) {
-        expect($comment)->not->toContain('`')
-            ->and((string) preg_replace(['/<!-- cr-inline:(actor|finding)=\S+ -->/', '#</?code>#'], '', $comment))->not->toContain('<');
     }
 });

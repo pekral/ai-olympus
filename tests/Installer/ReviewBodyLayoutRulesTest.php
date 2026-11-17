@@ -99,7 +99,6 @@ test('the rule, the wrapper contract, the skill, and the agent point to the one 
     'rules/code-review/general.md',
     'skills/code-review-github/references/cr-wrapper-contract.md',
     'skills/code-review-github/SKILL.md',
-    'skills/code-review-github/templates/inline-review-comment.md',
     'skills/code-review-github/templates/pr-comment-output.md',
     'agents/leonardo.md',
 ]);
@@ -124,7 +123,7 @@ test('the code review rule has one section that bans code in a review and states
 
     expect(substr_count($rule, '### A review carries no code'))->toBe(1)
         ->and($section)->toContain(
-            'An agent never writes code into a published review output: an inline comment, the review body, or the review report and its record.',
+            'An agent never writes code into a published review output: the review body, or the review report and its record.',
         )
         ->and($section)->toContain('The fix is a plain sentence.')
         ->and($section)->toContain('The faulty example is a description.')
@@ -137,15 +136,14 @@ test('the code review rule has one section that bans code in a review and states
 });
 
 /**
- * @return list<string> the templates of the published review outputs: the review body, the inline comment, and the review
- *                      reports and their hidden record. Only these are scanned for code; rules and references keep their code
+ * @return list<string> the templates of the published review outputs: the review body and the review reports and their
+ *                      hidden record. Only these are scanned for code; rules and references keep their code
  *                      examples for the agents that generate code (operator decision on issue #595).
  */
 function publishedReviewOutputTemplates(): array
 {
     return [
         'skills/code-review-github/templates/review-body.md',
-        'skills/code-review-github/templates/inline-review-comment.md',
         'skills/code-review-github/templates/pr-comment-output.md',
         'skills/code-review/templates/review-output.md',
         'skills/api-review/templates/review-output.md',
@@ -195,12 +193,12 @@ test('every review output template says a faulty example and a suggested fix car
     'skills/security-review/templates/audit-report.md',
 ]);
 
-test('the inline comment template has the Fix line and no suggestion block, and the wrapper refuses code', function (): void {
-    $template = reviewLayoutRepoFile('skills/code-review-github/templates/inline-review-comment.md');
+test('the review body template has the Fix line and no suggestion block, and the wrapper refuses code', function (): void {
+    $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
     $script = reviewLayoutRepoFile('skills/code-review-github/scripts/post-inline-review.sh');
 
-    expect($template)->toContain('**Fix:** {what to change, in one plain sentence}')
-        ->and($template)->toContain('An inline comment holds no fenced block, no `suggestion` block, and no replacement snippet')
+    expect($template)->toContain('**Fix:** {what to change, in one sentence}')
+        ->and($template)->toContain('No block of the visible body holds a fenced block, a suggestion block, or a replacement snippet.')
         ->and($script)->toContain('a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang')
         ->and($script)->toContain('the visible review body holds a fenced block other than the sequence diagram');
 });

@@ -11,7 +11,7 @@ rules/code-review/general.md *Visible review text names none of the package's ow
 a package path (skills/<name>/..., rules/<dir>/..., agents/<name>.md, codex/agents/...), an
 installed directory (.claude/, .codex/, .agents/), and the file name of a package script.
 
-  --text        the visible text: the inline comments and the visible review body, never the hidden record.
+  --text        the visible text: the visible review body, never the hidden record.
                 Its HTML entities are decoded first, so the check reads the characters a reader sees.
   --repo-paths  the paths of the reviewed repository, one per line. A path it holds, or a script
                 name one of its files carries, is the reviewed project's own and stays allowed.

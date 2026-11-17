@@ -9,13 +9,13 @@ metadata:
 
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a GitHub-sourced review decides for itself.
-- Publishing is limited to linked-issue comments via `gh` and to one pull-request review of inline comments through `scripts/post-inline-review.sh`, which carries the hidden review record in its body. No `cr-comment` pull-request comment is posted.
+- Publishing is limited to linked-issue comments via `gh` and to one pull-request review through `scripts/post-inline-review.sh`, which carries every finding in the Actionable comments block and the hidden review record in its body. The review carries no inline comment, and no `cr-comment` pull-request comment is posted.
 
 ---
 
 ## Scope
 Perform code review for a GitHub pull request (the review covers exactly the four areas of `@rules/code-review/general.md` *What a code review checks, and nothing else*, with no out-of-scope observation and no follow-up proposal) and publish results to:
-- GitHub PR (technical findings: one inline review comment on each changed line a finding anchors to, and the CR comment for the rest)
+- GitHub PR (technical findings: one pull-request review whose Actionable comments block lists every finding, with no inline comment)
 - Every linked GitHub issue in `closingIssues[]` (human-readable summary)
 
 ---
@@ -44,8 +44,8 @@ Run the always-run set, the conditional set, and the reuse-first gate exactly as
 
 ### 4. Publish Results
 
-#### Inline review (the one publication on the pull request)
-- Publish the round as one pull-request review: the findings that anchor to a line of the diff as inline comments, the visible body of `templates/review-body.md` (a summary paragraph, then collapsed Merge Risk, Walkthrough, Where to test, and Actionable comments blocks, and nothing else), and the record rendered from `templates/pr-comment-output.md` as hidden HTML in the review body, exactly as `references/cr-wrapper-contract.md` *GitHub pull-request review* and *Inline review comments* define. The comment shape is `templates/inline-review-comment.md`. A review carries no code (`@rules/code-review/general.md` *A review carries no code*).
+#### Pull-request review (the one publication on the pull request)
+- Publish the round as one pull-request review with no inline comment: the visible body of `templates/review-body.md` (a summary paragraph, then collapsed Merge Risk, Walkthrough, Where to test, and Actionable comments blocks, and nothing else), with every published finding as an entry of the Actionable comments block, and the record rendered from `templates/pr-comment-output.md` as hidden HTML in the review body, exactly as `references/cr-wrapper-contract.md` *GitHub pull-request review* and *Findings in the review body* define. A review carries no code (`@rules/code-review/general.md` *A review carries no code*).
 
 #### Linked-issue consolidated summary (mandatory — one new comment per linked issue and CR run)
 - The linked GitHub issues in `closingIssues[]` are this wrapper's **only** non-technical destination, so the shared *Non-technical tracker summary* and *Linked GitHub issues* blocks collapse into this one delegation: invoke `@skills/pr-summary/SKILL.md` with the **GitHub** tracker target, exactly once per linked issue, under the consolidation contract in `references/cr-wrapper-contract.md`.
@@ -63,7 +63,7 @@ Apply `references/cr-wrapper-contract.md` *Output Rules — GitHub PR comment*. 
 
 ## Output Format
 
-Use the template defined in `templates/pr-comment-output.md` for the hidden record, and `templates/inline-review-comment.md` for the inline comments.
+Use the template defined in `templates/pr-comment-output.md` for the hidden record, and `templates/review-body.md` for the visible body.
 
 ## References
 
