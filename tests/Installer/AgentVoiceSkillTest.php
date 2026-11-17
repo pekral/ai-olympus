@@ -293,11 +293,14 @@ test('the waiting rule is stated once and every other file points to it', functi
         'skills/process-code-review/references/review-state.md',
         'skills/process-code-review/references/round-three-deferral.md',
         'skills/_shared/orchestration/merge-request.md',
-        'skills/process-code-review/SKILL.md',
         'docs/agents.md',
     ] as $path) {
         expect(agentVoiceSource($path))->toContain(AGENT_VOICE_WAITING_POINTER);
     }
+
+    expect(agentVoiceSource('skills/process-code-review/SKILL.md'))
+        ->toContain('and tell the caller it waits for the user\'s decision (`@skills/agent-voice/SKILL.md`).')
+        ->toContain('convergence status (`counts`, any `escalation_reason`, worded per `@skills/agent-voice/SKILL.md`)');
 });
 
 test('no human-facing wording says the review loop escalated and the state identifier stays', function (): void {
