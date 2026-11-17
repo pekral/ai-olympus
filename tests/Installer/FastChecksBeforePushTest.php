@@ -103,6 +103,15 @@ test('a stuck fast-check run is a wrapper the lock repair may stop', function ()
         ->and($lock)->toContain('check \'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package\'');
 });
 
+test('the script of the pre-push step is inside the implementer bash boundary and its handoff summary', function (): void {
+    $donatello = packageSource('agents/donatello.md');
+    $start = (int) strpos($donatello, '## Bash boundary');
+    $boundary = substr($donatello, $start, (int) strpos($donatello, '## Shared task brief') - $start);
+
+    expect($boundary)->toContain('`skills/_shared/run-fast-checks.sh` for the project\'s `fast-checks` before each push')
+        ->and($donatello)->toContain('the `fast-checks` result of `skills/_shared/run-fast-checks.sh`, and the local checks');
+});
+
 test('claude code and codex both carry the fast checks before a push', function (): void {
     expect(packageSource('agents/donatello.md'))
         ->toContain('Then run `skills/_shared/run-fast-checks.sh` on every repository: it runs the project\'s `fast-checks` on the changed files');
