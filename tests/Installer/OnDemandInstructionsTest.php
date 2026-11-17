@@ -25,7 +25,7 @@ function onDemandKrangParts(): array
         'pre-implementation-routing.md' => '**This branch is not gated on the tier**',
         'reporting-exceptions.md' => '**Non-duplication is not an escape hatch.**',
         'review-only-mode.md' => '2. **Check whether the newest trusted review still holds, before any dispatch.**',
-        'security-findings-outside-assignment.md' => '**Never file an item marked `do not file publicly`** on a public tracker.',
+        'security-findings-outside-assignment.md' => '- **Judge the item yourself** from its `file:line`, its exploit path, and what it claims',
     ];
 }
 
@@ -41,7 +41,7 @@ function onDemandCodeReviewParts(): array
     return [
         'hotfix-review.md' => ['## HOTFIX runs — what the review does differently'],
         'product-documentation.md' => ['- **"Undocumented" is a conclusion to be earned.**'],
-        'publishing-cases.md' => ['## The owner\'s answers', '## The operator\'s line survives a rewrite'],
+        'publishing-cases.md' => ['## The owner\'s answers', '## A line the operator added survives the rewrite'],
         'review-rounds.md' => [
             '### What the delta scopes, and what it never scopes',
             '### A light round after a small delta (issue #599)',
@@ -155,4 +155,51 @@ test('Claude Code and Codex install every moved part (issue #607)', function ():
 
         installerRemoveDirectory($root);
     }
+});
+
+test(
+    'the disclosure guard stays in the always-loaded krang.md and the moved part loads for every agent that hands such an item over (issue #607)',
+    function (): void {
+        $krang = packageSource('agents/krang.md');
+        $reference = packageSource('skills/_shared/orchestration/security-findings-outside-assignment.md');
+        $guard = '**Never file an item marked `do not file publicly`** on a public tracker.';
+    
+        expect($krang)->toContain($guard)
+            ->and($krang)->toContain(
+                'When the handoff of `leonardo` or `splinter` carries one, load `skills/_shared/orchestration/security-findings-outside-assignment.md`',
+            )
+            ->and($reference)->toContain('**Loading trigger:** the handoff of `leonardo` or `splinter` in step 6 carries an item')
+            ->and($reference)->not->toContain($guard)
+            ->and(substr_count(implode("\n", onDemandInstructionCorpus()), $guard))->toBe(1);
+    },
+);
+
+/**
+ * The citations `<path> → <target> *<section>*` across the instruction corpus whose section the target file does not
+ * carry, as a heading, a pointer, or a named rule.
+ *
+ * @return array<int, string>
+ */
+function onDemandUnresolvedCitations(string $target): array
+{
+    $text = packageSource($target);
+    $unresolved = [];
+
+    foreach (onDemandInstructionCorpus() as $path => $contents) {
+        preg_match_all('#`@?' . preg_quote($target, '#') . '`\s+\*([^*\n]+)\*#', $contents, $matches);
+
+        $missing = array_filter($matches[1], static fn (string $section): bool => !str_contains($text, $section));
+
+        foreach ($missing as $section) {
+            $unresolved[] = $path . ' → ' . $target . ' *' . $section . '*';
+        }
+    }
+
+    return array_values(array_unique($unresolved));
+}
+
+test('every section a file cites in agents/krang.md or rules/code-review/general.md resolves in that file (issue #607)', function (): void {
+    expect(onDemandInstructionCorpus())->toHaveKey('agents/leonardo.md')
+        ->and(onDemandUnresolvedCitations('agents/krang.md'))->toBe([])
+        ->and(onDemandUnresolvedCitations('rules/code-review/general.md'))->toBe([]);
 });
