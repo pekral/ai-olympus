@@ -21,14 +21,18 @@ test('the fast-checks runner proves every acceptance scenario in its self-test',
         'uncommitted changes to tracked files exit 7 and run nothing',
         'a live lock holder makes the run wait, then exit 6 without running a check',
         '--base computes the changed files against the named branch',
-        'a passed run deletes its log and reports none',
+        'a passed run deletes its log and its file list and reports none',
         'a failed run keeps the log, and the log names every check that ran',
         'no default-branch ref refuses the run with the set-head hint instead of reading no checks',
         'the removed --log option is a usage error',
         'a link to an outside file or directory, an inside link, a glob-shaped link name, and a file turned into a link never reach a checker',
-        'no checker output quotes the outside file',
-        'a path an earlier check replaced with a link is not passed, and its entry is skipped',
+        'a checker that reads its files reads only files inside the worktree, never the outside secret',
+        'a path an earlier check replaced with a link is never passed, and the run is refused instead of passing',
         'a path with a .. component is outside the worktree',
+        'a default-branch composer.json that is not JSON refuses the run instead of reading no checks',
+        'a git status that fails refuses the run instead of reading a clean tree',
+        'a git diff that fails refuses the run instead of reading no changed file',
+        'a project in a subdirectory checks its changed files relative to its directory, renamed and unusual names included',
     ] as $label) {
         expect($script)->toContain('check \'' . $label . '\'');
     }
@@ -49,7 +53,7 @@ test('the fast-checks runner reads the default-branch manifest, takes the machin
     expect($code)->toContain('load_project_manifest || stop refused 3 "$PROJECT_REFUSAL"')
         ->and($code)->toContain('if ! reason="$(validate_command "$command" 2>&1 >/dev/null)"; then')
         ->and($code)->toContain('gate_lock_enter "$GATE_LOCK_TIMEOUT" || lock_status=$?')
-        ->and($code)->toContain('done < <(git diff -z --name-only --no-renames --diff-filter=ACMRT "$BASE" HEAD)')
+        ->and($code)->toContain('if ! git diff -z --relative --name-only --no-renames --diff-filter=ACMRT "$BASE" HEAD >"$list" 2>/dev/null; then')
         ->and($code)->toContain('[[ "$path" != -* ]] || path="./$path"')
         ->and($code)->toContain('run_command "${commands[index]}" "$LOG" ${files[@]+"${files[@]}"} || status=$?')
         ->and($code)->toContain('gate_no_symlink "$1" >/dev/null 2>&1')
