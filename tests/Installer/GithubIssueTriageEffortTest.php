@@ -52,7 +52,7 @@ function deriveEffort(string $assignment, ?string $tier): array
  */
 function effortThresholds(): array
 {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/scripts/derive-effort.sh');
+    $script = packageSource('skills/github-issue-triage/scripts/derive-effort.sh');
     $read = static fn (string $name): int => preg_match('/^' . $name . '=(\d+)$/m', $script, $match) === 1
         ? (int) $match[1]
         : throw new RuntimeException($name . ' is not defined in derive-effort.sh');
@@ -192,6 +192,42 @@ test('the original assignment adds no bullet and no file in either counting mode
         ->and($sections['values']['files'])->toBe('0');
 });
 
+/**
+ * @return array<string, array{string, string, string}>
+ */
+function originalBlockVariants(): array
+{
+    $quoted = "- q1\n# A heading inside\n- q2\n**A bold line**\n- q3\n<summary><strong>The rules</strong></summary>\n- q4\nsrc/Quoted/File.php\n- q5";
+    $open = "<details>\n<summary><strong>Original assignment</strong></summary>\n\n";
+
+    $rules = "# The rules\n\n- one\n\n";
+    $own = "- own\n\n";
+    $close = "\n\n</details>\n";
+    $inner = "- a\n<details>\n<summary>inner</summary>\n- b\n</details>\n- c\nsrc/Inner.php";
+    $fenced = "- a\n```text\n</details>\n```\n- b\nsrc/Quoted/File.php";
+    $markdown = "# The rules\n\n- one\n\n# Original assignment\n\n- a\n## Sub\n- b\nsrc/Quoted/File.php\n\n# Out\n\n- after\n";
+
+    return [
+        'block in the middle, sections' => [$rules . $open . $quoted . $close . "\n# Out\n\n- after\n", '1', '0'],
+        'block last, fallback' => [$own . $open . $quoted . $close, '1', '0'],
+        'block last, sections' => [$rules . $open . $quoted . $close, '1', '0'],
+        'closing tag inside a fence' => [$own . $open . $fenced . $close . "\n- after\n", '2', '0'],
+        'CRLF line endings' => [str_replace("\n", "\r\n", $own . $open . $quoted . $close), '1', '0'],
+        'Czech heading name' => [str_replace('Original assignment', 'Původní zadání', $own . $open . $quoted . $close), '1', '0'],
+        'Markdown heading ended by a shallower heading' => ["## The rules\n\n- one\n\n## Original assignment\n\n- a\n# The rules\n- b\n", '2', '0'],
+        'Markdown heading with a deeper heading inside' => [$markdown, '1', '0'],
+        'nested block inside the quote' => [$own . $open . $inner . $close . "\n- after\n", '2', '0'],
+        'no closing tag' => [$rules . $open . $quoted . "\n", '1', '0'],
+    ];
+}
+
+test('a quoted original assignment is skipped as one block, whatever it holds inside', function (string $text, string $criteria, string $files): void {
+    $counted = countAssignment($text);
+
+    expect($counted['values']['criteria'])->toBe($criteria)
+        ->and($counted['values']['files'])->toBe($files);
+})->with(originalBlockVariants());
+
 test('a named file adds to the count once and a URL is no file', function (): void {
     $files = countAssignment(effortAssignment(2, "Touch skills/a/SKILL.md and skills/a/SKILL.md, see https://example.com/docs/page.html.\n"));
 
@@ -202,8 +238,8 @@ test('a named file adds to the count once and a URL is no file', function (): vo
 test('do-it and the triage read the one count, and the counter owns the method', function (): void {
     $doIt = normalizedPackageSource('skills/do-it/SKILL.md');
     $triage = normalizedPackageSource('skills/github-issue-triage/SKILL.md');
-    $derive = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/scripts/derive-effort.sh');
-    $counter = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/count-assignment.sh');
+    $derive = packageSource('skills/github-issue-triage/scripts/derive-effort.sh');
+    $counter = packageSource('skills/_shared/count-assignment.sh');
 
     expect($doIt)->toContain('the `count=` line of `skills/_shared/count-assignment.sh --assignment <a file holding the text of the item>`')
         ->and($doIt)->toContain('`@skills/github-issue-triage/SKILL.md` *Effort derivation* reads the same line')
@@ -216,7 +252,7 @@ test('do-it and the triage read the one count, and the counter owns the method',
 });
 
 test('the thresholds are stated once, as the constants, and no other text carries them', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/scripts/derive-effort.sh');
+    $script = packageSource('skills/github-issue-triage/scripts/derive-effort.sh');
     $header = substr($script, 0, (int) strpos($script, 'set -euo pipefail'));
     $skill = normalizedPackageSource('skills/github-issue-triage/SKILL.md');
     $pending = normalizedPackageSource('skills/github-issue-triage/references/pending-analysis.md');
@@ -232,7 +268,7 @@ test('the thresholds are stated once, as the constants, and no other text carrie
 });
 
 test('the effort labels are seeded and the skill names the one-label-at-most rule and the split candidate', function (): void {
-    $seed = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/github-issue-triage/scripts/seed-labels.sh');
+    $seed = packageSource('skills/github-issue-triage/scripts/seed-labels.sh');
     $skill = normalizedPackageSource('skills/github-issue-triage/SKILL.md');
 
     foreach (['effort: small', 'effort: medium', 'effort: large'] as $label) {
@@ -263,7 +299,7 @@ test('the pending-analysis pass derives the effort from the assignment it produc
 
 test('both effort self-tests run as part of the project build', function (): void {
     $composer = (array) json_decode(
-        (string) file_get_contents(dirname(__DIR__, 2) . '/composer.json'),
+        packageSource('composer.json'),
         associative: true,
         depth: 512,
         flags: JSON_THROW_ON_ERROR,
