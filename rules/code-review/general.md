@@ -581,7 +581,7 @@ A comment namespace that is not a code-review report — for example `mysql-repo
 6. No comment of this run: publish once more with `--create`, or through the MCP fallback, which creates a new comment.
 7. More than one comment of this run: publish nothing and report every ID for a human.
 
-**A helper that rewrites a comment in place, or prints `carried_lines=<n>` with `n` above zero,** follows `@rules/code-review/publishing-cases.md` *The operator's line survives a rewrite*.
+**A helper that rewrites a comment in place, or prints `carried_lines=<n>` with `n` above zero,** follows `@rules/code-review/publishing-cases.md` *A line the operator added survives the rewrite*.
 
 **What the new comment keeps:** the thread is the cross-run history, round by round, and a reply stays under the report it answers. The cost is one comment per run and destination.
 

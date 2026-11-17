@@ -477,7 +477,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and the `cr-inline` marker stays for the threads of an earlier release (operator request, release 0.5.2).
         // Re-baselined: the parts only some review runs need moved verbatim into five on-demand companions, and a pointer names
         // each one where it used to sit (issue #607).
-        'rules/code-review/general.md' => 'f8b175127fdbba0a36b3f03bae766825fdf10b1329315db6575557a518560989',
+        // Re-baselined: the operator-line pointer keeps the section's original name (issue #607, review round 1).
+        'rules/code-review/general.md' => '4ac24dbe115006832f7a915a5f73194b7ea2378ffc2638137d4b1db42be0bad5',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

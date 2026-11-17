@@ -4817,10 +4817,13 @@ test('a run that only processes the owner answers and lands no change publishes 
 
     expect($rule)->toContain('**A run that only processes the owner\'s answers and lands no change publishes nothing.**')
         ->and($rule)->toContain('The run publishes no pull-request review, no pull-request comment, and no tracker mirror')
-        ->and($rule)->toContain('the only input is answers that a trusted author (*Authorship trust* above) already gave to open decisions')
+        ->and($rule)->toContain(
+            'the only input is answers that a trusted author (*Authorship trust* in `@rules/code-review/general.md`) already gave to open decisions',
+        )
         ->and($rule)->toContain('the run lands no commit;')
         ->and($rule)->toContain(
-            'the carry-forward decision of *When another review round runs at all* above carries the newest trusted code-review report forward;',
+            'the carry-forward decision of *When another review round runs at all* in `@rules/code-review/review-rounds.md` carries the newest '
+                . 'trusted code-review report forward;',
         )
         ->and($rule)->toContain(
             'that report already covers the current head (its `Reviewed revision:` equals the head, or its `Reviewed diff fingerprint:` matches)',
@@ -4830,7 +4833,10 @@ test('a run that only processes the owner answers and lands no change publishes 
         )
         ->and($rule)->toContain('An edit is never a new comment.')
         ->and($rule)->toContain('naming each processed answer and stating that nothing was published')
-        ->and($rule)->toContain('A run that lands a change, or runs a new review round, publishes as the rest of this section states.')
+        ->and($rule)->toContain(
+            'A run that lands a change, or runs a new review round, publishes as *One published comment per review run* '
+                . 'in `@rules/code-review/general.md` states.',
+        )
         ->and($rule)->toContain('flags a comment that only confirms processed answers')
         ->and($rule)->toContain('as a **Moderate** finding');
 
