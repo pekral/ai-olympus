@@ -41,7 +41,7 @@ test('the gate scripts run every command as argv, never through a shell, and nev
     expect(gateScript('gate-record.sh'))->toContain('. "$GATE_LIB_DIR/project-commands.sh"');
     expect(gateExecutableCode('gate-record.sh'))->toContain('run_command "$command" "$tmp"');
     expect(gateExecutableCode('run-gate.sh'))->toContain('run_command "$command" "$log_tmp"');
-    expect(gateExecutableCode('project-commands.sh'))->toContain('"${argv[@]}" >>"$log" 2>&1 || status=$?');
+    expect(gateExecutableCode('project-commands.sh'))->toContain('"${argv[@]}" "$@" </dev/null >>"$log" 2>&1 || status=$?');
 
     // The lock is the atomic `mkdir` of the concurrency rule, with a reclaim on confirmed death only.
     $record = gateScript('gate-record.sh');

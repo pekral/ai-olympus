@@ -18,9 +18,16 @@
 #                           an entry is refused — nothing is exported then.
 #   validate_command <cmd>  prints the argv, one token per line, or returns 1
 #                           with the reason on stderr.
-#   run_command <cmd> <log> validates, then executes the argv directly and
-#                           appends its output to <log>. Returns the command's
-#                           exit status, or 126 when the command was refused.
+#   run_command <cmd> <log> [<arg>...]
+#                           validates, then executes the argv directly, with the
+#                           extra arguments appended as argv elements of their
+#                           own and stdin closed, and appends its output to
+#                           <log>. Returns the command's exit status, or 126
+#                           when the command was refused. An extra argument is
+#                           data: it is never validated as command text and
+#                           never reaches a shell.
+#   valid_ref <ref>         returns 0 when <ref> is a name git resolves to a
+#                           commit, never an option and never a path with a colon.
 #
 # SECURITY — why a command is never handed to a shell
 #   1. No shell. A command is split on whitespace into an argv array and
@@ -143,6 +150,7 @@ validate_command() {
 run_command() {
   local command="$1" log="$2" token status=0
   local -a argv=()
+  shift 2
 
   if ! validate_command "$command" >/dev/null 2>&1; then
     return 126
@@ -155,9 +163,15 @@ run_command() {
   # `|| status=$?` rather than toggling `set -e`: a function that re-enables
   # errexit changes the caller's shell too, and the caller's own `set +e`
   # around this call would stop protecting it.
-  "${argv[@]}" >>"$log" 2>&1 || status=$?
+  "${argv[@]}" "$@" </dev/null >>"$log" 2>&1 || status=$?
 
   return "$status"
+}
+
+# A ref is a name git resolves to a commit, never an option and never a path with a colon.
+valid_ref() {
+  [[ "$1" =~ ^[A-Za-z0-9._/@^~-]{1,200}$ && "$1" != -* ]] || return 1
+  git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 # Extend the executable allow-list and the environment from the project

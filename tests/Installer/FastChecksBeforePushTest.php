@@ -21,6 +21,14 @@ test('the fast-checks runner proves every acceptance scenario in its self-test',
         'uncommitted changes to tracked files exit 7 and run nothing',
         'a live lock holder makes the run wait, then exit 6 without running a check',
         '--base computes the changed files against the named branch',
+        'a passed run deletes its log and reports none',
+        'a failed run keeps the log, and the log names every check that ran',
+        'no default-branch ref refuses the run with the set-head hint instead of reading no checks',
+        'the removed --log option is a usage error',
+        'a link to an outside file or directory, an inside link, a glob-shaped link name, and a file turned into a link never reach a checker',
+        'no checker output quotes the outside file',
+        'a path an earlier check replaced with a link is not passed, and its entry is skipped',
+        'a path with a .. component is outside the worktree',
     ] as $label) {
         expect($script)->toContain('check \'' . $label . '\'');
     }
@@ -43,7 +51,11 @@ test('the fast-checks runner reads the default-branch manifest, takes the machin
         ->and($code)->toContain('gate_lock_enter "$GATE_LOCK_TIMEOUT" || lock_status=$?')
         ->and($code)->toContain('done < <(git diff -z --name-only --no-renames --diff-filter=ACMRT "$BASE" HEAD)')
         ->and($code)->toContain('[[ "$path" != -* ]] || path="./$path"')
-        ->and($code)->toContain('"${argv[@]}" </dev/null >>"$LOG" 2>&1 || status=$?')
+        ->and($code)->toContain('run_command "${commands[index]}" "$LOG" ${files[@]+"${files[@]}"} || status=$?')
+        ->and($code)->toContain('gate_no_symlink "$1" >/dev/null 2>&1')
+        ->and($code)->not->toContain('valid_ref() {')
+        ->and($code)->not->toContain('"${argv[@]}"')
+        ->and($code)->not->toContain('--log')
         ->and($code)->not->toContain('eval ')
         ->and($code)->not->toContain('sh -c')
         ->and($code)->not->toContain('cat composer.json');
@@ -58,7 +70,10 @@ test('the pre-push gate runs the fast checks on every repository and keeps ci an
             'The package assumes no tool.' . "\n" . '     - After the fixer changes are committed, run `skills/_shared/run-fast-checks.sh`',
         )
         ->and($gates)->toContain('A path is always its own argument, never part of a shell string.')
-        ->and($gates)->toContain('Exit `4` → a check failed: read the log the JSON names, fix what it reports, commit, and run the script again.')
+        ->and($gates)->toContain('Exit `0` → push; a passed run leaves no log.')
+        ->and($gates)->toContain(
+            'Exit `4` → a check failed: read the log the JSON names, delete it, fix what it reports, commit, and run the script again.',
+        )
         ->and($gates)->toContain('blocks the push until you name the check, its failure, and why it cannot be fixed in the handoff.')
         ->and($gates)->toContain('Exit `5` → the manifest sets no `fast-checks`: no fast check runs, and the push goes on as before.')
         ->and($gates)->toContain('- The fast checks never replace CI or the pre-merge gate: those stay the final word on every merge.')
@@ -95,6 +110,48 @@ test('krang proposes the fast checks the way it proposes the fixers', function (
         expect($script)->toContain('check \'' . $label . '\'');
     }
 });
+
+test('the shared command library is the one executor and the one ref check of the fast checks and the discovery', function (): void {
+    $library = packageSource('skills/_shared/project-commands.sh');
+
+    expect($library)->toContain('valid_ref() {')
+        ->and(packageSource('skills/_shared/discover-fixers.sh'))->not->toContain('valid_ref() {')
+        ->and(packageSource('skills/_shared/gate-record.sh'))
+        ->toContain('IFS=\'/\' read -r -d \'\' -a parts < <(printf \'%s\\0\' "$path") || true');
+});
+
+test('every list of machine lock wrappers names the fast checks', function (string $path, string $pin): void {
+    expect(packageSource($path))->toContain($pin);
+})->with([
+    'concurrency holder file' => [
+        'rules/compound-engineering/concurrency.md',
+        '`WRAPPER` (`run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`)',
+    ],
+    'gate-record lock entry' => [
+        'skills/_shared/gate-record.sh',
+        '# The one entry into the machine lock of run-gate.sh, run-validation.sh, and run-fast-checks.sh:',
+    ],
+    'orchestration machine directory' => [
+        'rules/compound-engineering/orchestration.md',
+        '`skills/_shared/run-validation.sh`, and `skills/_shared/run-fast-checks.sh` create and remove it',
+    ],
+    'quality-gates repair conditions' => [
+        'skills/resolve-issue/references/quality-gates.md',
+        'the holder file names `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`, the live process',
+    ],
+    'stale-lock-repair report step' => [
+        'skills/_shared/orchestration/stale-lock-repair.md',
+        'the `reason` of a `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` exit `6`',
+    ],
+    'stale-lock-repair trigger 2' => [
+        'skills/_shared/orchestration/stale-lock-repair.md',
+        'or a `run-gate.sh` or `run-fast-checks.sh` call in its handoff exited `6`.',
+    ],
+    'stale-lock-repair trigger 4' => [
+        'skills/_shared/orchestration/stale-lock-repair.md',
+        '4. A `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` call that the harness stopped',
+    ],
+]);
 
 test('a stuck fast-check run is a wrapper the lock repair may stop', function (): void {
     $lock = packageSource('skills/_shared/gate-lock.sh');

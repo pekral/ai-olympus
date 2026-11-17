@@ -80,6 +80,10 @@ set -euo pipefail
 PROG="${0##*/}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# valid_ref, and validate_command for the self-test, come from the shared command library.
+# shellcheck source=project-commands.sh
+. "$SCRIPT_DIR/project-commands.sh"
+
 # The fixed tables. A project script is named only when its name is in the list; a tool only when
 # its package is. The order of a table is the run order: a rewriting refactor first, then the code
 # style, then the file layout. A fast check is static analysis first, then the coding standard.
@@ -171,12 +175,6 @@ package.json declare on the ref, as JSON.
 EOF
 }
 
-# A ref is a name git resolves to a commit, never an option and never a path with a colon.
-valid_ref() {
-  local ref="$1"
-  [[ "$ref" =~ ^[A-Za-z0-9._/@^~-]{1,200}$ && "$ref" != -* ]] || return 1
-  git rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1
-}
 
 # Prints the text as compact JSON, or `null` for an empty text (the ref has no such file). Returns 3
 # when the text is not a JSON object.
@@ -294,9 +292,8 @@ self_test() {
   mkdir -p "$repo"
   git -C "$repo" init -q
 
-  # The emitted commands must pass the allow-list that run-gate.sh --exclusive applies.
-  # shellcheck source=project-commands.sh
-  source "$SCRIPT_DIR/project-commands.sh"
+  # The emitted commands must pass the allow-list that run-gate.sh --exclusive applies:
+  # validate_command comes from project-commands.sh, sourced at the top.
 
   check() {
     local label="$1" verdict="$2"
