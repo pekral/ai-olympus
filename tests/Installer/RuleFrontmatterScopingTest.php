@@ -131,6 +131,11 @@ test('every rule scoped in issue #274, #275 or #277 declares exactly the `paths:
         'rules/jira/general.md',
         'rules/refactoring/general.md',
         'rules/reports/general.md',
+        'rules/code-review/hotfix-review.md',
+        'rules/code-review/product-documentation.md',
+        'rules/code-review/publishing-cases.md',
+        'rules/code-review/review-rounds.md',
+        'rules/code-review/several-pull-requests.md',
     ]);
 });
 
@@ -470,7 +475,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: rebased onto #599, with restated sentences tightened so the file stays under its size limit (issue #595).
         // Re-baselined: a GitHub review posts no inline comment; every finding is an entry of the Actionable comments block,
         // and the `cr-inline` marker stays for the threads of an earlier release (operator request, release 0.5.2).
-        'rules/code-review/general.md' => 'a2aa8ac048a7a6b61de9d206686972bf5740162ae594e7a810590095c85ad131',
+        // Re-baselined: the parts only some review runs need moved verbatim into five on-demand companions, and a pointer names
+        // each one where it used to sit (issue #607).
+        'rules/code-review/general.md' => 'f8b175127fdbba0a36b3f03bae766825fdf10b1329315db6575557a518560989',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

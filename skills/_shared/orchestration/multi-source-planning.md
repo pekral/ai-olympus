@@ -1,0 +1,9 @@
+# Planning several sources — resolve order and parallel batches
+
+Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** step 1 resolved more than one source. A section, a step, or a bullet this file names *above* or *below* without a file is in `agents/krang.md`.
+
+### Step 1 for several sources
+
+- *Plan resolve order* → when resolving multiple linked issues, read each issue's `## Dependencies` section (produced by `create-issues-from-text`) and plan a dependency-aware resolve order — dependencies before dependents — taking precedence over the strict oldest-first selection above when the issues are interlinked. Fall back to oldest-first only when no dependencies are declared.
+- *Plan parallel batches* → when the request resolved more than one source, run `skills/_shared/plan-parallel.sh` over the units in the resolve order above (`@rules/compound-engineering/concurrency.md` *Processing of multiple sources*). Each input line is `<source-slug>|<tier>|<depends-on>|<files>`. `<tier>` is the `classify-risk.sh` verdict on that unit's assignment text. `<depends-on>` comes from the issue's `## Dependencies`. `<files>` holds only paths that the issue body, its analysis comment, or its blast-radius report already names, each confirmed with `git ls-files`. You never infer files by reading source, and a unit with no named file stays empty, which keeps it out of every parallel batch.
+  Write the plan and the file evidence of each unit into that unit's `## Plan & work breakdown`, then process the batches in order. In a batch with `mode.<k>=parallel`, run steps 2–4 for every unit, dispatch the step-5 `donatello` runs as blocking `Task` calls in **one** message, and continue each unit's steps 6–7 one unit after the other. Every other batch runs one unit at a time, exactly as before. A single source needs no plan.

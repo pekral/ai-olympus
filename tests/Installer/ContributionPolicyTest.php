@@ -90,7 +90,7 @@ test('every step that generates text or promotes the pull request applies the ru
         'skills/resolve-issue/SKILL.md',
         'skills/pr-summary/SKILL.md',
         'skills/process-code-review/references/ready-to-merge-signal.md',
-        'agents/krang.md',
+        'skills/_shared/orchestration/fast-run.md',
     ];
 
     foreach ($applyingSteps as $path) {
@@ -106,7 +106,7 @@ test('every step that generates text or promotes the pull request applies the ru
         ->toContain('skills/_shared/contribution-policy.sh --base')
         ->toContain('A JIRA or Bugsnag target is unchanged.');
 
-    foreach (['skills/process-code-review/references/ready-to-merge-signal.md', 'agents/leonardo.md', 'agents/krang.md'] as $path) {
+    foreach (['skills/process-code-review/references/ready-to-merge-signal.md', 'agents/leonardo.md', 'skills/_shared/orchestration/fast-run.md'] as $path) {
         expect(contributionPolicySource($path))->toContain($marker);
     }
 });

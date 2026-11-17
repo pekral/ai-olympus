@@ -5,7 +5,7 @@ declare(strict_types = 1);
 test('report-code-review runs one review-only pass through krang and leonardo', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/commands/report-code-review.md');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = krangContractText();
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     expect($command)->toContain('$ARGUMENTS');
@@ -89,7 +89,7 @@ test('security is the most important part of every code review', function (): vo
 test('report-code-review adds the interactive-testing result to the review report', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    expect((string) file_get_contents($packageDir . '/agents/krang.md'))
+    expect(krangContractText())
         ->toContain('Then run one *Parallel CR round* with `review_only` in all four dispatch prompts.')
         ->toContain(
             'publishes the one review report, with the `splinter` view merged in and the `interactive-testing` result and the database report in it',
@@ -105,7 +105,7 @@ test('report-code-review adds the interactive-testing result to the review repor
 
 test('report-code-review runs leonardo, splinter, raphael, and casey in one parallel round', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = krangContractText();
 
     expect($krang)
         ->toContain('`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → leonardo (publish)`')

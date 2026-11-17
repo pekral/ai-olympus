@@ -275,7 +275,7 @@ test('every former citation of the fixed cap names the manifest key', function (
 ]);
 
 test('the security lenses read the whole pull request in every round', function (): void {
-    expect(reviewQualityGateFile('rules/code-review/general.md'))
+    expect(reviewQualityGateFile('rules/code-review/review-rounds.md'))
         ->toContain('- **The security lenses read the whole PR diff in every round of `full` depth.**')
         ->toContain('is not walked again for new findings by any lens except the security lenses, which read the whole PR diff in every round')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');

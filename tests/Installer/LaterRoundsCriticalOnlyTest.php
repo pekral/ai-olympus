@@ -8,7 +8,7 @@ function laterRoundsFile(string $path): string
 }
 
 test('the code-review rule owns the later-round filter with the security floor and carry-over (issue #455)', function (): void {
-    $rule = laterRoundsFile('rules/code-review/general.md');
+    $rule = laterRoundsFile('rules/code-review/review-rounds.md');
 
     expect($rule)
         ->toContain('### Later rounds raise only new Critical findings (issue #455)')
@@ -83,7 +83,7 @@ test('the owner and the references state that the scripts apply no later-round f
 });
 
 test('a later round is an iteration of one review-and-fix loop, and a published-comment baseline starts a new cycle (issue #455)', function (): void {
-    $rule = laterRoundsFile('rules/code-review/general.md');
+    $rule = laterRoundsFile('rules/code-review/review-rounds.md');
 
     expect($rule)
         ->toContain('A later round is an iteration of one review-and-fix loop')
@@ -187,7 +187,7 @@ test(
 
 test('the security exception for a vulnerability outside the assignment stays (issue #455)', function (): void {
     $leonardo = laterRoundsFile('agents/leonardo.md');
-    $krang = laterRoundsFile('agents/krang.md');
+    $krang = krangContractText();
 
     expect($leonardo)
         ->toContain('- **Security findings outside the assignment:**')

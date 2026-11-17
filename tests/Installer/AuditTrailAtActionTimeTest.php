@@ -230,7 +230,7 @@ test('donatello never forges an external-write line and publishes a comment only
 });
 
 test('no agent or skill appends by hand a line the package already writes', function (): void {
-    $krang = auditTrailSource('agents/krang.md');
+    $krang = krangContractText();
     $april = auditTrailSource('agents/april.md');
     $proposal = auditTrailSource('skills/_shared/orchestration/proposal-review.md');
     $leonardo = auditTrailSource('agents/leonardo.md');

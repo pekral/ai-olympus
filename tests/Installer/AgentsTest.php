@@ -798,7 +798,7 @@ test(
             '**Write the skip into the ledger',
             before_needle: true,
         );
-        expect(preg_match_all('/^ {7}\d\. /m', $skipBlock))->toBe(4);
+        expect(preg_match_all('/^ {2}\d\. /m', $skipBlock))->toBe(4);
 
         // The two edge cases the issue names explicitly: a CR that produced a fix commit moves the
         // head, and a deferred coverage gate has no other owner — both force the pass to run.
@@ -2979,7 +2979,7 @@ test('an unregistered april stops a tracker-sourced run with a named blocker and
 
 test('krang labels the pull request ready to merge when it closes a FAST run (issue #232)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = krangContractText();
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
 
     expect($krang)->toContain('3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"`');

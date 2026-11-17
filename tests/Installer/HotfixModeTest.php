@@ -43,13 +43,17 @@ test('the review rules narrow the scope and declare the mode on the comment', fu
     $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $process = (string) file_get_contents($packageDir . '/rules/code-review/review-process.md');
 
-    expect($general)->toContain('## HOTFIX runs — a narrowed review, declared on the comment');
-    expect($general)->toContain('**Security is not part of the narrowing.**');
-    expect($general)->toContain('**Mode:** HOTFIX — coverage waived, review scoped to assignment + bug fix (declared by <account>)');
+    $hotfix = (string) file_get_contents($packageDir . '/rules/code-review/hotfix-review.md');
+
+    expect($general)->toContain('## HOTFIX runs — a narrowed review, declared on the comment')
+        ->and($general)->toContain('reads and applies `@rules/code-review/hotfix-review.md` first')
+        ->and($general)->toContain('- **The mode is stated, never inferred.**');
+    expect($hotfix)->toContain('**Security is not part of the narrowing.**');
+    expect($hotfix)->toContain('**Mode:** HOTFIX — coverage waived, review scoped to assignment + bug fix (declared by <account>)');
 
     // The merge gate downstream trusts one line on one comment, so the narrowing cannot be claimed
     // anywhere a non-reviewer can write.
-    expect($general)->toContain('A hotfix assertion anywhere else');
+    expect($hotfix)->toContain('A hotfix assertion anywhere else');
 
     // The coverage gate is waived at its own home, not re-decided by each caller.
     expect($process)->toContain('**Waived in full on a HOTFIX run.**');

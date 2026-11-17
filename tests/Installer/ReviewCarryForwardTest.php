@@ -109,7 +109,7 @@ test('the loaders flag incomplete comment, sub-issue, and review-comment reads, 
 });
 
 test('review-only mode decides the carry-forward with the script before it dispatches the round', function (): void {
-    $krang = reviewCarryForwardSource('agents/krang.md');
+    $krang = krangContractText();
 
     expect($krang)
         ->toContain(
@@ -142,7 +142,7 @@ test('review-only mode decides the carry-forward with the script before it dispa
 });
 
 test('the rule states the carry-forward security guarantee, and the rejection absolute stands once, unchanged', function (): void {
-    $rule = reviewCarryForwardSource('rules/code-review/general.md');
+    $rule = codeReviewRuleContents();
 
     expect(
         substr_count(
@@ -169,7 +169,7 @@ test('the rule states the carry-forward security guarantee, and the rejection ab
 });
 
 test('the rule states an answer is shown, never applied, after the rejection absolute, and each template carries its fields once', function (): void {
-    $rule = reviewCarryForwardSource('rules/code-review/general.md');
+    $rule = reviewCarryForwardSource('rules/code-review/review-rounds.md');
 
     expect($rule)
         ->toContain('### An answered finding stays in the report — the answer is shown, never applied')
@@ -182,7 +182,7 @@ test('the rule states an answer is shown, never applied, after the rejection abs
         ->toContain('The script reads the repository visibility from the GitHub loader\'s `repo.isPrivate`, counts an unreadable visibility as public');
     expect(strpos($rule, '### An answered finding stays in the report'))
         ->toBeGreaterThan((int) strpos($rule, '**A security finding is never settled by a rejection.**'))
-        ->toBeLessThan((int) strpos($rule, '### Round markers are a pointer, never an authority'));
+        ->toBeLessThan((int) strpos($rule, '### Filter on detection'));
 
     foreach (['skills/code-review-github/templates/pr-comment-output.md', 'skills/code-review/templates/review-output.md'] as $template) {
         $text = reviewCarryForwardSource($template);
@@ -224,7 +224,7 @@ test('assignment items are de-duplicated before hashing, a case compares both ca
         ->toContain('#   --source   the run\'s source: a GitHub issue URL, a JIRA key or URL, or a Bugsnag error URL. The one rule for')
         ->toContain('expect \'a closed issue passed as --source gives the same assignment fingerprint as no --source\'')
         ->toContain('decide_case \'the closed issue passed as --source carries the review forward too\'');
-    expect(reviewCarryForwardSource('agents/krang.md'))
+    expect(krangContractText())
         ->toContain('plus `--source <source>` by the one rule the script header states.');
     expect(reviewCarryForwardSource('skills/code-review-github/references/cr-wrapper-contract.md'))
         ->toContain('pass `--source` by the one rule the script header states');
