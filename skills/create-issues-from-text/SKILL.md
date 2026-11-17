@@ -78,7 +78,7 @@ For a database column, `@rules/sql/optimalize.md` *Deploy-safe schema changes* o
 
 ## Issue Structure
 
-Use the template defined in `templates/issue-structure.md`. It is the business-only shape of `@rules/compound-engineering/assignment.md`, and every section of it is a collapsed block (*The shape in a GitHub issue body — every section is a collapsed block*; the preserved original text is the last block, *Original assignment*): nothing that *What an assignment never contains* lists goes into an issue, and a security requirement of the original is restated as a business rule. The technical detail of the original assignment stays in the preserved original text. When an issue text mentions another issue of the same tracker, the output reports each missing native link with its recommended type, as that rule states.
+Use the template defined in `templates/issue-structure.md`. It is the business-only shape of `@rules/compound-engineering/assignment.md`, and the body opens with *What this is about* as plain text, then an open block for each other section, and the preserved original text is the last block, *Original assignment*, which is the only collapsed one (*The shape in a GitHub issue body — the opening text, open blocks, and a collapsed original*): nothing that *What an assignment never contains* lists goes into an issue, and a security requirement of the original is restated as a business rule. The technical detail of the original assignment stays in the preserved original text. When an issue text mentions another issue of the same tracker, the output reports each missing native link with its recommended type, as that rule states.
 
 ---
 

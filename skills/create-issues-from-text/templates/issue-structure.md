@@ -1,16 +1,6 @@
-<details>
-<summary><strong>What this is about</strong></summary>
-<dl>
-<dd>
-<br>
-
 <The problem today, who has it, and why it is fixed>
 
-</dd>
-</dl>
-</details>
-
-<details>
+<details open>
 <summary><strong>What the user must be able to do</strong></summary>
 <dl>
 <dd>
@@ -22,7 +12,7 @@
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>The rules</strong></summary>
 <dl>
 <dd>
@@ -34,7 +24,7 @@
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>What we are not doing now</strong></summary>
 <dl>
 <dd>
@@ -46,7 +36,7 @@
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>Open questions for the owner</strong></summary>
 <dl>
 <dd>
@@ -58,7 +48,7 @@
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>Dependencies</strong></summary>
 <dl>
 <dd>
