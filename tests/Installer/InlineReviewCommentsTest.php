@@ -381,6 +381,22 @@ test('the review loop reads an inline thread of an earlier release as the agent 
 /**
  * @return list<string>
  */
+function inlineReviewFilesIn(string $directory): array
+{
+    $paths = [];
+
+    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+        if ($file instanceof SplFileInfo && $file->isFile()) {
+            $paths[] = $file->getPathname();
+        }
+    }
+
+    return $paths;
+}
+
+/**
+ * @return list<string>
+ */
 function inlineReviewFilesCiting(string $citation): array
 {
     $root = dirname(__DIR__, 2);
@@ -388,21 +404,12 @@ function inlineReviewFilesCiting(string $citation): array
         array_map(static fn (string $directory): string => $root . '/' . $directory, ['agents', 'codex', 'docs', 'rules', 'skills', 'tests']),
         is_dir(...),
     );
-    $files = [];
-
-    foreach ($directories as $directory) {
-        $files = [...$files, ...iterator_to_array(
-            new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)),
-            preserve_keys: false,
-        ),
-        ];
-    }
 
     return array_values(array_map(
-        static fn (SplFileInfo $file): string => substr($file->getPathname(), strlen($root) + 1),
+        static fn (string $path): string => substr($path, strlen($root) + 1),
         array_filter(
-            $files,
-            static fn (SplFileInfo $file): bool => $file->isFile() && str_contains((string) file_get_contents($file->getPathname()), $citation),
+            array_merge(...array_map(inlineReviewFilesIn(...), $directories)),
+            static fn (string $path): bool => str_contains((string) file_get_contents($path), $citation),
         ),
     ));
 }
