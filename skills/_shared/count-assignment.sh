@@ -22,8 +22,11 @@
 #   A heading is matched in lower case with ASCII letters only (an all-capitals Czech heading is not a
 #   counted heading), after a closing `\r` and a closing run of `#` are removed.
 #   Neither files nor criteria read a fenced code block or the `Original assignment` section (the
-#   quotation of the operator). A fence that never closes is text (`strip_assignment_fences` of
-#   domain-vocabulary.sh, the same fence rule `classify-risk.sh` applies to an assignment).
+#   quotation of the operator). That section ends at its own closing `</details>` (a nested block counts
+#   its own tags), or, for a Markdown heading, at a heading of the same or a shallower level; a bold line
+#   counts as the deepest heading. A section that never closes runs to the end of the text.
+#   A fence that never closes is text (`strip_assignment_fences` of domain-vocabulary.sh, the same fence
+#   rule `classify-risk.sh` applies to an assignment).
 #
 # Output (stdout, key=value, in this order)
 #   method=files-and-criteria
@@ -87,20 +90,48 @@ scan_text() {
       }
       return out
     }
-    BEGIN { sec = "none"; sectioned = 0; secbul = 0; bul = 0; counted = "^(" ENVIRON["COUNTED"] ")$"; original = "^(" ENVIRON["ORIGINAL"] ")$" }
+    BEGIN { sec = "none"; skip = ""; depth = 0; level = 0; sectioned = 0; secbul = 0; bul = 0; counted = "^(" ENVIRON["COUNTED"] ")$"; original = "^(" ENVIRON["ORIGINAL"] ")$" }
     {
       line = $0
       sub(/\r$/, "", line)
       lower = lower_ascii(line)
+      heading = (index(lower, "<summary>") > 0 || lower ~ /^#+[ ]/ || lower ~ /^\*\*.*\*\*[ ]*:?[ ]*$/)
+      # Inside the original assignment nothing is read. A details block ends at its own closing tag, so a
+      # heading, a summary, or a nested block inside it never ends the skip. A Markdown heading ends it
+      # only at a heading of the same or a shallower level. A block that never closes runs to the end.
+      if (skip == "details") {
+        tmp = lower
+        depth += gsub(/<details/, "&", tmp)
+        tmp = lower
+        depth -= gsub(/<\/details>/, "&", tmp)
+        if (depth <= 0) { skip = ""; sec = "none" }
+        next
+      }
+      if (skip == "markdown") {
+        if (lower ~ /^#+[ ]/) {
+          match(lower, /^#+/)
+          if (RLENGTH > level) { next }
+          skip = ""
+        } else {
+          next
+        }
+      }
       if (index(lower, "</details>") > 0) { sec = "none"; next }
-      if (index(lower, "<summary>") > 0 || lower ~ /^#+[ ]/ || lower ~ /^\*\*.*\*\*[ ]*:?[ ]*$/) {
+      if (heading) {
         name = lower_ascii(heading_name(line))
         if (name ~ counted) { sec = "count"; sectioned = 1 }
-        else if (name ~ original) { sec = "original" }
+        else if (name ~ original) {
+          sec = "original"
+          if (index(lower, "<summary>") > 0) { skip = "details"; depth = 1 }
+          else {
+            skip = "markdown"
+            level = 7
+            if (match(lower, /^#+/)) { level = RLENGTH }
+          }
+        }
         else { sec = "other" }
         next
       }
-      if (sec == "original") { next }
       if (line ~ /^[ ]?([-*]|[0-9]+[.)])[ ]+[^ ]/) {
         bul++
         if (sec == "count") { secbul++ }
@@ -269,6 +300,52 @@ self_test() {
   { printf -- '- own bullet\n\n'; printf '<details>\n<summary><strong>Original assignment</strong></summary>\n\n'; printf -- '- q1\n- q2\n- q3\n- q4\n- q5\n- q6\n\n</details>\n'; } >"$d/original-fallback.md"
   expect_value 'the original assignment adds no bullet to the fallback count' "$d/original-fallback.md" criteria 1
   expect_value 'the fallback names its source' "$d/original-fallback.md" criteria-source bullets
+
+  # The original assignment is skipped as one block, whatever it holds: a heading, a nested block, a fence.
+  quoted=$'- q1\n# A heading inside\n- q2\n**A bold line**\n- q3\n<summary><strong>The rules</strong></summary>\n- q4\nsrc/Quoted/File.php\n- q5'
+  {
+    printf '# The rules\n\n- one\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n%s\n\n</details>\n\n# Out\n\n- after\n' "$quoted"
+  } >"$d/orig-middle.md"
+  expect_value 'a heading inside the original block does not end the skip (middle), criteria' "$d/orig-middle.md" criteria 1
+  expect_value 'a heading inside the original block does not end the skip (middle), files' "$d/orig-middle.md" files 0
+
+  { printf '# The rules\n\n- one\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n%s\n\n</details>\n' "$quoted"; } >"$d/orig-last.md"
+  expect_value 'a heading inside the original block does not end the skip (last)' "$d/orig-last.md" criteria 1
+
+  { printf -- '- own\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n%s\n\n</details>\n' "$quoted"; } >"$d/orig-fallback.md"
+  expect_value 'a heading inside the original block does not end the skip (fallback), criteria' "$d/orig-fallback.md" criteria 1
+  expect_value 'a heading inside the original block does not end the skip (fallback), files' "$d/orig-fallback.md" files 0
+  expect_value 'a heading inside the original block does not end the skip (fallback), source' "$d/orig-fallback.md" criteria-source bullets
+
+  { printf -- '- own\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n- a\n<details>\n<summary>inner</summary>\n- b\n</details>\n- c\nsrc/After/Inner.php\n\n</details>\n\n- after\n'; } >"$d/orig-nested.md"
+  expect_value 'a nested block ends only its own level, so the quote goes on' "$d/orig-nested.md" files 0
+  expect_value 'a nested block ends only its own level, and the text after the quote is read' "$d/orig-nested.md" criteria 2
+
+  # shellcheck disable=SC2016
+  { printf -- '- own\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n- a\n```text\n</details>\n```\n- b\nsrc/Quoted/File.php\n\n</details>\n\n- after\n'; } >"$d/orig-fence.md"
+  expect_value 'a closing tag inside a fence does not end the quote' "$d/orig-fence.md" criteria 2
+  expect_value 'a closing tag inside a fence does not end the quote, files' "$d/orig-fence.md" files 0
+
+  { printf -- '- own\n\n<details>\n<summary><strong>Původní zadání</strong></summary>\n\n# Nadpis\n- a\n- b\nsrc/Quoted/File.php\n\n</details>\n'; } >"$d/orig-czech.md"
+  expect_value 'the Czech original block is skipped as one block' "$d/orig-czech.md" criteria 1
+
+  { printf -- '- own\r\n\r\n<details>\r\n<summary><strong>Original assignment</strong></summary>\r\n\r\n# Inside\r\n- a\r\n- b\r\n\r\n</details>\r\n'; } >"$d/orig-crlf.md"
+  expect_value 'a CRLF original block is skipped as one block' "$d/orig-crlf.md" criteria 1
+
+  { printf '# The rules\n\n- one\n\n<details>\n<summary><strong>Original assignment</strong></summary>\n\n- a\n# Inside\n- b\nsrc/Quoted/File.php\n'; } >"$d/orig-open.md"
+  expect_value 'an original block with no closing tag runs to the end of the text' "$d/orig-open.md" criteria 1
+  expect_value 'an original block with no closing tag runs to the end of the text, files' "$d/orig-open.md" files 0
+
+  printf '# The rules\n\n- one\n\n# Original assignment\n\n- a\n## Sub heading\n- b\n**bold**\n- c\nsrc/Quoted/File.php\n\n# Out\n\n- after\n' >"$d/orig-markdown.md"
+  expect_value 'a deeper Markdown heading does not end the original section' "$d/orig-markdown.md" criteria 1
+  expect_value 'a deeper Markdown heading does not end the original section, files' "$d/orig-markdown.md" files 0
+
+  printf '## The rules\n\n- one\n\n## Original assignment\n\n- a\n# The rules\n- b\n' >"$d/orig-shallower.md"
+  expect_value 'a shallower Markdown heading ends the original section and is read' "$d/orig-shallower.md" criteria-source sections
+  expect_value 'a shallower Markdown heading ends the original section, the section after it counts' "$d/orig-shallower.md" criteria 2
+
+  printf '# The rules\n\n- one\n\n**Original assignment**\n\n- a\n- b\n\n# Out\n\n- c\n' >"$d/orig-bold.md"
+  expect_value 'a bold original section ends at the next heading' "$d/orig-bold.md" criteria 1
 
   printf '# Původní zadání\n\n- one\n- two\n\n# Pravidla\n\n- rule\n' >"$d/czech-original.md"
   expect_value 'the Czech original assignment is skipped' "$d/czech-original.md" criteria 1
