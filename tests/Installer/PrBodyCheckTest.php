@@ -153,7 +153,6 @@ test('the fold rule has one owner, and every other file points to it and states 
         'skills/composer-update-pr/templates/pull-request-body.md',
         'skills/composer-update-pr/SKILL.md',
         'skills/resolve-issue/references/pull-request.md',
-        'skills/code-review/references/specialized-reviews.md',
         'skills/resolve-issue/references/safeguard-implementation.md',
     ];
 
