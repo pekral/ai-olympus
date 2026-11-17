@@ -493,3 +493,26 @@ test('no value of the walkthrough, the record, or a finding renders as HTML or b
             ->and($comment)->not->toContain('![');
     }
 });
+
+test('an identifier in a code span shows as written, and markup outside a span stays encoded, byte for byte', function (): void {
+    $findings = reviewLayoutFindings();
+    $findings[0] = [
+        ...$findings[0],
+        'fix' => 'call `$this->authorize()` before the query. An unclosed `tick before <img src=x> stays text.',
+        'impact' => 'A guest reads every order of `App\Models\Order`.',
+        'problem' => '`App\Http\Controllers\OrderController` returns `Collection<int, Order>` to a guest.',
+        'title' => '`$this->authorize()` is never called',
+    ];
+    $walkthrough = reviewLayoutJson('walkthrough.json');
+    $areas = $walkthrough['areas'];
+    assert(is_array($areas) && is_array($areas[0]));
+    $areas[0] = [...$areas[0], 'summary' => 'Returns `Collection<int, Order>` and `a|b` | c.'];
+    $review = renderReview(['areas' => $areas], $findings);
+    $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+
+    expect($review['exit'])->toBe(0, $review['stderr'])
+        ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-code-spans.md', $actionable))
+        ->and($review['comments'][0])->toBe(reviewLayoutGolden('expected-inline-code-spans.md', $review['comments'][0]))
+        ->and($review['visible'])->toContain('|Returns `Collection<int, Order>` and `a\|b` &#124; c.|')
+        ->and($actionable)->toContain('An unclosed &#96;tick before &lt;img src=x&gt; stays text.');
+});

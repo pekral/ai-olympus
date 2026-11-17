@@ -40,10 +40,15 @@ test('the build runs the wrapper self-test exactly once', function (): void {
 dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
     'approved layout byte for byte' => ['the visible body is the approved layout, byte for byte'],
+    'code span identifier in the entry' => ['an identifier in a code span shows as written in the Actionable comments entry'],
+    'code span identifier in the inline comment' => ['an identifier in a code span shows as written in the inline comment'],
+    'code span marker stays encoded' => ['a comment marker in a code span stays encoded, so the body holds one cr-comment marker'],
+    'code span pipe in a table cell' => ['a pipe in a code span of a table cell is escaped and a pipe outside it is encoded'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
     'control character before a finding fence' => ['a control character does not carry a fenced block in a finding past the check'],
     'control character before a refused value' => ['a control character does not carry a refused walkthrough value past the check'],
     'critical dry finding refused' => ['a Critical dry finding is refused: a duplicated security control keeps the Problem shape'],
+    'double backtick run opens no span' => ['a run of two backticks never opens a span, and the unpaired backtick after it stays encoded'],
     'DRY author mention without a line' => ['a DRY finding with no line and an author ends its entry with the mention'],
     'DRY entry of the Actionable comments' => ['a DRY finding is an Actionable comments entry whose Fix names the existing implementation'],
     'DRY shape' => ['the DRY finding is the Moderate DRY shape with the existing implementation, byte for byte'],
@@ -55,7 +60,7 @@ dataset('wrapper self-test scenarios', [
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
     'fenced fix is refused' => ['a fix that holds a fenced block is refused with its own message'],
-    'file name markup is text' => ['the file name shows its markup as encoded text in its code span'],
+    'file name markup is text' => ['the file name shows its markup as written in its code span, each pipe escaped'],
     'finding with no line' => ['a finding with no line is an Actionable comments entry without a place'],
     'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
     'forged marker in the text' => ['a forged marker in the problem or the fix text is neutralised in the comment and in the body'],
@@ -75,7 +80,7 @@ dataset('wrapper self-test scenarios', [
     'multi-line range' => ['multi-line comment carries start_line and start_side'],
     'no CI line, checks, buttons, or share link' => ['the visible body shows no CI line, pre-merge checks, recent review info, button, or share link'],
     'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
-    'no HTML tag but the layout' => ['the visible body holds no HTML tag but the tags of the layout'],
+    'no HTML tag but the layout' => ['the visible body holds no HTML tag outside a code span but the tags of the layout'],
     'no HTML tag in an inline comment' => ['no inline comment holds an HTML tag but its two agent markers'],
     'no image' => ['no value renders an image'],
     'no line-start markup' => ['no visible line starts a heading, a quote, a setext underline, or an indented code block'],
@@ -124,11 +129,18 @@ dataset('wrapper self-test scenarios', [
     'summary of 4000 characters' => ['a TL;DR of exactly 4000 characters is published whole'],
     'summary of 4001 characters' => ['a TL;DR of 4001 characters is refused, not cut, and nothing is posted'],
     'summary opens the body' => ['the summary paragraph opens the review body, with no label and no findings count line'],
-    'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded'],
+    'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded or escaped'],
     'visible order' => ['the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments'],
     'walkthrough without a diagram' => ['a walkthrough with no diagram renders no sequence diagram and no fenced block in the body'],
     'Where to test lists the routes' => ['the Where to test block lists the method and the path of each route with one line to try'],
     'withheld finding stays out of the visible body' => ['a withheld finding is in no visible line, not in the count, and not in the hidden record'],
+    'withheld id scan covers every other entry' => ['a published entry beside two entries of a withheld id that names the title in markup is refused'],
+    'withheld id shared by another entry' => [
+        'an entry that shares the id of a withheld entry is withheld too, in no inline comment and in no visible line',
+    ],
+    'withheld title in other markup or invisible' => [
+        'a walkthrough that names a withheld title in other markup or with an invisible character is refused',
+    ],
     'zero-finding round' => ['a round with no finding posts one review with no inline comment'],
     'zero-finding round shows the layout' => ['a round with no finding shows the summary, Merge Risk, and Walkthrough, and no Actionable comments block'],
     'zero-width character in a withheld title' => ['a zero-width character inside a withheld title does not hide it'],
@@ -143,7 +155,8 @@ test('the wrapper treats only the value true as a private repository and fails c
 
     expect($script)->toContain('gh repo view "$NWO" --json isPrivate --jq .isPrivate')
         ->and($script)->toContain('if [[ "$private_value" == "true" ]]; then')
-        ->and($script)->toContain('if .withhold and ($private | not) then {class: "withheld", f: .}');
+        ->and($script)->toContain('[.[] | select(.withhold) | .finding_id] as $withheld_ids')
+        ->and($script)->toContain('if (.finding_id | IN($withheld_ids[])) and ($private | not) then {class: "withheld", f: .}');
 });
 
 test('the wrapper writes through the audited path and never from a stale head', function (): void {
@@ -211,7 +224,9 @@ test('the contract posts a security finding inline on a private repository and w
 
     expect($section)->toContain('Only the value `true` is private.')
         ->and($section)->toContain('On a private repository the finding is posted inline like any other, so the developers have the fix next to the code.')
-        ->and($section)->toContain('On a public repository, and when the check fails, the finding is withheld')
+        ->and($section)->toContain(
+            'On a public repository, and when the check fails, the finding is withheld, and so is every entry that shares its finding id',
+        )
         ->and(
             $section,
         )->toContain(
@@ -221,6 +236,10 @@ test('the contract posts a security finding inline on a private repository and w
         ->and($section)->toContain(
             'The script refuses a record, a walkthrough file, or a published finding that names a withheld finding by its finding id or its title '
                 . '(exit `1`, nothing posted). It compares the decoded text of every value, so a JSON escape or an invisible character hides no title.',
+        )
+        ->and($section)->toContain(
+            'it removes every invisible character (Unicode category `Cf` and every default ignorable code point) and the inline Markdown markup '
+                . '(a backtick, `*`, `_`, `~`, and the brackets and the target of a link)',
         );
 });
 
@@ -459,8 +478,10 @@ test('the wrapper accepts the finding fields for the hidden record and renders n
     }
 
     expect($payload)->toContain('"\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", "**Fix:** \(.fix)"')
-        ->and($payload)->toContain('def dry_line: "🟠 **Moderate · DRY:** This repeats the logic of `\(.existing)`. Please '
+        // `existing` is normalised to its own closed code span, so the line renders it as `<path>:<line>`.
+        ->and($payload)->toContain('def dry_line: "🟠 **Moderate · DRY:** This repeats the logic of \(.existing). Please '
             . 'unify it and call the existing implementation instead.";')
+        ->and($script)->toContain('existing: (.existing | if . == null then null else "`" + codespan + "`" | inert end),')
         ->and($script)->toContain('a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang');
 });
 
@@ -512,6 +533,7 @@ test('the readers read a review record and a legacy cr-comment through one jq de
     expect(inlineReviewSource($readers[0]))->not->toContain('&amp;')
         ->and(inlineReviewSource($readers[1]))->not->toContain('&amp;')
         ->and(substr_count($publisher, 'gsub("&"; "&amp;")'))->toBe(1)
-        ->and($publisher)->toContain("def inert: printable\n  | gsub(\"&\"; \"&amp;\")")
+        ->and($publisher)->toContain('def inert_text: gsub("&"; "&amp;")')
+        ->and($publisher)->toContain('def inert: inert_as(false);')
         ->and($publisher)->toContain('cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"');
 });
