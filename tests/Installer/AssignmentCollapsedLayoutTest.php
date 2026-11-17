@@ -23,7 +23,9 @@ const ASSIGNMENT_COLLAPSED_SECTION = 'Original assignment';
 
 function assignmentBlock(string $name, string $content, bool $open): string
 {
-    return '<details' . ($open ? ' open' : '') . ">\n<summary><strong>" . $name . "</strong></summary>\n<dl>\n<dd>\n<br>\n\n" . $content . "\n\n</dd>\n</dl>\n</details>";
+    $summary = "\n<summary><strong>" . $name . "</strong></summary>\n<dl>\n<dd>\n<br>\n\n";
+
+    return '<details' . ($open ? ' open' : '') . '>' . $summary . $content . "\n\n</dd>\n</dl>\n</details>";
 }
 
 /**
@@ -60,6 +62,18 @@ function assignmentRenderCollapsed(array $sections): string
 }
 
 /**
+ * Names what is wrong with one block: a collapsed business section, or an open original assignment.
+ */
+function assignmentBlockViolation(string $name, bool $isOpen): ?string
+{
+    if ($name === ASSIGNMENT_COLLAPSED_SECTION) {
+        return $isOpen ? 'the original assignment is open' : null;
+    }
+
+    return $isOpen ? null : 'the section "' . $name . '" is collapsed';
+}
+
+/**
  * Lists what breaks the layout rule: a body that does not open with plain text, a business block that is collapsed,
  * and an original assignment that is open.
  *
@@ -67,23 +81,17 @@ function assignmentRenderCollapsed(array $sections): string
  */
 function assignmentLayoutViolations(string $body): array
 {
-    $violations = [];
-
-    if (ltrim($body) === '' || str_starts_with(ltrim($body), '<details')) {
-        $violations[] = 'the body does not start with plain text';
-    }
+    $violations = ltrim($body) === '' || str_starts_with(ltrim($body), '<details')
+        ? ['the body does not start with plain text']
+        : [];
 
     preg_match_all('#<details( open)?>\n<summary><strong>(.+?)</strong></summary>#', $body, $blocks, PREG_SET_ORDER);
 
     foreach ($blocks as $block) {
-        $isOpen = $block[1] === ' open';
+        $violation = assignmentBlockViolation($block[2], $block[1] === ' open');
 
-        if ($block[2] === ASSIGNMENT_COLLAPSED_SECTION && $isOpen) {
-            $violations[] = 'the original assignment is open';
-        }
-
-        if ($block[2] !== ASSIGNMENT_COLLAPSED_SECTION && !$isOpen) {
-            $violations[] = 'the section "' . $block[2] . '" is collapsed';
+        if ($violation !== null) {
+            $violations[] = $violation;
         }
     }
 
