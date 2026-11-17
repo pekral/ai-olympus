@@ -14,7 +14,7 @@
 >
 > **The markers close the body.** `<!-- cr-inline:actor=<login> -->` is the agent marker of `@rules/code-review/general.md` *Authorship trust*. `<!-- cr-inline:finding=<finding id> -->` names the finding for `resolve` and for the duplicate check. A body holds exactly these two markers and no other `cr-inline` marker.
 >
-> **A finding that cannot anchor has no inline comment.** A finding whose line is not in the diff, and a finding with no line, is an entry of the Actionable comments block of the review body (`templates/review-body.md`) and nothing else.
+> **A finding that cannot anchor has no inline comment.** A finding whose line is not in the diff, and a finding with no line, is an entry of the Actionable comments block of the review body (`templates/review-body.md`) and nothing else. That entry ends with the `@login` mention line when the finding sets `author`.
 
 Every finding except DRY:
 

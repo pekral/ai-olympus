@@ -270,7 +270,7 @@ The latency budget of the changed path and the freshness of its data stay with t
   1. a finding about a missing test — an uncovered changed line, or an acceptance criterion no test proves;
   2. a DRY finding — logic the diff repeats where *Reuse Existing Logic* above names an existing implementation.
 
-  The run never writes the missing test itself; the author of the changes writes it. On GitHub the inline comment of the finding, or its visible line in the review body, carries the mention as its last visible line (`skills/code-review-github/scripts/post-inline-review.sh` renders the `author` key); the hidden record keeps the finding's `Author` field. The tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
+  The run never writes the missing test itself; the author of the changes writes it. On GitHub its inline comment, or its Actionable comments entry when it has none, ends with the mention (`skills/code-review-github/scripts/post-inline-review.sh` renders the `author` key); the record keeps the `Author` field. The tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
 
 ## An issue with several pull requests — remarks and findings split per pull request
 
@@ -710,13 +710,14 @@ A comment namespace that is not a code-review report — for example `mysql-repo
 
 ### A review carries no code
 
-An agent that reviews a change never proposes code to paste in. This section is the one owner of the rule. Every output, template, and rule that mentions a fix points here and restates none of it.
+An agent never writes code into a published review output: an inline comment, the review body, or the review report and its record. This section owns the rule; every file that mentions a fix points here.
 
 - **The fix is a plain sentence.** `Suggested Fix` (and `Fix:` in a comment) says what to change and where. It names the existing function, class, setting, or file in an inline code span. It never carries a replacement expression, a corrected block, a query, or a diff.
 - **The faulty example is a description.** `Faulty Example` states in a sentence the input, call, or state that triggers the failure. `@skills/process-code-review/SKILL.md` writes the reproducer test from it. An attack input is described, never a runnable payload.
-- **No fenced block and no `suggestion` block** in an inline comment, in the visible body, or in a field of a finding. The wrapper refuses both.
+- **No fenced block and no `suggestion` block** in an inline comment, the visible body, or a finding field. The wrapper refuses both.
 - **Allowed:** an inline code span that names an existing identifier, path, or command; the mermaid sequence diagram of the Walkthrough; the fenced `text` block of `## Prompt to fix all issues`, which holds sentences; the advisory report of `casey`.
-- **A rule that asks for a snippet, a corrected block, or a replacement query is a Moderate finding.** A rule that says what a **Suggested Fix** names (the existing Action, the seam class, the rename) is correct.
+- **Code examples in rules and references stay** for the agents that generate code. A snippet for the fixing agent travels in the review handoff only, never in a published output.
+- **A review output template that asks for a snippet is a Moderate finding.**
 
 ### Visible review text names none of the package's own tooling
 

@@ -41,9 +41,13 @@ dataset('wrapper self-test scenarios', [
     'agent markers' => ['comment carries both agent markers'],
     'approved layout byte for byte' => ['the visible body is the approved layout, byte for byte'],
     'commit id is the reviewed head' => ['commit_id is the reviewed head'],
+    'control character before a finding fence' => ['a control character does not carry a fenced block in a finding past the check'],
+    'control character before a refused value' => ['a control character does not carry a refused walkthrough value past the check'],
     'critical dry finding refused' => ['a Critical dry finding is refused: a duplicated security control keeps the Problem shape'],
+    'DRY author mention without a line' => ['a DRY finding with no line and an author ends its entry with the mention'],
     'DRY entry of the Actionable comments' => ['a DRY finding is an Actionable comments entry whose Fix names the existing implementation'],
     'DRY shape' => ['the DRY finding is the Moderate DRY shape with the existing implementation, byte for byte'],
+    'escaped walkthrough naming a withheld title' => ['that names a withheld title through JSON escapes is refused and nothing is posted'],
     'event COMMENT' => ['event is COMMENT'],
     'exactly two markers per comment' => ['every inline comment holds exactly two cr-inline markers and the review body none'],
     'external-write audit line' => ['the review is one external-write audit line'],
@@ -51,22 +55,30 @@ dataset('wrapper self-test scenarios', [
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
     'fenced fix is refused' => ['a fix that holds a fenced block is refused with its own message'],
+    'file name markup is text' => ['the file name shows its markup as encoded text in its code span'],
     'finding with no line' => ['a finding with no line is an Actionable comments entry without a place'],
     'forged marker by a stranger' => ['a resolved thread, a forged marker, and another live line post the finding again'],
     'forged marker in the text' => ['a forged marker in the problem or the fix text is neutralised in the comment and in the body'],
     'hidden record in the review body' => ['the review body holds one hidden record, one fingerprint marker, and the cr-comment actor marker'],
     'hidden record keeps a package path' => ['the hidden record may keep a package path'],
     'hidden record round trip' => ['the hidden record comes back byte for byte, --> and --!> and &lt; and <!-- included'],
+    'inline author mention stays inline' => ['a finding with an inline comment carries the mention in the comment and not in its entry'],
     'inline comment holds no fence' => ['the inline comment holds no fenced block, a suggestion block included'],
     'invalid document' => ['invalid document is refused'],
     'invalid walkthrough' => ['invalid walkthrough is refused'],
     'marker rebuilt after a backtick' => ['a rule marker rebuilt after a backtick is refused with its own message'],
+    'markup renders as text' => ['a walkthrough, a record, and findings that hold markup are published as text'],
     'merge risk line is required' => ['a record with no Merge risk line publishes nothing'],
+    'merge risk sentence is encoded' => ['the Merge Risk sentence from the record is encoded too'],
     'merge risk sentence tooling' => ['a Merge Risk sentence that names a package script is refused and nothing is posted'],
     'moderate icon and mention' => ['a Moderate finding carries the orange icon, the Fix line, and the author mention line before the markers'],
     'multi-line range' => ['multi-line comment carries start_line and start_side'],
     'no CI line, checks, buttons, or share link' => ['the visible body shows no CI line, pre-merge checks, recent review info, button, or share link'],
     'no duplicate for an open thread' => ['an open thread on the same line is not duplicated'],
+    'no HTML tag but the layout' => ['the visible body holds no HTML tag but the tags of the layout'],
+    'no HTML tag in an inline comment' => ['no inline comment holds an HTML tag but its two agent markers'],
+    'no image' => ['no value renders an image'],
+    'no line-start markup' => ['no visible line starts a heading, a quote, a setext underline, or an indented code block'],
     'no other visible field' => ['the inline comment renders no Rule, Provenance, Raised by, Level, Evidence, Expected '
         . 'behavior, Test hint, Suggested fix, or suggestion block',
     ],
@@ -76,6 +88,7 @@ dataset('wrapper self-test scenarios', [
     'only fence is the diagram' => ['the only fenced block of the visible body is the sequence diagram'],
     'open finding stays in the Actionable comments' => ['a finding already open as an inline comment stays in the Actionable comments block'],
     'outdated thread is not duplicated' => ['an outdated thread of the same finding id is not duplicated'],
+    'outside-diff author mention' => ['an outside-diff finding with an author ends its Actionable comments entry with the mention'],
     'outside-diff finding is an Actionable comments entry' => ['an outside-diff finding is a line of the Actionable comments block'],
     'outside-diff finding stays out' => ['outside-diff finding is not an inline comment'],
     'package tooling in a finding title' => ['a finding title that names a package script is refused and nothing is posted'],
@@ -88,6 +101,7 @@ dataset('wrapper self-test scenarios', [
     'problem, impact, and fix shape' => ['the inline comment is the Problem, Impact, and Fix shape, byte for byte'],
     'project own command and path' => ['the reviewed project own command and path are posted'],
     'public repository withholds a security finding' => ['a public repository withholds the marked finding'],
+    'published finding naming a withheld title' => ['a published finding that names a withheld title is refused and nothing is posted'],
     'range across a hunk gap' => ['a range across a hunk gap is outside the diff'],
     'record naming a withheld id is refused' => ['a record that names a withheld finding by its id is refused and nothing is posted'],
     'record naming a withheld title is refused' => ['a record that names a withheld finding by its title is refused and nothing is posted'],
@@ -110,12 +124,14 @@ dataset('wrapper self-test scenarios', [
     'summary of 4000 characters' => ['a TL;DR of exactly 4000 characters is published whole'],
     'summary of 4001 characters' => ['a TL;DR of 4001 characters is refused, not cut, and nothing is posted'],
     'summary opens the body' => ['the summary paragraph opens the review body, with no label and no findings count line'],
+    'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded'],
     'visible order' => ['the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments'],
     'walkthrough without a diagram' => ['a walkthrough with no diagram renders no sequence diagram and no fenced block in the body'],
     'Where to test lists the routes' => ['the Where to test block lists the method and the path of each route with one line to try'],
     'withheld finding stays out of the visible body' => ['a withheld finding is in no visible line, not in the count, and not in the hidden record'],
     'zero-finding round' => ['a round with no finding posts one review with no inline comment'],
     'zero-finding round shows the layout' => ['a round with no finding shows the summary, Merge Risk, and Walkthrough, and no Actionable comments block'],
+    'zero-width character in a withheld title' => ['a zero-width character inside a withheld title does not hide it'],
 ]);
 
 test('the wrapper self-test asserts the scenario', function (string $label): void {
@@ -203,7 +219,8 @@ test('the contract posts a security finding inline on a private repository and w
                 . 'hidden HTML is readable through the API',
         )
         ->and($section)->toContain(
-            'The script refuses a record or a walkthrough file that names a withheld finding by its finding id or its title (exit `1`, nothing posted).',
+            'The script refuses a record, a walkthrough file, or a published finding that names a withheld finding by its finding id or its title '
+                . '(exit `1`, nothing posted). It compares the decoded text of every value, so a JSON escape or an invisible character hides no title.',
         );
 });
 
@@ -485,7 +502,16 @@ test('the readers read a review record and a legacy cr-comment through one jq de
         ->and(inlineReviewSource($readers[2]))->toContain('cr_review_meta_wrap <"$TMP_ROOT/meta.md"');
 
     foreach ($readers as $script) {
-        expect(inlineReviewSource($script))->not->toContain('&amp;')
-            ->and(inlineReviewSource($script))->not->toContain('include "review-trust"; [(.comments // [])[] | select(trusted_review)]');
+        expect(inlineReviewSource($script))->not->toContain('include "review-trust"; [(.comments // [])[] | select(trusted_review)]');
     }
+
+    // The hidden record is encoded by cr-header.sh only. The one `&amp;` of the publisher is the visible encoder `inert`,
+    // which never touches the record.
+    $publisher = inlineReviewSource($readers[2]);
+
+    expect(inlineReviewSource($readers[0]))->not->toContain('&amp;')
+        ->and(inlineReviewSource($readers[1]))->not->toContain('&amp;')
+        ->and(substr_count($publisher, 'gsub("&"; "&amp;")'))->toBe(1)
+        ->and($publisher)->toContain("def inert: printable\n  | gsub(\"&\"; \"&amp;\")")
+        ->and($publisher)->toContain('cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"');
 });

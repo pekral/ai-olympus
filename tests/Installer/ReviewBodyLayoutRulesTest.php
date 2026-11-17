@@ -123,38 +123,58 @@ test('the code review rule has one section that bans code in a review and states
     $section = installerDocsSection($rule, '### A review carries no code');
 
     expect(substr_count($rule, '### A review carries no code'))->toBe(1)
-        ->and($section)->toContain('An agent that reviews a change never proposes code to paste in.')
+        ->and($section)->toContain(
+            'An agent never writes code into a published review output: an inline comment, the review body, or the review report and its record.',
+        )
         ->and($section)->toContain('The fix is a plain sentence.')
         ->and($section)->toContain('The faulty example is a description.')
         ->and($section)->toContain('No fenced block and no `suggestion` block')
         ->and($section)->toContain('the mermaid sequence diagram of the Walkthrough')
-        ->and($section)->toContain('A rule that asks for a snippet, a corrected block, or a replacement query is a Moderate finding');
+        ->and($section)->toContain('**Code examples in rules and references stay** for the agents that generate code.')
+        ->and($section)->toContain('A snippet for the fixing agent travels in the review handoff only, never in a published output.')
+        ->and($section)->toContain('A review output template that asks for a snippet is a Moderate finding.')
+        ->and($section)->not->toContain('A rule that asks for a snippet');
 });
 
-test('no rule, skill, or agent asks for a code snippet as the fix or the faulty example of a review', function (): void {
+/**
+ * @return list<string> the templates of the published review outputs: the review body, the inline comment, and the review
+ *                      reports and their hidden record. Only these are scanned for code; rules and references keep their code
+ *                      examples for the agents that generate code (operator decision on issue #595).
+ */
+function publishedReviewOutputTemplates(): array
+{
+    return [
+        'skills/code-review-github/templates/review-body.md',
+        'skills/code-review-github/templates/inline-review-comment.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/code-review/templates/review-output.md',
+        'skills/api-review/templates/review-output.md',
+        'skills/security-review/templates/audit-report.md',
+    ];
+}
+
+test('no published review output template asks for a code snippet as the fix or the faulty example', function (string $path): void {
     $banned = '/corrected (code )?snippet|minimal corrected|minimal code snippet|runnable snippet|corrected code'
         . '|carrying a concrete [A-Za-z \/-]*snippet|concrete (SQL|query)[^.\n]{0,60}(rewrite|snippet)'
         . '|index DDL, or batch-operation (snippet|replacement)|Add a code snippet only/i';
-    $offenders = [];
 
-    foreach (reviewLayoutPackageFiles('rules', 'skills', 'agents') as $path) {
-        if (preg_match($banned, reviewLayoutRepoFile($path)) === 1) {
-            $offenders[] = $path;
-        }
-    }
+    expect(preg_match($banned, reviewLayoutRepoFile($path)))->toBe(0);
+})->with(publishedReviewOutputTemplates());
 
-    expect($offenders)->toBe([]);
+test('rules and lens skills keep their code examples for the agents that generate code', function (): void {
+    $coreAnalysis = reviewLayoutRepoFile('rules/code-review/core-analysis.md');
+
+    expect($coreAnalysis)->toContain('`scopeEnabled(Builder $query): Builder => $query->where(\'status\', Status::Active)`')
+        ->and($coreAnalysis)->toContain('**Expected Behavior:** `return $this->repository->findActive($customerId);`.')
+        ->and(reviewLayoutRepoFile('skills/mysql-patterns/SKILL.md'))->toContain(
+            'is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project. '
+            . 'The snippet reaches the fixing agent through the review handoff only; the published review states the proposal in plain sentences',
+        );
 });
 
 test('no review output template renders a fenced code block for a finding', function (string $path): void {
     expect(reviewLayoutRepoFile($path))->not->toMatch('/^\s*```(php|sql|suggestion|js|ts|bash|sh|json|diff)/m');
-})->with([
-    'skills/code-review-github/templates/pr-comment-output.md',
-    'skills/code-review-github/templates/inline-review-comment.md',
-    'skills/code-review/templates/review-output.md',
-    'skills/api-review/templates/review-output.md',
-    'skills/security-review/templates/audit-report.md',
-]);
+})->with(publishedReviewOutputTemplates());
 
 test('every review output template says a faulty example and a suggested fix carry no code', function (string $path): void {
     $template = reviewLayoutRepoFile($path);
