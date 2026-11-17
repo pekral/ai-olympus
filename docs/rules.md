@@ -1,6 +1,6 @@
 # Rules Overview
 
-The 33 rule files this package installs. A rule is a binding instruction file — not a
+The 34 rule files this package installs. A rule is a binding instruction file — not a
 suggestion an agent may weigh, and not documentation. Every run applies the always-on baseline;
 scoped rules apply to the files they name, and on-demand rules apply to the activity that names them.
 

@@ -245,7 +245,7 @@ test('every decision point of a dashboard access path must deny a guest, gate ho
 
 test('the changelog records the route-access step', function (): void {
     $changelog = routeAccessSource('CHANGELOG.md');
-    $unreleased = routeAccessSection($changelog, '## [Unreleased]', '## [0.5.1]');
+    $unreleased = routeAccessSection($changelog, '## [0.5.2]', '## [0.5.1]');
 
     expect($unreleased)->toContain('(#586)')
         ->and($unreleased)->toContain('Route Access of Changed Routes');
