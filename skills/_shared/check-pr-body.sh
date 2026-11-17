@@ -610,13 +610,18 @@ merge_risk_line() {
 
 # details_step <line> — add the <details> openers of a line to DET_DEPTH and take its </details> closers
 # away, in the order they stand on the line. The depth never goes below 0. The tag is read in lower
-# case, as GitHub reads it.
+# case, as GitHub reads it, and a tag inside an inline code span is text, never a tag.
 details_step() {
-  local lower rest
+  local lower rest before
 
   # The glob needs no process; only a line that names `details` is lowercased.
   [[ "$1" == *'<'*[dD][eE][tT][aA][iI][lL][sS]* ]] || return 0
   lower="$(lowercase "$1")"
+  while [[ "$lower" == *'`'*'`'* ]]; do
+    before="${lower%%\`*}"
+    rest="${lower#*\`}"
+    lower="$before ${rest#*\`}"
+  done
   rest="$lower"
   while [[ "$rest" =~ $DETAILS_TAG ]]; do
     if [[ -n "${BASH_REMATCH[1]}" ]]; then
@@ -717,11 +722,6 @@ scan_body() {
       continue
     fi
 
-    # The <details> blocks open at this line. The fold check counts the content of a folded section up
-    # to the </details> that closes the block the section sits in, so a block nested in it ends nothing.
-    details_step "$line"
-    [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s|%s\n' "$number" "$DET_DEPTH"
-
     if [[ "$line" =~ ^[[:space:]]*\<summary\>\<strong\>(.+)\</strong\>\</summary\>[[:space:]]*$ ]]; then
       text="${BASH_REMATCH[1]}"
       in_merge_risk=0
@@ -749,6 +749,13 @@ scan_body() {
     next_block "$block" "$line" "$was_html"
     report_depth "$number" && return 0
     block="$NEXT_BLOCK"
+    # The <details> blocks open at this line, unless it opens a container: the text of an item or a quote
+    # is read by the stack. The fold check counts the content of a folded section up to the </details>
+    # that closes the block the section sits in, so a block nested in it ends nothing.
+    if [[ "$CS_N" -eq 0 ]]; then
+      details_step "$line"
+      [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s|%s\n' "$number" "$DET_DEPTH"
+    fi
     merge_risk_line "$in_merge_risk" "$line"
   done
 }
@@ -1472,6 +1479,24 @@ x')"
     "$(WALKTHROUGH="$(printf '<details>\n\n## Walkthrough\n\n%s\n\n</details>' "$f601")" render)" '"valid": true'
   scenario 'a Merge risk heading after a closed <details> is an open section' 0 \
     "$(printf 'Closes #42\n\n<details>\n<summary>Intro</summary>\n\nx\n\n</details>\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nok\n\n## Audit\n\nnone\n' "$risk_ok")" '"valid": true'
+
+  # Only a tag that renders opens a block: the text of a list item that names `<details>` and an inline code span do not.
+  # shellcheck disable=SC2016
+  scenario 'a <details> tag in the first line of a list item opens no block' 0 \
+    "$(SUMMARY='## Summary
+
+* a
+
+## Open decisions for the operator
+
+1. **Count:** the `<details>` opener above a summary is no content, and <details> is only named.' render)" '"valid": true'
+  # shellcheck disable=SC2016
+  scenario 'a <details> tag inside an inline code span opens no block' 0 \
+    "$(SUMMARY='## Summary
+
+Fold a section into a `<details>` block when it is long.' render)" '"valid": true'
+  scenario 'a <details> tag in a paragraph opens a block and folds the next heading' 3 \
+    "$(render "$(printf 'Intro <details>\n\n## Merge risk 🟡 medium\n\n%s\n\n</details>' "$risk_two_way")")" 'the Merge risk section is never folded'
 
   # A folded section ends at its own </details>: a block nested in it ends nothing.
   scenario 'a folded section with a nested <details> is counted to its own </details>' 0 \
