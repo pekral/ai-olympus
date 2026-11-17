@@ -478,7 +478,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the parts only some review runs need moved verbatim into five on-demand companions, and a pointer names
         // each one where it used to sit (issue #607).
         // Re-baselined: the operator-line pointer keeps the section's original name (issue #607, review round 1).
-        'rules/code-review/general.md' => '4ac24dbe115006832f7a915a5f73194b7ea2378ffc2638137d4b1db42be0bad5',
+        'rules/code-review/general.md' => '272c53e54be2408aec2e9b9943bc783a9afa61adc19f6d4e64c5398734f0be34',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
