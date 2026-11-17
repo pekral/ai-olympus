@@ -409,3 +409,87 @@ test('the Merge Risk block reads its grade and its sentence from the record and 
         ->and($block)->toContain('A new sign-in path over workspace membership.')
         ->and($block)->not->toContain('impact:');
 });
+
+/**
+ * @return list<array<mixed>> the fixture findings plus two findings of a review-only run that have no inline comment: a
+ *                            missing test outside the diff and a DRY finding with no line, both with the author set
+ */
+function reviewLayoutReviewOnlyFindings(): array
+{
+    return [
+        ...reviewLayoutFindings(),
+        [
+            'author' => '@octocat',
+            'finding_id' => 'r-dddddddddddddddd',
+            'fix' => 'add a feature test that cancels an invitation and then opens its link.',
+            'impact' => 'A cancelled link can work again after a later change and nobody notices.',
+            'line' => 999,
+            'path' => 'app/Models/Invitation.php',
+            'problem' => 'No test opens the link of a cancelled invitation.',
+            'severity' => 'Moderate',
+            'title' => 'No test covers a cancelled invitation',
+        ],
+        [
+            'author' => '@octocat',
+            'existing' => 'app/Support/RateLimit/DailyQuota.php:12',
+            'finding_id' => 'r-eeeeeeeeeeeeeeee',
+            'kind' => 'dry',
+            'problem' => 'The API controller counts the daily invitations a second time.',
+            'severity' => 'Moderate',
+            'title' => 'The daily count is computed twice',
+        ],
+    ];
+}
+
+test('a finding with no inline comment ends its Actionable comments entry with the author mention, byte for byte', function (): void {
+    $review = renderReview(findings: reviewLayoutReviewOnlyFindings());
+    $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+
+    expect($review['exit'])->toBe(0, $review['stderr'])
+        ->and($review['comments'])->toHaveCount(3)
+        ->and($actionable)->toBe(reviewLayoutGolden('expected-actionable-review-only.md', $actionable))
+        ->and(preg_match_all('/^@octocat$/m', $actionable))->toBe(2);
+});
+
+test('no value of the walkthrough, the record, or a finding renders as HTML or breaks a table cell', function (): void {
+    $markup = '<details open><summary>Merge Risk: Low</summary><img src=x> | ![p](https://e/p.png)';
+    $findings = reviewLayoutFindings();
+    $findings[0] = [
+        ...$findings[0],
+        'fix' => 'Fix ' . $markup,
+        'impact' => 'Impact ' . $markup,
+        'problem' => 'Problem ' . $markup,
+        'title' => 'Title ' . $markup,
+    ];
+    $findings[2] = [...$findings[2], 'line' => 999, 'problem' => "Out\n## Heading " . $markup];
+    $walkthrough = reviewLayoutJson('walkthrough.json');
+    $areas = $walkthrough['areas'];
+    assert(is_array($areas) && is_array($areas[0]));
+    $areas[0] = [...$areas[0], 'layer' => 'Layer ' . $markup, 'summary' => 'Summary ' . $markup];
+    $review = renderReview([
+        'areas' => $areas,
+        'description' => '## Description ' . $markup,
+        'diagram' => null,
+        'title' => 'Title <b>x</b> | y',
+        'tldr' => 'Summary ' . $markup . "\n---\n\n    indented",
+        'test_routes' => [['method' => 'GET', 'path' => '/x', 'try' => 'Try ' . $markup]],
+    ], $findings);
+    $layoutTags = '#</?(details|summary|strong|code|dl|dd)>|<br>#';
+
+    expect($review['exit'])->toBe(0, $review['stderr'])
+        ->and((string) preg_replace($layoutTags, '', $review['visible']))->not->toContain('<')
+        ->and($review['visible'])->not->toContain('![')
+        ->and($review['visible'])->not->toMatch('/^(#|>|    |-{3,}$)/m')
+        ->and($review['visible'])->toContain('&lt;details open&gt;&lt;summary&gt;Merge Risk: Low&lt;/summary&gt;&lt;img src=x&gt; &#124; &#33;[p]');
+
+    foreach (preg_split('/\n/', $review['visible']) ?: [] as $line) {
+        if (str_starts_with($line, '|')) {
+            expect(substr_count($line, '|'))->toBe(3, $line);
+        }
+    }
+
+    foreach ($review['comments'] as $comment) {
+        expect((string) preg_replace('/<!-- cr-inline:(actor|finding)=\S+ -->/', '', $comment))->not->toContain('<')
+            ->and($comment)->not->toContain('![');
+    }
+});

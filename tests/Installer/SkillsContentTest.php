@@ -1648,10 +1648,7 @@ test('postgres-patterns carries a read-only MODE=cr contract so the CR can invok
         . 'never run fixers or checkers, and never chain a follow-up review.**',
     );
     expect($content)->toContain('for the CR to fold into its single `## Database Analysis` section');
-    expect($content)->toContain(
-        'is emitted as a written proposal in plain sentences that names the table, the columns, and the change, '
-        . 'with no SQL, no query-builder snippet, and no fenced block',
-    );
+    expect($content)->toContain('is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project');
 
     // The engine gate in the code-review rule redirects a PostgreSQL migration here, so the CR half
     // has to state the Postgres fix and rule out the MySQL one it would otherwise inherit.

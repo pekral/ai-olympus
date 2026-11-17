@@ -465,7 +465,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a round past the cap is never light, the light history scan keeps the whole PR range, and only krang's own `review depth:` line counts (issue #599, review round 1).
         // Re-baselined: every review range names the dispatched `<head SHA>`, never the symbolic `HEAD` of the tree the command runs in (issue #599, review round 2).
         // Re-baselined: the visible review body has one owner, `review-body.md`, and a review carries no code (issue #595).
-        'rules/code-review/general.md' => 'd8219be049ae3f6d093ca98398f63efcf159fb17cff0a2ec00ecf9281cad6b43',
+        // Re-baselined: the code ban covers the published review outputs only, rules keep their code examples, and the entry of a
+        // finding with no inline comment carries the author mention (issue #595, fix round 1).
+        'rules/code-review/general.md' => '479b4937121ad0a0e13b5dbffa343c11b635ea303bfbacbb9557ac9abb6a1ae0',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -578,7 +580,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: every tracker output is rendered from a template (issue #499).
         // Re-baselined: the GitHub code review is one pull-request review with a hidden record (issue #522).
         // Re-baselined: the JIRA length note points to the pull-request length limit instead of saying the description has no cap (PR #524).
-        'rules/reports/general.md' => '5576b0cd49fbb30c92440c5657733d2bd60143f806343287619372d123879df6',
+        // Re-baselined: the GitHub exception names the visible body of `review-body.md` instead of the visible lines (issue #595).
+        'rules/reports/general.md' => '6c7763008971bcab80b92e37509087a5b020bb5cdf82aa15b2069a3c88fdc823',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

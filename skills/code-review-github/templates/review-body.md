@@ -12,7 +12,9 @@
 > - **The Merge Risk grade and its sentence** come from the `Merge risk:` line of the hidden record, the one owner of both (`@rules/code-review/general.md` *Merge risk*). The block adds the colour (🟢 low, 🟡 medium, 🔴 high) and the short SHA of the reviewed head.
 > - **The Actionable comments** come from the findings file: one entry for every published finding, Critical first. A finding that anchors to a changed line also has its inline comment (`templates/inline-review-comment.md`). A security finding marked `do not file publicly` on a public repository is in no block (the check of `@skills/code-review-github/references/cr-wrapper-contract.md` *Inline review comments*).
 >
-> **The summary holds at most 4,000 characters.** The wrapper counts code points of the normalised text (control characters removed, the text trimmed, `<!--` and `-->` neutralised) and refuses a longer text with exit `1` and nothing posted. It never cuts a text. The author rewrites the summary shorter and publishes again. The summary is plain sentences: no line of it starts with `#`, `>`, `|`, or `<`.
+> **The summary holds at most 4,000 characters.** The wrapper counts code points of the normalised text (control characters removed, the text trimmed, and encoded as *Every value renders as text* states) and refuses a longer text with exit `1` and nothing posted. It never cuts a text. The author rewrites the summary shorter and publishes again. The summary is plain sentences: no line of it starts with `#`, `>`, `|`, or `<` once the control characters are removed.
+>
+> **Every value renders as text.** The wrapper encodes each value from the walkthrough, the record, and the findings once, before it renders it: `&`, `<`, `>`, `|`, and `\` become HTML entities, `![` loses its image markup, and a line loses its indent, a leading `#`, and a run of `-`, `=`, `*`, or `_`. No value renders as HTML, an image, a table cell break, a heading, or a code block. A file name or a path that holds such a character shows the entity in its code span. The mermaid diagram is the one value rendered as written, inside its fence.
 >
 > **Name no tooling of this package.** Every visible text follows `@rules/code-review/general.md` *Visible review text names none of the package's own tooling*. The wrapper checks the summary, the Merge Risk sentence, the Walkthrough, Where to test, the Actionable comments, and every inline comment.
 
@@ -98,5 +100,6 @@ sequenceDiagram
 - **The Where to test table has one row for each route, and `{METHOD}` is GET, POST, PUT, PATCH, or DELETE.** The whole block is left out when the change touches no page or route.
 - **The sequence diagram renders only when the change has a flow worth drawing.** The walkthrough sets `diagram` for it and leaves it out otherwise, and the heading and the fence go with it.
 - **A finding with no line has no `· {file:line}` place.** A functional gap is one.
+- **An entry ends with the `@login` mention line when the finding sets `author` and has no inline comment** (a missing-test or DRY finding of a review-only run outside the diff). A finding with an inline comment carries the mention there only.
 - **A DRY finding's `Fix:` names the existing implementation** when the finding sets no `fix` of its own.
 - **The entries are numbered for each severity**, in the order of the findings file.

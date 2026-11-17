@@ -29,7 +29,9 @@
 #                                          and never holds code: no fenced block
 #                    kind                  optional, `dry`: a DRY / reuse finding, always Moderate
 #                    existing              required on a `dry` finding, `<path>:<line>` of the existing implementation
-#                    author                optional `@login` of the pull request author; rendered as a mention line
+#                    author                optional `@login` of the pull request author; rendered as the last line of the
+#                                          inline comment, or of the Actionable comments entry of a finding with no
+#                                          inline comment
 #                    do_not_file_publicly  optional boolean; a security finding that must not reach a public repository
 #                    rule, provenance, evidence, expected_behavior, test_hint, answered
 #                                          optional text (4000 characters at most); accepted and never rendered: the
@@ -71,8 +73,10 @@
 #   3. Read the visibility of the repository with `gh repo view --json isPrivate`. Only the value `true` is private:
 #      anything else, a failed check included, is public. On a public repository a finding marked
 #      `do_not_file_publicly` is withheld: it is in no inline comment and in no line of the Actionable comments block,
-#      and not in its count. A record that names a withheld finding (its finding id or its title) is refused, nothing is
-#      posted (exit 1): hidden HTML is public too.
+#      and not in its count. A record, a walkthrough, or a published finding that names a withheld finding (its finding id
+#      or its title) is refused, nothing is posted (exit 1): hidden HTML is public too. The check reads the decoded string
+#      values of the JSON inputs and compares one scan key (control and invisible format characters removed, case folded,
+#      whitespace collapsed), so a JSON escape or a zero-width character hides no title.
 #   4. Read the changed lines of the pull request. A finding whose line (or any line of its range) is not in the diff,
 #      or that has no line, is reported as `outside_diff`: it has no inline comment, because GitHub rejects the whole
 #      review for one comment off the diff, and it stays in the Actionable comments block.
@@ -96,6 +100,11 @@
 #   `<!-- cr-inline:actor=<login> -->` and `<!-- cr-inline:finding=<finding id> -->`. The first is an agent marker in the
 #   sense of `rules/code-review/general.md` *Authorship trust*: a reader never takes the comment as a trusted reviewer
 #   request. The icon is 🔴 for Critical and 🟠 for Moderate.
+#   Every value the body or an inline comment renders goes through one encoder (`inert` in JQ_DEFS): `&`, `<`, `>`, `|`,
+#   and `\` become HTML entities, `![` loses its image markup, and a line loses its indent, a leading `#`, and a run of
+#   `-`, `=`, `*`, or `_`. No value renders as HTML, an image, a table cell break, a heading, or a code block. The checks
+#   of the walkthrough and the findings (line starts, fences, the diagram comment marker) read the text after the control
+#   characters are removed. The mermaid diagram is the one value rendered as written, inside its fence.
 #   The body shows nothing but the layout of templates/review-body.md: the TL;DR, the Merge Risk block, the Walkthrough
 #   block, the Where to test block (only when `test_routes` is set), and (when a finding is published) the Actionable
 #   comments block, Critical first. It carries no CI
@@ -191,7 +200,20 @@ def req($c; $m): if $c then . else error($m) end;
 def isint: type == "number" and . == floor and . >= 1;
 def isstr($max): type == "string" and length >= 1 and length <= $max;
 def printable: explode | map(select((. >= 32 and . != 127) or . == 10 or . == 9)) | implode;
-def prose: printable | gsub("<!--"; "&lt;!--") | gsub("-->"; "--&gt;");
+# inert: the one encoder of every value the visible body or an inline comment renders. It removes the control
+# characters, encodes `&`, `<`, `>`, `|`, and `\` as HTML entities and `![` as `&#33;[`, and takes the markup off the
+# start of a line: the indent, a heading `#`, and a line made only of `-`, `=`, `*`, or `_`. No value then renders as
+# HTML, a comment marker, an image, a table cell break, a heading, a setext underline, or an indented code block.
+def inert: printable
+  | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\\|"; "&#124;") | gsub("\\\\"; "&#92;") | gsub("!\\["; "&#33;[")
+  | split("\n")
+  | map(sub("^[ \t]+"; "") | if test("^#") or test("^[-=*_][-=*_ \t]*$") then "&#\(explode[0]);" + .[1:] else . end)
+  | join("\n");
+# scan_key: the text the withheld-finding check compares, the same for a title and for every scanned value. It removes
+# the control characters and the invisible format characters (soft hyphen, zero-width space and joiners, word joiner,
+# byte order mark), folds the case, and collapses the whitespace.
+def scan_key: printable | explode | map(select(. != 173 and (. < 8203 or . > 8207) and . != 8288 and . != 65279)) | implode
+  | ascii_downcase | gsub("\\s+"; " ");
 def nocode: type == "string" and ((test("```|~~~")) | not);
 def relpath: type == "string" and isstr(500) and (startswith("/") | not) and (explode | all(. >= 32 and . != 127)) and ((split("/") | index("..")) == null);
 JQ
@@ -224,7 +246,7 @@ req(type == "array"; "the findings document must be a JSON array")
     | req(.kind != "dry" or (.fix | optstr); "fix must be 1 to 4000 characters when set")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
     | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
-    | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null)) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
+    | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null) | printable) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
     | req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule must not contain an agent marker")
     | req(.raised_by == null or .raised_by == "splinter" or .raised_by == "leonardo" or .raised_by == "both"; "raised_by must be splinter, leonardo, or both")
     | req(.level == null or (.severity == "Moderate" and (.level == "High" or .level == "Medium" or .level == "Low")); "level must be High, Medium, or Low and belongs to a Moderate")
@@ -232,17 +254,17 @@ req(type == "array"; "the findings document must be a JSON array")
     | {
         finding_id,
         severity,
-        title: (.title | prose),
-        title_key: (.title | printable | ascii_downcase | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")),
+        title: (.title | inert),
+        title_key: (.title | scan_key | ltrimstr(" ") | rtrimstr(" ")),
         path,
         line,
         start_line,
         side: (.side // "RIGHT"),
         kind,
-        existing: (.existing | if . == null then null else codespan | prose end),
-        problem: (.problem | prose),
-        impact: (.impact | if . == null then null else prose end),
-        fix: (.fix | if . == null then null else prose end),
+        existing: (.existing | if . == null then null else codespan | inert end),
+        problem: (.problem | inert),
+        impact: (.impact | if . == null then null else inert end),
+        fix: (.fix | if . == null then null else inert end),
         withhold: (.do_not_file_publicly == true),
         author
       }
@@ -308,7 +330,7 @@ IFS= read -r -d '' JQ_RISK <<'JQ' || true
   else
     (.rest | split(" · ") | .[0] | printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) as $sentence
     | if ($sentence | length) < 1 then error("the Merge risk line of the record holds no sentence")
-      else {grade, sentence: ($sentence | prose), icon: (if .grade == "low" then "🟢" elif .grade == "medium" then "🟡" else "🔴" end)}
+      else {grade, sentence: ($sentence | inert), icon: (if .grade == "low" then "🟢" elif .grade == "medium" then "🟡" else "🔴" end)}
       end
   end
 JQ
@@ -316,36 +338,36 @@ JQ
 # The data of the Walkthrough block, checked against the files of the pull request: a row names changed files only.
 IFS= read -r -d '' JQ_WALK <<'JQ' || true
 def oneline: printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
-def cell: oneline | prose | gsub("\\|"; "\\|");
+def cell: oneline | inert;
 def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
 | req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
 | req(.tldr | isstr(8000); "walkthrough tldr must be 1 to 4000 characters")
-| req(.tldr | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
+| req(.tldr | printable | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
 | req(.description | isstr(1500); "walkthrough description must be 1 to 1500 characters")
 | req(.title == null or (.title | isstr(100)); "walkthrough title must be 1 to 100 characters when set")
 | req(.test_routes == null or ((.test_routes | type) == "array" and (.test_routes | length) <= 30
     and (.test_routes | all(type == "object" and ((keys - ["method", "path", "try"]) | length) == 0
       and (.method | IN("GET", "POST", "PUT", "PATCH", "DELETE")) and (.path | isstr(200) and test("^/[^\\s`<>|]*$")) and (.try | isstr(200))))); "test_routes must hold at most 30 rows of a method (GET, POST, PUT, PATCH, DELETE), a path that starts with /, and a line on what to try")
-| req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .try)] | map(select(. != null)) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
+| req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .path, .try)] | map(select(type == "string") | printable) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
 | req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
     and ((.files | type) == "array") and (.files | length) >= 1 and (.files | length) <= 500 and (.files | all(relpath))); "every walkthrough area needs a layer, a summary, and 1 to 500 relative file paths")
 | req([.areas[].files[]] | all(. as $f | $changed[$f] == true); "a walkthrough area names a file that the pull request does not change")
 | req(.effort | type == "object" and ((keys - ["level", "minutes"]) | length) == 0 and (.level | isint) and .level <= 5 and (.minutes | isint) and .minutes <= 999; "walkthrough effort needs a level of 1 to 5 and minutes of 1 to 999")
 | req(.change_type as $c | ["Feature", "Bug fix", "Refactor", "Performance", "Security", "Tests", "Documentation", "Chore"] | any(. == $c); "walkthrough change_type must be Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, or Chore")
-| req(.diagram == null or (.diagram | type == "string" and length <= 4000 and test("^sequenceDiagram") and nocode and (test("<!--") | not) and ((split("\n") | length) <= 60)); "the walkthrough diagram must be a mermaid sequenceDiagram of 60 lines at most, with no fenced block and no comment marker")
+| req(.diagram == null or (.diagram | type == "string" and length <= 4000 and (printable | test("^sequenceDiagram") and nocode and (test("<!--") | not) and ((split("\n") | length) <= 60))); "the walkthrough diagram must be a mermaid sequenceDiagram of 60 lines at most, with no fenced block and no comment marker")
 | {
-    tldr: (.tldr | printable | gsub("^\\s+|\\s+$"; "") | prose),
+    tldr: (.tldr | printable | gsub("^\\s+|\\s+$"; "") | inert),
     title: (.title | if . == null then null else cell end),
-    description: (.description | oneline | prose),
+    description: (.description | oneline | inert),
     areas: [.areas[] | {layer: (.layer | cell), summary: (.summary | cell),
-        files: ((.files | length) as $n | (.files[0:4] | map("`" + gsub("`"; "") + "`") | join(", ")) + (if $n > 4 then " and \($n - 4) more" else "" end))}],
+        files: ((.files | length) as $n | (.files[0:4] | map("`" + (gsub("`"; "") | inert) + "`") | join(", ")) + (if $n > 4 then " and \($n - 4) more" else "" end))}],
     effort: "\(.effort.level) (\(.effort.level | level_name)) | ~\(.effort.minutes) minutes",
     change_type,
     diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
-    routes: [(.test_routes // [])[] | "| `\(.method) \(.path)` | \(.try | cell) |"]
+    routes: [(.test_routes // [])[] | "| `\(.method) \(.path | gsub("`"; "") | inert)` | \(.try | cell) |"]
   }
 | req((.tldr | length) >= 1 and (.tldr | length) <= 4000; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 4000, so write it shorter")
 JQ
@@ -362,12 +384,13 @@ def render:
     else ["\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", "**Fix:** \(.fix)"] end)
    + [(.author // empty), markers])
   | join("\n\n");
-def place: if .line == null then "" else " · `\(.path | gsub("`"; "")):\(.line)`" end;
+def place: if .line == null then "" else " · `\(.path | gsub("`"; "") | inert):\(.line)`" end;
 def fix_text: if .kind == "dry" then (.fix // "Use the existing implementation in `\(.existing)` instead of repeating the logic.") else .fix end;
-def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)";
+def mention: if .inline or .author == null then "" else "\n\(.author)" end;
+def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)\(mention)";
 def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<dl>\n<dd>\n<br>\n\n\($content)\n\n</dd>\n</dl>\n</details>";
 [.[] | select(.class == "post") | .f] as $posted
-| [.[] | select(.class != "withheld") | .f] as $listed
+| [.[] | select(.class != "withheld") | .f + {inline: (.class != "outside_diff")}] as $listed
 | ([$listed[] | select(.severity == "Critical")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $critical
 | ([$listed[] | select(.severity == "Moderate")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $moderate
 | ($critical + $moderate) as $entries
@@ -564,22 +587,26 @@ cmd_post() {
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
     --arg actor "$ACTOR" --argjson private "$private" "$JQ_AGENT"$'\n'"$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
 
-  # Hidden HTML is public, and the walkthrough is visible: a record or a walkthrough that names a withheld finding by its
-  # id or its title is refused.
+  # Hidden HTML is public, and the walkthrough and the other findings are visible: a record, a walkthrough, or a published
+  # finding that names a withheld finding by its id or its title is refused. The check reads the decoded string values
+  # of the JSON inputs, never their bytes, so a JSON escape (`\/`, `\"`, `\\`, `\uXXXX`) hides nothing, and it
+  # compares one scan key (scan_key) on both sides.
   local leaked
-  cat "$TMP_ROOT/meta.md" "$walk_file" >"$TMP_ROOT/leak-scan.txt"
-  leaked="$(jq -r --rawfile meta "$TMP_ROOT/leak-scan.txt" '
-    ($meta | ascii_downcase | gsub("\\s+"; " ")) as $m
-    | [.[] | select(.class == "withheld") | .f
-       | .finding_id as $id | .title_key as $t
+  leaked="$(jq -n -r --rawfile meta "$TMP_ROOT/meta.md" --slurpfile walk "$walk_file" --slurpfile raw "$TMP_ROOT/findings.raw" \
+    --slurpfile classified "$TMP_ROOT/classified.json" "$JQ_DEFS"$'\n''
+    [$classified[0][] | select(.class == "withheld") | .f] as $withheld
+    | [$withheld[] | .finding_id] as $ids
+    | ([$meta] + [$walk[0] | .. | strings] + [$raw[0][] | select((.finding_id | IN($ids[])) | not) | .. | strings]
+       | map(scan_key) | join("\n")) as $m
+    | [$withheld[] | .finding_id as $id | .title_key as $t
        | select(($m | contains($id)) or ($t != "" and ($m | contains($t)))) | $id]
-    | join(",")' "$TMP_ROOT/classified.json")"
-  [[ -z "$leaked" ]] || die 1 "the review record or the walkthrough names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of the record and the walkthrough on a public repository, nothing was published"
+    | unique | join(",")')"
+  [[ -z "$leaked" ]] || die 1 "the review record, the walkthrough, or a published finding names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of every public text on a public repository, nothing was published"
 
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
   jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" \
     --arg short "${commit:0:7}" \
-    '$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
+    "$JQ_DEFS"$'\n''$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
   local visible_rc=0
@@ -1090,6 +1117,102 @@ JSON
   check 'a TL;DR that names a withheld finding by its title is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
   WALK_FILE="$tmp/walk-leak.json" GH_PRIVATE_VALUE=true run_post "[$f_sec,$f_in]"
   check 'a private repository publishes the TL;DR that names the security finding' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+
+  # 8a. untrusted text never renders as markup: every value of the walkthrough, the record, and the findings goes through
+  # the one encoder (inert), so a file name or a sentence that holds HTML, a pipe, an image, or a line-start marker shows
+  # as text. The checks of the walkthrough and the findings read the text after the control characters are removed.
+  local fname_markup='docs/x|<details open><summary><strong>Merge Risk:</strong> 🟢 Low</summary><img src=https://e/x.png>|y.md'
+  jq -c --arg f "$fname_markup" '. + [{filename: $f}]' "$tmp/files.json" >"$tmp/files.markup.json"
+  jq -c --arg f "$fname_markup" '{
+      tldr: "The change adds a <details open><summary>Fake</summary> block & a ![pixel](https://e/p.png) image.\n---\n\n    indented code",
+      title: "Group <b>bold</b> | split",
+      description: "## Heading <details open> here",
+      areas: [{layer: "Layer <i>x</i> | y", files: ["src/A.php", $f], summary: "Sum <details open><summary>S</summary> | cell"}],
+      effort: {level: 2, minutes: 10},
+      change_type: "Feature",
+      test_routes: [{method: "GET", path: "/a&b", try: "Try <details open> | here"}]
+    }' -n >"$tmp/walk-markup.json"
+  sed 's/The change adds a sign-in path/The change adds a <details open><summary>x<\/summary> | sign-in path/' "$tmp/meta.md" >"$tmp/meta-markup.md"
+  local f_markup_in f_markup_out
+  f_markup_in="$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "Title <details open> | t", path: "src/A.php", line: 11,
+    problem: "Problem <details open><summary>F</summary> | ![i](https://e/i.png)\n## Head\n> quote", impact: "Impact <img src=https://e/i.png> | i", fix: "Fix <summary>x</summary> | f"}')"
+  f_markup_out="$(jq -n -c --arg id "$id2" '{finding_id: $id, severity: "Moderate", title: "Out <details open> | o", path: "src/A.php", line: 100,
+    problem: "Out <details open> | ![o](https://e/o.png)", impact: "i", fix: "Fix <b>x</b> | f"}')"
+  GH_FILES_FILE="$tmp/files.markup.json" WALK_FILE="$tmp/walk-markup.json" META_FILE="$tmp/meta-markup.md" run_post "[$f_markup_in,$f_markup_out]"
+  check 'a walkthrough, a record, and findings that hold markup are published as text' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  check 'the visible body holds no HTML tag but the tags of the layout' \
+    "$([[ "$(visible_of | sed -E 's#</?(details|summary|strong|code|dl|dd)>|<br>##g' | grep -c '<')" == "0" ]] && echo yes || echo no)"
+  check 'no inline comment holds an HTML tag but its two agent markers' \
+    "$(yes_if review_has '.comments | length == 1 and all(.body | gsub("<!-- cr-inline:(actor|finding)=[^ ]+ -->"; "") | contains("<") | not)')"
+  check 'every table row of the visible body keeps its own cells: a pipe in a value is encoded' \
+    "$([[ "$(visible_of | grep -E '^\|' | awk -F'|' 'NF != 4' | wc -l | tr -d ' ')" == "0" ]] && echo yes || echo no)"
+  check 'the file name shows its markup as encoded text in its code span' \
+    "$(visible_of | grep -qF 'docs/x&#124;&lt;details open&gt;&lt;summary&gt;' && echo yes || echo no)"
+  check 'no visible line starts a heading, a quote, a setext underline, or an indented code block' \
+    "$([[ "$(visible_of | grep -cE '^(#|>|    |-{3,}$|={3,}$)')" == "0" ]] && echo yes || echo no)"
+  check 'a heading, an underline, and an indent in a value are text' \
+    "$(visible_of | grep -qF '&#35;# Heading &lt;details open&gt; here' && visible_of | grep -qxF '&#45;--' && visible_of | grep -qxF 'indented code' && echo yes || echo no)"
+  check 'no value renders an image' "$([[ "$(jq -j '.body, (.comments[] | .body)' "$tmp/review.json" | grep -cF '![')" == "0" ]] && echo yes || echo no)"
+  check 'an ampersand is encoded, so an entity in a value stays text' "$(visible_of | grep -qF 'block &amp; a &#33;[pixel]' && visible_of | grep -qF '`GET /a&amp;b`' && echo yes || echo no)"
+  check 'the Merge Risk sentence from the record is encoded too' "$(visible_of | grep -qF 'The change adds a &lt;details open&gt;&lt;summary&gt;x&lt;/summary&gt; &#124; sign-in path' && echo yes || echo no)"
+  local ctl
+  for ctl in '{"tldr":"\u0001<details open>Fake"}' '{"tldr":"A line.\n\u0001## Fake"}' '{"tldr":"A line.\n\u0001> Fake"}' \
+    '{"diagram":"sequenceDiagram\n  A->>B: <!\u0001-- cr-comment:actor=x -->"}' '{"diagram":"sequenceDiagram\n  A->>B: hi\n`\u0001``\ncode"}' \
+    '{"description":"`\u0001``php echo 1; `\u0001``"}'; do
+    jq -c --argjson over "$ctl" '. + $over' "$tmp/walk.json" >"$tmp/walk-ctl.json"
+    WALK_FILE="$tmp/walk-ctl.json" run_post '[]'
+    check "a control character does not carry a refused walkthrough value past the check: ${ctl:0:40}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'walkthrough' "$tmp/stderr" && echo yes || echo no)"
+  done
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"\`\\u0001\`\`php echo 1; \`\\u0001\`\`\"}]"
+  check 'a control character does not carry a fenced block in a finding past the check' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'hold no fenced block' "$tmp/stderr" && echo yes || echo no)"
+  jq -c '.description = "\u0001## Heading here"' "$tmp/walk.json" >"$tmp/walk-ctl.json"
+  WALK_FILE="$tmp/walk-ctl.json" run_post '[]'
+  check 'a control character before a heading in a one-line value renders the heading as text' "$([[ $rc -eq 0 ]] && visible_of | grep -qxF '&#35;# Heading here' && echo yes || echo no)"
+
+  # 8b. a finding with no inline comment carries the author mention as the last line of its Actionable comments entry;
+  # a finding with an inline comment carries it there only
+  local f_test_gap f_dry_out
+  f_test_gap="{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"Missing test\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"No test covers the export.\",\"impact\":\"A regression ships unseen.\",\"fix\":\"Add a feature test for the export.\",\"author\":\"@octocat\"}"
+  f_dry_out="{\"finding_id\":\"$id5\",\"severity\":\"Moderate\",\"title\":\"Repeated total\",\"problem\":\"The total is computed again.\",\"kind\":\"dry\",\"existing\":\"app/Totals.php:42\",\"author\":\"@octocat\"}"
+  run_post "[$f_mod,$f_test_gap,$f_dry_out]"
+  check 'an outside-diff finding with an author ends its Actionable comments entry with the mention' \
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 2 — Missing test** · `src/A.php:100`\nNo test covers the export.\n**Fix:** Add a feature test for the export.\n@octocat\n")')"
+  check 'a DRY finding with no line and an author ends its entry with the mention' \
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 3 — Repeated total**\nThe total is computed again.\n**Fix:** Use the existing implementation in `app/Totals.php:42` instead of repeating the logic.\n@octocat\n")')"
+  check 'a finding with an inline comment carries the mention in the comment and not in its entry' \
+    "$(yes_if review_has '(.body | contains("**Fix:** Load the rows with one query.\n\n")) and (.comments[0].body | contains("\n\n@octocat\n\n"))')"
+  check 'the visible body mentions the author once for each finding with no inline comment' \
+    "$([[ "$(visible_of | grep -cxF '@octocat')" == "2" ]] && echo yes || echo no)"
+
+  # 8c. the withheld-finding check reads the decoded string values: a JSON escape hides no title, in any field of the
+  # walkthrough or in another published finding
+  local f_wh wfield
+  f_wh="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Guest reaches the \"export\" page at /admin\\export", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f", do_not_file_publicly: true}')"
+  local esc='Guest reaches the \"export\" page at \/admin\\export'
+  for wfield in tldr description title summary try; do
+    case "$wfield" in
+      tldr) printf '{"tldr":"Note: %s.","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' "$esc" ;;
+      description) printf '{"tldr":"t","description":"%s","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' "$esc" ;;
+      title) printf '{"tldr":"t","title":"%s","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' "$esc" ;;
+      summary) printf '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"%s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' "$esc" ;;
+      try) printf '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature","test_routes":[{"method":"GET","path":"/x","try":"%s"}]}' "$esc" ;;
+    esac >"$tmp/walk-escaped.json"
+    WALK_FILE="$tmp/walk-escaped.json" GH_PRIVATE_VALUE=false run_post "[$f_wh,$f_in]"
+    check "a walkthrough $wfield that names a withheld title through JSON escapes is refused and nothing is posted" \
+      "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
+  done
+  printf '{"tldr":"Note: %s.","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' "$esc" >"$tmp/walk-escaped.json"
+  WALK_FILE="$tmp/walk-escaped.json" GH_PRIVATE_VALUE=true run_post "[$f_wh,$f_in]"
+  check 'a private repository publishes the escaped walkthrough that names the security finding' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  printf '{"tldr":"Note: Guest\\u200b reaches the \\"export\\" page at /admin\\\\export.","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' >"$tmp/walk-escaped.json"
+  WALK_FILE="$tmp/walk-escaped.json" GH_PRIVATE_VALUE=false run_post "[$f_wh,$f_in]"
+  check 'a zero-width character inside a withheld title does not hide it' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
+  local f_names_wh
+  f_names_wh="$(jq -n -c --arg id "$id2" '{finding_id: $id, severity: "Moderate", title: "Related", path: "src/A.php", line: 100, problem: "See GUEST reaches  the \"export\" page at /admin\\export.", impact: "i", fix: "f"}')"
+  GH_PRIVATE_VALUE=false run_post "[$f_wh,$f_names_wh]"
+  check 'a published finding that names a withheld title is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
+  GH_PRIVATE_VALUE=false run_post "[$f_wh,$f_in]"
+  check 'a walkthrough and findings that do not name the withheld finding are published' "$([[ $rc -eq 0 ]] && out_has ".withheld[0].finding_id == \"$id3\"" && echo yes || echo no)"
 
   # 9. a failed write exits 3 and leaves a note line, never an external-write line
   run_post "[$f_in]" GH_POST_FAILS=1
