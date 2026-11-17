@@ -1048,6 +1048,15 @@ function packageSource(string $relativePath): string
 }
 
 /**
+ * The content of one package file with every run of whitespace collapsed to one space, so a pin
+ * never depends on where a Markdown paragraph wraps.
+ */
+function normalizedPackageSource(string $relativePath): string
+{
+    return (string) preg_replace('/\s+/', ' ', packageSource($relativePath));
+}
+
+/**
  * The four groups of *Skills deliberately not run*
  * (`skills/code-review/references/specialized-reviews.md`), keyed by group number, each holding the
  * skill names its bullets classify. Only the lead of a bullet — everything before the em-dash that

@@ -285,7 +285,7 @@ CORE_RE="$INFRA_RE"'|serviceprovider|(^|/)bootstrap/|(^|/)routes/|kernel\.php$|(
 # assignment as unclear. The business-only headings of
 # rules/compound-engineering/assignment.md count only as a heading ('#' or bold
 # before them), so ordinary prose such as "breaks the rules" keeps the point.
-AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|(#|\*\*)[[:space:]]*(the rules|what the user must be able to do|pravidla|co musí uživatel umět)|- \[ \]'
+AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|(#|\*\*)[[:space:]]*('"$ASSIGNMENT_BUSINESS_HEADINGS_RE"')|- \[ \]'
 
 # Rollback signals of the merge-risk mode. They are matched against the lower-cased
 # added lines of a unified diff, one line at a time, in documentation and test
@@ -311,10 +311,10 @@ LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permission
 lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 # Print the lower-cased assignment text without the parts that only quote or
-# illustrate a word (see *Assignment text* above). The lines of a fence that never
-# closes are printed at the end, so an unclosed fence hides nothing.
+# illustrate a word (see *Assignment text* above). `strip_assignment_fences`
+# (domain-vocabulary.sh) removes the fenced blocks first and keeps an unclosed fence as text.
 assignment_prose() {
-  printf '%s\n' "$1" | awk '
+  printf '%s\n' "$1" | strip_assignment_fences | awk '
     BEGIN { marker = "^(examples?|e\\.g\\.|for example|for instance|např\\.|například|příklad|ukázka)([^a-z]|$)" }
     function prose(raw,    line, title, out, rest, span) {
       if (raw ~ /^[[:space:]]*>/) { return }
@@ -341,18 +341,7 @@ assignment_prose() {
       }
       print out rest
     }
-    match($0, /^[[:space:]]*(```|~~~)/) {
-      mark = substr($0, RSTART + RLENGTH - 3, 3)
-      if (fence == "") { fence = mark; held = 0 } else if (mark == fence) { fence = "" }
-      next
-    }
-    fence != "" { held++; buffer[held] = $0; next }
     { prose($0) }
-    END {
-      if (fence != "") {
-        for (i = 1; i <= held; i++) { prose(buffer[i]) }
-      }
-    }
   '
 }
 

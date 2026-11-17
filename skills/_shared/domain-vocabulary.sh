@@ -8,6 +8,12 @@
 # what an auth, a data-loss, or a concurrency signal is, so the word lists
 # exist here once. A word added here changes both verdicts.
 #
+# It also holds the two parts of reading an assignment text that `classify-risk.sh`
+# and `count-assignment.sh` share: the names of the business-only headings
+# (ASSIGNMENT_BUSINESS_HEADINGS_RE) and the fence filter (`strip_assignment_fences`).
+# Both sit here, in a file the trusted copy of `classify-risk.sh` already verifies, so
+# the merge path needs no new sibling.
+#
 # Every pattern is lower case. The caller lower-cases its input and matches it
 # one line at a time, so `(^|/)` and `$` anchor to one path or one line.
 # Words only one caller needs stay in that caller.
@@ -26,3 +32,31 @@ AUTH_RE='auth|login|logout|password|credential|secret|token|jwt|oauth|saml|sessi
 DATA_PATH_RE='migration[^/]*/|(^"?|/)[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]_[^/]*\.php"?$|(^"?|/)version[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]+\.php"?$|\.sql"?$|(^"?|/)schema[./]|truncate|drop_'
 DATA_RE="$DATA_PATH_RE|migration"
 QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|lock|mutex|semaphore|concurren|cache|redis|schedul|cron|broadcast'
+
+# The names of the business-only headings of an assignment, in both project languages
+# (rules/compound-engineering/assignment.md). `classify-risk.sh` reads them as a heading
+# that states what "done" means, and `count-assignment.sh` reads them as the sections whose
+# bullets are the criteria. Lower case, and a whole heading name each.
+ASSIGNMENT_BUSINESS_HEADINGS_RE='the rules|what the user must be able to do|pravidla|co musí uživatel umět'
+
+# strip_assignment_fences — read an assignment text on stdin and print it without its fenced
+# code blocks. A fence opens with a line of three backticks or three tildes and closes with
+# the same mark. The marker lines and the lines between them are dropped. A fence that never
+# closes is not a fence: its lines are printed at the end, which is their own position, so an
+# unclosed fence hides nothing.
+strip_assignment_fences() {
+  awk '
+    match($0, /^[[:space:]]*(```|~~~)/) {
+      mark = substr($0, RSTART + RLENGTH - 3, 3)
+      if (fence == "") { fence = mark; held = 0 } else if (mark == fence) { fence = "" }
+      next
+    }
+    fence != "" { held++; buffer[held] = $0; next }
+    { print }
+    END {
+      if (fence != "") {
+        for (i = 1; i <= held; i++) { print buffer[i] }
+      }
+    }
+  '
+}

@@ -87,7 +87,7 @@ Record each key with its evidence under `## Ordering keys`.
 | --- | --- |
 | priority | The `priority:` label of a reused issue. Otherwise the derivation of `@skills/github-issue-triage/SKILL.md` *Priority derivation* from the conventional-commits prefix of the title. A reused issue with neither is `low`, and the brief records `untriaged`. |
 | difficulty | The `tier` of `skills/_shared/classify-risk.sh --assignment <the text of the item>`, with `--files` from the item's *files* key when it is non-empty. Record the `signal=` lines. |
-| duration | Method `files-and-criteria`: the number of distinct files the instructions of the item name plus the number of its business rules (each rule of *The rules* and each behaviour of *What the user must be able to do*). It is a count read from the text, not a time. |
+| duration | Method `files-and-criteria`: the `count=` line of `skills/_shared/count-assignment.sh --assignment <a file holding the text of the item>`. The script owns the definition: the distinct files the text names plus its criteria. `@skills/github-issue-triage/SKILL.md` *Effort derivation* reads the same line. It is a count read from the text, not a time. |
 | depends-on | The `## Dependencies` section of the item, mapped to item ids. A dependency outside the queue is already done. |
 | files | The paths the instructions of the item name (the issue text names none), each confirmed with `git ls-files`. An item whose instructions name no file keeps the list empty, which keeps it out of every parallel batch. |
 
