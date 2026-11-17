@@ -10,6 +10,8 @@ This file is one of the three that make up the code-review rule set, alongside `
 
 The walk-through below is applied by `@skills/code-review/SKILL.md` (and through it by every CR wrapper), which references each section by name. Apply every bullet to the PR diff exactly as if it were inline in the review skill.
 
+**A literal Suggested Fix template below is a handoff instruction.** Its text, code included, is the fix instruction that the review handoff carries to the fixing agent. The published `Suggested Fix` and `**Fix:**` field states the same fix as a plain sentence with no code (`@rules/code-review/general.md` *A review carries no code*).
+
 ## Core Analysis Walk-through
 
 - Reuse of existing logic — apply the **reuse-first gate**: for every block of newly added or modified logic in the diff, first decide whether the new logic is necessary to satisfy the assignment at all (an existing helper / Service / Action / Data Builder / DTO / trait / ModelManager / Repository / scope may already fulfil the requirement — wiring it up is the fix and the net-new logic is the finding), then, when some logic is genuinely needed, search the codebase for an existing implementation that already does the same thing. If equivalent logic already exists, flag the change and require reusing it instead of introducing a parallel implementation. The goal is unified logic across the application;

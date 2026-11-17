@@ -166,6 +166,13 @@ test('rules and lens skills keep their code examples for the agents that generat
 
     expect($coreAnalysis)->toContain('`scopeEnabled(Builder $query): Builder => $query->where(\'status\', Status::Active)`')
         ->and($coreAnalysis)->toContain('**Expected Behavior:** `return $this->repository->findActive($customerId);`.')
+        ->and($coreAnalysis)->toContain(
+            '**A literal Suggested Fix template below is a handoff instruction.** Its text, code included, is the fix instruction that the '
+            . 'review handoff carries to the fixing agent. The published `Suggested Fix` and `**Fix:**` field states the same fix as a plain '
+            . 'sentence with no code (`@rules/code-review/general.md` *A review carries no code*).',
+        )
+        ->and(substr_count($coreAnalysis, 'is a handoff instruction.'))->toBe(1)
+        ->and(strpos($coreAnalysis, 'is a handoff instruction.'))->toBeLessThan((int) strpos($coreAnalysis, '**Suggested Fix:** `In'))
         ->and(reviewLayoutRepoFile('skills/mysql-patterns/SKILL.md'))->toContain(
             'is emitted as a written proposal carrying a concrete SQL / query-builder snippet, never applied to the project. '
             . 'The snippet reaches the fixing agent through the review handoff only; the published review states the proposal in plain sentences',
