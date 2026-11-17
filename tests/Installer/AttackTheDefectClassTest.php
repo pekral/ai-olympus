@@ -19,7 +19,10 @@ function attackClassSection(string $content, string $heading): string
 
 function attackClassNamesGitStash(string $content): bool
 {
-    return preg_match('/\bgit\b(?:\s+-C\s+\S+)?\s+stash\b/i', $content) === 1;
+    $value = '(?:"[^"]*"|\'[^\']*\'|\S+)';
+    $globalOption = '(?:-C\s+' . $value . '|-[A-Za-z]+|--[a-z][a-z-]*(?:=' . $value . '|\s+' . $value . ')?)';
+
+    return preg_match('/\bgit\b(?:\s+' . $globalOption . ')*\s+stash\b/i', $content) === 1;
 }
 
 /**
@@ -68,10 +71,15 @@ test('the pre-fix attack run swaps the fix out of its own working tree only (iss
     expect($section)
         ->toContain('needs no swap.')
         ->toContain('Run the swap before you commit the fix, while `HEAD` still holds the code before the fix')
-        ->toContain('never touch a ref that another worktree or session reads.')
-        ->toContain('Copy every fixed source file, tracked and new, into the run\'s own scratch directory,')
+        ->toContain('never touch a ref or a directory that another worktree or session reads or writes.')
+        ->toContain('   1. Create a fresh directory for this swap with `mktemp -d`, and never reuse one that an earlier swap or another unit created.')
+        ->toContain('`mktemp -d <worktree>/.claude/run/attack/XXXXXXXX`')
+        ->toContain('Copy every fixed source file, tracked and new, into that directory, each at its repository-relative path,')
+        ->toContain('Copy every file back from the swap directory only,')
+        ->toContain('When the check fails, stop `Blocked` and commit nothing: the swap directory keeps the fix for recovery.')
+        ->toContain('Delete the swap directory after the check passes.')
         ->toContain('`git restore --source=HEAD --worktree -- <the fixed tracked files>`')
-        ->toContain('move the new files out of the working tree into the scratch directory.')
+        ->toContain('move the new files out of the working tree into the swap directory.')
         ->toContain('confirm that the `git diff` of the fixed tracked files equals the saved diff and that each new file matches its copy.');
 });
 
@@ -175,9 +183,16 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'another worktree' => ['git -C "$worktree" stash push'],
     'bare command in a code span' => ['take the fix out with `git stash`'],
     'double space' => ['git  stash push'],
+    'git dir with a blank' => ['git --git-dir /srv/repo stash push'],
+    'no pager' => ['git --no-pager stash pop'],
     'pop' => ['then git stash pop'],
     'push of a path' => ['run `git stash push -- src/Fix.php` first'],
+    'quoted path with a blank' => ['git -C "my dir" stash pop'],
+    'short pager option' => ['git -P stash pop'],
+    'single-quoted path with a blank' => ['git -C \'my dir\' stash pop'],
+    'two paths' => ['git -C a -C b stash pop'],
     'upper case' => ['GIT STASH APPLY'],
+    'work tree with an equals sign' => ['git --work-tree=. stash push'],
 ]);
 
 test('the git stash detector ignores a prohibition that names no git command (issue #608)', function (): void {
