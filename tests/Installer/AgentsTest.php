@@ -335,9 +335,9 @@ test('krang repairs an unmet code-review merge gate instead of escalating it', f
     // The repaired gate is re-checked against the post-fix content, since fixes can change it.
     expect($krang)->toContain('Recompute the fingerprint after fixes');
 
-    // The repair never becomes a licence to merge unreviewed, and a non-converging loop still escalates.
+    // The repair never becomes a licence to merge unreviewed, and a non-converging loop still waits for the user's decision.
     expect($krang)->toContain('never a reason to merge without one');
-    expect($krang)->toContain('Escalate to the user only when the repair loop itself cannot converge');
+    expect($krang)->toContain('only when the repair loop itself cannot converge');
 });
 
 test('krang requires a verified JIRA self-assignment before implementation', function (): void {
@@ -2342,7 +2342,7 @@ test('krang anchors run cleanup to every terminal path instead of the step-7 num
     expect($content)->toContain('this instance did acquire the lock earlier in this step, so it is the one that must give it back');
 
     // Step 6's non-convergence hard stop cleans up too, CR worktree included.
-    expect($content)->toContain('Run *Run cleanup* before escalating');
+    expect($content)->toContain('Run *Run cleanup* before telling the user');
     expect($content)->toContain('any CR worktree `leonardo` or `splinter` recorded in its handoff');
 
     // No remaining cross-reference binds cleanup to the step number as its only anchor.
