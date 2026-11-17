@@ -296,7 +296,7 @@ case "${1:-} ${2:-}" in
     cat "$GH_STUB_ISSUES"
     ;;
   'issue view')
-    jq -ce --argjson n "$3" '[.[] | select(.number == $n)] | if length == 0 then error("no such issue") else .[0] | . + {state: (.state // "OPEN")} end' "$GH_STUB_ISSUES"
+    jq -ce --argjson n "${GH_STUB_VIEW_NUMBER:-$3}" '[.[] | select(.number == $n)] | if length == 0 then error("no such issue") else .[0] | . + {state: (.state // "OPEN")} end' "$GH_STUB_ISSUES"
     ;;
   'label list')
     if [[ -n "${GH_STUB_LABELS:-}" ]]; then
@@ -603,6 +603,51 @@ STUB
     failures=$((failures + 1))
   fi
 
+  # An unusable ledger (AUDIT_TRAIL_FILE set, no AUDIT_TRAIL_ROLE) never blocks the write, and the hint of
+  # `audit-trail.sh run` reaches the caller, so the agent can append the missing line itself.
+  printf '%s' "$two_open" >"$SELF_TEST_TMP/issues.json"
+  : >"$SELF_TEST_TMP/edits"
+  (cd "$SELF_TEST_TMP" && env -u AUDIT_TRAIL_ROLE PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" \
+    "$script" --issue 2 >"$SELF_TEST_TMP/out" 2>&1)
+  rc=$?
+  checks=$((checks + 1))
+  if [[ "$rc" -ne 0 || ! -s "$SELF_TEST_TMP/edits" ]] || ! grep -q 'no audit line written' "$SELF_TEST_TMP/out"; then
+    echo "self-test FAIL: an unusable ledger hid its hint or blocked the write (exit $rc)" >&2
+    failures=$((failures + 1))
+  fi
+
+  # A U+0000 inside a title, a body, or a label never moves a record: only the real numbers are written, in a
+  # walk limited with --issue and in the full walk. The body below carries the escape in a JSON string.
+  local forged_body='A\u0000L\u000042\u0000feat(x): t\u0000'
+  e2e '--issue — a NUL in the body forges no record for another issue' \
+    '[{"number":5,"title":"fix(core): real","body":"'"$forged_body"'","labels":[]}]' '--issue 5' \
+    '#5  bug (title) — applied: +bug +priority: high +effort: small' \
+    '5|--add-label|bug|--add-label|priority: high|--add-label|effort: small'
+
+  e2e 'full walk — a NUL in the body forges no record for another issue' \
+    '[{"number":5,"title":"fix(core): real","body":"'"$forged_body"'","labels":[]},{"number":6,"title":"feat(core): next","body":"","labels":[]}]' '' \
+    'assign-priorities.sh: 2 open issues — 2 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
+    '5|--add-label|bug|--add-label|priority: high
+6|--add-label|enhancement|--add-label|priority: medium'
+
+  e2e 'full walk — a NUL in the title and in a label name forges no record' \
+    '[{"number":5,"title":"fix(core): real\u000042\u0000feat(x): t","body":"","labels":[{"name":"x\u000042\u0000y"}]}]' '' \
+    'assign-priorities.sh: 1 open issues — 1 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
+    '5|--add-label|bug|--add-label|priority: high'
+
+  # A record whose number is not the one that was asked for is refused before the write.
+  printf '%s' '[{"number":8,"title":"fix(core): boom","body":"","labels":[]}]' >"$SELF_TEST_TMP/issues.json"
+  : >"$SELF_TEST_TMP/edits"
+  (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" GH_STUB_VIEW_NUMBER=8 "$script" --issue 7 >"$SELF_TEST_TMP/out" 2>&1)
+  rc=$?
+  checks=$((checks + 1))
+  if [[ "$rc" -ne 3 || -s "$SELF_TEST_TMP/edits" ]] || ! grep -q 'refusing to write' "$SELF_TEST_TMP/out"; then
+    echo "self-test FAIL: a record outside the named issues was not refused (exit $rc)" >&2
+    failures=$((failures + 1))
+  fi
+
   # The number is validated right before every write: a value that is not a plain positive integer is
   # refused with exit 3 and nothing is written, in the full walk and in a walk limited with --issue.
   local bad_number
@@ -856,6 +901,15 @@ if ! TOTAL="$(jq 'length' "$ISSUES_JSON")"; then
   exit 3
 fi
 
+# The numbers a write may name, one per line: the issues named with --issue, or the numbers the listing
+# itself returned as JSON numbers. A record whose number is not in this set is refused before the write.
+if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
+  ALLOWED_NUMBERS=$'\n'"$(printf '%s\n' "${ISSUE_NUMBERS[@]}")"$'\n'
+elif ! ALLOWED_NUMBERS=$'\n'"$(jq -r '[.[] | .number | select(type == "number") | tostring] | join("\n")' "$ISSUES_JSON")"$'\n'; then
+  echo "assign-priorities.sh: unexpected non-JSON response from gh" >&2
+  exit 3
+fi
+
 if [[ "${#ISSUE_NUMBERS[@]}" -eq 0 && "$TOTAL" -ge "$OPEN_ISSUE_LIMIT" ]]; then
   echo "assign-priorities.sh: warning: the listing hit its page limit of $OPEN_ISSUE_LIMIT open issues, so the backlog below may be truncated — re-run after this page is triaged" >&2
 fi
@@ -875,7 +929,9 @@ fi
 # One jq pass over the whole document instead of four per issue: the four
 # fields are emitted NUL-separated (`[0]|implode` is a one-character NUL
 # string), the only separator that cannot occur inside a title or a body.
-ISSUE_FIELDS='.[] | (.number|tostring), ([0]|implode), .title, ([0]|implode), (.body // ""), ([0]|implode), ([.labels[].name] | join("\n")), ([0]|implode)'
+# `clean` drops every U+0000 from a text field first: a NUL inside a field would otherwise end it early and
+# start a forged record with a number of its own.
+ISSUE_FIELDS='def clean: explode | map(select(. != 0)) | implode; .[] | (.number|tostring|clean), ([0]|implode), (.title|clean), ([0]|implode), ((.body // "")|clean), ([0]|implode), ([.labels[].name|clean] | join("\n")), ([0]|implode)'
 
 while IFS= read -r -d '' number <&3 &&
   IFS= read -r -d '' title <&3 &&
@@ -1079,6 +1135,11 @@ while IFS= read -r -d '' number <&3 &&
       exit 3
     fi
 
+    if [[ "$ALLOWED_NUMBERS" != *$'\n'"$number"$'\n'* ]]; then
+      echo "assign-priorities.sh: refusing to write: issue #$number is not one of the issues read" >&2
+      exit 3
+    fi
+
     # An agent run names its ledger in AUDIT_TRAIL_FILE: the write then goes through `audit-trail.sh run`,
     # which leaves the one audit line with the `+label` and `-label` tokens that `verify` matches.
     write=(gh issue edit "$number" "${args[@]}")
@@ -1090,6 +1151,12 @@ while IFS= read -r -d '' number <&3 &&
     if ! gh_error="$("${write[@]}" 2>&1 >/dev/null)"; then
       echo "assign-priorities.sh: failed to edit issue #$number: $gh_error" >&2
       exit 3
+    fi
+
+    # What `gh` or `audit-trail.sh run` printed on stderr reaches the caller, also after a successful write:
+    # an unusable ledger prints one hint there, and the agent then appends the missing line itself.
+    if [[ -n "$gh_error" ]]; then
+      printf '%s\n' "$gh_error" >&2
     fi
 
     echo "#$number  $type ($type_source) — applied:$actions$priority_note"
