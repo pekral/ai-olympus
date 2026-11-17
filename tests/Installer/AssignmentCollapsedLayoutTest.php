@@ -278,7 +278,7 @@ test('the skill places the parent reference and the sub-issue list after the las
 
     expect($skill)->toContain('Place the line after the last block of the body, never before the opening text')
         ->and($skill)->toContain('Place the heading and the list after the last block of the parent body, never before the opening text.')
-        ->and($rule)->toContain('Text after the last block, such as a `Part of #<parent>` line or a `## Sub-issues` list, belongs to no section.');
+        ->and($rule)->toContain('**Text after the last block belongs to no section.** A `Part of #<parent>` line and a `## Sub-issues` list go there');
 });
 
 test('the rule owns the shape once and the skills point to it', function (): void {
