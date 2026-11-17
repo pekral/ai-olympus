@@ -316,6 +316,8 @@ self_test() {
   export AI_OLYMPUS_GATE_LOCK_TIMEOUT=2
   unset AI_OLYMPUS_LOCK_HELD_BY
   export FAST_CHECKS_SELFTEST_CALLS="$tmp/calls"
+  # The log of every run below lands in the self-test directory, so the cleanup removes it.
+  export TMPDIR="$tmp"
 
   check() {
     local label="$1" verdict="$2"
