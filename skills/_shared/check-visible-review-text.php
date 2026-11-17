@@ -11,7 +11,8 @@ rules/code-review/general.md *Visible review text names none of the package's ow
 a package path (skills/<name>/..., rules/<dir>/..., agents/<name>.md, codex/agents/...), an
 installed directory (.claude/, .codex/, .agents/), and the file name of a package script.
 
-  --text        the visible text: the inline comments and the visible review body, never the hidden record
+  --text        the visible text: the inline comments and the visible review body, never the hidden record.
+                Its HTML entities are decoded first, so the check reads the characters a reader sees.
   --repo-paths  the paths of the reviewed repository, one per line. A path it holds, or a script
                 name one of its files carries, is the reviewed project's own and stays allowed.
   --diff-text   the added and removed lines of the reviewed change, without their +/- marker. A name that
@@ -96,7 +97,8 @@ function visiblePackageNames(string $text, array $repoPathList, string $skillsRo
     $scriptNames = array_fill_keys(visiblePackageScriptNames($skillsRoot), true);
     $names = [];
 
-    preg_match_all(VISIBLE_TOKEN, $text, $matches);
+    // The reader sees the text after its HTML entities are decoded: a name written with `&#95;` for `_` is the same name.
+    preg_match_all(VISIBLE_TOKEN, html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8'), $matches);
 
     foreach ($matches[0] as $token) {
         $name = visibleNormalize($token);
