@@ -418,7 +418,6 @@ def count($re): [match($re; "g")] | length;
 | if ($visible | count("```|~~~")) == (if .diagram then 2 else 0 end)
   then . else error("the visible review body holds a fenced block other than the sequence diagram: a review carries no code") end
 | if ($body | length) <= 65536 then $r else error("the review body is longer than the 65536 characters GitHub accepts") end
-| if has("comments") then error("a review carries no inline comment") else . end
 JQ
 
 THREADS_QUERY='query($owner:String!,$repo:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$repo){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){pageInfo{hasNextPage endCursor} nodes{id isResolved path line originalLine comments(first:100){pageInfo{hasNextPage endCursor} nodes{author{login} body}}}}}}}'

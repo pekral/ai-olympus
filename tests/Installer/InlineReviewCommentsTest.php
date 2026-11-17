@@ -378,6 +378,28 @@ test('the review loop reads an inline thread of an earlier release as the agent 
         ->and($reference)->toContain('is listed under `has_reply` and not resolved');
 });
 
+test('no file cites the renamed section Inline review comments of the contract', function (): void {
+    $root = dirname(__DIR__, 2);
+    $citation = '*' . implode(' ', ['Inline', 'review', 'comments']) . '*';
+    $citing = [];
+
+    foreach (['agents', 'codex', 'docs', 'rules', 'skills', 'tests'] as $directory) {
+        if (!is_dir($root . '/' . $directory)) {
+            continue;
+        }
+
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory, FilesystemIterator::SKIP_DOTS)) as $file) {
+            if ($file->isFile() && str_contains((string) file_get_contents($file->getPathname()), $citation)) {
+                $citing[] = substr($file->getPathname(), strlen($root) + 1);
+            }
+        }
+    }
+
+    expect($citing)->toBe([])
+        ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
+        ->toContain('cr-wrapper-contract.md` *GitHub pull-request review*');
+});
+
 test('the merge gate keeps reading the cr-comment and ignores the inline findings as reviewer feedback', function (): void {
     $merge = inlineReviewSource('skills/merge-github-pr/SKILL.md');
 
@@ -412,11 +434,11 @@ test('the gate and the thread rule bind agent status to the actor and read the o
         ->and($script)->toContain('((.author.login // "") == $actor) and ((.body // "") | contains("<!-- cr-inline:actor=');
 });
 
-test('the publisher builds a review request with no comments key and refuses one that has it', function (): void {
+test('the publisher builds a review request with no comments key', function (): void {
     $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
 
     expect($script)->toContain('{commit_id: $commit, event: "COMMENT", body: $body} as $r')
-        ->and($script)->toContain('| if has("comments") then error("a review carries no inline comment") else . end')
+        ->and($script)->not->toContain('then error("a review carries no inline comment")')
         ->and($script)->not->toContain('open_here(')
         ->and($script)->not->toContain('file_anchors');
 });
