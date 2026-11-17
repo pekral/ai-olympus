@@ -30,7 +30,7 @@ test('the tracker rule owns the triage of a created issue once, and runs the scr
         ->and($rule)->toContain('Triage those issues only, with the same rules as a manual run:')
         ->and($rule)->toContain('Run `skills/github-issue-triage/scripts/assign-priorities.sh --issue <number>` once, with one `--issue` for each')
         ->and($rule)->toContain('writes its own audit line for each label write. It never assigns `priority: critical`.')
-        ->and($rule)->toContain('Assign the effort size, and every other label that the triage of that skill assigns to an issue')
+        ->and($rule)->toContain('`skills/github-issue-triage/scripts/derive-effort.sh` and writes exactly one `effort:` label in the same write')
         ->and($rule)->toContain('Never run the triage script without `--issue` for this.')
         ->and($rule)->not->toContain('gh issue edit <URL>')
         ->and($rule)->toContain('A withheld item is never triaged.')
@@ -121,6 +121,8 @@ test('assign-priorities.sh limits the walk to the issues named with --issue and 
     expect($script)->toContain('assign-priorities.sh [--dry-run] [--issue <number>]...')
         ->and($script)->toContain('--issue needs an issue number')
         ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo"')
+        ->and($script)->toContain('DERIVE_EFFORT="$(cd')
+        ->and($script)->toContain('e2e \'--issue — the derived effort replaces an earlier effort label\'')
         ->and($script)->toContain('e2e \'--issue — only the named issue is written\'')
         ->and($script)->toContain('e2e \'--issue — an uppercase prefix derives no type\'')
         ->and($script)->toContain('e2e \'--issue — an existing type label wins over the body\'');

@@ -13,6 +13,12 @@
 #                derivation, the add / remove / keep rules, and the output are
 #                exactly those of the full walk, and no other issue is read or
 #                written. A named issue that is not open is reported as skipped.
+#                With --issue the run also derives the effort size of each issue
+#                from its body with `derive-effort.sh` and writes exactly one
+#                `effort:` label in the same `gh issue edit` call: the derived
+#                label is added and any other `effort:` label is removed. A
+#                failed derivation is named in the output and leaves the effort
+#                labels unchanged. The full walk derives no effort.
 #                An agent that creates an issue triages exactly that issue with
 #                this option (`rules/compound-engineering/tracker.md` *Triage
 #                every GitHub issue an agent creates, right after it is created*).
@@ -82,6 +88,7 @@ set -euo pipefail
 # actually reaches the cap is reported, never silently truncated.
 OPEN_ISSUE_LIMIT=500
 
+DERIVE_EFFORT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/derive-effort.sh"
 AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
 
 # Types that a title prefix can derive. `security` and `question` are topic
@@ -444,14 +451,14 @@ STUB
 
   e2e '--issue — only the named issue is written' "$two_open" '--issue 2' \
     'assign-priorities.sh: 1 named issues — 1 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
-    '2|--add-label|enhancement|--add-label|priority: medium'
+    '2|--add-label|enhancement|--add-label|priority: medium|--add-label|effort: small'
 
   e2e '--issue — repeated, each named issue is written and the others are not' \
     '[{"number":1,"title":"fix(core): one","body":"","labels":[]},{"number":2,"title":"feat(core): two","body":"","labels":[]},{"number":3,"title":"docs: three","body":"","labels":[]}]' \
     '--issue 3 --issue 1' \
     'assign-priorities.sh: 2 named issues — 2 changed, 0 already triaged, 0 skipped, 0 kept a manual priority' \
-    '3|--add-label|documentation|--add-label|priority: low
-1|--add-label|bug|--add-label|priority: high'
+    '3|--add-label|documentation|--add-label|priority: low|--add-label|effort: small
+1|--add-label|bug|--add-label|priority: high|--add-label|effort: small'
 
   e2e '--issue — dry-run writes nothing' "$two_open" '--dry-run --issue 2' \
     '#2  enhancement (title) — would apply: +enhancement +priority: medium' \
@@ -471,7 +478,7 @@ STUB
   e2e '--issue — the body form labels an unlabelled issue' \
     '[{"number":5,"title":"A skill for labels","body":"### What problem does this solve?\n\nx\n\n### Proposed solution\n\ny","labels":[]}]' '--issue 5' \
     '#5  enhancement (body) — applied: +enhancement +priority: medium' \
-    '5|--add-label|enhancement|--add-label|priority: medium'
+    '5|--add-label|enhancement|--add-label|priority: medium|--add-label|effort: small'
 
   e2e '--issue — an existing type label wins over the body' \
     '[{"number":6,"title":"A skill for labels","body":"### What problem does this solve?\n\nx\n\n### Proposed solution\n\ny","labels":[{"name":"bug"}]}]' '--issue 6' \
@@ -480,8 +487,20 @@ STUB
 
   e2e '--issue — a manual priority is kept' \
     '[{"number":7,"title":"fix(core): boom","body":"","labels":[{"name":"priority: critical"}]}]' '--issue 7' \
-    '#7  bug (title) — applied: +bug (kept the existing priority — human decision)' \
-    '7|--add-label|bug'
+    '#7  bug (title) — applied: +bug +effort: small (kept the existing priority — human decision)' \
+    '7|--add-label|bug|--add-label|effort: small'
+
+  # The effort size comes from derive-effort.sh on the body: a body naming six files is medium, and it
+  # replaces the other effort label the issue carries. An issue that already has the derived label gets no write.
+  e2e '--issue — the derived effort replaces an earlier effort label' \
+    '[{"number":9,"title":"feat(core): nine","body":"Change rules/a.md, rules/b.md, rules/c.md, skills/d/SKILL.md, skills/e/SKILL.md, and tests/f.php.","labels":[{"name":"enhancement"},{"name":"priority: medium"},{"name":"effort: large"}]}]' '--issue 9' \
+    '#9  enhancement (title) — applied: +effort: medium -effort: large' \
+    '9|--add-label|effort: medium|--remove-label|effort: large'
+
+  e2e '--issue — an issue that already carries the derived triage gets no write' \
+    '[{"number":10,"title":"feat(core): ten","body":"","labels":[{"name":"enhancement"},{"name":"priority: medium"},{"name":"effort: small"}]}]' '--issue 10' \
+    '#10  enhancement (title) — already triaged' \
+    '-'
 
   e2e '--issue — a closed issue is skipped and never written' \
     '[{"number":8,"title":"fix(core): boom","body":"","state":"CLOSED","labels":[]}]' '--issue 8' \
@@ -879,6 +898,41 @@ while IFS= read -r -d '' number <&3 &&
   else
     priority_note=' (kept the existing priority — human decision)'
     kept=$((kept + 1))
+  fi
+
+  # The effort size is derived only for a named issue, from its body, by the one script that owns the method.
+  if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
+    effort_file="$(mktemp)"
+    printf '%s' "$body" >"$effort_file"
+    effort_label=''
+
+    if effort_out="$("$DERIVE_EFFORT" --assignment "$effort_file" 2>&1)"; then
+      effort_label="$(sed -n 's/^label=//p' <<<"$effort_out" | head -n 1)"
+    else
+      priority_note="$priority_note (effort not derived: $(head -n 1 <<<"$effort_out"))"
+    fi
+
+    rm -f "$effort_file"
+
+    if [[ -n "$effort_label" ]]; then
+      has_effort=false
+
+      while IFS= read -r label; do
+        case "$label" in
+          'effort: '*)
+            if [[ "$label" == "$effort_label" ]]; then
+              has_effort=true
+            else
+              removes+=("$label")
+            fi
+            ;;
+        esac
+      done <<<"$labels"
+
+      if [[ "$has_effort" == false ]]; then
+        adds+=("$effort_label")
+      fi
+    fi
   fi
 
   if [[ "${#adds[@]}" -eq 0 && "${#removes[@]}" -eq 0 ]]; then

@@ -73,7 +73,7 @@ The label-taxonomy mode only labels. Closing an issue, moving a sub-issue, and p
 | `security` | `ee0701` | no — topic |
 | `question` | `d876e3` | no — topic |
 
-**Effort labels** — at most one per issue. They state a size, never a time. A new analysis replaces the old label. `scripts/derive-effort.sh` derives the label (*Effort derivation*), and the pending-analysis pass applies it.
+**Effort labels** — at most one per issue. They state a size, never a time. A new analysis replaces the old label. `scripts/derive-effort.sh` derives the label (*Effort derivation*), the pending-analysis pass applies it, and `scripts/assign-priorities.sh --issue` applies it to an issue an agent just created.
 
 | Label | Color | Meaning |
 | --- | --- | --- |
