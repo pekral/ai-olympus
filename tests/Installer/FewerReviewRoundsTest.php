@@ -283,11 +283,15 @@ test('a round past the cap, a light history scan, and a forged review depth neve
 
 test('the delta lists name a rename under both paths, and krang may compute the depth on the leonardo loop state (issue #599)', function (): void {
     expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
-        ->toContain('The delta paths are `git diff --no-renames --name-only <reviewedRevision>..HEAD`')
-        ->toContain('the delta line counts are `git diff --no-renames --numstat <reviewedRevision>..HEAD`');
+        ->toContain('The delta paths are `git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
+        ->toContain('the delta line counts are `git diff --no-renames --numstat <reviewedRevision>..<head SHA>`')
+        ->toContain('When `git rev-parse --verify --quiet <head SHA>^{commit}` fails, run `git fetch origin <head SHA>` first.');
     expect(fewerRoundsFile('skills/process-code-review/references/review-loop-scope.md'))
-        ->toContain('`git diff --no-renames --name-only <reviewedRevision>..HEAD`')
-        ->toContain('`git diff --no-renames --numstat <reviewedRevision>..HEAD`');
+        ->toContain('`git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
+        ->toContain('`git diff --no-renames --numstat <reviewedRevision>..<head SHA>`');
+    expect(fewerRoundsFile('agents/krang.md'))
+        ->toContain('with `git fetch origin <head SHA>` and `git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into')
+        ->toContain('step 2 against the round\'s head SHA in `${BRIEF%.md}.delta`');
     expect(fewerRoundsFile('agents/krang.md'))
         ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1; it writes only the loop state that step names)')
         ->toContain('From round 2 on, first run `skills/_shared/review-state.sh scope` on the loop state the last `leonardo` handoff names');
@@ -300,10 +304,15 @@ test('an escalated loop takes one more round only on the operator\'s own comment
         ->toContain('--operator-authorised) [[ $# -ge 2 ]] || die_usage \'--operator-authorised needs a value\'; authorised="$2"; shift 2 ;;')
         ->toContain('[[ -n "$authorised" ]] || fail 5 "the loop escalated; no further automatic review round starts"')
         ->toContain('fail 4 "an operator-authorised round is recorded only after the loop escalated; the state is unchanged"')
-        ->toContain('association="$(trusted_comment "$authorised" "(?i)\\\\bauthori[sz]e[sd]? round $next\\\\b"');
+        ->toContain('association="$(trusted_comment "$authorised" "(?i)^\\\\s*authori[sz]e round $next\\\\s*\\$"')
+        ->toContain('elif ([$m[0].body | splits("\\r?\\n")] | any(test($pattern)) | not) then');
 
     expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
-        ->toContain('The operator continues it by a comment on the pull request that names the round, `authorise round <n>`.')
+        ->toContain(
+            'The operator continues it by a comment on the pull request with a line that is exactly `authorise round <n>` '
+                . 'or `authorize round <n>`, in any case. A sentence that only mentions the phrase, such as '
+                . '`I do not authorise round 4`, authorises nothing.',
+        )
         ->toContain('Every finding the round reports counts in the gate as in every other round, so a security finding and a Critical still block.')
         ->toContain('**One exception:** a round whose blocking findings are all security findings');
     expect(fewerRoundsFile('agents/leonardo.md'))
@@ -332,6 +341,132 @@ test('the review-state self-test covers every finding of CR round 1 of issue #59
     'a security finding after a convergence in the last security round escalates with cap-spent-after-convergence',
     'a renamed security file read with --no-renames runs every lens',
 ]);
+
+test('the review-state self-test refuses an authorisation that is not a line of its own (issue #599)', function (string $case): void {
+    expect(fewerRoundsFile('skills/_shared/review-state.sh'))->toContain('\'' . $case . '\'');
+})->with([
+    '40:a negated sentence',
+    '41:the phrase in the middle of a sentence',
+    '42:the phrase inside a sentence of its own',
+    '43:the phrase followed by more text on its line',
+    '44:another word form than authorise or authorize',
+]);
+
+/**
+ * @return list<string>
+ */
+function fewerRoundsReviewScopeFiles(): array
+{
+    $root = dirname(__DIR__, 2);
+    $patterns = [
+        '/agents/krang.md',
+        '/agents/leonardo.md',
+        '/agents/splinter.md',
+        '/codex/agents/*.toml',
+        '/rules/code-review/*.md',
+        '/skills/code-review*/*.md',
+        '/skills/code-review*/*/*.md',
+        '/skills/process-code-review/*.md',
+        '/skills/process-code-review/*/*.md',
+    ];
+    $files = [];
+
+    foreach ($patterns as $pattern) {
+        foreach (glob($root . $pattern) ?: [] as $file) {
+            $files[] = substr($file, strlen($root) + 1);
+        }
+    }
+
+    return $files;
+}
+
+test('no review-scope command reads the symbolic HEAD of the tree it runs in (issue #599)', function (): void {
+    $files = fewerRoundsReviewScopeFiles();
+    $script = fewerRoundsFile('skills/_shared/review-state.sh');
+    $texts = ['skills/_shared/review-state.sh (header)' => substr($script, 0, (int) strpos($script, "\nset -euo pipefail"))];
+
+    foreach ($files as $file) {
+        $texts[$file] = fewerRoundsFile($file);
+    }
+
+    $offenders = array_keys(array_filter(
+        $texts,
+        static fn (string $text): bool => preg_match('/\.\.\.?HEAD\b|is-ancestor <baseline> HEAD\b/', $text) === 1,
+    ));
+
+    expect(count($files))->toBeGreaterThan(20)
+        ->and($offenders)->toBe([]);
+});
+
+test('the documented delta commands select the depth of the dispatched head from a tree on another branch (issue #599)', function (): void {
+    $found = preg_match(
+        '/The delta paths are `(git diff [^`]+)`, and the delta line counts are `(git diff [^`]+)`/',
+        fewerRoundsFile('skills/process-code-review/references/review-state.md'),
+        $matches,
+    );
+    expect($found)->toBe(1);
+    [, $pathsCommand, $numstatCommand] = $matches + ['', '', ''];
+
+    $repo = sys_get_temp_dir() . '/fewer-rounds-delta-' . bin2hex(random_bytes(6));
+    $script = dirname(__DIR__, 2) . '/skills/_shared/review-state.sh';
+    $run = (static fn (string $command): string => (string) shell_exec('cd ' . escapeshellarg($repo) . ' && ' . $command . ' 2>/dev/null'));
+    $git = 'git -c user.name=t -c user.email=t@t';
+
+    try {
+        mkdir($repo . '/.claude/run', recursive: true);
+        mkdir($repo . '/app/Http/Middleware', recursive: true);
+        mkdir($repo . '/src');
+        file_put_contents($repo . '/README.md', "base\n");
+        $run('git init -q -b master && ' . $git . ' add README.md && ' . $git . ' commit -q -m base');
+        file_put_contents($repo . '/src/A.php', "<?php\n");
+        $run('git switch -q -c feature && ' . $git . ' add src && ' . $git . ' commit -q -m round-one');
+        $reviewed = trim($run('git rev-parse HEAD'));
+        file_put_contents($repo . '/app/Http/Middleware/Authenticate.php', "<?php\n");
+        $run($git . ' add app && ' . $git . ' commit -q -m fix');
+        $head = trim($run('git rev-parse HEAD'));
+        // The tree that computes the lists stays on the default branch, as the project root of a batch unit does.
+        $run('git switch -q master');
+        file_put_contents(
+            $repo . '/round-1.md',
+            "# Code Review\n\n**Status:** needs-fix\n**Counts:** Critical 0 · Moderate 0\n**Reviewed revision:** " . $reviewed
+                . "\n**Last updated:** 2026-10-01T10:00:00Z\n\n## Findings\n\n",
+        );
+        $state = '.claude/run/review-state.json';
+        $run('bash ' . escapeshellarg($script) . ' init --state ' . $state . ' --repo acme/shop --pr 7');
+        $run('bash ' . escapeshellarg($script) . ' record --state ' . $state . ' --input round-1.md');
+
+        $scope = static function (string $paths, string $numstat) use ($run, $script, $state): array {
+            $command = static fn (string $line): string => implode(' ', array_map(escapeshellarg(...), explode(' ', $line)));
+            $run($command($paths) . ' > delta.txt');
+            $run($command($numstat) . ' > numstat.txt');
+
+            /** @var array<string, mixed> $verdict */
+            $verdict = json_decode(
+                $run('bash ' . escapeshellarg($script) . ' scope --state ' . $state . ' --changed-files delta.txt --numstat numstat.txt'),
+                associative: true,
+                flags: JSON_THROW_ON_ERROR,
+            );
+
+            return $verdict;
+        };
+        $placeholders = ['<reviewedRevision>' => $reviewed, '<head SHA>' => $head];
+        $dispatched = $scope(strtr($pathsCommand, $placeholders), strtr($numstatCommand, $placeholders));
+        $symbolic = $scope(
+            strtr($pathsCommand, ['<head SHA>' => 'HEAD'] + $placeholders),
+            strtr($numstatCommand, ['<head SHA>' => 'HEAD'] + $placeholders),
+        );
+
+        expect($dispatched['depth'])->toBe('full')
+            ->and($dispatched['depth_reasons'])->toContain('security-surface')
+            ->and($dispatched['delta'])->toBe(['files' => 1, 'lines' => 1])
+            ->and($symbolic['depth'])->toBe('light')
+            ->and($symbolic['delta'])->toBe(['files' => 1, 'lines' => 1])
+            ->and($pathsCommand)->toContain('<head SHA>')
+            ->and($numstatCommand)->toContain('<head SHA>');
+    } finally {
+        shell_exec('rm -rf ' . escapeshellarg($repo));
+    }
+});
 
 test('Claude Code and Codex install the same rules, skills, and agent instructions for issue #599', function (): void {
     $root = installerCreateProjectRoot();

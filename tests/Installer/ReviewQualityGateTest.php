@@ -180,7 +180,7 @@ test('a dismissal reads the author association from the GitHub loader, never fro
             'verdict="$(jq -r -L "$HERE" --arg url "$url" --arg pattern "$pattern" --arg what "$what" '
                 . '--arg repo "$repo" --argjson pr "$pr" \'include "review-trust";',
         )
-        ->toContain('elif ($m[0].body | test($pattern) | not) then "refused:the comment does not name \\($what)"')
+        ->toContain('elif ([$m[0].body | splits("\\r?\\n")] | any(test($pattern)) | not) then "refused:the comment does not name \\($what)"')
         ->toContain('association="$(trusted_comment "$comment" "$id" "finding $id" "dismisses a finding")"')
         ->toContain('isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")')
         ->toContain('# The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.');

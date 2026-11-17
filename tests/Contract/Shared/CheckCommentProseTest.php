@@ -235,7 +235,7 @@ test('the PHP standards and the code review run the prose check', function (): v
     )->toBe(
         1,
     )
-        ->and(substr_count($review, '`git diff -U0 --diff-filter=AMR <base>...HEAD -- \'*.php\'`'))->toBe(1)
+        ->and(substr_count($review, '`git diff -U0 --diff-filter=AMR <base>...<head SHA> -- \'*.php\'`'))->toBe(1)
         ->and(substr_count($review, 'Detect it with `skills/_shared/check-comment-prose.php --diff -`'))->toBe(1)
         ->and(is_executable($packageDir . '/skills/_shared/check-comment-prose.php'))->toBeTrue();
 });

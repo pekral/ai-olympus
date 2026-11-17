@@ -2668,7 +2668,7 @@ test('code review rule scopes a later round to the diff since the last reviewed 
     expect($rule)->toContain('It carries `Reviewed revision:` and `Reviewed diff fingerprint:` header lines');
     expect($rule)->toContain('**Neither resolves → this is round 1.**');
     // A rewritten history detaches the recorded SHA, and a diff against it is noise, not a delta.
-    expect($rule)->toContain('git merge-base --is-ancestor <baseline> HEAD');
+    expect($rule)->toContain('git merge-base --is-ancestor <baseline> <head SHA>');
     expect($rule)->toContain('A force-push, rebase, squash, or amend can detach the recorded SHA');
     // Narrowing detection must never narrow the gate that decides the merge.
     expect($rule)->toContain('**Carry-over is unconditional.**');
@@ -2745,7 +2745,7 @@ test('every CR skill and template carries the incremental review scope', functio
     $canonical = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
     expect($canonical)->toContain('### Incremental review scope gate (mandatory, after the Branch checkout gate)');
     expect($canonical)->toContain('Resolve the baseline and its `Reviewed diff fingerprint`');
-    expect($canonical)->toContain('new findings come from `git diff <baseline>..HEAD`');
+    expect($canonical)->toContain('new findings come from `git diff <baseline>..<head SHA>`');
     expect($canonical)->toContain('every unsettled finding is carried over at its original severity');
     expect($canonical)->toContain('Incremental Review Scope — Diff Since the Last Reviewed Revision');
     // The cross-run history section used to forbid reading prior CR comments outright; the gate

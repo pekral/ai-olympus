@@ -463,7 +463,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the GitHub review body opens with a visible TL;DR of the inline findings and the CI result (issue #556).
         // Re-baselined: a round after a small delta runs only the lenses the delta can affect, and the security lenses read the whole PR diff in every round of `full` depth (issue #599).
         // Re-baselined: a round past the cap is never light, the light history scan keeps the whole PR range, and only krang's own `review depth:` line counts (issue #599, review round 1).
-        'rules/code-review/general.md' => '2e0d8b0524feee519611f017804f6a9a4f6774ed8e939478f1f19d9dd23fa137',
+        // Re-baselined: every review range names the dispatched `<head SHA>`, never the symbolic `HEAD` of the tree the command runs in (issue #599, review round 2).
+        'rules/code-review/general.md' => 'af128aab3e1939d1244cc8d7f64debf9ac9c22a5549f29d49602ae0bf3b3f744',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

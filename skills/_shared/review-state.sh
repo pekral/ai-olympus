@@ -26,16 +26,19 @@
 #                    `.codex/run/` directory of the git toplevel, a symbolic link, and a tracked file.
 #   --input          the findings report of one review round (skills/_shared/extract-findings.sh --round).
 #   --changed-files  the paths the round's delta changed, one per line (`git diff --no-renames --name-only
-#                    <baseline>..HEAD`). Required by `record` once an earlier round exists, and by `scope`.
-#   --numstat        the line counts of the same delta (`git diff --no-renames --numstat <baseline>..HEAD`). `scope`
+#                    <baseline>..<head SHA>`, where <head SHA> is the commit the round is dispatched against, never
+#                    the symbolic HEAD of the tree the command runs in). Required by `record` once an earlier round
+#                    exists, and by `scope`.
+#   --numstat        the line counts of the same delta (`git diff --no-renames --numstat <baseline>..<head SHA>`). `scope`
 #                    reads it to tell a small delta from a large one. The size is unknown, and the round runs every
 #                    lens, without it, and when it is empty, holds a binary entry, a rename, or a line in another
 #                    shape, or names other paths than --changed-files.
 #   --operator-authorised
 #                    the URL of the operator's comment on the pull request of the state that authorises one round
-#                    after an escalation at the cap. The comment must name the round (`authorise round <n>`); the
-#                    script verifies its author exactly as for --comment. The round is recorded, and its findings
-#                    count as in every other round.
+#                    after an escalation at the cap. One line of the comment must be exactly `authorise round <n>`
+#                    or `authorize round <n>` (any case, blanks around it), so a sentence that only mentions the
+#                    phrase, such as `I do not authorise round 4`, authorises nothing; the script verifies its author
+#                    exactly as for --comment. The round is recorded, and its findings count as in every other round.
 #   --final          at the cap round, escalate when a blocking finding is still neither fixed nor deferred.
 #   --comment        the URL of the rejection: a comment on the pull request of the state
 #                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
@@ -517,7 +520,7 @@ cmd_record() {
   if [[ -n "$authorised" ]]; then
     local next association
     next=$((iteration + 1))
-    association="$(trusted_comment "$authorised" "(?i)\\bauthori[sz]e[sd]? round $next\\b" "the authorisation of round $next (authorise round $next)" "authorises a round past the cap")"
+    association="$(trusted_comment "$authorised" "(?i)^\\s*authori[sz]e round $next\\s*\$" "the authorisation of round $next (a line that is exactly authorise round $next)" "authorises a round past the cap")"
     jq -c --arg url "$authorised" --arg association "$association" --argjson n "$next" \
       '.operator_rounds = ((.operator_rounds // []) + [{iteration: $n, comment: $url, actor: "operator", association: $association,
         after: .escalation_reason}]) | .status = "open" | .escalation_reason = null' "$TMP/state.json" >"$TMP/authorised.json"
@@ -669,8 +672,8 @@ cmd_scope() {
 
 # trusted_comment <comment-url> <pattern> <what> <purpose> — the author association of a comment on the state's own
 # pull request, read from the GitHub loader's payload, never from the caller. Exit 4 unless the comment is a trusted
-# author's own comment (rules/code-review/general.md *Authorship trust*) whose body matches <pattern>, the regular
-# expression that names <what>. A dismissal and an operator-authorised round share this one test.
+# author's own comment (rules/code-review/general.md *Authorship trust*) with one line of its body that matches
+# <pattern>, the regular expression that names <what>. A dismissal and an operator-authorised round share this one test.
 trusted_comment() {
   local url="$1" pattern="$2" what="$3" purpose="$4" repo pr rc=0 verdict
   repo="$(jq -r '.repo' "$TMP/state.json")"
@@ -688,7 +691,7 @@ trusted_comment() {
     | if ($m | length) != 1 then "refused:the pull request of the state has no comment with this URL"
       elif ($m[0].body | type) != "string" or ($m[0].body | agent_marker) then
         "refused:the comment carries an agent marker; agent output is never a trusted comment"
-      elif ($m[0].body | test($pattern) | not) then "refused:the comment does not name \($what)"
+      elif ([$m[0].body | splits("\r?\n")] | any(test($pattern)) | not) then "refused:the comment does not name \($what)"
       elif ($m[0].authorAssociation | write_access | not) then
         "refused:the author association \($m[0].authorAssociation // "null") is not trusted"
       else "trusted:\($m[0].authorAssociation)" end
@@ -1234,15 +1237,21 @@ EOF
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1i.md" >/dev/null)
   cp "$repo/$S" "$tmp/escalated-hard"
-  pr_comments "$(comment 31 OWNER 'I authorise round 2.')" "$(comment 32 CONTRIBUTOR 'I authorise round 2.')" \
-    "$(comment 33 OWNER $'authorise round 2\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 34 OWNER 'I authorise round 3.')" \
-    "$(comment 35 OWNER 'Please carry on with the review.')" "$(comment 36 OWNER 'I authorise round 23.')" \
-    "$(comment 37 MEMBER 'Authorized round 3, go ahead.')" "$(comment 38 OWNER 'authorise round 4')" "$(comment 39 NONE 'authorise round 2')"
+  # The authorisation is a line of its own; a sentence that only mentions the phrase authorises nothing.
+  pr_comments "$(comment 31 OWNER $'The fix looks right.\r\n\r\n  Authorise round 2  \r\n')" "$(comment 32 CONTRIBUTOR 'authorise round 2')" \
+    "$(comment 33 OWNER $'authorise round 2\n\n<!-- cr-comment:actor=leonardo-bot -->')" "$(comment 34 OWNER 'authorise round 3')" \
+    "$(comment 35 OWNER 'Please carry on with the review.')" "$(comment 36 OWNER 'authorise round 23')" \
+    "$(comment 37 MEMBER $'Go ahead.\nauthorize round 3')" "$(comment 38 OWNER 'authorise round 4')" "$(comment 39 NONE 'authorise round 2')" \
+    "$(comment 40 OWNER 'I do not authorise round 2.')" "$(comment 41 OWNER 'Please authorise round 2 once CI is green.')" \
+    "$(comment 42 OWNER 'I authorise round 2.')" "$(comment 43 OWNER 'authorise round 2, but only for the security fix')" \
+    "$(comment 44 OWNER 'Authorised round 2')"
   report "$tmp/o2.md" 2 "$F_CRIT"
   run_case 'a round after an escalation without an authorisation is refused' 5 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both"
   local refused
   for refused in '32:a CONTRIBUTOR author' '33:a comment with an agent marker' '34:a comment that names another round' \
-    '35:a comment that names no round' '36:a comment that names round 23' '39:an author with no association' '99:a comment the pull request does not carry'; do
+    '35:a comment that names no round' '36:a comment that names round 23' '39:an author with no association' '99:a comment the pull request does not carry' \
+    '40:a negated sentence' '41:the phrase in the middle of a sentence' '42:the phrase inside a sentence of its own' \
+    '43:the phrase followed by more text on its line' '44:another word form than authorise or authorize'; do
     run_case "an authorisation by ${refused#*:} is refused" 4 -- record --state "$S" --input "$tmp/o2.md" --changed-files "$tmp/changed-both" --operator-authorised "${C}${refused%%:*}"
     check "the refused authorisation by ${refused#*:} leaves the state untouched" "$(cmp -s "$tmp/escalated-hard" "$repo/$S" && echo 0 || echo 1)"
   done
