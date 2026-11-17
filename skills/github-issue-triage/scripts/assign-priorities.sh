@@ -540,6 +540,22 @@ STUB
     echo "self-test FAIL: the write of --issue 2 left no audit line" >&2
     failures=$((failures + 1))
   fi
+
+  # The number is validated right before every write: a value that is not a plain positive integer is
+  # refused with exit 3 and nothing is written, in the full walk and in a walk limited with --issue.
+  local bad_number
+  for bad_number in '8 --repo other/x' '08' '0' '-8' '8.5' ' 8'; do
+    printf '[{"number":"%s","title":"fix(core): boom","body":"","labels":[]}]' "$bad_number" >"$SELF_TEST_TMP/issues.json"
+    : >"$SELF_TEST_TMP/edits"
+    (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
+      GH_STUB_EDITS="$SELF_TEST_TMP/edits" "$script" >"$SELF_TEST_TMP/out" 2>&1)
+    rc=$?
+    checks=$((checks + 1))
+    if [[ "$rc" -ne 3 || -s "$SELF_TEST_TMP/edits" ]] || ! grep -q 'refusing to write' "$SELF_TEST_TMP/out"; then
+      echo "self-test FAIL: the number '$bad_number' was not refused before the write (exit $rc)" >&2
+      failures=$((failures + 1))
+    fi
+  done
   set -e
 }
 
@@ -961,6 +977,12 @@ while IFS= read -r -d '' number <&3 &&
   if [[ "$DRY_RUN" == true ]]; then
     echo "#$number  $type ($type_source) — would apply:$actions$priority_note"
   else
+    # Every write names an issue by a plain positive integer, whichever way the number reached this point.
+    if [[ ! "$number" =~ ^[1-9][0-9]*$ ]]; then
+      echo "assign-priorities.sh: refusing to write: the issue number is not a positive integer" >&2
+      exit 3
+    fi
+
     if ! gh_error="$(gh issue edit "$number" "${args[@]}" 2>&1 >/dev/null)"; then
       if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
         bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo" --status 1 || true
