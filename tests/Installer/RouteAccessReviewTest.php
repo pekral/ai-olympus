@@ -225,10 +225,17 @@ test('every decision point of a dashboard access path must deny a guest, gate ho
             'A hook whose user parameter accepts null and returns true, or otherwise allows a guest, is the finding of the severity below.',
         )
         ->and($section)->toContain('Ignition (`_ignition/execute-solution`, `_ignition/update-config`) has no gate.')
-        ->and($section)->toContain('the runnable-solutions guard, which decides from `app.debug` and `ignition.enable_runnable_solutions`')
-        ->and($section)->toContain('A change that lets that guard pass outside the local environment is the finding of the severity below.')
-        ->and($step)->toContain('a `Gate::before` or `Gate::after` hook, `app.debug`, or `ignition.enable_runnable_solutions`')
-        ->and($step)->toContain('`config/horizon.php`, `config/ignition.php`) and `config/app.php` for `debug`')
+        ->and($section)->toContain(
+            'Its access control is the runnable-solutions guard. The guard denies when `app.debug` is off, '
+            . 'returns `ignition.enable_runnable_solutions` when that flag is set, '
+            . 'and otherwise passes only in the `local` and `development` environments.',
+        )
+        ->and($section)->toContain(
+            'A change that lets that guard pass outside a `local` or `development` environment, '
+            . 'or that sets a hosted environment to `development` with `app.debug` on, is the finding of the severity below.',
+        )
+        ->and($step)->toContain('a `Gate::before` or `Gate::after` hook, `app.debug`, `ignition.enable_runnable_solutions`, or `app.env`')
+        ->and($step)->toContain('`config/horizon.php`, `config/ignition.php`) and `config/app.php` for `debug` and `env`')
         ->and($step)->toContain('the files that register gate hooks (`AuthServiceProvider`, `AppServiceProvider`)')
         ->and($step)->not->toContain('runnable-solutions guard')
         ->and($step)->not->toContain('a user parameter that accepts null');
