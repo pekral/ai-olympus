@@ -372,7 +372,9 @@ function fewerRoundsReviewScopeFiles(): array
     $files = [];
 
     foreach ($patterns as $pattern) {
-        foreach (glob($root . $pattern) ?: [] as $file) {
+        $matched = glob($root . $pattern);
+
+        foreach (is_array($matched) ? $matched : [] as $file) {
             $files[] = substr($file, strlen($root) + 1);
         }
     }
