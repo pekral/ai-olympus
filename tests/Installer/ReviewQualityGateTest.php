@@ -152,7 +152,10 @@ test('a blocking finding outside the delta widens the round, and a change after 
         ->toContain('| `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file')
         ->toContain('A security `needs-verification` point outside the delta leaves only on a full round.')
         ->toContain('**A change after a convergence in the cap round escalates.**')
-        ->toContain('or a round was recorded after the loop converged in the cap round or later (`cap-spent-after-convergence`)')
+        ->toContain(
+            'or a round that reports more than security findings was recorded after the loop converged in the cap round or later '
+                . '(`cap-spent-after-convergence`)',
+        )
         ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
     expect($contract)->toContain('A finding whose location names no file counts as outside every delta.');
     expect($contract)->not->toContain('is read as `needs-verification`, so the loop does not count it');
@@ -173,9 +176,12 @@ test('a dismissal reads the author association from the GitHub loader, never fro
         ->toContain('"$LOADER" "https://github.com/$repo/pull/$pr" >"$TMP/pr.json" 2>"$TMP/pr.err"')
         ->toContain('elif ($m[0].body | type) != "string" or ($m[0].body | agent_marker) then')
         ->toContain('elif ($m[0].authorAssociation | write_access | not) then')
-        ->toContain('verdict="$(jq -r -L "$HERE" --arg url "$url" --arg id "$id" --arg repo "$repo" --argjson pr "$pr" \'include "review-trust";')
-        ->toContain('elif ($m[0].body | contains($id) | not) then "refused:the comment does not name finding \\($id)"')
-        ->toContain('association="$(rejection_association "$comment" "$id")"')
+        ->toContain(
+            'verdict="$(jq -r -L "$HERE" --arg url "$url" --arg pattern "$pattern" --arg what "$what" '
+                . '--arg repo "$repo" --argjson pr "$pr" \'include "review-trust";',
+        )
+        ->toContain('elif ($m[0].body | test($pattern) | not) then "refused:the comment does not name \\($what)"')
+        ->toContain('association="$(trusted_comment "$comment" "$id" "finding $id" "dismisses a finding")"')
         ->toContain('isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")')
         ->toContain('# The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.');
     expect($script)->not->toContain('association="$2"');
