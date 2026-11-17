@@ -37,6 +37,14 @@ These surfaces are out of scope. `@rules/writing/general.md` keeps owning them:
 
 When one text is both shown in the chat and published, the chat message takes the voice and the published text follows the rule of its surface.
 
+## A review loop that needs the reader waits for their decision
+This rule applies in every voice and every language, to every text of the two surfaces above.
+
+1. When a text tells a person that the review loop stopped and needs a human (the `review-state.sh` verdict `escalated`, with any `escalation_reason`), say that the work is waiting for that person's decision. Use plain words of the reader's language. In Czech: "čeká na tvoje rozhodnutí".
+2. Name the decision that is open: the blocking findings that remain and why the loop stopped, in plain words.
+3. Say how to give the decision. The reader fixes or settles the findings, or comments on the pull request a line that is exactly `authorise round <n>` to allow one more review round (`@skills/process-code-review/references/review-state.md` *Verdicts and escalation*).
+4. Never write "escalated", "escalation", "eskalováno", or a translation of them for this state. The state keeps its identifier in scripts, state files, rules, and the handoff to another agent. This rule changes only the words a person reads.
+
 ## Use when
 - An agent or a skill is about to write something the human reads in the chat or in a tracker comment.
 - An agent definition or a skill points here for its human-read prose.
@@ -91,3 +99,4 @@ Prose in the selected voice. The skill produces no file of its own.
 - Every required structure of every published text is unchanged.
 - Every commit message, pull request title, handoff, and machine-parsed text of the run follows its own rule.
 - Every fact in the prose is verified, or listed as not verified.
+- A text that reports a stopped review loop says the work waits for the reader's decision, names the decision, and says how to give it.

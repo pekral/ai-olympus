@@ -19,6 +19,43 @@ function agentVoiceGlob(string $pattern): array
     return $paths === false ? [] : $paths;
 }
 
+/**
+ * @return list<string>
+ */
+function agentVoiceFilesUnder(string $relativeDirectory): array
+{
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/' . $relativeDirectory, FilesystemIterator::SKIP_DOTS),
+    );
+
+    foreach ($iterator as $file) {
+        if ($file instanceof SplFileInfo && $file->isFile() && in_array($file->getExtension(), ['md', 'toml'], strict: true)) {
+            $files[] = $file->getPathname();
+        }
+    }
+
+    return $files;
+}
+
+/**
+ * @return list<string>
+ */
+function agentVoiceFilesContaining(string $needle): array
+{
+    $matches = [];
+
+    foreach (['agents', 'codex', 'rules', 'skills', 'commands'] as $directory) {
+        foreach (agentVoiceFilesUnder($directory) as $path) {
+            if (str_contains(mb_strtolower((string) file_get_contents($path)), mb_strtolower($needle))) {
+                $matches[] = $path;
+            }
+        }
+    }
+
+    return $matches;
+}
+
 function agentVoiceResolve(string $manifest): string
 {
     $process = new Process([dirname(__DIR__, 2) . '/skills/agent-voice/scripts/resolve-voice.sh', '--stdin']);
@@ -223,4 +260,48 @@ test('the skill is listed in the catalog and the skill counts agree', function (
         ->and($catalog)->toContain('All ' . $skillCount . ' skills')
         ->and(agentVoiceSource('README.md'))->toContain($skillCount . ' reusable skills')
         ->and(agentVoiceSource('CHANGELOG.md'))->toContain('`agent-voice`');
+});
+
+const AGENT_VOICE_WAITING_HEADING = '## A review loop that needs the reader waits for their decision';
+const AGENT_VOICE_WAITING_POINTER = '`@skills/agent-voice/SKILL.md` *A review loop that needs the reader waits for their decision*';
+
+test('the voice skill owns the rule that a stopped review loop waits for the reader decision', function (): void {
+    $skill = agentVoiceSource('skills/agent-voice/SKILL.md');
+
+    expect($skill)->toContain(AGENT_VOICE_WAITING_HEADING)
+        ->and($skill)->toContain('say that the work is waiting for that person\'s decision')
+        ->and($skill)->toContain('In Czech: "čeká na tvoje rozhodnutí".')
+        ->and($skill)->toContain('Name the decision that is open')
+        ->and($skill)->toContain('Say how to give the decision.')
+        ->and($skill)->toContain('a line that is exactly `authorise round <n>`')
+        ->and($skill)->toContain('Never write "escalated", "escalation", "eskalováno", or a translation of them for this state.')
+        ->and($skill)->toContain('The state keeps its identifier in scripts, state files, rules, and the handoff to another agent.')
+        ->and($skill)->toContain('A text that reports a stopped review loop says the work waits for the reader\'s decision');
+});
+
+test('the waiting rule is stated once and every other file points to it', function (): void {
+    $owner = [dirname(__DIR__, 2) . '/skills/agent-voice/SKILL.md'];
+
+    expect(agentVoiceFilesContaining(AGENT_VOICE_WAITING_HEADING))->toBe($owner)
+        ->and(agentVoiceFilesContaining('čeká na tvoje rozhodnutí'))->toBe($owner);
+
+    foreach ([
+        'agents/krang.md',
+        'skills/process-code-review/references/review-state.md',
+        'skills/process-code-review/references/round-three-deferral.md',
+        'skills/_shared/orchestration/merge-request.md',
+    ] as $path) {
+        expect(agentVoiceSource($path))->toContain(AGENT_VOICE_WAITING_POINTER);
+    }
+});
+
+test('no human-facing wording says the review loop escalated and the state identifier stays', function (): void {
+    expect(agentVoiceFilesContaining('eskalov'))->toBe([dirname(__DIR__, 2) . '/skills/agent-voice/SKILL.md']);
+
+    expect(agentVoiceSource('agents/krang.md'))->not->toContain('**stop and escalate** to the user')
+        ->and(agentVoiceSource('agents/krang.md'))->toContain('**stop and tell the user the work waits for their decision**')
+        ->and(agentVoiceSource('skills/process-code-review/references/round-three-deferral.md'))->not->toContain('escalate to the user')
+        ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->not->toContain('| Report the escalation.')
+        ->and(agentVoiceSource('skills/_shared/review-state.sh'))->toContain('"continue", "converged", "deferral-required", "security-round", "escalated"')
+        ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->toContain('| `escalated` |');
 });
