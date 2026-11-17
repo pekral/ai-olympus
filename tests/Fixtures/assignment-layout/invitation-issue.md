@@ -1,16 +1,6 @@
-<details>
-<summary><strong>What this is about</strong></summary>
-<dl>
-<dd>
-<br>
-
 A workspace owner cannot invite a colleague today. The owner asks an administrator to create the account by hand, and the colleague waits days. We want the owner to invite a colleague by e-mail, so the colleague joins on their own.
 
-</dd>
-</dl>
-</details>
-
-<details>
+<details open>
 <summary><strong>What the user must be able to do</strong></summary>
 <dl>
 <dd>
@@ -22,7 +12,7 @@ The owner enters a colleague's e-mail on the workspace settings page and sends t
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>The rules</strong></summary>
 <dl>
 <dd>
@@ -34,7 +24,7 @@ An invitation link works once. A link expires after 7 days. An owner sends at mo
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>What we are not doing now</strong></summary>
 <dl>
 <dd>
@@ -46,7 +36,7 @@ Inviting several colleagues at once from a file, because the first release prove
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>Open questions for the owner</strong></summary>
 <dl>
 <dd>
@@ -58,7 +48,7 @@ Should an owner be able to resend an invitation? Until the owner decides, a new 
 </dl>
 </details>
 
-<details>
+<details open>
 <summary><strong>Dependencies</strong></summary>
 <dl>
 <dd>

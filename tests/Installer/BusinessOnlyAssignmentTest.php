@@ -59,17 +59,18 @@ test('the issue template carries the five business parts in order and no technic
     $template = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/create-issues-from-text/templates/issue-structure.md');
     $headings = [];
 
-    preg_match_all('#<summary><strong>(.+?)</strong></summary>#', $template, $headings);
+    preg_match_all('#<details( open)?>\n<summary><strong>(.+?)</strong></summary>#', $template, $headings, PREG_SET_ORDER);
 
-    expect($headings[1])->toBe([
-        'What this is about',
-        'What the user must be able to do',
-        'The rules',
-        'What we are not doing now',
-        'Open questions for the owner',
-        'Dependencies',
-        'Original assignment',
-    ])
+    expect($template)->toStartWith('<The problem today, who has it, and why it is fixed>')
+        ->and(array_column($headings, 2))->toBe([
+            'What the user must be able to do',
+            'The rules',
+            'What we are not doing now',
+            'Open questions for the owner',
+            'Dependencies',
+            'Original assignment',
+        ])
+        ->and(array_column($headings, 1))->toBe([' open', ' open', ' open', ' open', ' open', ''])
         ->and($template)->not->toContain('Technical Solution')
         ->and($template)->not->toContain('Acceptance Criteria')
         ->and($template)->not->toContain('Testing Scenarios');

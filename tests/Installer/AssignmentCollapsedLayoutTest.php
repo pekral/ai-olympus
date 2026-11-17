@@ -17,24 +17,81 @@ function assignmentLayoutFile(string $relativePath): string
     return (string) file_get_contents(__DIR__ . '/../' . $relativePath);
 }
 
+const ASSIGNMENT_OPENING_SECTION = 'What this is about';
+
+const ASSIGNMENT_COLLAPSED_SECTION = 'Original assignment';
+
+function assignmentBlock(string $name, string $content, bool $open): string
+{
+    return '<details' . ($open ? ' open' : '') . ">\n<summary><strong>" . $name . "</strong></summary>\n<dl>\n<dd>\n<br>\n\n" . $content . "\n\n</dd>\n</dl>\n</details>";
+}
+
 /**
- * Renders sections the way `rules/compound-engineering/assignment.md` *The shape in a GitHub issue body* states.
+ * Renders sections the way `rules/compound-engineering/assignment.md` *The shape in a GitHub issue body* states:
+ * the opening section as plain text, an open block for each business section, and the original assignment collapsed.
+ *
+ * @param array<string, string> $sections section name to content
+ */
+function assignmentRenderLayout(array $sections): string
+{
+    $parts = [];
+
+    foreach ($sections as $name => $content) {
+        $parts[] = $name === ASSIGNMENT_OPENING_SECTION
+            ? $content
+            : assignmentBlock($name, $content, $name !== ASSIGNMENT_COLLAPSED_SECTION);
+    }
+
+    return implode("\n\n", $parts) . "\n";
+}
+
+/**
+ * Renders every section as a collapsed block, the shape of a body that holds no business section.
  *
  * @param array<string, string> $sections section name to content
  */
 function assignmentRenderCollapsed(array $sections): string
 {
-    $blocks = [];
-
-    foreach ($sections as $name => $content) {
-        $blocks[] = "<details>\n<summary><strong>" . $name . "</strong></summary>\n<dl>\n<dd>\n<br>\n\n" . $content . "\n\n</dd>\n</dl>\n</details>";
-    }
-
-    return implode("\n\n", $blocks) . "\n";
+    return implode("\n\n", array_map(
+        static fn (string $name, string $content): string => assignmentBlock($name, $content, open: false),
+        array_keys($sections),
+        $sections,
+    )) . "\n";
 }
 
 /**
- * Reads the sections of an issue body in either form: the collapsed block, and the plain `## name` heading of an older body.
+ * Lists what breaks the layout rule: a body that does not open with plain text, a business block that is collapsed,
+ * and an original assignment that is open.
+ *
+ * @return list<string>
+ */
+function assignmentLayoutViolations(string $body): array
+{
+    $violations = [];
+
+    if (ltrim($body) === '' || str_starts_with(ltrim($body), '<details')) {
+        $violations[] = 'the body does not start with plain text';
+    }
+
+    preg_match_all('#<details( open)?>\n<summary><strong>(.+?)</strong></summary>#', $body, $blocks, PREG_SET_ORDER);
+
+    foreach ($blocks as $block) {
+        $isOpen = $block[1] === ' open';
+
+        if ($block[2] === ASSIGNMENT_COLLAPSED_SECTION && $isOpen) {
+            $violations[] = 'the original assignment is open';
+        }
+
+        if ($block[2] !== ASSIGNMENT_COLLAPSED_SECTION && !$isOpen) {
+            $violations[] = 'the section "' . $block[2] . '" is collapsed';
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * Reads the sections of an issue body in either form: the opening text and the blocks, and the plain `## name` heading of an older body.
  *
  * @return array<string, string> section name to content
  */
@@ -43,17 +100,23 @@ function assignmentSections(string $body): array
     $sections = [];
 
     preg_match_all(
-        '#<details>\n<summary><strong>(.+?)</strong></summary>\n<dl>\n<dd>\n<br>\n\n(.*?)\n\n</dd>\n</dl>\n</details>#s',
+        '#<details(?: open)?>\n<summary><strong>(.+?)</strong></summary>\n<dl>\n<dd>\n<br>\n\n(.*?)\n\n</dd>\n</dl>\n</details>#s',
         $body,
-        $collapsed,
+        $blocks,
         PREG_SET_ORDER,
     );
 
-    foreach ($collapsed as $match) {
-        $sections[$match[1]] = $match[2];
-    }
+    if ($blocks !== []) {
+        $opening = trim(explode('<details', $body, 2)[0]);
 
-    if ($sections !== []) {
+        if ($opening !== '') {
+            $sections[ASSIGNMENT_OPENING_SECTION] = $opening;
+        }
+
+        foreach ($blocks as $match) {
+            $sections[$match[1]] = $match[2];
+        }
+
         return $sections;
     }
 
@@ -89,15 +152,19 @@ function assignmentFixtureSections(): array
     return $sections;
 }
 
-test('the issue template renders every section as a collapsed block in the order of the rule', function (): void {
+test('the issue template opens with plain text, then open blocks, and the original assignment is the one collapsed block', function (): void {
     $template = assignmentLayoutFile('../skills/create-issues-from-text/templates/issue-structure.md');
     $sections = assignmentSections($template);
 
     expect(array_keys($sections))->toBe(ASSIGNMENT_SECTION_NAMES)
-        ->and(substr_count($template, '<details>'))->toBe(7)
-        ->and(substr_count($template, '</details>'))->toBe(7)
+        ->and($template)->toStartWith('<The problem today, who has it, and why it is fixed>')
+        ->and(substr_count($template, '<details open>'))->toBe(5)
+        ->and(substr_count($template, '<details>'))->toBe(1)
+        ->and(substr_count($template, '</details>'))->toBe(6)
+        ->and(assignmentLayoutViolations($template))->toBe([])
         ->and($template)->not->toMatch('/^#{1,6} /m')
-        ->and(assignmentRenderCollapsed($sections))->toBe($template)
+        ->and($template)->not->toContain('What this is about')
+        ->and(assignmentRenderLayout($sections))->toBe($template)
         ->and($template)->not->toContain('Technical Solution')
         ->and($template)->not->toContain('Acceptance Criteria')
         ->and($template)->not->toContain('Testing Scenarios');
@@ -108,16 +175,53 @@ test('the preserved-text issue body is two collapsed blocks and no plain heading
     $sections = assignmentSections($template);
 
     expect(array_keys($sections))->toBe(['Task', 'Notes'])
+        ->and(substr_count($template, '<details>'))->toBe(2)
+        ->and(substr_count($template, '<details open>'))->toBe(0)
         ->and(assignmentRenderCollapsed($sections))->toBe($template)
         ->and($template)->not->toMatch('/^#{1,6} /m');
 });
 
-test('an example assignment renders byte for byte as the committed collapsed issue body', function (): void {
-    expect(assignmentRenderCollapsed(assignmentFixtureSections()))
-        ->toBe(assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md'));
+test('an example assignment renders byte for byte as the committed issue body', function (): void {
+    $body = assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md');
+
+    expect(assignmentRenderLayout(assignmentFixtureSections()))->toBe($body)
+        ->and($body)->toStartWith('A workspace owner cannot invite a colleague today.')
+        ->and(assignmentLayoutViolations($body))->toBe([]);
 });
 
-test('the readers find every section of a collapsed body by its name, and the Dependencies section among them', function (): void {
+test('the layout check fails on a body that does not start with the plain text', function (): void {
+    $body = assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md');
+    $opening = assignmentFixtureSections()[ASSIGNMENT_OPENING_SECTION];
+
+    expect(assignmentLayoutViolations(str_replace($opening . "\n\n", '', $body)))
+        ->toBe(['the body does not start with plain text'])
+        ->and(assignmentLayoutViolations(assignmentRenderCollapsed(assignmentFixtureSections())))
+        ->toContain('the body does not start with plain text');
+});
+
+test('the layout check fails on a business section that is collapsed', function (): void {
+    $body = assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md');
+    $collapsed = str_replace(
+        "<details open>\n<summary><strong>The rules</strong>",
+        "<details>\n<summary><strong>The rules</strong>",
+        $body,
+    );
+
+    expect(assignmentLayoutViolations($collapsed))->toBe(['the section "The rules" is collapsed']);
+});
+
+test('the layout check fails on an original assignment that is open', function (): void {
+    $body = assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md');
+    $open = str_replace(
+        "<details>\n<summary><strong>Original assignment</strong>",
+        "<details open>\n<summary><strong>Original assignment</strong>",
+        $body,
+    );
+
+    expect(assignmentLayoutViolations($open))->toBe(['the original assignment is open']);
+});
+
+test('the readers find every section of a body by its name, and the Dependencies section among them', function (): void {
     $sections = assignmentSections(assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md'));
 
     expect($sections)->toBe(assignmentFixtureSections())
@@ -125,7 +229,7 @@ test('the readers find every section of a collapsed body by its name, and the De
         ->and($sections['The rules'])->toContain('"This invitation is no longer valid"');
 });
 
-test('a body written before the collapsed shape, with plain headings, holds the same sections', function (): void {
+test('a body written before the block shape, with plain headings, holds the same sections', function (): void {
     expect(assignmentSections(assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue-legacy.md')))
         ->toBe(assignmentFixtureSections());
 });
@@ -133,7 +237,7 @@ test('a body written before the collapsed shape, with plain headings, holds the 
 test('a section left out keeps no empty block', function (): void {
     $sections = assignmentFixtureSections();
     unset($sections['Open questions for the owner'], $sections['Original assignment']);
-    $body = assignmentRenderCollapsed($sections);
+    $body = assignmentRenderLayout($sections);
 
     expect(array_keys(assignmentSections($body)))->toBe([
         'What this is about',
@@ -142,21 +246,27 @@ test('a section left out keeps no empty block', function (): void {
         'What we are not doing now',
         'Dependencies',
     ])
+        ->and(assignmentLayoutViolations($body))->toBe([])
         ->and($body)->not->toContain('Open questions')
         ->and($body)->not->toMatch('/<dd>\n<br>\n\n\n/');
 });
 
-test('the rule owns the collapsed shape once and the skills point to it', function (): void {
+test('the rule owns the shape once and the skills point to it', function (): void {
     $rule = assignmentLayoutFile('../rules/compound-engineering/assignment.md');
-    $section = installerDocsSection($rule, '### The shape in a GitHub issue body — every section is a collapsed block');
+    $heading = '### The shape in a GitHub issue body — the opening text, open blocks, and a collapsed original';
+    $section = installerDocsSection($rule, $heading);
 
-    expect(substr_count($rule, '### The shape in a GitHub issue body — every section is a collapsed block'))->toBe(1)
-        ->and($section)->toContain('A section is a `<details>` block whose `<summary>` is `<strong>{section name}</strong>`')
+    expect(substr_count($rule, $heading))->toBe(1)
+        ->and($section)->toContain('The body opens with *What this is about* as plain text.')
+        ->and($section)->toContain('with no heading and no `<summary>`')
+        ->and($section)->toContain('A section is a `<details open>` block whose `<summary>` is `<strong>{section name}</strong>`')
+        ->and($section)->toContain('The preserved original is the only collapsed block.')
+        ->and($section)->toContain('*Original assignment* is a plain `<details>` block, with no `open`, and it is the last block.')
         ->and($section)->toContain('The summary carries the section name, verbatim.')
         ->and($section)->toContain('A part with nothing to say is left out, and no block is empty.')
-        ->and($section)->toContain('The preserved original is the last block, *Original assignment*.')
-        ->and($section)->toContain('A body written before this shape, with a plain `## <name>` heading, is read the same way')
+        ->and($section)->toContain('A body written before this shape, with a plain `## <name>` heading for every section, is read the same way')
         ->and($section)->toContain('A tracker that renders no HTML takes plain headings.')
-        ->and(assignmentLayoutFile('../skills/create-issues-from-text/SKILL.md'))->toContain('every section of it is a collapsed block')
+        ->and(assignmentLayoutFile('../skills/create-issues-from-text/SKILL.md'))->toContain(ltrim($heading, '# '))
+        ->and(assignmentLayoutFile('../skills/create-issues-from-text/SKILL.md'))->toContain('which is the only collapsed one')
         ->and(assignmentLayoutFile('../skills/create-issue/SKILL.md'))->toContain('Every section of the body is a collapsed block');
 });
