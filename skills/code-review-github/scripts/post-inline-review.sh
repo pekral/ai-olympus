@@ -880,7 +880,7 @@ MD
     fi
   }
   yes_if() { if "$@" >/dev/null 2>&1; then echo yes; else echo no; fi; }
-  local bt='```' tk='`'
+  local bt='```'
   review_has() { jq -e --arg bt "$bt" "$1" "$tmp/review.json" >/dev/null 2>&1; }
   out_has() { printf '%s' "$out" | jq -e "$1" >/dev/null 2>&1; }
   record_of() { jq -j '.body' "$tmp/review.json" | cr_review_meta_unwrap review; }
