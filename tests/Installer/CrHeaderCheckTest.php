@@ -113,7 +113,7 @@ test('the publication step checks the header lines of the record it then publish
     $contract = crHeaderCheckSource('skills/code-review-github/references/cr-wrapper-contract.md');
     $script = crHeaderCheckSource('skills/code-review-github/scripts/post-inline-review.sh');
     $publish = 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
-        . '<reviewed head SHA> --meta-file <record-file> <findings-file>';
+        . '<reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>';
 
     expect(substr_count($contract, '- **Check the record before publishing.**'))->toBe(1)
         ->and(substr_count($contract, '`skills/_shared/check-cr-header.sh --file <record-file>`'))->toBe(1)

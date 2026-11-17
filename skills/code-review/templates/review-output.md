@@ -80,16 +80,10 @@ History exposure: not run — the repository is private.  *(render this one body
 - **Raised by:** `splinter` | `leonardo` | `both` *(render it on every finding of a comment whose round carries a `splinter` report, and on none otherwise — `@rules/code-review/review-process.md` *Merging the `splinter` view into the one CR comment*)*
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Evidence:** `failing-test` | `static-analysis` | `runtime-failure` | `exploit-path` | `logic-trace` | `rule-violation` — the evidence another reader can check without trusting this review: the failing test, the analyser error, the reproducible failure, the exploit path, the traced logic defect, or the explicit rule the line breaks. *(Required on every finding. A point that has none goes under `## Needs verification`, never here.)*
-- **Faulty Example:**
-  ```php
-  // minimal code or input that reproduces the issue (no secrets / PII)
-  ```
+- **Faulty Example:** one sentence that describes the input, the call, or the state that reproduces the issue, with no code and no runnable payload (no secrets / PII).
 - **Expected behavior:** single assertable statement (return value, thrown exception, persisted state, emitted event).
 - **Test hint:** test layer (unit / integration / feature) + entry point, in one sentence.
-- **Suggested fix:**
-  ```php
-  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.md on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
-  ```
+- **Suggested fix:** one plain sentence that says what to change and where, naming the existing function, class, or setting it uses in an inline code span. No snippet, no fenced block (`@rules/code-review/general.md` *A review carries no code*). The change complies with `@rules/php/core-standards.md` (and `@rules/laravel/architecture.md` on Laravel projects).
 
 ### 🟠 Moderate 1. <short title>
 
@@ -175,10 +169,7 @@ History exposure: not run — the repository is private.  *(render this one body
 
 - **Findings:**
   1. **{Critical / Moderate}** — `file:line` — one-sentence problem
-     **Suggested Fix:** {one-sentence fix category — query rewrite to reuse an existing index per `@rules/sql/optimalize.md`, batch operation per "Batch over per-row operations", or new-index proposal justified by EXPLAIN when no existing index covers the query}
-     ```sql
-     -- concrete rewritten query, index DDL, or batch-operation replacement implementing the fix above (issue #132) — never a category label alone
-     ```
+     **Suggested Fix:** {one sentence that names the change — the query rewritten to reuse an existing index per `@rules/sql/optimalize.md`, the batch operation per "Batch over per-row operations", or the new index justified by EXPLAIN when no existing index covers the query (issue #132) — with the table, the columns, and the existing function it uses; no query, no DDL, no fenced block}
 
 ---
 

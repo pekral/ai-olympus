@@ -183,7 +183,7 @@ Produce the report using `templates/report.md` as the template:
 1. **Summary** — counts per severity + the 1–2 things to fix today.
 2. **Coverage map** — a table of **every in-scope route** → `auth ✓ · authz ✓ · scoped ✓ · policy ✓` (✓ / ✗ / n/a). Never silently omit a route you reviewed.
    > The `policy` column is **defense-in-depth**. When `authz` and `scoped` are satisfied *inline*, `policy ✗` is not an exposure, but it is still a **blocking Moderate** (extract a policy) — never Critical, and as a security-lens finding never deferred or excluded.
-3. **Findings by lane**, each row carrying its evidence chain (`route → Controller@method:line → missing layer` + snippet) and evidence class: **Critical** (verify & fix now) → **Moderate** (open point or hardening, with the open point under *Not verified*) → **Covered** (summarized from the map).
+3. **Findings by lane**, each row carrying its evidence chain (`route → Controller@method:line → missing layer`, each with its `file:line`, and no snippet) and evidence class: **Critical** (verify & fix now) → **Moderate** (open point or hardening, with the open point under *Not verified*) → **Covered** (summarized from the map).
 4. For each Critical / Moderate: a **fix sketch** in Laravel idiom (add `authorize()`, scope the query through the relationship, write the policy) — as *advice for the human to apply*, not an edit.
 
 List each route once, in its most-severe lane; the coverage map carries the rest.

@@ -19,7 +19,7 @@ test('the rule owns the quick overview once and defines its three parts', functi
         ->and($section)->toContain('The merge gate still reads every value from the same report')
         ->and($section)->toContain('**On GitHub the review carries none of the three parts.**')
         ->and($section)->toContain(
-            'the visible TL;DR, the short inline comments, and the visible lines are the human part of the review '
+            'the visible body, the short inline comments, and the Actionable comments are the human part of the review '
             . '(*One published comment per review run* item 3)',
         );
 });

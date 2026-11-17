@@ -1,6 +1,9 @@
 # Code Review
 
-> **On GitHub this is the hidden record of the one pull-request review.** `skills/code-review-github/scripts/post-inline-review.sh post --meta-file` wraps it as hidden HTML in the review body, and every reader unwraps it (`skills/_shared/cr-header.sh`). The record leaves out four parts that only a person reads: the `Overview:` line, the changed-areas table, the TL;DR section, and the fix-all prompt (`@rules/code-review/general.md` *Quick overview*). The visible TL;DR of the inline findings and the CI result is not part of this record: the wrapper renders it above the record (`@rules/code-review/general.md` *One published comment per review run* item 3). Every other line and section stays, because the merge gate, the carry-forward, the recurrence analysis, and `pr-summary` read them.
+> **On GitHub this is the hidden record of the one pull-request review.** `skills/code-review-github/scripts/post-inline-review.sh post --meta-file` wraps it as hidden HTML in the review body, and every reader unwraps it (`skills/_shared/cr-header.sh`). The record leaves out four parts that only a person reads: the `Overview:` line, the changed-areas table, the TL;DR section, and the fix-all prompt (`@rules/code-review/general.md` *Quick overview*).
+> The visible body of the review (the summary, the Merge Risk, the Walkthrough, Where to test, and the Actionable comments) is not part of this record: the wrapper renders it above the record from `templates/review-body.md` (`@rules/code-review/general.md` *One published comment per review run* item 3). The `Merge risk:` line below is the one source of the grade and the sentence of its Merge Risk block, so the line is always rendered.
+>
+> **A review carries no code.** No field of a finding holds a fenced block or a snippet: `Faulty Example` describes the failing input, call, or state in a sentence, and `Suggested fix` says what to change in a sentence (`@rules/code-review/general.md` *A review carries no code*). Every other line and section stays, because the merge gate, the carry-forward, the recurrence analysis, and `pr-summary` read them.
 >
 > **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
 > The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
@@ -80,16 +83,10 @@ History exposure: not run — the repository is private.  *(render this one body
 - **Raised by:** `splinter` | `leonardo` | `both` *(render it on every finding of a comment whose round carries a `splinter` report, and on none otherwise — `@rules/code-review/review-process.md` *Merging the `splinter` view into the one CR comment*)*
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Evidence:** `failing-test` | `static-analysis` | `runtime-failure` | `exploit-path` | `logic-trace` | `rule-violation` — the evidence another reader can check without trusting this review: the failing test, the analyser error, the reproducible failure, the exploit path, the traced logic defect, or the explicit rule the line breaks. *(Required on every finding. A point that has none goes under `## Needs verification`, never here.)*
-- **Faulty Example:**
-  ```php
-  // minimal code or input that reproduces the issue (no secrets / PII)
-  ```
+- **Faulty Example:** one sentence that describes the input, the call, or the state that reproduces the issue, with no code and no runnable payload (no secrets / PII).
 - **Expected behavior:** single assertable statement (return value, thrown exception, persisted state, emitted event).
 - **Test hint:** test layer (unit / integration / feature) + entry point, in one sentence.
-- **Suggested fix:**
-  ```php
-  // minimal corrected snippet — must comply with @rules/php/core-standards.md (and @rules/laravel/architecture.md on Laravel projects). Use `n/a — <reason>` only when a snippet adds no value.
-  ```
+- **Suggested fix:** one plain sentence that says what to change and where, naming the existing function, class, or setting it uses in an inline code span. No snippet, no fenced block. The change complies with `@rules/php/core-standards.md` (and `@rules/laravel/architecture.md` on Laravel projects).
 - **Author:** `@<login>` — the pull request's `author.login`. *(Render only in a review-only run (`/report-code-review`), and only on a finding about a missing test or a DRY finding, per `@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request* → *Second exception*. Omit the field on every other finding and on every other run.)*
 
 ### 🟠 Moderate 1. <short title>
@@ -197,10 +194,7 @@ History exposure: not run — the repository is private.  *(render this one body
 
 - **Findings:**
   1. **{Critical / Moderate}** — `file:line` — one-sentence problem
-     **Suggested Fix:** {one-sentence fix category — query rewrite to reuse an existing index per `@rules/sql/optimalize.md`, batch operation per "Batch over per-row operations", or new-index proposal justified by EXPLAIN when no existing index covers the query}
-     ```sql
-     -- concrete rewritten query, index DDL, or batch-operation replacement implementing the fix above (issue #132) — never a category label alone
-     ```
+     **Suggested Fix:** {one sentence that names the change — the query rewritten to reuse an existing index per `@rules/sql/optimalize.md`, the batch operation per "Batch over per-row operations", or the new index justified by EXPLAIN when no existing index covers the query (issue #132) — with the table, the columns, and the existing function it uses; no query, no DDL, no fenced block}
 
 ---
 

@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # post-inline-review.sh — GitHub pull-request review publisher used by CR-track skills. It publishes one review round
 # as ONE pull-request review: its inline comments carry the short human findings on the changed lines, and its body
-# carries a visible TL;DR of the inline findings and the CI result, one short visible line for each finding that
-# cannot anchor, and the hidden machine record of the round. It also resolves the inline thread of a finding that a
-# later round found fixed.
+# carries the visible layout of templates/review-body.md (a TL;DR of at most 4000 characters, a collapsed Merge Risk
+# block, a collapsed Walkthrough block, a collapsed Where to test block, and a collapsed Actionable comments block) above
+# the hidden machine record of the round. It also
+# resolves the inline thread of a finding that a later round found fixed. A review never carries code: no fenced block
+# and no suggestion block in an inline comment or in the visible body; the one fence allowed is the mermaid sequence
+# diagram of the Walkthrough.
 #
 # Usage:
-#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> <FINDINGS_FILE|->
+#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> <FINDINGS_FILE|->
 #   post-inline-review.sh resolve <NUMBER|URL> --fixed <FINDING_ID>[,<FINDING_ID>...]
 #   post-inline-review.sh --self-test
 #
@@ -14,71 +17,89 @@
 #   FINDINGS_FILE  A JSON array, or `-` for stdin; `[]` for a round with no finding. One object per finding:
 #                    finding_id            required, `r-` or `f-` and 16 hex digits (finding-records.md)
 #                    severity              required, `Critical` or `Moderate`
-#                    title                 required, 1 to 200 characters; the short name of the finding in its TL;DR
-#                                          line, and the name the withheld-finding check looks for in the record
+#                    title                 required, 1 to 200 characters; the short name of the finding in the Actionable
+#                                          comments block, and the name the withheld-finding check looks for in the record
 #                    path, line            the file in the pull request and the (last) line; both left out for a
 #                                          finding with no line (a functional gap)
 #                    start_line            optional, the first line of a multi-line finding, below `line`
 #                    side                  optional, `RIGHT` (default, the new file) or `LEFT` (the old file)
 #                    problem               required, one or two plain sentences, 4000 characters at most
 #                    impact                required except on a `dry` finding, one sentence
-#                    faulty_example        optional, the faulty code, 5 lines at most
-#                    faulty_example_lang   optional, the fence language of the faulty example (`php`, `bash`, ...)
+#                    fix                   required except on a `dry` finding, one plain sentence that says what to change
+#                                          and never holds code: no fenced block
 #                    kind                  optional, `dry`: a DRY / reuse finding, always Moderate
 #                    existing              required on a `dry` finding, `<path>:<line>` of the existing implementation
 #                    author                optional `@login` of the pull request author; rendered as a mention line
 #                    do_not_file_publicly  optional boolean; a security finding that must not reach a public repository
-#                    fix, suggestion, rule, provenance, evidence, expected_behavior, test_hint, answered
+#                    rule, provenance, evidence, expected_behavior, test_hint, answered
 #                                          optional text (4000 characters at most); accepted and never rendered: the
 #                                          full finding lives in the hidden record
 #                    raised_by             optional, `splinter`, `leonardo`, or `both`; never rendered
 #                    level                 optional, `High`, `Medium`, or `Low`; a Moderate only; never rendered
+#                  A review carries no code, so `suggestion`, `faulty_example`, and `faulty_example_lang` are refused,
+#                  and so is a title, problem, impact, fix, or existing value that holds a fenced block.
 #   --commit-id    The head SHA the round reviewed. The script refuses a head that is not the current one (exit 4).
 #   --meta-file    The hidden machine record of the round: the text templates/pr-comment-output.md renders, which
 #                  skills/_shared/check-cr-header.sh accepts. It lists every published finding in full and never a
-#                  finding withheld on a public repository.
+#                  finding withheld on a public repository. Its `Merge risk:` line gives the grade and the sentence of the
+#                  visible Merge Risk block: the record is the one owner of both. A record with no `Merge risk:` line, or
+#                  with a suggestion block, is refused.
+#   --walkthrough-file
+#                  A JSON object, the data of the TL;DR and of the Walkthrough block (templates/review-body.md):
+#                    tldr          required, what the pull request changes in plain sentences. At most 4000 code points
+#                                  once the text is normalised: a longer text is refused, never cut (exit 1), so the
+#                                  author rewrites it shorter
+#                    description   required, the change in one to three plain sentences, 1500 characters at most
+#                    title         optional, the name of the change group, shown as `Changes: <title>`
+#                    areas         required, 1 to 20 rows: {layer, files[], summary}; every file is a changed file of the
+#                                  pull request, and the row shows at most four of them
+#                    effort        required: {level 1-5, minutes 1-999}; the label (Trivial, Simple, Moderate, Complex,
+#                                  Critical) comes from the level
+#                    change_type   required: Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, Chore
+#                    diagram       optional, a mermaid `sequenceDiagram` of 60 lines at most, for a change with a flow
+#                    test_routes   optional, 1 to 30 rows {method, path, try}: each page or route the change touches, from
+#                                  the route inventory of the security review (never from a running application), as an
+#                                  HTTP method (GET, POST, PUT, PATCH, DELETE), a path that starts with `/`, and one short
+#                                  line on what to try there. Left out, or empty, when the change touches no page or route
 #
 # Behavior of post:
-#   1. Validate the findings and the record. A bad document, a record that check-cr-header.sh refuses, or a faulty
-#      example of more than 5 lines publishes nothing (exit 1). A `suggestion`, `faulty_example`, `rule`, or text field
-#      that holds an agent marker after normalisation is refused, and so is a rendered comment or body that does not hold
-#      exactly its own markers.
+#   1. Validate the findings, the walkthrough, and the record. A bad document, a record that check-cr-header.sh
+#      refuses, a record with no `Merge risk:` line or with a suggestion block, a finding that holds code or an agent
+#      marker after normalisation, and a rendered comment or body that does not hold exactly its own markers publish
+#      nothing (exit 1).
 #   2. Read the pull request head and refuse a `--commit-id` that is not the current head (exit 4).
 #   3. Read the visibility of the repository with `gh repo view --json isPrivate`. Only the value `true` is private:
 #      anything else, a failed check included, is public. On a public repository a finding marked
-#      `do_not_file_publicly` is withheld: it is in no inline comment and in no visible line. A record that names a
-#      withheld finding (its finding id or its title) is refused, nothing is posted (exit 1): hidden HTML is public too.
+#      `do_not_file_publicly` is withheld: it is in no inline comment and in no line of the Actionable comments block,
+#      and not in its count. A record that names a withheld finding (its finding id or its title) is refused, nothing is
+#      posted (exit 1): hidden HTML is public too.
 #   4. Read the changed lines of the pull request. A finding whose line (or any line of its range) is not in the diff,
-#      or that has no line, is reported as `outside_diff`: it gets one short visible line in the review body, because
-#      GitHub rejects the whole review for one comment off the diff.
+#      or that has no line, is reported as `outside_diff`: it has no inline comment, because GitHub rejects the whole
+#      review for one comment off the diff, and it stays in the Actionable comments block.
 #   4a. Read the paths of the repository at the reviewed head (`git/trees/<sha>?recursive=1`) and the changed files.
-#      The visible text (every inline comment and every visible line, never the hidden record) must name none of the
-#      package's own tooling; skills/_shared/check-visible-review-text.php decides, and a name that the reviewed
-#      repository holds, or that an added or removed line of the changed files carries, is the project's own. A refusal publishes nothing (exit 1), a failed lookup exits 3.
+#      The visible text (every inline comment, the TL;DR, the Merge Risk sentence, the Walkthrough, and the Actionable comments;
+#      never the hidden record) must name none of the package's own tooling; skills/_shared/check-visible-review-text.php
+#      decides, and a name that the reviewed repository holds, or that an added or removed line of the changed files
+#      carries, is the project's own. A refusal publishes nothing (exit 1), a failed lookup exits 3.
 #   5. Read the review threads, with every comment of each thread. A finding that has an unresolved inline thread on the
 #      same path with the same finding id, whose first comment is an agent comment of this actor, and whose line is the
 #      line of the finding or is no longer set (an outdated thread), is reported as `already_open` and is not posted again.
-#   5a. Read the CI result of the reviewed head: every check run (`commits/<sha>/check-runs`) and every commit status
-#      (`commits/<sha>/status`), every page of both. A failed lookup publishes the review anyway, and the CI line says
-#      the result was not read.
 #   6. POST one review, always, a round with no finding included (`event` COMMENT, `commit_id` the reviewed head,
-#      `comments[]` one per remaining finding). The body is the TL;DR, the visible lines, the record wrapped by
+#      `comments[]` one per remaining finding). The body is the visible layout, the record wrapped by
 #      `cr_review_meta_wrap` (skills/_shared/cr-header.sh), the `<!-- cr-comment:lines=… -->` fingerprint that
 #      skills/_shared/carry-operator-lines.php writes, and `<!-- cr-comment:actor=<login> -->`.
 #   An inline comment has one of two shapes, fixed by templates/inline-review-comment.md:
-#     - every finding except DRY: `<icon> **Problem:** …`, `**Impact:** …`, and the faulty example in a fenced block;
+#     - every finding except DRY: `<icon> **Problem:** …`, `**Impact:** …`, and `**Fix:** …`;
 #     - a `dry` finding: `🟠 **Moderate · DRY:** This repeats the logic of `<existing>`. Please unify it and call the
 #       existing implementation instead.`
 #   Both end with the `@login` mention line when `author` is set and with two hidden agent markers:
 #   `<!-- cr-inline:actor=<login> -->` and `<!-- cr-inline:finding=<finding id> -->`. The first is an agent marker in the
 #   sense of `rules/code-review/general.md` *Authorship trust*: a reader never takes the comment as a trusted reviewer
 #   request. The icon is 🔴 for Critical and 🟠 for Moderate.
-#   The TL;DR opens the body (templates/inline-review-comment.md): one line for each finding posted or `already_open`,
-#   Critical first, with the icon, the severity, the title, and a link to its line on the Files changed page
-#   (`#diff-<SHA-256 of the path>R<line>`, `L<line>` on the old file), then one CI line: the passed, failed, pending,
-#   and skipped counts and the name of each failing check. A withheld finding and an `outside_diff` finding have no
-#   TL;DR line. The visible-text check of step 4a reads the finding lines of the TL;DR too, never the CI line: a check
-#   name is the project's own data, shown in a code span, and never stops the publish.
+#   The body shows nothing but the layout of templates/review-body.md: the TL;DR, the Merge Risk block, the Walkthrough
+#   block, the Where to test block (only when `test_routes` is set), and (when a finding is published) the Actionable
+#   comments block, Critical first. It carries no CI
+#   result, no pre-merge checks, no recent review information, no button, no share link, and no `cr-inline` marker.
 #
 # resolve
 #   Resolves every unresolved inline thread that this actor opened for one of the given finding ids. A comment is the
@@ -89,11 +110,11 @@
 #
 # Output (stdout, one JSON document):
 #   post     {"review_url","review_id","posted":[{finding_id,path,line}],"already_open":[...],"outside_diff":[...],
-#             "withheld":[{finding_id}]}  Each `outside_diff` finding has its visible line in the review body. A withheld
-#             finding stays out of every public surface.
+#             "withheld":[{finding_id}]}  Each `outside_diff` finding is a line of the Actionable comments block. A
+#             withheld finding stays out of every public surface.
 #   resolve  {"resolved":[{finding_id,thread_id}],"has_reply":[{finding_id,thread_id}],"not_open":[finding ids with no
 #            open thread]}
-#   stderr   `action=created id=<review id> comments=<n> visible=<n>` for post.
+#   stderr   `action=created id=<review id> comments=<n> listed=<n>` for post.
 #
 # Audit trail:
 #   Each write appends its own line to the run's `.audit` file at the moment it happens, through
@@ -102,7 +123,7 @@
 #   AUDIT_TRAIL_ROLE. A missing ledger prints a hint on stderr and never changes the output or the exit code.
 #
 # Exit codes:
-#   1  usage / argument / findings-document / record error
+#   1  usage / argument / findings-document / walkthrough / record error
 #   2  missing required tool (gh, jq, php)
 #   3  GitHub API call failed (nothing was published unless the output says so)
 #   4  the commit id is not the current head of the pull request; nothing was published
@@ -124,7 +145,7 @@ source "$HERE/../../_shared/cr-header.sh"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> <FINDINGS_FILE|->
+Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> <FINDINGS_FILE|->
        post-inline-review.sh resolve <NUMBER|URL> --fixed <FINDING_ID>[,<FINDING_ID>...]
        post-inline-review.sh --self-test
 
@@ -132,6 +153,7 @@ Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file 
   FINDINGS_FILE JSON array of findings (`[]` for a round with no finding), or `-` for stdin
   --commit-id   the head SHA the round reviewed; a head that moved is refused
   --meta-file   the hidden machine record of the round (templates/pr-comment-output.md)
+  --walkthrough-file  the data of the visible Walkthrough block, a JSON object (templates/review-body.md)
   --fixed       finding ids whose inline threads are resolved
 EOF
 }
@@ -163,21 +185,27 @@ require_tools() {
 
 # --- jq programs: program text this package ships, never built from input -------------------------------
 
-IFS= read -r -d '' JQ_NORMALIZE <<'JQ' || true
+# The definitions both normalisers share. A review carries no code, so `nocode` refuses a fenced block.
+IFS= read -r -d '' JQ_DEFS <<'JQ' || true
 def req($c; $m): if $c then . else error($m) end;
 def isint: type == "number" and . == floor and . >= 1;
 def isstr($max): type == "string" and length >= 1 and length <= $max;
 def printable: explode | map(select((. >= 32 and . != 127) or . == 10 or . == 9)) | implode;
 def prose: printable | gsub("<!--"; "&lt;!--") | gsub("-->"; "--&gt;");
+def nocode: type == "string" and ((test("```|~~~")) | not);
+def relpath: type == "string" and isstr(500) and (startswith("/") | not) and (explode | all(. >= 32 and . != 127)) and ((split("/") | index("..")) == null);
+JQ
+
+IFS= read -r -d '' JQ_NORMALIZE <<'JQ' || true
 def optstr: . == null or (type == "string" and length >= 1 and length <= 4000);
 def marker_free: . == null or ((type == "string") and ((test("<!--\\s*[a-z][a-z0-9-]*:(actor|finding|lines)=")) | not));
 def codespan: gsub("`"; "");
-def relpath: type == "string" and isstr(500) and (startswith("/") | not) and (explode | all(. >= 32 and . != 127)) and ((split("/") | index("..")) == null);
 req(type == "array"; "the findings document must be a JSON array")
 | req(length <= 100; "at most 100 findings per review")
 | map(
     req(type == "object"; "every finding must be an object")
-    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "faulty_example", "faulty_example_lang", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
+    | req((has("suggestion") or has("faulty_example") or has("faulty_example_lang")) | not; "a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang")
+    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
     | req((.finding_id | type) == "string" and (.finding_id | test("^[rf]-[0-9a-f]{16}$")); "finding_id must be r- or f- and 16 hex digits")
     | req(.severity == "Critical" or .severity == "Moderate"; "severity must be Critical or Moderate")
     | req(.title | isstr(200); "title must be 1 to 200 characters")
@@ -192,13 +220,11 @@ req(type == "array"; "the findings document must be a JSON array")
     | req(.kind == "dry" or (.impact | isstr(4000)); "impact must be 1 to 4000 characters")
     | req(.kind != "dry" or ((.existing | type) == "string" and (.existing | test("^[^\\s`]+:[1-9][0-9]*$")) and (.existing | sub(":[0-9]+$"; "") | relpath)); "existing must be the <path>:<line> of the existing implementation")
     | req(.kind == "dry" or .existing == null; "existing belongs to a dry finding")
-    | req(.fix | optstr; "fix must be 1 to 4000 characters when set")
-    | req(.suggestion == null or ((.suggestion | type) == "string" and (.suggestion | length) <= 4000); "suggestion must be a string of 4000 characters at most")
-    | req(.suggestion == null or (.side // "RIGHT") == "RIGHT"; "a suggestion needs side RIGHT")
+    | req(.kind == "dry" or (.fix | isstr(4000)); "fix must be 1 to 4000 characters: one plain sentence on what to change")
+    | req(.kind != "dry" or (.fix | optstr); "fix must be 1 to 4000 characters when set")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
-    | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.faulty_example | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, faulty_example, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
-    | req(.faulty_example == null or ((.faulty_example | rtrimstr("\n") | split("\n") | length) <= 5); "faulty_example must be 5 lines at most")
-    | req(.faulty_example_lang == null or ((.faulty_example_lang | type) == "string" and (.faulty_example_lang | test("^[A-Za-z0-9_+.-]{1,20}$"))); "faulty_example_lang must be a fence language of 1 to 20 characters")
+    | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
+    | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null)) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
     | req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule must not contain an agent marker")
     | req(.raised_by == null or .raised_by == "splinter" or .raised_by == "leonardo" or .raised_by == "both"; "raised_by must be splinter, leonardo, or both")
     | req(.level == null or (.severity == "Moderate" and (.level == "High" or .level == "Medium" or .level == "Low")); "level must be High, Medium, or Low and belongs to a Moderate")
@@ -216,15 +242,11 @@ req(type == "array"; "the findings document must be a JSON array")
         existing: (.existing | if . == null then null else codespan | prose end),
         problem: (.problem | prose),
         impact: (.impact | if . == null then null else prose end),
-        faulty_example: (.faulty_example | if . == null then null else printable end),
-        faulty_example_lang,
-        suggestion: (.suggestion | if . == null then null else printable end),
+        fix: (.fix | if . == null then null else prose end),
         withhold: (.do_not_file_publicly == true),
         author
       }
-    | req(.suggestion | marker_free; "suggestion must not contain an agent marker")
-    | req(.faulty_example | marker_free; "faulty_example must not contain an agent marker")
-    | req([.problem, .impact, .existing] | all(marker_free); "a text field must not contain an agent marker")
+    | req([.problem, .impact, .fix, .existing] | all(marker_free); "a text field must not contain an agent marker")
   )
 | reduce .[] as $f ({seen: {}, out: []};
     ("\($f.finding_id) \($f.path) \($f.line)") as $k
@@ -276,90 +298,117 @@ def file_anchors:
     end)
 JQ
 
-# The CI result of the reviewed head for the TL;DR: every check run and every commit status, in four counts, and the
-# names of the failing checks. A name is shown in a code span, so it loses its backticks, its line breaks, and every
-# marker opening or end of comment.
-IFS= read -r -d '' JQ_CI <<'JQ' || true
-def req($c; $m): if $c then . else error($m) end;
-def name: tostring | explode | map(select(. >= 32 and . != 127)) | implode | gsub("`"; "") | gsub("<!--"; "&lt;!--")
-  | gsub("-->"; "--&gt;") | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ") | .[0:100];
-def bucket:
-  if .kind == "run" then
-    if .status != "completed" then "pending"
-    elif .conclusion == "success" then "passed"
-    elif .conclusion == "neutral" or .conclusion == "skipped" then "skipped"
-    else "failed" end
-  elif .state == "success" then "passed"
-  elif .state == "pending" then "pending"
-  else "failed" end;
-def count($b): map(select(.bucket == $b)) | length;
-req(($runs | length) >= 1 and ($runs | all((.check_runs | type) == "array")); "no check run list")
-| req(($status | length) >= 1 and ($status | all(((.statuses // []) | type) == "array")); "no commit status list")
-| ([$runs[].check_runs[] | {kind: "run", name: (.name // "" | name), status, conclusion}]
-   + [$status[] | (.statuses // [])[] | {kind: "status", name: (.context // "" | name), state}])
-| map(. + {bucket: bucket})
-| {read: true, total: length, passed: count("passed"), failed: count("failed"), pending: count("pending"),
-   skipped: count("skipped"), failed_names: ([.[] | select(.bucket == "failed") | .name | select(. != "")] | unique)}
+# The Merge Risk block reads its grade and its sentence from the `Merge risk:` line of the hidden record, the one owner
+# of both. The line is `**Merge risk:** <low|medium|high> — <one sentence> · impact: … · up to <short SHA>`. The sentence
+# ends where the next ` · ` segment of the line starts.
+IFS= read -r -d '' JQ_RISK <<'JQ' || true
+($meta | split("\n") | map(select(startswith("**Merge risk:** "))) | first // "") as $line
+| ($line | capture("^\\*\\*Merge risk:\\*\\* (?<grade>low|medium|high) — (?<rest>.+)$")? // null)
+| if . == null then error("the record has no Merge risk line of the form `**Merge risk:** low|medium|high — <sentence>`")
+  else
+    (.rest | split(" · ") | .[0] | printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) as $sentence
+    | if ($sentence | length) < 1 then error("the Merge risk line of the record holds no sentence")
+      else {grade, sentence: ($sentence | prose), icon: (if .grade == "low" then "🟢" elif .grade == "medium" then "🟡" else "🔴" end)}
+      end
+  end
+JQ
+
+# The data of the Walkthrough block, checked against the files of the pull request: a row names changed files only.
+IFS= read -r -d '' JQ_WALK <<'JQ' || true
+def oneline: printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
+def cell: oneline | prose | gsub("\\|"; "\\|");
+def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
+($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
+| req(type == "object"; "the walkthrough must be a JSON object")
+| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
+| req(.tldr | isstr(8000); "walkthrough tldr must be 1 to 4000 characters")
+| req(.tldr | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
+| req(.description | isstr(1500); "walkthrough description must be 1 to 1500 characters")
+| req(.title == null or (.title | isstr(100)); "walkthrough title must be 1 to 100 characters when set")
+| req(.test_routes == null or ((.test_routes | type) == "array" and (.test_routes | length) <= 30
+    and (.test_routes | all(type == "object" and ((keys - ["method", "path", "try"]) | length) == 0
+      and (.method | IN("GET", "POST", "PUT", "PATCH", "DELETE")) and (.path | isstr(200) and test("^/[^\\s`<>|]*$")) and (.try | isstr(200))))); "test_routes must hold at most 30 rows of a method (GET, POST, PUT, PATCH, DELETE), a path that starts with /, and a line on what to try")
+| req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .try)] | map(select(. != null)) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
+| req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
+| req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
+    and ((.files | type) == "array") and (.files | length) >= 1 and (.files | length) <= 500 and (.files | all(relpath))); "every walkthrough area needs a layer, a summary, and 1 to 500 relative file paths")
+| req([.areas[].files[]] | all(. as $f | $changed[$f] == true); "a walkthrough area names a file that the pull request does not change")
+| req(.effort | type == "object" and ((keys - ["level", "minutes"]) | length) == 0 and (.level | isint) and .level <= 5 and (.minutes | isint) and .minutes <= 999; "walkthrough effort needs a level of 1 to 5 and minutes of 1 to 999")
+| req(.change_type as $c | ["Feature", "Bug fix", "Refactor", "Performance", "Security", "Tests", "Documentation", "Chore"] | any(. == $c); "walkthrough change_type must be Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, or Chore")
+| req(.diagram == null or (.diagram | type == "string" and length <= 4000 and test("^sequenceDiagram") and nocode and (test("<!--") | not) and ((split("\n") | length) <= 60)); "the walkthrough diagram must be a mermaid sequenceDiagram of 60 lines at most, with no fenced block and no comment marker")
+| {
+    tldr: (.tldr | printable | gsub("^\\s+|\\s+$"; "") | prose),
+    title: (.title | if . == null then null else cell end),
+    description: (.description | oneline | prose),
+    areas: [.areas[] | {layer: (.layer | cell), summary: (.summary | cell),
+        files: ((.files | length) as $n | (.files[0:4] | map("`" + gsub("`"; "") + "`") | join(", ")) + (if $n > 4 then " and \($n - 4) more" else "" end))}],
+    effort: "\(.effort.level) (\(.effort.level | level_name)) | ~\(.effort.minutes) minutes",
+    change_type,
+    diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
+    routes: [(.test_routes // [])[] | "| `\(.method) \(.path)` | \(.try | cell) |"]
+  }
+| req((.tldr | length) >= 1 and (.tldr | length) <= 4000; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 4000, so write it shorter")
 JQ
 
 # The inline comments and the draft body of the review. The draft body ends with the actor marker; the fingerprint
 # marker is added by carry-operator-lines.php before JQ_REVIEW builds the request.
 IFS= read -r -d '' JQ_PAYLOAD <<'JQ' || true
-def fence($s): ([($s | [match("`+"; "g").length] | max) // 0, 2] | max + 1) as $n | ("`" * $n);
 def icon: if . == "Critical" then "🔴" else "🟠" end;
 def oneline: gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
 def dry_line: "🟠 **Moderate · DRY:** This repeats the logic of `\(.existing)`. Please unify it and call the existing implementation instead.";
-def example:
-  if .faulty_example == null then empty
-  else (.faulty_example | rtrimstr("\n")) as $x | "\(fence($x))\(.faulty_example_lang // "")\n\($x)\n\(fence($x))" end;
 def markers: "<!-- cr-inline:actor=\($actor) -->\n<!-- cr-inline:finding=\(.finding_id) -->";
 def render:
   ((if .kind == "dry" then [dry_line]
-    else ["\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", example] end)
+    else ["\(.severity | icon) **Problem:** \(.problem)", "**Impact:** \(.impact)", "**Fix:** \(.fix)"] end)
    + [(.author // empty), markers])
   | join("\n\n");
-def where: if .line == null then "(no line)" else "(`\(.path | gsub("`"; "")):\(.line)`, outside the diff)" end;
-def visible:
-  (if .kind == "dry" then dry_line else "\(.severity | icon) **Problem:** \(.problem | oneline) **Impact:** \(.impact | oneline)" end)
-  + " " + where + (if .author == null then "" else " " + .author end)
-  + "\n<!-- cr-inline:finding=\(.finding_id) -->";
-def tldr_line:
-  "- \(.severity | icon) **\(.severity)\(if .kind == "dry" then " · DRY" else "" end)** · \(.title | oneline) — "
-  + "[`\(.path | gsub("`"; "")):\(.line)`](\($files_url)#diff-\($anchors[.path])\(if .side == "LEFT" then "L" else "R" end)\(.line))";
-def ci_line:
-  "- **CI** on `\($short)`: "
-  + if $ci.read != true then "not read, the lookup on GitHub failed."
-    elif $ci.total == 0 then "no check reported a result for this commit."
-    else "\($ci.passed) passed, \($ci.failed) failed"
-      + (if ($ci.failed_names | length) > 0 then " (" + ($ci.failed_names | map("`\(.)`") | join(", ")) + ")" else "" end)
-      + (if $ci.pending > 0 then ", \($ci.pending) pending" else "" end)
-      + (if $ci.skipped > 0 then ", \($ci.skipped) skipped" else "" end) + "."
-    end;
+def place: if .line == null then "" else " · `\(.path | gsub("`"; "")):\(.line)`" end;
+def fix_text: if .kind == "dry" then (.fix // "Use the existing implementation in `\(.existing)` instead of repeating the logic.") else .fix end;
+def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)";
+def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<dl>\n<dd>\n<br>\n\n\($content)\n\n</dd>\n</dl>\n</details>";
 [.[] | select(.class == "post") | .f] as $posted
-| [.[] | select(.class == "outside_diff") | .f] as $outside
-| [.[] | select(.class == "post" or .class == "already_open") | .f] as $inline
-| (["**TL;DR**", ""] + (if $inline == [] then ["- No finding is open as an inline comment."]
-     else [$inline | sort_by(if .severity == "Critical" then 0 else 1 end) | .[] | tldr_line] end)) as $tldr_findings
-| (($tldr_findings + [ci_line]) | join("\n")) as $tldr
+| [.[] | select(.class != "withheld") | .f] as $listed
+| ([$listed[] | select(.severity == "Critical")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $critical
+| ([$listed[] | select(.severity == "Moderate")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $moderate
+| ($critical + $moderate) as $entries
+| $walk.tldr as $tldr_block
+| collapsed("<strong>Merge Risk:</strong> <strong>\($risk.icon) \($risk.grade | .[0:1] | ascii_upcase)\($risk.grade | .[1:])</strong> · up to <code>\($short)</code>"; $risk.sentence) as $risk_block
+| (([$walk.description]
+    + (if $walk.title == null then [] else ["**Changes: \($walk.title)**"] end)
+    + [(["|Layer / File(s)|Summary|", "|:---|:---|"] + [$walk.areas[] | "|**\(.layer)** <br> \(.files)|\(.summary)|"] | join("\n"))]
+    + ["**Estimated code review effort:** \($walk.effort)\n**Change:** \($walk.change_type)"]
+    + (if $walk.diagram == null then [] else ["### Sequence Diagram(s)", "```mermaid\n\($walk.diagram)\n```"] end))
+   | join("\n\n")) as $walk_content
+| collapsed("<strong>Walkthrough</strong>"; $walk_content) as $walk_block
+| (if ($walk.routes | length) == 0 then null else collapsed("<strong>Where to test</strong>"; (["| Method and path | What to try |", "| :--- | :--- |"] + $walk.routes) | join("\n")) end) as $test_block
+| (if ($entries | length) == 0 then null
+   else collapsed("<strong>Actionable comments (\($entries | length))</strong>"; $entries | join("\n\n")) end) as $actionable_block
 | {
-    visible: ($outside | length),
+    listed: ($entries | length),
+    diagram: ($walk.diagram != null),
     comments: [$posted[] | {path, line, side, body: render} + (if .start_line == null then {} else {start_line, start_side: .side} end)],
-    body: (([$tldr] + [$outside[] | visible] + [($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"]) | join("\n\n")),
-    visible_text: ([$tldr_findings | join("\n")] + [$posted[] | render] + [$outside[] | visible] | join("\n\n"))
+    body: ([$tldr_block, $risk_block, $walk_block, $test_block, $actionable_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
+    visible_text: ([$walk.tldr, $risk.sentence, $walk_content] + $walk.routes + $entries + [$posted[] | render] | join("\n\n"))
   }
 | if [.comments[].body | [match("<!--\\s*cr-inline:"; "g")] | length] | all(. == 2)
   then . else error("a rendered comment does not hold exactly its own cr-inline markers") end
+| if [.comments[].body | test("```|~~~")] | any
+  then error("a rendered inline comment holds a fenced block: a review carries no code") else . end
 JQ
 
-# The request: the final body must hold exactly one hidden record, one fingerprint marker, one actor marker, and one
-# finding marker for each visible line, and it must fit the 65536 characters GitHub accepts.
+# The request: the final body must hold exactly one hidden record, one fingerprint marker, and one actor marker, no
+# inline marker, and no fenced block in the visible part but the diagram of the Walkthrough, and it must fit the
+# 65536 characters GitHub accepts.
 IFS= read -r -d '' JQ_REVIEW <<'JQ' || true
 def count($re): [match($re; "g")] | length;
 {commit_id: $commit, event: "COMMENT", body: $body, comments: .comments} as $r
-| if ($body | count("<!--\\s*cr-inline:")) == .visible and ($body | count("<!--\\s*cr-inline:finding=")) == .visible
+| ($body | split("\n<!-- cr-review-meta\n")[0]) as $visible
+| if ($body | count("<!--\\s*cr-inline:")) == 0
      and ($body | count("<!--\\s*cr-review-meta")) == 1 and ($body | count("<!--\\s*cr-comment:lines=")) == 1
      and ($body | count("<!--\\s*cr-comment:actor=")) == 1 and ($body | count("<!--\\s*cr-comment:")) == 2
   then . else error("the review body does not hold exactly its own markers") end
+| if ($visible | count("```|~~~")) == (if .diagram then 2 else 0 end)
+  then . else error("the visible review body holds a fenced block other than the sequence diagram: a review carries no code") end
 | if ($body | length) <= 65536 then $r else error("the review body is longer than the 65536 characters GitHub accepts") end
 JQ
 
@@ -436,20 +485,8 @@ read_head() {
   HEAD_SHA="$sha"
 }
 
-# Prints the CI result of the reviewed head (JQ_CI). A failed lookup never stops the publish: the review is the
-# record the merge gate reads, so the TL;DR then says that the result was not read.
-read_ci() {
-  local commit="$1"
-  if gh api "repos/${NWO}/commits/${commit}/check-runs?per_page=100" --paginate >"$TMP_ROOT/check-runs.raw" 2>/dev/null \
-    && gh api "repos/${NWO}/commits/${commit}/status?per_page=100" --paginate >"$TMP_ROOT/status.raw" 2>/dev/null \
-    && jq -n -c --slurpfile runs "$TMP_ROOT/check-runs.raw" --slurpfile status "$TMP_ROOT/status.raw" "$JQ_CI" 2>/dev/null; then
-    return 0
-  fi
-  printf '{"read":false}\n'
-}
-
 cmd_post() {
-  local commit="" findings_src="" meta_file="" arg
+  local commit="" findings_src="" meta_file="" walk_file="" arg
   while [[ $# -gt 0 ]]; do
     arg="$1"
     case "$arg" in
@@ -463,6 +500,11 @@ cmd_post() {
         meta_file="$2"
         shift 2
         ;;
+      --walkthrough-file)
+        [[ $# -ge 2 ]] || die 1 "--walkthrough-file needs a value"
+        walk_file="$2"
+        shift 2
+        ;;
       *)
         [[ -z "$findings_src" ]] || die 1 "unexpected argument: $arg"
         findings_src="$arg"
@@ -470,12 +512,18 @@ cmd_post() {
         ;;
     esac
   done
-  [[ -n "$commit" && -n "$findings_src" && -n "$meta_file" ]] || { usage; exit 1; }
+  [[ -n "$commit" && -n "$findings_src" && -n "$meta_file" && -n "$walk_file" ]] || { usage; exit 1; }
   [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die 1 "--commit-id must be a full lowercase 40-digit SHA"
   [[ -r "$meta_file" && -s "$meta_file" ]] || die 1 "cannot read the review record: $meta_file"
   cat "$meta_file" >"$TMP_ROOT/meta.md"
   "$CHECK_HEADER" --file "$TMP_ROOT/meta.md" >"$TMP_ROOT/meta-check.json" 2>/dev/null \
     || die 1 "the review record was refused by check-cr-header.sh, nothing was published: $(jq -r '.problems // [] | join("; ")' "$TMP_ROOT/meta-check.json" 2>/dev/null | head -c 300)"
+  if grep -Eq '^[[:space:]]*(```|~~~)[[:space:]]*suggestion' "$TMP_ROOT/meta.md"; then
+    die 1 "the review record holds a suggestion block: a review carries no code, nothing was published"
+  fi
+  jq -n -c --rawfile meta "$TMP_ROOT/meta.md" "$JQ_DEFS"$'\n'"$JQ_RISK" >"$TMP_ROOT/risk.json" 2>"$TMP_ROOT/risk.err" \
+    || die 1 "the Merge Risk block could not be read from the review record, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/risk.err" | head -n 1)"
+  [[ -r "$walk_file" && -s "$walk_file" ]] || die 1 "cannot read the walkthrough file: $walk_file"
 
   if [[ "$findings_src" == "-" ]]; then
     cat >"$TMP_ROOT/findings.raw"
@@ -483,7 +531,7 @@ cmd_post() {
     [[ -r "$findings_src" ]] || die 1 "cannot read the findings file: $findings_src"
     cat "$findings_src" >"$TMP_ROOT/findings.raw"
   fi
-  jq "$JQ_NORMALIZE" "$TMP_ROOT/findings.raw" >"$TMP_ROOT/findings.json" 2>"$TMP_ROOT/normalize.err" \
+  jq "$JQ_DEFS"$'\n'"$JQ_NORMALIZE" "$TMP_ROOT/findings.raw" >"$TMP_ROOT/findings.json" 2>"$TMP_ROOT/normalize.err" \
     || die 1 "invalid findings document: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/normalize.err" | head -n 1)"
 
   github_actor_resolve || exit 3
@@ -510,29 +558,28 @@ cmd_post() {
   jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
   fetch_threads "$TMP_ROOT/threads.json"
-  read_ci "$commit" >"$TMP_ROOT/ci.json"
+  jq --slurpfile files "$TMP_ROOT/files.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
+    || die 1 "the walkthrough was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/walk.err" | head -n 1)"
 
   jq --slurpfile files "$TMP_ROOT/files.json" --slurpfile threads "$TMP_ROOT/threads.json" \
     --arg actor "$ACTOR" --argjson private "$private" "$JQ_AGENT"$'\n'"$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
 
-  # Hidden HTML is public: a record that names a withheld finding by its id or its title is refused.
+  # Hidden HTML is public, and the walkthrough is visible: a record or a walkthrough that names a withheld finding by its
+  # id or its title is refused.
   local leaked
-  leaked="$(jq -r --rawfile meta "$TMP_ROOT/meta.md" '
+  cat "$TMP_ROOT/meta.md" "$walk_file" >"$TMP_ROOT/leak-scan.txt"
+  leaked="$(jq -r --rawfile meta "$TMP_ROOT/leak-scan.txt" '
     ($meta | ascii_downcase | gsub("\\s+"; " ")) as $m
     | [.[] | select(.class == "withheld") | .f
        | .finding_id as $id | .title_key as $t
        | select(($m | contains($id)) or ($t != "" and ($m | contains($t)))) | $id]
     | join(",")' "$TMP_ROOT/classified.json")"
-  [[ -z "$leaked" ]] || die 1 "the review record names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of the record on a public repository, nothing was published"
+  [[ -z "$leaked" ]] || die 1 "the review record or the walkthrough names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of the record and the walkthrough on a public repository, nothing was published"
 
-  # The diff anchor of a file on the Files changed page is the SHA-256 of its path.
-  jq -r '[.[] | .f.path // empty] | unique | .[]' "$TMP_ROOT/classified.json" \
-    | php -r '$m = []; foreach (file("php://stdin", FILE_IGNORE_NEW_LINES) as $p) { $m[$p] = hash("sha256", $p); } echo json_encode((object) $m, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);' >"$TMP_ROOT/anchors.json" \
-    || die 1 "the diff anchors of the TL;DR could not be computed, nothing was published"
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
-  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile ci_doc "$TMP_ROOT/ci.json" --slurpfile anchors_doc "$TMP_ROOT/anchors.json" \
-    --arg files_url "https://github.com/${NWO}/pull/${NUMBER}/files" --arg short "${commit:0:7}" \
-    '$ci_doc[0] as $ci | $anchors_doc[0] as $anchors | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
+  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" \
+    --arg short "${commit:0:7}" \
+    '$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
   local visible_rc=0
@@ -547,9 +594,9 @@ cmd_post() {
   jq --arg commit "$commit" --rawfile body "$TMP_ROOT/body.md" "$JQ_REVIEW" "$TMP_ROOT/draft.json" >"$TMP_ROOT/payload.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
 
-  local to_post visible
+  local to_post listed
   to_post="$(jq '.comments | length' "$TMP_ROOT/payload.json")"
-  visible="$(jq '.visible' "$TMP_ROOT/draft.json")"
+  listed="$(jq '.listed' "$TMP_ROOT/draft.json")"
 
   read_head
   if [[ "$HEAD_SHA" != "$commit" ]]; then
@@ -565,8 +612,8 @@ cmd_post() {
     die 3 "review request failed on ${NWO}#${NUMBER}: $(printf '%s' "$response" | jq -r '.message // empty' 2>/dev/null || true) $(head -c 300 "$TMP_ROOT/post.err")"
   fi
   review_id="$(printf '%s' "$response" | jq -r '.id // empty')"
-  bash "$AUDIT_TRAIL" record --target "$review_url" --status 0 --detail "created review with ${to_post} inline comments and ${visible} visible lines" || true
-  echo "action=created id=${review_id} comments=${to_post} visible=${visible}" >&2
+  bash "$AUDIT_TRAIL" record --target "$review_url" --status 0 --detail "created review with ${to_post} inline comments and ${listed} listed findings" || true
+  echo "action=created id=${review_id} comments=${to_post} listed=${listed}" >&2
 
   jq --arg url "$review_url" --arg id "$review_id" '
     def pick($c): [.[] | select(.class == $c) | .f | {finding_id, path, line}];
@@ -692,15 +739,6 @@ case "$*" in
     echo '{"id":99,"html_url":"https://github.com/o/r/pull/7#pullrequestreview-99"}'
     ;;
   "api repos/o/r/pulls/7") printf '{"head":{"sha":"%s"}}\n' "$(cat "$GH_HEAD")" ;;
-  "api repos/o/r/commits/"*"/check-runs"*)
-    if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
-    cat "$GH_CHECK_RUNS"
-    ;;
-  "api repos/o/r/commits/"*"/status"*)
-    if [[ "${GH_CI_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
-    # One page per line of the fixture; every page answers only to `per_page=100 --paginate`.
-    if [[ "$*" == *"/status?per_page=100 --paginate" ]]; then cat "$GH_STATUS"; else head -n 1 "$GH_STATUS"; fi
-    ;;
   *) echo "gh stub: unexpected call: $*" >&2; exit 1 ;;
 esac
 STUB
@@ -714,9 +752,6 @@ JSON
   printf '{"tree":[{"path":"src","type":"tree"},{"path":"src/A.php","type":"blob"}],"truncated":false}' >"$tmp/tree.json"
   printf '{"tree":[{"path":"src/A.php","type":"blob"},{"path":"skills/_shared/run-gate.sh","type":"blob"}],"truncated":false}' >"$tmp/tree.package"
   printf '{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[]}}}}}' >"$tmp/threads.empty"
-  # The CI of the reviewed head: two green check runs and no commit status, unless a scenario swaps the files.
-  printf '{"total_count":2,"check_runs":[{"name":"tests","status":"completed","conclusion":"success"},{"name":"lint","status":"completed","conclusion":"success"}]}' >"$tmp/check-runs.json"
-  printf '{"state":"pending","statuses":[]}' >"$tmp/status.json"
   cp "$tmp/threads.empty" "$tmp/threads.1"
   cp "$tmp/threads.empty" "$tmp/threads.2"
 
@@ -733,6 +768,7 @@ JSON
 **Counts:** Critical 1 · Moderate 1
 **Merge verdict:** no — assignment met: yes · open Critical: 1 · one open Critical finding
 **Security assessment:** untrusted data: none · public exposure: none · regression test: not required · automatic rule: not applicable
+**Merge risk:** medium — The change adds a sign-in path over workspace membership. · impact: STANDARD (production-code-changed) · up to aaaaaaa
 **Reviewed revision:** aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 **Last updated:** 2026-11-15T10:00:00Z
 **Not verified:** a value with --> and --!> and &lt; and <!-- inside
@@ -742,11 +778,18 @@ JSON
 ### 🔴 Critical 1. Unescaped output
 
 - **Location:** `src/A.php:11`
-- **Faulty Example:** `if ($a < $b) { echo $v; }`
+- **Faulty Example:** The value of the request reaches the page without escaping.
 MD
   printf '**Status:** clean\n' >"$tmp/meta-bad.md"
+  grep -v '^\*\*Merge risk:' "$tmp/meta.md" >"$tmp/meta-norisk.md"
+  { cat "$tmp/meta.md"; printf '\n- **Suggested fix:**\n  ```suggestion\n  echo e($v);\n  ```\n'; } >"$tmp/meta-suggestion.md"
 
-  # run_post <label> <findings json> [env assignments...]: runs `post` against the stub, sets $out, $rc.
+  # The data of the Walkthrough block: one area over the one file of the pull request, and a diagram.
+  local diagram='sequenceDiagram\n  participant Owner\n  participant Colleague\n  Owner->>Colleague: Send invitation'
+  printf '{"tldr":"Workspace owners can now invite a colleague by e-mail. The colleague joins the workspace through a one-time link.","title":"Workspace invitations","description":"The change lets a workspace owner invite a colleague by e-mail.","areas":[{"layer":"Controllers","files":["src/A.php"],"summary":"Send and accept an invitation."}],"effort":{"level":3,"minutes":25},"change_type":"Feature","diagram":"%s","test_routes":[{"method":"GET","path":"/invitations/{token}","try":"Open the link and set a password."},{"method":"POST","path":"/workspace/invitations","try":"Send an invitation from the settings."}]}' "$diagram" >"$tmp/walk.json"
+  printf '{"tldr":"A small fix.","description":"The change lets a workspace owner invite a colleague by e-mail.","areas":[{"layer":"Controllers","files":["src/A.php"],"summary":"Send and accept an invitation."}],"effort":{"level":1,"minutes":5},"change_type":"Bug fix"}' >"$tmp/walk-nodiagram.json"
+
+  # run_post <findings json> [env assignments...]: runs `post` against the stub, sets $out, $rc.
   run_post() {
     local findings="$1"
     shift
@@ -757,8 +800,7 @@ MD
     out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
-      GH_CHECK_RUNS="${GH_CHECK_RUNS_FILE:-$tmp/check-runs.json}" GH_STATUS="${GH_STATUS_FILE:-$tmp/status.json}" \
-      bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" - <<<"$findings" 2>"$tmp/stderr")"
+      bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" --walkthrough-file "${WALK_FILE:-$tmp/walk.json}" - <<<"$findings" 2>"$tmp/stderr")"
     rc=$?
     set -e
   }
@@ -772,26 +814,26 @@ MD
     fi
   }
   yes_if() { if "$@" >/dev/null 2>&1; then echo yes; else echo no; fi; }
-  local bt='```'
+  local bt='```' tk='`'
   review_has() { jq -e --arg bt "$bt" "$1" "$tmp/review.json" >/dev/null 2>&1; }
   out_has() { printf '%s' "$out" | jq -e "$1" >/dev/null 2>&1; }
+  record_of() { jq -j '.body' "$tmp/review.json" | cr_review_meta_unwrap review; }
+  # The visible part of the review body: everything above the hidden record.
+  visible_of() { jq -j '.body | split("\n\n<!-- cr-review-meta\n")[0]' "$tmp/review.json"; }
 
-  local f_in f_out
-  f_in="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"Unescaped output\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The value reaches the page unescaped.\",\"impact\":\"An attacker runs a script in the page.\",\"faulty_example\":\"echo \$v;\",\"faulty_example_lang\":\"php\",\"fix\":\"Escape it.\",\"suggestion\":\"echo e(\$v);\",\"rule\":\"@rules/security/backend.md#xss\",\"provenance\":\"regression — introduced in this revision\",\"evidence\":\"logic-trace — line 11\",\"expected_behavior\":\"The value is escaped.\",\"test_hint\":\"Feature test.\",\"raised_by\":\"splinter\",\"answered\":\"https://github.com/o/r/pull/7#issuecomment-1\"}"
-  f_out="{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"Duplicate query\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"Outside the diff.\",\"impact\":\"Two queries per page.\"}"
+  local f_in f_out f_mod
+  f_in="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"Unescaped output\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The value reaches the page unescaped.\",\"impact\":\"An attacker runs a script in the page.\",\"fix\":\"Escape the value before it is printed.\",\"rule\":\"@rules/security/backend.md#xss\",\"provenance\":\"regression — introduced in this revision\",\"evidence\":\"logic-trace — line 11\",\"expected_behavior\":\"The value is escaped.\",\"test_hint\":\"Feature test.\",\"raised_by\":\"splinter\",\"answered\":\"https://github.com/o/r/pull/7#issuecomment-1\"}"
+  f_out="{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"Duplicate query\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"Outside the diff.\",\"impact\":\"Two queries per page.\",\"fix\":\"Reuse the existing query.\"}"
+  f_mod="{\"finding_id\":\"$id6\",\"severity\":\"Moderate\",\"title\":\"Query in a loop\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"One query per row.\",\"impact\":\"The page slows down with the row count.\",\"fix\":\"Load the rows with one query.\",\"author\":\"@octocat\",\"level\":\"High\"}"
   local shape_a
   shape_a="🔴 **Problem:** The value reaches the page unescaped.
 
 **Impact:** An attacker runs a script in the page.
 
-${bt}php
-echo \$v;
-${bt}
+**Fix:** Escape the value before it is printed.
 
 <!-- cr-inline:actor=bot -->
 <!-- cr-inline:finding=$id1 -->"
-  body_has() { jq -e --arg bt "$bt" "$1" "$tmp/review.json" >/dev/null 2>&1; }
-  record_of() { jq -j '.body' "$tmp/review.json" | cr_review_meta_unwrap review; }
 
   # 1. a finding on a changed line is one short inline comment of one review, and the body holds the hidden record
   run_post "[$f_in]"
@@ -800,10 +842,11 @@ ${bt}
   check 'event is COMMENT' "$(yes_if review_has '.event == "COMMENT"')"
   check 'commit_id is the reviewed head' "$(yes_if review_has ".commit_id == \"$sha\"")"
   check 'comment anchors path, line, and side' "$(yes_if review_has '.comments[0] | .path == "src/A.php" and .line == 11 and .side == "RIGHT"')"
-  check 'the inline comment is the Problem, Impact, and faulty example shape, byte for byte' \
+  check 'the inline comment is the Problem, Impact, and Fix shape, byte for byte' \
     "$(yes_if jq -e --arg want "$shape_a" '.comments[0].body == $want' "$tmp/review.json")"
   check 'the inline comment renders no Rule, Provenance, Raised by, Level, Evidence, Expected behavior, Test hint, Suggested fix, or suggestion block' \
-    "$(yes_if review_has '.comments[0].body | (test("\\*\\*(Rule|Provenance|Raised by|Level|Evidence|Expected behavior|Test hint|Suggested fix|Answered|Author):") or contains("suggestion") or contains("Escape it.")) | not')"
+    "$(yes_if review_has '.comments[0].body | (test("\\*\\*(Rule|Provenance|Raised by|Level|Evidence|Expected behavior|Test hint|Suggested fix|Answered|Author):") or contains("suggestion")) | not')"
+  check 'the inline comment holds no fenced block, a suggestion block included' "$(yes_if review_has '.comments | all(.body | test("```|~~~") | not)')"
   check 'comment carries both agent markers' "$(yes_if review_has ".comments[0].body | contains(\"<!-- cr-inline:actor=bot -->\") and contains(\"<!-- cr-inline:finding=$id1 -->\")")"
   check 'every inline comment holds exactly two cr-inline markers and the review body none' "$(yes_if review_has '(.comments | all(.body | [match("<!--\\s*cr-inline:"; "g")] | length == 2)) and ([.body | match("<!--\\s*cr-inline:"; "g")] | length == 0)')"
   check 'the review body holds one hidden record, one fingerprint marker, and the cr-comment actor marker' \
@@ -819,31 +862,170 @@ ${bt}
   check 'a stale commit id exits 4' "$([[ $rc -eq 4 ]] && echo yes || echo no)"
   check 'a stale commit id posts nothing' "$([[ ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
 
-  # 3. an outside-diff finding is one short visible line of the review body; the rest of the round is still inline
-  run_post "[$f_in,$f_out]"
+  # 3. the visible body is the approved layout, byte for byte: the findings count, Merge Risk, Walkthrough, and the
+  # Actionable comments of every published finding, Critical first. A finding outside the diff has no inline comment.
+  local want_visible
+  want_visible="Workspace owners can now invite a colleague by e-mail. The colleague joins the workspace through a one-time link.
+
+<details>
+<summary><strong>Merge Risk:</strong> <strong>🟡 Medium</strong> · up to <code>aaaaaaa</code></summary>
+<dl>
+<dd>
+<br>
+
+The change adds a sign-in path over workspace membership.
+
+</dd>
+</dl>
+</details>
+
+<details>
+<summary><strong>Walkthrough</strong></summary>
+<dl>
+<dd>
+<br>
+
+The change lets a workspace owner invite a colleague by e-mail.
+
+**Changes: Workspace invitations**
+
+|Layer / File(s)|Summary|
+|:---|:---|
+|**Controllers** <br> ${tk}src/A.php${tk}|Send and accept an invitation.|
+
+**Estimated code review effort:** 3 (Moderate) | ~25 minutes
+**Change:** Feature
+
+### Sequence Diagram(s)
+
+${bt}mermaid
+sequenceDiagram
+  participant Owner
+  participant Colleague
+  Owner->>Colleague: Send invitation
+${bt}
+
+</dd>
+</dl>
+</details>
+
+<details>
+<summary><strong>Where to test</strong></summary>
+<dl>
+<dd>
+<br>
+
+| Method and path | What to try |
+| :--- | :--- |
+| ${tk}GET /invitations/{token}${tk} | Open the link and set a password. |
+| ${tk}POST /workspace/invitations${tk} | Send an invitation from the settings. |
+
+</dd>
+</dl>
+</details>
+
+<details>
+<summary><strong>Actionable comments (3)</strong></summary>
+<dl>
+<dd>
+<br>
+
+**🔴 Critical 1 — Unescaped output** · ${tk}src/A.php:11${tk}
+The value reaches the page unescaped.
+**Fix:** Escape the value before it is printed.
+
+**🟠 Moderate 1 — Query in a loop** · ${tk}src/A.php:10${tk}
+One query per row.
+**Fix:** Load the rows with one query.
+
+**🟠 Moderate 2 — Duplicate query** · ${tk}src/A.php:100${tk}
+Outside the diff.
+**Fix:** Reuse the existing query.
+
+</dd>
+</dl>
+</details>"
+  run_post "[$f_mod,$f_in,$f_out]"
+  check 'the visible body is the approved layout, byte for byte' "$([[ $rc -eq 0 ]] && [[ "$(visible_of)" == "$want_visible" ]] && echo yes || echo no)"
+  check 'the summary paragraph opens the review body, with no label and no findings count line' "$(yes_if review_has '(.body | startswith("Workspace owners can now invite")) and (.body | contains("Actionable comments posted") | not)')"
+  check 'the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments' \
+    "$(yes_if review_has '.body | (index("Workspace owners can now") < index("Merge Risk:</strong>")) and (index("Merge Risk:</strong>") < index("<strong>Walkthrough</strong>")) and (index("<strong>Walkthrough</strong>") < index("<strong>Where to test</strong>")) and (index("<strong>Where to test</strong>") < index("<strong>Actionable comments"))')"
+  check 'the Where to test block lists the method and the path of each route with one line to try' \
+    "$(yes_if review_has '.body | contains("| Method and path | What to try |\n| :--- | :--- |\n| `GET /invitations/{token}` | Open the link and set a password. |\n| `POST /workspace/invitations` | Send an invitation from the settings. |\n")')"
+  check 'the visible body shows no CI line, pre-merge checks, recent review info, button, or share link' \
+    "$(yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | test("(?i)CI\\*\\*|pre-merge|recent review|explain change|share|re-?run|\\*\\*TL;DR") | not')"
+  check 'the only fenced block of the visible body is the sequence diagram' \
+    "$(yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | ([match("```|~~~"; "g")] | length == 2) and contains("```mermaid\nsequenceDiagram")')"
+  check 'the Actionable comments hold no fenced block and no suggestion block' \
+    "$(yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | split("<strong>Actionable comments")[1] | (test("```|~~~|suggestion") | not)')"
+  check 'every actionable comment ends with a Fix sentence' "$(yes_if review_has '.body | [match("\\*\\*Fix:\\*\\* [^\n]+"; "g")] | length == 3')"
   check 'outside-diff finding is reported' "$(yes_if out_has ".outside_diff[0].finding_id == \"$id2\"")"
-  check 'outside-diff finding is not an inline comment' "$(yes_if review_has '.comments | length == 1')"
-  check 'outside-diff finding is one visible line of the review body' \
-    "$(yes_if review_has ".body | contains(\"\n\n🟠 **Problem:** Outside the diff. **Impact:** Two queries per page. (\" + \$bt[0:1] + \"src/A.php:100\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id2 -->\n\n<!-- cr-review-meta\n\")")"
+  check 'outside-diff finding is not an inline comment' "$(yes_if review_has '.comments | length == 2')"
+  check 'the review stderr names the inline and the listed counts' "$(grep -q 'comments=2 listed=3' "$tmp/stderr" && echo yes || echo no)"
 
   # 4. a round with no finding, or with no anchored finding, still posts exactly one review
   run_post '[]'
   check 'a round with no finding posts one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if review_has '.comments == [] and (.body | contains("\n\n<!-- cr-review-meta\n"))' || echo no)"
-  check 'a round with no finding carries the TL;DR and otherwise only hidden text in the review body' \
-    "$(yes_if review_has '.body | split("\n") | map(select(. != "")) | (.[0:4] == ["**TL;DR**", "- No finding is open as an inline comment.", "- **CI** on `aaaaaaa`: 2 passed, 0 failed.", "<!-- cr-review-meta"]) and (.[-1] == "<!-- cr-comment:actor=bot -->")')"
+  check 'a round with no finding shows the summary, Merge Risk, and Walkthrough, and no Actionable comments block' \
+    "$(yes_if review_has '.body | startswith("Workspace owners") and contains("<summary><strong>Merge Risk:</strong>") and contains("<strong>Walkthrough</strong>") and (contains("Actionable comments") | not)')"
   run_post "[$f_out]"
   check 'only outside-diff findings post one review with no inline comment' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if out_has '.review_url != null and (.posted | length) == 0' || echo no)"
+  check 'an outside-diff finding is a line of the Actionable comments block' "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Duplicate query** · `src/A.php:100`\nOutside the diff.\n**Fix:** Reuse the existing query.")')"
   local f_gap_noline
-  f_gap_noline="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Criterion 2 unmet\",\"problem\":\"The export ignores the selection.\",\"impact\":\"Every order is exported.\"}"
+  f_gap_noline="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Criterion 2 unmet\",\"problem\":\"The export ignores the selection.\",\"impact\":\"Every order is exported.\",\"fix\":\"Export only the selected orders.\"}"
   run_post "[$f_gap_noline]"
-  check 'a finding with no line is one visible line marked (no line)' \
-    "$(yes_if review_has ".body | contains(\"\n\n🔴 **Problem:** The export ignores the selection. **Impact:** Every order is exported. (no line)\n<!-- cr-inline:finding=$id4 -->\")")"
+  check 'a finding with no line is an Actionable comments entry without a place' \
+    "$(yes_if review_has '.body | contains("**🔴 Critical 1 — Criterion 2 unmet**\nThe export ignores the selection.\n**Fix:** Export only the selected orders.")')"
+  WALK_FILE="$tmp/walk-nodiagram.json" run_post '[]'
+  WALK_FILE="$tmp/walk-nodiagram.json" run_post '[]'
+  check 'a change that touches no page or route has no Where to test block' "$(yes_if review_has '.body | contains("Where to test") | not')"
+  check 'a walkthrough with no diagram renders no sequence diagram and no fenced block in the body' \
+    "$(yes_if review_has '(.body | split("\n\n<!-- cr-review-meta\n")[0] | test("```|~~~|Sequence Diagram") | not) and (.body | contains("**Estimated code review effort:** 1 (Trivial) | ~5 minutes\n**Change:** Bug fix"))')"
+
+  # 4a. the TL;DR holds 4000 code points at most, counted once the text is normalised, and is never cut
+  local tl_under tl_at tl_over tl_wide tl_marker
+  tl_under="$(printf 'a%.0s' $(seq 1 3999))"
+  tl_at="$(printf 'a%.0s' $(seq 1 4000))"
+  tl_over="$(printf 'a%.0s' $(seq 1 4001))"
+  tl_wide="$(printf 'é%.0s' $(seq 1 4000))"
+  tl_marker="$(printf 'a%.0s' $(seq 1 3995))"
+  walk_with_tldr() {
+    jq -c --arg t "$1" '.tldr = $t' "$tmp/walk.json" >"$tmp/walk-tldr.json"
+  }
+  walk_with_tldr "$tl_under"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'a TL;DR of 3999 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_under" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
+  walk_with_tldr "$tl_at"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'a TL;DR of exactly 4000 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_at" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
+  walk_with_tldr "$tl_over"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'a TL;DR of 4001 characters is refused, not cut, and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 4001 characters once normalised' "$tmp/stderr" && echo yes || echo no)"
+  walk_with_tldr "$tl_wide"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'the TL;DR limit counts characters, not bytes: 4000 two-byte characters pass' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  walk_with_tldr "${tl_marker}-->"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'the TL;DR limit counts the neutralised text: a marker closer that grows to 4001 characters is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 4001 characters' "$tmp/stderr" && echo yes || echo no)"
+  walk_with_tldr "  $tl_under  "
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'the TL;DR limit counts the trimmed text: padding around 3999 characters passes' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  walk_with_tldr ""
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'an empty TL;DR is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
+  walk_with_tldr "The change adds a thing."$'\n\n'"\`\`\`php"$'\n'"echo 1;"$'\n'"\`\`\`"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'a TL;DR with a fenced block is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'the walkthrough carries no code' "$tmp/stderr" && echo yes || echo no)"
+
+  walk_with_tldr "The change adds a thing."$'\n'"# A heading"
+  WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
+  check 'a TL;DR with a heading, a quote, a table, or a tag line is refused: it holds plain sentences' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is plain sentences' "$tmp/stderr" && echo yes || echo no)"
 
   # 5. multi-line finding, removed line on the LEFT side, a range that crosses a hunk gap
   local f_multi f_left f_gap
-  f_multi="{\"finding_id\":\"$id3\",\"severity\":\"Moderate\",\"title\":\"Range\",\"path\":\"src/A.php\",\"line\":12,\"start_line\":10,\"problem\":\"p\",\"impact\":\"i\"}"
-  f_left="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Removed guard\",\"path\":\"src/A.php\",\"line\":30,\"side\":\"LEFT\",\"problem\":\"p\",\"impact\":\"i\"}"
-  f_gap="{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"Gap\",\"path\":\"src/A.php\",\"line\":33,\"start_line\":12,\"problem\":\"p\",\"impact\":\"i\"}"
+  f_multi="{\"finding_id\":\"$id3\",\"severity\":\"Moderate\",\"title\":\"Range\",\"path\":\"src/A.php\",\"line\":12,\"start_line\":10,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}"
+  f_left="{\"finding_id\":\"$id4\",\"severity\":\"Critical\",\"title\":\"Removed guard\",\"path\":\"src/A.php\",\"line\":30,\"side\":\"LEFT\",\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}"
+  f_gap="{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"Gap\",\"path\":\"src/A.php\",\"line\":33,\"start_line\":12,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}"
   run_post "[$f_multi,$f_left,$f_gap]"
   check 'multi-line comment carries start_line and start_side' "$(yes_if review_has '.comments[] | select(.line == 12) | .start_line == 10 and .start_side == "RIGHT"')"
   check 'a removed line anchors on the LEFT side' "$(yes_if review_has '.comments[] | select(.line == 30) | .side == "LEFT"')"
@@ -860,6 +1042,8 @@ JSON
   run_post "[$f_in]"
   check 'an open thread on the same line is not duplicated' "$(yes_if review_has '.comments == []')"
   check 'the open finding is reported as already_open' "$(yes_if out_has ".already_open[0].finding_id == \"$id1\"")"
+  check 'a finding already open as an inline comment stays in the Actionable comments block' \
+    "$(yes_if review_has '.body | contains("<strong>Actionable comments (1)</strong>") and contains("**🔴 Critical 1 — Unescaped output** · `src/A.php:11`")')"
 
   # 7. a resolved thread, a forged marker by another author, or another line do not block a new comment
   cat >"$tmp/threads.2" <<JSON
@@ -879,17 +1063,19 @@ JSON
 
   # 8. visibility: public withholds a do_not_file_publicly finding everywhere, private posts it, a failed check is public
   local f_sec
-  f_sec="{\"finding_id\":\"$id3\",\"severity\":\"Critical\",\"title\":\"Hard-coded token\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"p\",\"impact\":\"i\",\"do_not_file_publicly\":true}"
+  f_sec="{\"finding_id\":\"$id3\",\"severity\":\"Critical\",\"title\":\"Hard-coded token\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\",\"do_not_file_publicly\":true}"
   cp "$tmp/threads.empty" "$tmp/threads.1"
   cp "$tmp/threads.empty" "$tmp/threads.2"
   GH_PRIVATE_VALUE=true run_post "[$f_sec]"
   check 'a private repository posts a security finding inline' "$(yes_if review_has ".comments[0].body | contains(\"$id3\")")"
+  check 'a private repository lists the security finding in the Actionable comments' "$(yes_if review_has '.body | contains("<strong>Actionable comments (1)</strong>") and contains("Hard-coded token")')"
   GH_PRIVATE_VALUE=false run_post "[$f_sec,$f_in]"
   check 'a public repository withholds the marked finding' "$(yes_if out_has ".withheld[0].finding_id == \"$id3\" and (.posted | length) == 1")"
   check 'a withheld finding is in no inline comment' "$(yes_if review_has ".comments | length == 1 and (.[0].body | contains(\"$id3\") | not)")"
-  check 'a withheld finding is in no visible line and not in the hidden record' "$(yes_if review_has ".body | (contains(\"$id3\") or contains(\"Hard-coded token\")) | not")"
+  check 'a withheld finding is in no visible line, not in the count, and not in the hidden record' \
+    "$(yes_if review_has ".body | ((contains(\"$id3\") or contains(\"Hard-coded token\")) | not) and contains(\"<strong>Actionable comments (1)</strong>\")")"
   run_post "[$f_sec]" GH_VISIBILITY_FAILS=1
-  check 'a failed visibility check counts as public' "$([[ $rc -eq 0 ]] && review_has ".comments == [] and (.body | contains(\"$id3\") | not)" && out_has ".withheld[0].finding_id == \"$id3\"" && echo yes || echo no)"
+  check 'a failed visibility check counts as public' "$([[ $rc -eq 0 ]] && review_has ".comments == [] and (.body | contains(\"$id3\") | not) and (.body | contains(\"Actionable comments\") | not)" && out_has ".withheld[0].finding_id == \"$id3\"" && echo yes || echo no)"
   { cat "$tmp/meta.md"; printf '\n### 🔴 Critical 2. Hard-coded token\n'; } >"$tmp/meta-leak.md"
   META_FILE="$tmp/meta-leak.md" GH_PRIVATE_VALUE=false run_post "[$f_sec,$f_in]"
   check 'a record that names a withheld finding by its title is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
@@ -899,39 +1085,79 @@ JSON
   META_FILE="$tmp/meta-leak.md" GH_PRIVATE_VALUE=true run_post "[$f_sec,$f_in]"
   check 'a private repository publishes the record that names the security finding' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
 
+  jq -c '.tldr = "The change fixes the Hard-coded token problem."' "$tmp/walk.json" >"$tmp/walk-leak.json"
+  WALK_FILE="$tmp/walk-leak.json" GH_PRIVATE_VALUE=false run_post "[$f_sec,$f_in]"
+  check 'a TL;DR that names a withheld finding by its title is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q "names the withheld finding(s) $id3" "$tmp/stderr" && echo yes || echo no)"
+  WALK_FILE="$tmp/walk-leak.json" GH_PRIVATE_VALUE=true run_post "[$f_sec,$f_in]"
+  check 'a private repository publishes the TL;DR that names the security finding' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+
   # 9. a failed write exits 3 and leaves a note line, never an external-write line
   run_post "[$f_in]" GH_POST_FAILS=1
   check 'a failed review request exits 3' "$([[ $rc -eq 3 ]] && echo yes || echo no)"
   check 'a failed review request leaves a note line' "$([[ "$(grep -c '|note|' "$tmp/ledger.audit")" == "1" && "$(grep -c '|external-write|' "$tmp/ledger.audit")" == "0" ]] && echo yes || echo no)"
 
-  # 10. an invalid document or record publishes nothing
+  # 10. an invalid document, walkthrough, or record publishes nothing
   META_FILE="$tmp/meta-bad.md" run_post "[$f_in]"
   check 'a record that check-cr-header.sh refuses publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'refused by check-cr-header.sh' "$tmp/stderr" && echo yes || echo no)"
   META_FILE="$tmp/does-not-exist.md" run_post "[$f_in]"
   check 'a missing record publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
-  local bad base="\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\""
+  META_FILE="$tmp/meta-norisk.md" run_post "[$f_in]"
+  check 'a record with no Merge risk line publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'Merge Risk block could not be read' "$tmp/stderr" && echo yes || echo no)"
+  META_FILE="$tmp/meta-suggestion.md" run_post "[$f_in]"
+  check 'a record that holds a suggestion block publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'holds a suggestion block' "$tmp/stderr" && echo yes || echo no)"
+  WALK_FILE="$tmp/does-not-exist.json" run_post "[$f_in]"
+  check 'a missing walkthrough file publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'cannot read the walkthrough file' "$tmp/stderr" && echo yes || echo no)"
+  set +e
+  bash "$script" post https://github.com/o/r/pull/7 --commit-id "$sha" --meta-file "$tmp/meta.md" - <<<"[]" >/dev/null 2>&1
+  rc=$?
+  set -e
+  check 'a post without --walkthrough-file is a usage error' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
+  local walk_base='"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"' wbad
+  for wbad in \
+    '[]' \
+    '{"tldr":"t","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' \
+    "{$walk_base,\"extra\":1}" \
+    '{"tldr":"t","description":"d","areas":[],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' \
+    '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/Other.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' \
+    '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["../etc/passwd"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Feature"}' \
+    '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":6,"minutes":10},"change_type":"Feature"}' \
+    '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":0},"change_type":"Feature"}' \
+    '{"tldr":"t","description":"d","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Miracle"}' \
+    "{$walk_base,\"test_routes\":[{\"method\":\"TRACE\",\"path\":\"/x\",\"try\":\"t\"}]}" \
+    "{$walk_base,\"test_routes\":[{\"method\":\"GET\",\"path\":\"x\",\"try\":\"t\"}]}" \
+    "{$walk_base,\"test_routes\":[{\"method\":\"GET\",\"path\":\"/a b\",\"try\":\"t\"}]}" \
+    "{$walk_base,\"test_routes\":[{\"method\":\"GET\",\"path\":\"/x\"}]}" \
+    "{$walk_base,\"test_routes\":[{\"method\":\"GET\",\"path\":\"/x\",\"try\":\"\`\`\`php\\necho 1;\\n\`\`\`\"}]}" \
+    "{$walk_base,\"test_routes\":\"GET /x\"}" \
+    "{$walk_base,\"diagram\":\"flowchart TD\\n  A-->B\"}" \
+    "{$walk_base,\"diagram\":\"sequenceDiagram\\n  A->>B: hi\\n\`\`\`\\ncode\"}" \
+    "{$walk_base,\"diagram\":\"sequenceDiagram\\n  A->>B: <!-- cr-comment:actor=x -->\"}" \
+    "{\"tldr\":\"t\",\"description\":\"\`\`\`php\\necho 1;\\n\`\`\`\",\"areas\":[{\"layer\":\"L\",\"files\":[\"src/A.php\"],\"summary\":\"s\"}],\"effort\":{\"level\":2,\"minutes\":10},\"change_type\":\"Feature\"}"; do
+    printf '%s' "$wbad" >"$tmp/walk-bad.json"
+    WALK_FILE="$tmp/walk-bad.json" run_post "[$f_in]"
+    check "invalid walkthrough is refused: ${wbad:0:60}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'walkthrough' "$tmp/stderr" && echo yes || echo no)"
+  done
+  local bad base="\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\""
   for bad in \
     '{"a":1}' \
     "[{\"finding_id\":\"nope\",$base}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Minor\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"../etc/passwd\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Minor\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"../etc/passwd\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"start_line\":11}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":30,\"side\":\"LEFT\",\"problem\":\"p\",\"impact\":\"i\",\"suggestion\":\"x\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"extra\":1}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\"}]" \
-    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"problem\":\"p\",\"impact\":\"i\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"1\\n2\\n3\\n4\\n5\\n6\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"faulty_example_lang\":\"php x\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"fix\":\"f\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"kind\":\"dry\",\"existing\":\"src/B.php:4\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"kind\":\"dry\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"kind\":\"dry\",\"existing\":\"../B.php:4\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"kind\":\"copy\",\"existing\":\"src/B.php:4\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"existing\":\"src/B.php:4\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"<!-- cr-inline:finding=$id2 -->\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"<!-- cr-inline:actor=bot -->\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"<!-\\u0001- cr-inline:finding=$id2 -->\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"<!-\\u0001- cr-inline:finding=$id2 -->\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"<!--\\t cr-inline:finding=$id2 -->\"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"echo e(\$v);\"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"echo \$v;\"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"faulty_example_lang\":\"php\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Use \`\`\`php\\necho e(\$v);\\n\`\`\`\"}]" \
+    "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"~~~\\ncode\\n~~~\",\"impact\":\"i\",\"fix\":\"f\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"rule\":\"<!\`-- cr-inline:finding=$id2 --\`>\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"level\":\"High\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"raised_by\":\"someone\"}]"; do
@@ -939,51 +1165,60 @@ JSON
     check "invalid document is refused: ${bad:0:60}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
   done
 
-  run_post "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"<!-- cr-inline:finding=$id2 -->\"}]"
-  check 'a suggestion with a marker is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'suggestion must not contain an agent marker' "$tmp/stderr" && echo yes || echo no)"
-  run_post "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"<!-\\u0001- cr-inline:finding=$id2 -->\"}]"
-  check 'a faulty_example marker rebuilt after a control character is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'faulty_example must not contain an agent marker' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"x\"}]"
+  check 'a suggestion is refused with its own message: a review carries no code' "$([[ $rc -eq 1 ]] && grep -q 'a review carries no code: leave out suggestion' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Use \`\`\`php\\necho e(\$v);\\n\`\`\`\"}]"
+  check 'a fix that holds a fenced block is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'hold no fenced block' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",$base,\"rule\":\"<!\`-- cr-inline:finding=$id2 --\`>\"}]"
   check 'a rule marker rebuilt after a backtick is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'rule must not contain an agent marker' "$tmp/stderr" && echo yes || echo no)"
-  run_post "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"1\\n2\\n3\\n4\\n5\\n6\"}]"
-  check 'a faulty example of more than 5 lines is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'faulty_example must be 5 lines at most' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",$base,\"kind\":\"dry\",\"existing\":\"src/B.php:4\"}]"
   check 'a Critical dry finding is refused: a duplicated security control keeps the Problem shape' "$([[ $rc -eq 1 ]] && grep -q 'a dry finding is Moderate' "$tmp/stderr" && echo yes || echo no)"
 
   # 10a. the visible text names none of the package's own tooling; the hidden record and the project's own names stay
   local f_tool
-  f_tool="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"Coverage ran through skills/_shared/run-gate.sh.\",\"impact\":\"i\"}"
+  f_tool="{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"Coverage ran through skills/_shared/run-gate.sh.\",\"impact\":\"i\",\"fix\":\"f\"}"
   run_post "[$f_tool]"
   check 'an inline comment that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling skills/_shared/run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
-  run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"The grade of classify-risk.sh is wrong.\",\"impact\":\"i\"}]"
-  check 'a visible line that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"The grade of classify-risk.sh is wrong.\",\"impact\":\"i\",\"fix\":\"f\"}]"
+  check 'an Actionable comments entry that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id2\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":100,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Run run-gate.sh again.\"}]"
+  check 'a Fix sentence that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
+  printf '{"tldr":"t","description":"The change reruns classify-risk.sh.","areas":[{"layer":"L","files":["src/A.php"],"summary":"s"}],"effort":{"level":2,"minutes":10},"change_type":"Chore"}' >"$tmp/walk-tool.json"
+  WALK_FILE="$tmp/walk-tool.json" run_post '[]'
+  check 'a Walkthrough that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling classify-risk.sh' "$tmp/stderr" && echo yes || echo no)"
+  sed 's/The change adds a sign-in path/The change reruns run-gate.sh and adds a sign-in path/' "$tmp/meta.md" >"$tmp/meta-risk-tool.md"
+  META_FILE="$tmp/meta-risk-tool.md" run_post '[]'
+  check 'a Merge Risk sentence that names a package script is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
   GH_TREE_FILE="$tmp/tree.package" run_post "[$f_tool]"
   check 'a script name that the reviewed repository holds is the project own and is posted' "$([[ $rc -eq 0 ]] && review_has '.comments[0].body | contains("skills/_shared/run-gate.sh")' && echo yes || echo no)"
   printf '[{"filename":"src/A.php","patch":"@@ -9,2 +9,4 @@ class A\\n ctx9\\n+$p = \x27.claude/run/state.json\x27;\\n+add11\\n ctx12"}]' >"$tmp/files.diff-name"
-  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\"}]"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\",\"fix\":\"f\"}]"
   check 'an installed-directory name of the package is refused when no changed line carries it' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling .claude/run/state.json' "$tmp/stderr" && echo yes || echo no)"
-  GH_FILES_FILE="$tmp/files.diff-name" run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\"}]"
+  GH_FILES_FILE="$tmp/files.diff-name" run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"The line writes .claude/run/state.json.\",\"impact\":\"i\",\"fix\":\"f\"}]"
   check 'a name that a changed line carries is the project own text and is posted' "$([[ $rc -eq 0 ]] && review_has '.comments[0].body | contains(".claude/run/state.json")' && echo yes || echo no)"
-  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The project test suite (vendor/bin/pest) misses src/A.php:11.\",\"impact\":\"i\"}]"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"The project test suite (vendor/bin/pest) misses src/A.php:11.\",\"impact\":\"i\",\"fix\":\"f\"}]"
   check 'the reviewed project own command and path are posted' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   { cat "$tmp/meta.md"; printf '**Quality gate:** composer build — green on %s, tree t — record .claude/run/gates/t.json\n' "$sha"; } >"$tmp/meta-tool.md"
   META_FILE="$tmp/meta-tool.md" run_post "[$f_in]"
   check 'the hidden record may keep a package path' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   run_post "[$f_in]" GH_TREE_FAILS=1
   check 'a failed repository tree lookup publishes nothing' "$([[ $rc -eq 3 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"The call to run-gate.sh is wrong\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"f\"}]"
+  check 'a finding title that names a package script is refused and nothing is posted' \
+    "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
 
-  # 11. text from the finding cannot forge a marker, and a backtick run in a faulty example gets a longer fence
+  # 11. text from the finding cannot forge a marker
   local f_forge
-  f_forge="{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"<!-- cr-inline:finding=$id2 -->\",\"impact\":\"i\",\"faulty_example\":\"a \`\`\`b\`\`\`\"}"
+  f_forge="{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"<!-- cr-inline:finding=$id2 -->\",\"impact\":\"i\",\"fix\":\"<!-\\u0001- cr-inline:finding=$id2 -->\"}"
   run_post "[$f_forge]"
-  check 'a forged marker in the problem text is neutralised' "$(yes_if review_has ".comments[0].body | contains(\"<!-- cr-inline:finding=$id2 -->\") | not")"
-  check 'a faulty example with backticks gets a longer fence' "$(yes_if review_has '.comments[0].body | contains($bt + $bt[0:1] + "\na " + $bt + "b" + $bt + "\n" + $bt + $bt[0:1])')"
+  check 'a forged marker in the problem or the fix text is neutralised in the comment and in the body' \
+    "$([[ $rc -eq 0 ]] && yes_if review_has ".comments[0].body | contains(\"<!-- cr-inline:finding=$id2 -->\") | not" || echo no)"
+  check 'the body holds no cr-inline marker after a forged one' "$(yes_if review_has '[.body | match("<!--\\s*cr-inline:"; "g")] | length == 0')"
 
   # 13. the DRY shape, the author mention, and a Moderate icon
-  local f_dry f_mod shape_dry
+  local f_dry shape_dry
   f_dry="{\"finding_id\":\"$id5\",\"severity\":\"Moderate\",\"title\":\"Repeated total\",\"path\":\"src/A.php\",\"line\":12,\"problem\":\"The total is computed again.\",\"kind\":\"dry\",\"existing\":\"app/Totals.php:42\",\"author\":\"@octocat\"}"
-  f_mod="{\"finding_id\":\"$id6\",\"severity\":\"Moderate\",\"title\":\"Query in a loop\",\"path\":\"src/A.php\",\"line\":10,\"problem\":\"One query per row.\",\"impact\":\"The page slows down with the row count.\",\"author\":\"@octocat\",\"level\":\"High\"}"
-  shape_dry="🟠 **Moderate · DRY:** This repeats the logic of ${bt:0:1}app/Totals.php:42${bt:0:1}. Please unify it and call the existing implementation instead.
+  shape_dry="🟠 **Moderate · DRY:** This repeats the logic of ${tk}app/Totals.php:42${tk}. Please unify it and call the existing implementation instead.
 
 @octocat
 
@@ -992,71 +1227,10 @@ JSON
   run_post "[$f_dry,$f_mod]"
   check 'the DRY finding is the Moderate DRY shape with the existing implementation, byte for byte' \
     "$(yes_if jq -e --arg want "$shape_dry" '.comments[] | select(.line == 12) | .body == $want' "$tmp/review.json")"
-  check 'a Moderate finding carries the orange icon and the author mention line before the markers' \
-    "$(yes_if review_has '.comments[] | select(.line == 10) | .body | startswith("🟠 **Problem:** One query per row.\n\n**Impact:** The page slows down with the row count.\n\n@octocat\n\n<!-- cr-inline:actor=bot -->")')"
-  local f_dry_out
-  f_dry_out="{\"finding_id\":\"$id7\",\"severity\":\"Moderate\",\"title\":\"Repeated rule\",\"path\":\"src/A.php\",\"line\":200,\"problem\":\"p\",\"kind\":\"dry\",\"existing\":\"app/Rule.php:7\"}"
-  run_post "[$f_dry_out]"
-  check 'a DRY finding outside the diff is the DRY line in the review body' \
-    "$(yes_if review_has ".body | contains(\"\n\n🟠 **Moderate · DRY:** This repeats the logic of \" + \$bt[0:1] + \"app/Rule.php:7\" + \$bt[0:1] + \". Please unify it and call the existing implementation instead. (\" + \$bt[0:1] + \"src/A.php:200\" + \$bt[0:1] + \", outside the diff)\n<!-- cr-inline:finding=$id7 -->\")")"
-
-  # 14. the TL;DR opens the review body: one line for each finding open as an inline comment, then the CI result
-  local hash files_url tldr_head
-  hash="$(php -r 'echo hash("sha256", "src/A.php");')"
-  files_url="https://github.com/o/r/pull/7/files#diff-$hash"
-  tldr_head="**TL;DR**
-
-- 🔴 **Critical** · Unescaped output — [${bt:0:1}src/A.php:11${bt:0:1}](${files_url}R11)
-- 🟠 **Moderate** · Query in a loop — [${bt:0:1}src/A.php:10${bt:0:1}](${files_url}R10)
-- **CI** on ${bt:0:1}aaaaaaa${bt:0:1}: 2 passed, 0 failed.
-
-🟠 **Problem:** Outside the diff."
-  run_post "[$f_mod,$f_in,$f_out]"
-  check 'the review body opens with the TL;DR: one line per inline finding, most severe first, with a link to its line' \
-    "$([[ $rc -eq 0 ]] && yes_if jq -e --arg want "$tldr_head" '.body | startswith($want)' "$tmp/review.json" || echo no)"
-  check 'the TL;DR lists no finding outside the diff, which keeps its own visible line' \
-    "$(yes_if review_has '.body | split("<!-- cr-review-meta")[0] | contains("Duplicate query") | not')"
-  run_post "[$f_dry,$f_left]"
-  check 'a DRY finding and a finding on a removed line link to their line on the matching side of the diff' \
-    "$(yes_if jq -e --arg dry "- 🟠 **Moderate · DRY** · Repeated total — [${bt:0:1}src/A.php:12${bt:0:1}](${files_url}R12)" \
-      --arg left "- 🔴 **Critical** · Removed guard — [${bt:0:1}src/A.php:30${bt:0:1}](${files_url}L30)" \
-      '.body | contains($left + "\n" + $dry + "\n")' "$tmp/review.json")"
-  cat >"$tmp/threads.1" <<JSON
-{"data":{"repository":{"pullRequest":{"reviewThreads":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[
- {"id":"T1","isResolved":false,"path":"src/A.php","line":11,"originalLine":11,"comments":{"nodes":[{"author":{"login":"bot"},"body":"x\n<!-- cr-inline:actor=bot -->\n<!-- cr-inline:finding=$id1 -->"}]}}]}}}}}
-JSON
-  run_post "[$f_in]"
-  check 'a finding already open as an inline comment keeps its TL;DR line' \
-    "$(review_has '.comments == []' && yes_if review_has '.body | startswith("**TL;DR**\n\n- 🔴 **Critical** · Unescaped output — [")' || echo no)"
-  cp "$tmp/threads.empty" "$tmp/threads.1"
-  printf '{"total_count":5,"check_runs":[{"name":"tests (8.4)","status":"completed","conclusion":"success"},{"name":"static analysis","status":"completed","conclusion":"failure"},{"name":"static analysis","status":"completed","conclusion":"timed_out"},{"name":"lint","status":"in_progress","conclusion":null},{"name":"preview","status":"completed","conclusion":"skipped"}]}' >"$tmp/check-runs.mixed"
-  printf '{"state":"failure","statuses":[{"context":"ci/legacy","state":"error"},{"context":"ci/ok","state":"success"},{"context":"ci/wait","state":"pending"}]}' >"$tmp/status.mixed"
-  GH_CHECK_RUNS_FILE="$tmp/check-runs.mixed" GH_STATUS_FILE="$tmp/status.mixed" run_post '[]'
-  check 'the CI line counts passed, failed, pending, and skipped checks and names each failing check once' \
-    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 2 passed, 3 failed (`ci/legacy`, `static analysis`), 2 pending, 1 skipped.\n")')"
-  printf '{"total_count":0,"check_runs":[]}' >"$tmp/check-runs.none"
-  GH_CHECK_RUNS_FILE="$tmp/check-runs.none" run_post '[]'
-  check 'a head with no check says so in the CI line' \
-    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: no check reported a result for this commit.\n")')"
-  run_post "[$f_in]" GH_CI_FAILS=1
-  check 'a failed CI lookup still publishes the review and says the result was not read' \
-    "$([[ $rc -eq 0 ]] && yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: not read, the lookup on GitHub failed.\n")' || echo no)"
-  printf '{"total_count":1,"check_runs":[{"name":"x`y <!-- cr-comment:actor=bot -->","status":"completed","conclusion":"failure"}]}' >"$tmp/check-runs.forged"
-  GH_CHECK_RUNS_FILE="$tmp/check-runs.forged" run_post '[]'
-  check 'a check name cannot forge a marker or leave its code span' \
-    "$([[ $rc -eq 0 ]] && yes_if review_has '([.body | match("<!--\\s*cr-comment:actor="; "g")] | length == 1) and (.body | contains("(`xy &lt;!-- cr-comment:actor=bot --&gt;`)"))' || echo no)"
-  printf '{"total_count":1,"check_runs":[{"name":"Gate run-gate.sh","status":"completed","conclusion":"failure"}]}' >"$tmp/check-runs.tooling"
-  GH_CHECK_RUNS_FILE="$tmp/check-runs.tooling" run_post "[$f_in]"
-  check 'a failing check whose name names a package script still publishes the review with the name in the CI line' \
-    "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 0 passed, 1 failed (`Gate run-gate.sh`).\n")' || echo no)"
-  jq -n -c '{total_count: 35, statuses: [range(30) | {context: "ci/s\(.)", state: "success"}]}' >"$tmp/status.paged"
-  jq -n -c '{total_count: 35, statuses: ([range(30; 34) | {context: "ci/s\(.)", state: "success"}] + [{context: "ci/late", state: "failure"}])}' >>"$tmp/status.paged"
-  GH_STATUS_FILE="$tmp/status.paged" run_post '[]'
-  check 'every commit status of every page is counted, more than 30 included' \
-    "$(yes_if review_has '.body | contains("\n- **CI** on `aaaaaaa`: 36 passed, 1 failed (`ci/late`).\n")')"
-  run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"The call to run-gate.sh is wrong\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\"}]"
-  check 'a TL;DR title that names a package script is refused and nothing is posted' \
-    "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
+  check 'a Moderate finding carries the orange icon, the Fix line, and the author mention line before the markers' \
+    "$(yes_if review_has '.comments[] | select(.line == 10) | .body | startswith("🟠 **Problem:** One query per row.\n\n**Impact:** The page slows down with the row count.\n\n**Fix:** Load the rows with one query.\n\n@octocat\n\n<!-- cr-inline:actor=bot -->")')"
+  check 'a DRY finding is an Actionable comments entry whose Fix names the existing implementation' \
+    "$(yes_if review_has '.body | contains("**🟠 Moderate 1 — Repeated total** · `src/A.php:12`\nThe total is computed again.\n**Fix:** Use the existing implementation in `app/Totals.php:42` instead of repeating the logic.")')"
 
   # 12. resolve: only the threads of this actor for the given ids, and a failed mutation is a failure
   cat >"$tmp/threads.1" <<JSON

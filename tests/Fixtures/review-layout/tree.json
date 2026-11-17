@@ -1,0 +1,37 @@
+{
+  "tree": [
+    {
+      "path": "app/Http/Controllers/Workspace/InvitationController.php",
+      "type": "blob"
+    },
+    {
+      "path": "app/Http/Controllers/Api/InvitationController.php",
+      "type": "blob"
+    },
+    {
+      "path": "app/Mail/WorkspaceInvitation.php",
+      "type": "blob"
+    },
+    {
+      "path": "app/Models/Invitation.php",
+      "type": "blob"
+    },
+    {
+      "path": "database/migrations/2026_11_17_000000_create_invitations_table.php",
+      "type": "blob"
+    },
+    {
+      "path": "app/Http/Controllers/InvitationAcceptController.php",
+      "type": "blob"
+    },
+    {
+      "path": "routes/web.php",
+      "type": "blob"
+    },
+    {
+      "path": "tests/Feature/Workspace/InvitationTest.php",
+      "type": "blob"
+    }
+  ],
+  "truncated": false
+}

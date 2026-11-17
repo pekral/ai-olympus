@@ -464,7 +464,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a round after a small delta runs only the lenses the delta can affect, and the security lenses read the whole PR diff in every round of `full` depth (issue #599).
         // Re-baselined: a round past the cap is never light, the light history scan keeps the whole PR range, and only krang's own `review depth:` line counts (issue #599, review round 1).
         // Re-baselined: every review range names the dispatched `<head SHA>`, never the symbolic `HEAD` of the tree the command runs in (issue #599, review round 2).
-        'rules/code-review/general.md' => 'af128aab3e1939d1244cc8d7f64debf9ac9c22a5549f29d49602ae0bf3b3f744',
+        // Re-baselined: the visible review body has one owner, `review-body.md`, and a review carries no code (issue #595).
+        'rules/code-review/general.md' => 'd8219be049ae3f6d093ca98398f63efcf159fb17cff0a2ec00ecf9281cad6b43',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

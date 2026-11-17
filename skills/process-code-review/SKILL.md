@@ -67,10 +67,10 @@ If the rebase changed `composer.lock`, run `skills/_shared/run-gate.sh --exclusi
 
 For every Critical and Moderate finding, extract the reproducer fields published by the CR skills (`@skills/code-review/SKILL.md`, `@skills/code-review-github/SKILL.md`, `@skills/code-review-jira/SKILL.md`, `@skills/security-review/SKILL.md`):
 
-- **Faulty Example** — the minimal snippet or input that reproduces the bug
+- **Faulty Example** — the sentence that describes the input or state that reproduces the bug
 - **Expected Behavior** — the assertion target the test must verify
 - **Test Hint** — the layer (unit, integration, feature) and entry point
-- **Suggested Fix** — the minimal corrected snippet that resolves the finding (may be `n/a — <reason>` when the Fix narrative is sufficient)
+- **Suggested Fix** — the sentence that says what to change and where (no code: `@rules/code-review/general.md` *A review carries no code*; may be `n/a — <reason>` when the Fix narrative is sufficient)
 
 Read the reproducer fields off `comments[]` and `body` / `descriptionText` returned by the deterministic loader for the originating tracker instead of re-fetching the issue:
 - **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
@@ -80,9 +80,9 @@ Read the reproducer fields off `comments[]` and `body` / `descriptionText` retur
 
 Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` because the fix changes no behaviour (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
 
-1. Drop the Faulty Example into a new test case at the layer named in the Test Hint.
+1. Turn the Faulty Example sentence into a new test case at the layer named in the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.
-3. Apply the Suggested Fix snippet (or the Fix narrative when Suggested Fix is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
+3. Write the change the Suggested Fix states (or the Fix narrative when it is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
 
 If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing. Suggested Fix may legitimately be `n/a` per the CR rules.
 
@@ -142,7 +142,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
    When `splinter` runs, the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount`, and none is deferrable.
 
    The condition is compound, not simply `criticalCount == 0`. Before the cap round its third part means `moderateCount == 0`, because nothing is deferrable yet. When the gate holds → **converged**, exit the loop.
-5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
+5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** of each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
 6. **The cap round — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again except as a security round. Triage each one exactly once against `references/round-three-deferral.md`, which owns the resolution table, the per-tracker filing mechanics, and the reporting contract:
    - **Critical outside security → hard stop.** Never deferred, never filed as a sub-issue.
    - **Security finding (the S1–S3 carve-out, at any severity) → up to two more rounds, fixing only the security findings.** Still open after them → hard stop.
