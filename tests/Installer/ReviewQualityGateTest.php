@@ -45,7 +45,7 @@ test('the review-state self-test covers every success criterion of the security 
     'a working-tree composer.json changes neither the cap nor the threshold',
     'an environment variable does not change the cap',
     'a cap of $bad falls back to 3',
-    'at cap 1 an open security low finding is a hard stop, never a deferral and never convergence',
+    'at cap 1 an open security low finding is never deferred and never converged: it gets a security round',
     'the most permissive threshold leaves a Moderate blocking',
     'a security-lens $level finding maps to a blocking severity',
     'a security (S1-S3) finding that needs verification still blocks',
@@ -152,7 +152,7 @@ test('a blocking finding outside the delta widens the round, and a change after 
         ->toContain('| `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file')
         ->toContain('A security `needs-verification` point outside the delta leaves only on a full round.')
         ->toContain('**A change after a convergence in the cap round escalates.**')
-        ->toContain('or a round was recorded after the loop converged in the cap round (`cap-spent-after-convergence`)')
+        ->toContain('or a round was recorded after the loop converged in the cap round or later (`cap-spent-after-convergence`)')
         ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
     expect($contract)->toContain('A finding whose location names no file counts as outside every delta.');
     expect($contract)->not->toContain('is read as `needs-verification`, so the loop does not count it');
@@ -221,7 +221,7 @@ test('process-code-review drives its loop through the review state and keeps com
         )
         ->toContain('`skills/_shared/review-state.sh init`')
         ->toContain('Record the round with `review-state.sh record` (from round 2 on, with the delta\'s changed files).')
-        ->toContain('run `review-state.sh scope` on the next delta (a `full` scope reviews the whole PR diff again)')
+        ->toContain('run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again')
         ->toContain('Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`.')
         ->toContain('- references/review-state.md');
     expect($skill)->not->toContain('round 3 only');
@@ -270,7 +270,7 @@ test('every former citation of the fixed cap names the manifest key', function (
 
 test('the security lenses read the whole pull request in every round', function (): void {
     expect(reviewQualityGateFile('rules/code-review/general.md'))
-        ->toContain('- **The security lenses always read the whole PR diff.**')
+        ->toContain('- **The security lenses read the whole PR diff in every round of `full` depth.**')
         ->toContain('is not walked again for new findings by any lens except the security lenses, which read the whole PR diff in every round')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');
 

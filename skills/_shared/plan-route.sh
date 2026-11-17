@@ -45,6 +45,7 @@
 #     "tier": "STANDARD",
 #     "thorough": false,
 #     "escalated_from": null,
+#     "loop_model_tier": "default",
 #     "stages": [
 #       { "type": "agent", "role": "donatello", "mode": "implementation", "model_tier": "default" },
 #       { "type": "deterministic_classification", "mode": "post_implementation" },
@@ -53,6 +54,11 @@
 #       { "type": "deterministic_reporting", "mode": "completion" }
 #     ]
 #   }
+#
+#   `loop_model_tier` is the model tier of every dispatch of the review-and-fix loop that is not a stage of
+#   its own: each `donatello` fix round and each `leonardo` and `splinter` review round. A CRITICAL tier
+#   escalates them from the first dispatch, like the stages
+#   (rules/compound-engineering/orchestration.md *Default model tier first, escalate with a recorded reason*).
 #
 #   Three stage types, and the split between them is the whole point:
 #     - `agent`                        — an LLM dispatch, the expensive thing
@@ -204,7 +210,7 @@ plan() {
       stage_agent leonardo "$review_mode" "$model_tier"
       stage_deterministic deterministic_validation scoped
     fi
-    emit "$tier" "$thorough" "$escalated_from" "$hotfix"
+    emit "$tier" "$thorough" "$escalated_from" "$hotfix" "$model_tier"
     return 0
   fi
 
@@ -253,12 +259,12 @@ plan() {
     stage_deterministic deterministic_reporting completion
   fi
 
-  emit "$tier" "$thorough" "" "$hotfix"
+  emit "$tier" "$thorough" "" "$hotfix" "$model_tier"
   return 0
 }
 
 emit() {
-  local tier="$1" thorough="$2" escalated_from="$3" hotfix="${4:-0}" first=1 stage
+  local tier="$1" thorough="$2" escalated_from="$3" hotfix="${4:-0}" loop_model_tier="${5:-default}" first=1 stage
 
   printf '{\n'
   printf '  "tier": "%s",\n' "$tier"
@@ -269,6 +275,7 @@ emit() {
   else
     printf '  "escalated_from": null,\n'
   fi
+  printf '  "loop_model_tier": "%s",\n' "$loop_model_tier"
   printf '  "stages": ['
   for stage in ${STAGES[@]+"${STAGES[@]}"}; do
     [[ "$first" -eq 1 ]] || printf ','
@@ -435,6 +442,17 @@ self_test() {
     "leonardo:review_hotfix:default -> $VALIDATE" --tier STANDARD --escalated-from FAST --hotfix
 
   expect_field '--hotfix is recorded in the plan' 'true' '.hotfix' --tier STANDARD --hotfix
+
+  # --- The review-and-fix loop: escalated from the first dispatch on CRITICAL ------
+  #
+  # The fix rounds and the review rounds are no stages of their own, so the plan
+  # names their tier once. A CRITICAL run never waits for a failed attempt.
+  expect_field 'CRITICAL escalates every fix and review round from round 1' 'escalated' '.loop_model_tier' --tier CRITICAL
+  expect_field '--thorough escalates every fix and review round from round 1' 'escalated' '.loop_model_tier' --tier FAST --thorough
+  expect_field 'a raise to CRITICAL escalates the rounds it still owes' 'escalated' '.loop_model_tier' --tier CRITICAL --escalated-from STANDARD
+  expect_field 'STANDARD keeps the fix and review rounds at the default tier' 'default' '.loop_model_tier' --tier STANDARD
+  expect_field 'FAST keeps the fix and review rounds at the default tier' 'default' '.loop_model_tier' --tier FAST
+  expect_field 'a declared HOTFIX never lowers the CRITICAL loop tier' 'escalated' '.loop_model_tier' --tier CRITICAL --hotfix
   expect_field 'an ordinary run records no hotfix' 'false' '.hotfix' --tier STANDARD
 
   # --- Usage -----------------------------------------------------------------

@@ -347,6 +347,12 @@ An agent role is not permanently coupled to an expensive model. The contract is 
 
 Escalate **after** evidence, not before it — pay for the expensive tier when a cheaper attempt has failed or when the tier already says the change is high-risk, never as a precaution. Every escalation is recorded with its reason (see *Observability* below); an unrecorded escalation is indistinguishable from a default, which is how a default-tier-first pipeline silently becomes an expensive one again.
 
+**A `CRITICAL` tier is that evidence, so it escalates from the first dispatch.** A high-risk task is worked on at the escalated tier from its first step, never only after a failed attempt:
+
+- **Every implementer and reviewer dispatch of a `CRITICAL` run is escalated from round 1:** the implementation, every fix round of `donatello`, and every review round of `leonardo` and `splinter`. `skills/_shared/plan-route.sh` prints the tier of each stage and, as `loop_model_tier`, the tier of the fix and review rounds, which are no stages of their own.
+- **Each escalation is recorded before the first dispatch it applies to.** The routing ledger carries one `escalation` line per role, with the reason `tier CRITICAL — from the first dispatch`.
+- **`FAST` and `STANDARD` stay default-first.** They escalate only on the other three conditions above, after the evidence.
+
 **A platform that offers no per-dispatch model control never fakes one.** Where the escalated tier can only be selected for the whole session rather than for one dispatch, the run applies what it actually can — raising the reasoning effort, or asking the user to re-run the step on a stronger model — and records that in the escalation line: `escalation|<role>|<from>→<to>|<reason> (no per-dispatch override: <what was done instead>)`. Recording an escalation that did not happen is a false measurement, forbidden here for the same reason `@rules/code-review/review-process.md` *Output Rules — Truthful reporting* forbids it in a review.
 
 ### One authoritative LLM review, not two
@@ -467,7 +473,7 @@ The orchestrator never reads the optional sources itself: it requests one Contex
 
 Every mechanism above removes duplicate **re-derivation** or duplicate **execution** of work already done once — none of them removes a check, a reviewer, or a gate.
 
-At the run's tier, always: the same CR skill set runs (`prepare-issue-context`, `code-review`, `security-review`, `security-audit` in its *Diff mode*, `git-history-exposure-audit` in its *Review mode* on a public repository, `api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`, `analyze-problem`, the coverage gate, and every conditionally-triggered skill);
+At the run's tier, always: the same CR skill set runs (`prepare-issue-context`, `code-review`, `security-review`, `security-audit` in its *Diff mode*, `git-history-exposure-audit` in its *Review mode* on a public repository, `api-review`, `simplification-audit` with `MODE=cr`, `assignment-compliance-check`, `analyze-problem`, the coverage gate, and every conditionally-triggered skill) in every round of `full` depth, and a round of `light` depth runs the set `@rules/code-review/general.md` *A light round after a small delta* names;
 the same reviewer runs (`leonardo`, whenever the tier calls for one); the same convergence gate applies (`@skills/process-code-review/SKILL.md` *Review loop* step 4, `maxIterations` from the default-branch manifest, default 3); the same pre-implementation security analysis runs when the task is security-focused; the same post-convergence scoped validation by `donatello` runs whenever `agents/krang.md` step 6 calls for it, and
 context efficiency neither introduces nor removes that skip — a coverage gate deferred under mechanism 3 is itself one of the conditions that forces the pass to run (`agents/krang.md` step 6);
 the same post-convergence report is published by `april`; the same pre-merge build evidence that `@skills/merge-github-pr/SKILL.md` requires is produced before merge; and documentation updates ship unchanged. A run and the identical run under `--verbose-orchestration` must converge with the same Critical / Moderate finding count on the same diff, at the same tier — verbosity changes what is narrated, never the result.

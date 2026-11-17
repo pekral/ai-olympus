@@ -76,6 +76,8 @@ Read the reproducer fields off `comments[]` and `body` / `descriptionText` retur
 - **GitHub-originated reviews:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it). Never call `gh issue view`, `gh pr view`, or `gh api /repos/.../issues/...` directly.
 - **JIRA-originated reviews:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>`. Never call `acli` directly.
 
+**Close each finding's whole class** (`references/close-the-defect-class.md`).
+
 Use these to write a failing test **before** applying the fix, unless the Test Hint reads `none is needed` because the fix changes no behaviour (`@skills/test-audit/SKILL.md`) — then apply the fix directly:
 
 1. Drop the Faulty Example into a new test case at the layer named in the Test Hint.
@@ -140,12 +142,12 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
    When `splinter` runs, the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount`, and none is deferrable.
 
    The condition is compound, not simply `criticalCount == 0`. Before the cap round its third part means `moderateCount == 0`, because nothing is deferrable yet. When the gate holds → **converged**, exit the loop.
-5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
-6. **The cap round — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again; `review-state.sh` refuses another round. Triage each one exactly once against `references/round-three-deferral.md`, which owns the resolution table, the per-tracker filing mechanics, and the reporting contract:
-   - **Critical → hard stop.** Never deferred, never filed as a sub-issue.
-   - **Moderate meeting the S1–S3 security carve-out → hard stop.** Identical treatment to a Critical, because a security finding is never suppressed at any severity.
-   - **Every other Moderate → deferred as a sub-issue, or blocking.** The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar* decides which (cross-referenced, never restated). Passing it files a sub-issue via `scripts/file-deferred-moderate.sh`; failing it leaves the finding **blocking**, so it never silently vanishes.
-   - Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`. A run left with a blocking finding **has not converged**: stop, surface the findings with the verdict's `reason`, publish nothing, and escalate to the caller.
+5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** snippet from each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
+6. **The cap round — the deferral boundary.** When the review at `iteration == maxIterations` still carries findings, do not iterate again except as a security round. Triage each one exactly once against `references/round-three-deferral.md`, which owns the resolution table, the per-tracker filing mechanics, and the reporting contract:
+   - **Critical outside security → hard stop.** Never deferred, never filed as a sub-issue.
+   - **Security finding (the S1–S3 carve-out, at any severity) → up to two more rounds, limited to the security findings.** Still open after them → hard stop.
+   - **Every other Moderate → deferred automatically as a sub-issue, or blocking.** The filing bar in `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* → *The filing bar* decides which (cross-referenced, never restated). Passing it files a sub-issue via `scripts/file-deferred-moderate.sh`; failing it leaves the finding **blocking**, so it never silently vanishes.
+   - Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`. Otherwise a run left with a blocking finding **has not converged**: stop, surface the findings with the verdict's `reason`, publish nothing, and escalate to the caller.
 
 #### Quiet review runs and incremental review scope
 
@@ -243,6 +245,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 ## References
 
 - references/answering-reviewer-questions.md
+- references/close-the-defect-class.md
 - references/ready-to-merge-signal.md
 - references/resolve-reviewer-threads.md
 - references/review-loop-scope.md

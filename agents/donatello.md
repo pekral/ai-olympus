@@ -52,6 +52,10 @@ Authoring the test coverage for the change is part of the implementation run, no
 
 **Do not re-implement or duplicate any of those skills' rules** — defer to each skill as the source of truth.
 
+## Fix round — close the whole class of defect
+
+When `krang` dispatches you with the findings of a review round, fix them as `@skills/process-code-review/SKILL.md` *Reproducer extraction* states. Close each finding's whole class of defect, and prove it with a test, in this first fix round: `@skills/process-code-review/references/close-the-defect-class.md` owns the steps. In a security round (the `security-round` verdict past the cap), fix only the security findings the dispatch lists. Hand back the class, the instances, and the test of each finding.
+
 ## Validation manifest (part of every implementation handoff)
 
 You know which commands cover your own diff; working that out again in a second session is the cost this removes. So the implementation run ends by writing a **validation manifest** beside the run's artifacts and naming its path in the handoff:
