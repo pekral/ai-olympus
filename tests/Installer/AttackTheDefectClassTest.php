@@ -68,26 +68,30 @@ test('the pre-fix attack run swaps the fix out of its own working tree only (iss
     );
 
     expect(strtolower($section))->not->toContain('stash');
-    expect($section)->not->toContain('mkdir');
     expect($section)->not->toContain('<worktree>/');
-    expect($section)->not->toContain('.claude/run/attack');
+    expect($section)->not->toContain('system temporary directory');
+    expect($section)->not->toContain('`mkdir -p <');
+    expect(substr_count($section, 'mktemp -d'))->toBe(substr_count($section, '`mktemp -d <top>/.claude/run/attack/XXXXXXXX`'));
     expect($section)
         ->toContain('needs no swap.')
         ->toContain('Run the swap before you commit the fix, while `HEAD` still holds the code before the fix')
         ->toContain('never touch a ref or a directory that another worktree or session reads or writes.')
-        ->toContain('   1. Create a fresh directory for this swap with `mktemp -d`, and never reuse one that an earlier swap or another unit created.')
-        ->toContain(
-            'Run a plain `mktemp -d` with no path, so the directory lands in the system temporary directory, outside every worktree, '
-                . 'where no branch content and no symbolic link it commits can move it.',
-        )
-        ->toContain('It also survives `git worktree remove`, so a `Blocked` stop below keeps the fix.')
+        ->toContain('   1. Create a fresh directory for this swap, and never reuse one that an earlier swap or another unit created.')
+        ->toContain('`@rules/code-review/review-process.md` *No symbolic link may move the scratch directory*')
+        ->toContain('`<top>` is the `pwd -P` of your own worktree\'s toplevel.')
+        ->toContain('Create each missing part of `<top>/.claude/run/attack` with `mkdir`, never with `mkdir -p`.')
+        ->toContain('Require that `pwd -P` in it prints the same path composed from `<top>`, then run')
+        ->toContain('then run `mktemp -d <top>/.claude/run/attack/XXXXXXXX`')
+        ->toContain('When a check fails, stop `Blocked`, write nothing, and name the refused path.')
+        ->toContain('Run the `pwd -P` check on the swap directory again,')
+        ->toContain('name the swap path in the handoff, and keep the worktree:')
         ->toContain('Copy every fixed source file, tracked and new, into that directory, each at its repository-relative path,')
-        ->toContain('Copy every file back from the swap directory only,')
-        ->toContain('When the check fails, stop `Blocked` and commit nothing: the swap directory keeps the fix for recovery.')
+        ->toContain('then copy every file back from the swap directory only.')
+        ->toContain('When the round-trip check fails, stop `Blocked` and commit nothing,')
         ->toContain('Delete the swap directory after the check passes.')
         ->toContain('`git restore --source=HEAD --worktree -- <the fixed tracked files>`')
         ->toContain('move the new files out of the working tree into the swap directory.')
-        ->toContain('confirm that the `git diff` of the fixed tracked files equals the saved diff and that each new file matches its copy.');
+        ->toContain('Confirm that the `git diff` of the fixed tracked files equals the saved diff and that each new file matches its copy.');
 });
 
 test('every attack run takes the machine lock (issue #608)', function (): void {
