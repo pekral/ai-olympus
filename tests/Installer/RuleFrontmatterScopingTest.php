@@ -468,7 +468,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the code ban covers the published review outputs only, rules keep their code examples, and the entry of a
         // finding with no inline comment carries the author mention (issue #595, fix round 1).
         // Re-baselined: rebased onto #599, with restated sentences tightened so the file stays under its size limit (issue #595).
-        'rules/code-review/general.md' => '162e4c03f4c451d5ad6b3ddc1f549aa5600fcd547d3215ceb1d0dcc4de960384',
+        // Re-baselined: a GitHub review posts no inline comment; every finding is an entry of the Actionable comments block,
+        // and the `cr-inline` marker stays for the threads of an earlier release (operator request, release 0.5.2).
+        'rules/code-review/general.md' => 'a2aa8ac048a7a6b61de9d206686972bf5740162ae594e7a810590095c85ad131',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -582,7 +584,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the GitHub code review is one pull-request review with a hidden record (issue #522).
         // Re-baselined: the JIRA length note points to the pull-request length limit instead of saying the description has no cap (PR #524).
         // Re-baselined: the GitHub exception names the visible body of `review-body.md` instead of the visible lines (issue #595).
-        'rules/reports/general.md' => '6c7763008971bcab80b92e37509087a5b020bb5cdf82aa15b2069a3c88fdc823',
+        // Re-baselined: the GitHub exception names the visible body with its Actionable comments and no inline comment (release 0.5.2).
+        'rules/reports/general.md' => 'dd694e498d448f9c0961e933caa587d19e650acd1d89f92afcb385a73f57daa9',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

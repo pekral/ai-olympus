@@ -369,7 +369,7 @@ test('the review loop reads an inline thread of an earlier release as the agent 
     $reference = inlineReviewSource('skills/process-code-review/references/resolve-reviewer-threads.md');
 
     expect($skill)->toContain('Classify each comment on its own')
-        ->and($skill)->toContain('only a comment the current actor wrote with its `cr-inline` marker is its own finding')
+        ->and($skill)->toContain('only the current actor\'s comment with its `cr-inline` marker is its own finding')
         ->and($reference)->toContain('A review publishes no inline comment, so only a review of an earlier release opened such a thread.')
         ->and($skill)->toContain('every other comment, a reply included, is a reviewer comment')
         ->and($reference)->toContain('**A thread of the agent\'s own finding is resolved through the wrapper.**')
