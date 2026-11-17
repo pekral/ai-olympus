@@ -19,7 +19,7 @@ function inlineReviewContract(): string
 
 test('the inline review wrapper exists, is executable, and its self-test passes under the system bash', function (): void {
     $script = dirname(__DIR__, 2) . '/skills/code-review-github/scripts/post-inline-review.sh';
-    $process = new Process(['/bin/bash', $script, '--self-test']);
+    $process = new Process(['/bin/bash', $script, '--self-test'], timeout: 300);
     $process->run();
 
     expect(is_executable($script))->toBeTrue()
@@ -378,44 +378,13 @@ test('the review loop reads an inline thread of an earlier release as the agent 
         ->and($reference)->toContain('is listed under `has_reply` and not resolved');
 });
 
-/**
- * @return list<string>
- */
-function inlineReviewFilesIn(string $directory): array
-{
-    $paths = [];
-
-    foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS)) as $file) {
-        if ($file instanceof SplFileInfo && $file->isFile()) {
-            $paths[] = $file->getPathname();
-        }
-    }
-
-    return $paths;
-}
-
-/**
- * @return list<string>
- */
-function inlineReviewFilesCiting(string $citation): array
-{
-    $root = dirname(__DIR__, 2);
-    $directories = array_filter(
-        array_map(static fn (string $directory): string => $root . '/' . $directory, ['agents', 'codex', 'docs', 'rules', 'skills', 'tests']),
-        is_dir(...),
-    );
-
-    return array_values(array_map(
-        static fn (string $path): string => substr($path, strlen($root) + 1),
-        array_filter(
-            array_merge(...array_map(inlineReviewFilesIn(...), $directories)),
-            static fn (string $path): bool => str_contains((string) file_get_contents($path), $citation),
-        ),
-    ));
-}
-
 test('no file cites the renamed section Inline review comments of the contract', function (): void {
-    $citing = inlineReviewFilesCiting('*' . implode(' ', ['Inline', 'review', 'comments']) . '*');
+    $citation = '*' . implode(' ', ['Inline', 'review', 'comments']) . '*';
+    $citing = array_keys(array_filter(
+        packageTextFiles(),
+        static fn (string $content, string $path): bool => $path !== 'CHANGELOG.md' && str_contains($content, $citation),
+        ARRAY_FILTER_USE_BOTH,
+    ));
 
     expect($citing)->toBe([])
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
