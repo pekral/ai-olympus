@@ -259,6 +259,28 @@ test('a section left out keeps no empty block', function (): void {
         ->and($body)->not->toMatch('/<dd>\n<br>\n\n\n/');
 });
 
+test('a parent reference after the last block leaves the opening text untouched, and one before the opening text does not', function (): void {
+    $body = assignmentLayoutFile('Fixtures/assignment-layout/invitation-issue.md');
+    $parentReference = 'Part of #12';
+
+    $after = $body . "\n" . $parentReference . "\n";
+    $before = $parentReference . "\n\n" . $body;
+
+    expect(assignmentSections($after))->toBe(assignmentFixtureSections())
+        ->and(assignmentLayoutViolations($after))->toBe([])
+        ->and(assignmentSections($before))->not->toBe(assignmentFixtureSections())
+        ->and(assignmentSections($before)[ASSIGNMENT_OPENING_SECTION])->toStartWith($parentReference);
+});
+
+test('the skill places the parent reference and the sub-issue list after the last block, and the rule says such text is no section', function (): void {
+    $skill = assignmentLayoutFile('../skills/create-issues-from-text/SKILL.md');
+    $rule = assignmentLayoutFile('../rules/compound-engineering/assignment.md');
+
+    expect($skill)->toContain('Place the line after the last block of the body, never before the opening text')
+        ->and($skill)->toContain('Place the heading and the list after the last block of the parent body, never before the opening text.')
+        ->and($rule)->toContain('Text after the last block, such as a `Part of #<parent>` line or a `## Sub-issues` list, belongs to no section.');
+});
+
 test('the rule owns the shape once and the skills point to it', function (): void {
     $rule = assignmentLayoutFile('../rules/compound-engineering/assignment.md');
     $heading = '### The shape in a GitHub issue body — the opening text, open blocks, and a collapsed original';

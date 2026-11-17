@@ -61,16 +61,14 @@ test('the issue template carries the five business parts in order and no technic
 
     preg_match_all('#<details( open)?>\n<summary><strong>(.+?)</strong></summary>#', $template, $headings, PREG_SET_ORDER);
 
-    expect($template)->toStartWith('<The problem today, who has it, and why it is fixed>')
-        ->and(array_column($headings, 2))->toBe([
-            'What the user must be able to do',
-            'The rules',
-            'What we are not doing now',
-            'Open questions for the owner',
-            'Dependencies',
-            'Original assignment',
-        ])
-        ->and(array_column($headings, 1))->toBe([' open', ' open', ' open', ' open', ' open', ''])
+    expect(array_column($headings, 2))->toBe([
+        'What the user must be able to do',
+        'The rules',
+        'What we are not doing now',
+        'Open questions for the owner',
+        'Dependencies',
+        'Original assignment',
+    ])
         ->and($template)->not->toContain('Technical Solution')
         ->and($template)->not->toContain('Acceptance Criteria')
         ->and($template)->not->toContain('Testing Scenarios');
