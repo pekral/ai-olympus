@@ -17,6 +17,27 @@ function attackClassSection(string $content, string $heading): string
     return $end === false ? substr($content, $start) : substr($content, $start, $end - $start);
 }
 
+function attackClassNamesGitStash(string $content): bool
+{
+    return preg_match('/\bgit\b(?:\s+-C\s+\S+)?\s+stash\b/i', $content) === 1;
+}
+
+/**
+ * @return array<string, string>
+ */
+function attackClassAgentInstructionFiles(): array
+{
+    $isInstruction = static fn (string $path): bool => preg_match('#^(agents|skills|rules|codex)/#', $path) === 1;
+    $files = array_filter(packageTextFiles(), $isInstruction, ARRAY_FILTER_USE_KEY);
+    $adapters = glob(dirname(__DIR__, 2) . '/codex/agents/*.toml');
+
+    foreach ($adapters === false ? [] : $adapters as $adapter) {
+        $files['codex/agents/' . basename($adapter)] = (string) file_get_contents($adapter);
+    }
+
+    return $files;
+}
+
 test('the owner reference makes the fix round attack the whole class before the push (issue #608)', function (): void {
     $section = attackClassSection(
         attackClassFile('skills/process-code-review/references/close-the-defect-class.md'),
@@ -31,11 +52,39 @@ test('the owner reference makes the fix round attack the whole class before the 
         ->toContain('Keep the set small and fast, so it runs locally before the push.')
         ->toContain('2. **Try to get around the fix itself.** Write the same input in another form:')
         ->toContain('3. **Make each attack fail on the code before the fix.**')
-        ->toContain('(`git stash push -- <the fixed source files>`)')
-        ->toContain('An attack that passes there reproduces nothing: rewrite it until it fails, or drop it.')
+        ->toContain('An attack that passes on the code before the fix reproduces nothing: rewrite it until it fails, or drop it.')
         ->toContain('4. **Make each attack pass on the fixed code.** An attack that still fails got through the fix.')
         ->toContain('Change the fix before the push, then run every attack again.')
         ->toContain('5. **Keep every attack as a regression test.**');
+});
+
+test('the pre-fix attack run swaps the fix out of its own working tree only (issue #608)', function (): void {
+    $section = attackClassSection(
+        attackClassFile('skills/process-code-review/references/close-the-defect-class.md'),
+        '## Attack the fix before the push',
+    );
+
+    expect(strtolower($section))->not->toContain('stash');
+    expect($section)
+        ->toContain('needs no swap.')
+        ->toContain('Run the swap before you commit the fix, while `HEAD` still holds the code before the fix')
+        ->toContain('never touch a ref that another worktree or session reads.')
+        ->toContain('Copy every fixed source file, tracked and new, into the run\'s own scratch directory,')
+        ->toContain('`git restore --source=HEAD --worktree -- <the fixed tracked files>`')
+        ->toContain('move the new files out of the working tree into the scratch directory.')
+        ->toContain('confirm that the `git diff` of the fixed tracked files equals the saved diff and that each new file matches its copy.');
+});
+
+test('every attack run takes the machine lock (issue #608)', function (): void {
+    $section = attackClassSection(
+        attackClassFile('skills/process-code-review/references/close-the-defect-class.md'),
+        '## Attack the fix before the push',
+    );
+
+    expect($section)->toContain(
+        'Run every attack, in this step and in step 4, with the project\'s test command '
+            . 'through `skills/_shared/run-gate.sh --exclusive --command "<command>"`',
+    );
 });
 
 test('the attack step runs between the class test and the push (issue #608)', function (): void {
@@ -118,4 +167,29 @@ test('Claude Code and Codex install the attack step and its handoff field (issue
 
         installerRemoveDirectory($root);
     }
+});
+
+test('the git stash detector catches every spelling of the command (issue #608)', function (string $instruction): void {
+    expect(attackClassNamesGitStash($instruction))->toBeTrue();
+})->with([
+    'another worktree' => ['git -C "$worktree" stash push'],
+    'bare command in a code span' => ['take the fix out with `git stash`'],
+    'double space' => ['git  stash push'],
+    'pop' => ['then git stash pop'],
+    'push of a path' => ['run `git stash push -- src/Fix.php` first'],
+    'upper case' => ['GIT STASH APPLY'],
+]);
+
+test('the git stash detector ignores a prohibition that names no git command (issue #608)', function (): void {
+    expect(attackClassNamesGitStash('Never stash, reset, or discard uncommitted changes.'))->toBeFalse();
+});
+
+test('no agent instruction uses the git stash stack that every worktree shares (issue #608)', function (): void {
+    $explainsWhyStashIsForbidden = ['rules/compound-engineering/concurrency.md'];
+    $offenders = array_keys(array_filter(
+        array_diff_key(attackClassAgentInstructionFiles(), array_flip($explainsWhyStashIsForbidden)),
+        attackClassNamesGitStash(...),
+    ));
+
+    expect($offenders)->toBe([]);
 });
