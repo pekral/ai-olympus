@@ -28,8 +28,8 @@
 #               under the limit becomes an open section. It changes nothing else. The one use is the
 #               merge-risk refresh of a body that was rendered before the fold rule: the caller checks
 #               the result again before it publishes it. Exit 0 with the body on standard output, 3 with
-#               nothing on standard output when the body has any other problem or a folded section it
-#               cannot unfold.
+#               nothing on standard output when the body has any other problem, a folded section it
+#               cannot unfold, or a result over the length limit.
 #   --file      the rendered body (Markdown), or `-` to read it from standard input.
 #   --template  which template the body renders. `resolve-issue` is the default.
 #
@@ -62,8 +62,12 @@
 #                line after its <summary>) to the line before the next section, or to the </details> that
 #                closes the block the section sits in, with the blank lines at both ends left out and a line
 #                break between two lines counted as one code point. A <details> block nested in a folded
-#                section ends nothing. A `<details>` opener line directly above a <summary> belongs to no
-#                content. Text between a </details> and the next section is refused, and the problem names
+#                section ends nothing. A `<details>` opener line above a <summary>, with blank lines between
+#                them at most, belongs to no content. A tag counts only where GitHub renders it: a tag in an
+#                indented or fenced code block, in an HTML comment, in a code span (a run of backticks and the
+#                next run of the same length), or behind a backslash is text, a line of an HTML block holds
+#                no code span and no backslash escape, and a </details> on a list-item or block-quote line is
+#                not counted, so a body with one is refused. Text between a </details> and the next section is refused, and the problem names
 #                its line number only. A section is judged only when its name equals a name of the template.
 #   Depth        a block quote or a list item nests at most 16 levels deep (MAX_DEPTH). No real body
 #                nests beyond a handful, and the cap bounds the work for each line. A deeper body is
@@ -103,6 +107,10 @@ set -euo pipefail
 # on another host (`<DIV\377>`, or a paragraph line ending in `\377`, over a dash line).
 export LC_ALL=C
 
+# The file that collects the repair records of --refold. Only --refold sets it, so an inherited variable of
+# this name never redirects a record of the check.
+FOLD_PLAN_FILE=''
+
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -120,7 +128,7 @@ Usage: check-pr-body.sh --file <body-file|-> [--template resolve-issue|composer-
        check-pr-body.sh --self-test
 
 --refold prints the body with every section in the form the fold rule asks, and exits 3 with nothing
-printed when the body has a problem other than a folding one.
+printed when the body has a problem other than a folding one or the result is over the length limit.
 
 Exit 3 when the body is over the length limit, misses a section of its template, carries a
 section the template does not define, orders the sections differently, folds a section of 600
@@ -147,8 +155,12 @@ SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
 DETAILS_OPEN='^[[:space:]]*<details([[:space:]][^>]*)?>[[:space:]]*$'
 DETAILS_END='^ {0,3}</details>[[:space:]]*$'
-# A <details> tag of a line, opener or closer, in lower case: `<details>`, `<details open>`, `</details>`.
-DETAILS_TAG='<(/?)details([[:space:]/>]|$)'
+# A <details> tag at the start of the text, opener or closer, in lower case: `<details>`, `<details open>`, `</details>`.
+# DETAILS_CLOSER is a closing tag that holds no attribute.
+DETAILS_TAG='^<(/?)details([[:space:]/>]|$)'
+DETAILS_CLOSER='^</details[[:space:]]*>'
+# A line that starts with an HTML comment, 0-3 spaces in: the start of an HTML block.
+COMMENT_AT_START='^ {0,3}<!--'
 SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]*$'
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
@@ -608,30 +620,105 @@ merge_risk_line() {
   return 0
 }
 
-# details_step <line> — add the <details> openers of a line to DET_DEPTH and take its </details> closers
-# away, in the order they stand on the line. The depth never goes below 0. The tag is read in lower
-# case, as GitHub reads it, and a tag inside an inline code span is text, never a tag.
+# details_step <text> <text|raw> — add the <details> openers of <text> to DET_DEPTH and take its </details>
+# closers away, in the order they stand in it. The depth never goes below 0. The tag is read in lower case,
+# as GitHub reads it, and only where GitHub renders a tag. <text> is one paragraph (its lines joined by line
+# breaks), one other line, or one line of an HTML block (`raw`), and it is read from left to right as
+# CommonMark reads inline text:
+#   - a backslash makes the next character text;
+#   - a run of backticks opens a code span that ends at the next run of exactly that length, and the text
+#     between is text; a run with no such partner is literal;
+#   - `<!--` opens a comment that ends at the next `-->`, and a comment with no end is literal.
+# A line of an HTML block holds no backslash escape and no code span. A comment that its line leaves open
+# (DET_COMMENT is 1) hides the lines up to the one that holds its end, and a paragraph line while one is open.
+# DET_CLOSED is 1 when <text> held a </details> that was read as a tag.
 details_step() {
-  local lower rest before
+  local rest before run mode="$2"
 
-  # The glob needs no process; only a line that names `details` is lowercased.
-  [[ "$1" == *'<'*[dD][eE][tT][aA][iI][lL][sS]* ]] || return 0
-  lower="$(lowercase "$1")"
-  while [[ "$lower" == *'`'*'`'* ]]; do
-    before="${lower%%\`*}"
-    rest="${lower#*\`}"
-    lower="$before ${rest#*\`}"
-  done
-  rest="$lower"
-  while [[ "$rest" =~ $DETAILS_TAG ]]; do
-    if [[ -n "${BASH_REMATCH[1]}" ]]; then
-      [[ "$DET_DEPTH" -gt 0 ]] && DET_DEPTH=$((DET_DEPTH - 1))
-    else
-      DET_DEPTH=$((DET_DEPTH + 1))
+  # A text is read only when it can hold a tag, a comment, or a span, or when a comment is open.
+  if [[ "$DET_COMMENT" -eq 0 && "$1" != *'<'* ]]; then
+    return 0
+  fi
+  [[ "$DET_COMMENT" -eq 0 || "$mode" == raw ]] || return 0
+  rest="$(lowercase "$1")"
+  while :; do
+    if [[ "$DET_COMMENT" -ne 0 ]]; then
+      [[ "$rest" == *'-->'* ]] || return 0
+      rest="${rest#*-->}"
+      DET_COMMENT=0
+      continue
     fi
-    rest="${rest#*"${BASH_REMATCH[0]}"}"
+    if [[ "$mode" == raw ]]; then
+      before="${rest%%[<]*}"
+    else
+      before="${rest%%[\\<\`]*}"
+    fi
+    [[ "$before" != "$rest" ]] || return 0
+    rest="${rest:${#before}}"
+    case "${rest:0:1}" in
+    \\)
+      rest="${rest:2}"
+      ;;
+    '`')
+      run="${rest%%[!\`]*}"
+      rest="${rest:${#run}}"
+      span_end "${#run}" "$rest" && rest="$SPAN_REST"
+      ;;
+    *)
+      if [[ "$rest" == '<!--'* ]]; then
+        rest="${rest:4}"
+        # `<!-->` and `<!--->` are empty comments.
+        if [[ "$rest" == '>'* || "$rest" == '->'* ]]; then
+          rest="${rest#*>}"
+        elif [[ "$rest" == *'-->'* ]]; then
+          rest="${rest#*-->}"
+        elif [[ "$mode" == raw ]]; then
+          DET_COMMENT=1
+        fi
+      elif [[ "$rest" =~ $DETAILS_TAG ]]; then
+        if [[ -z "${BASH_REMATCH[1]}" ]]; then
+          DET_DEPTH=$((DET_DEPTH + 1))
+        # Outside a line of an HTML block a closing tag holds no attribute.
+        elif [[ "$mode" == raw || "$rest" =~ $DETAILS_CLOSER ]]; then
+          [[ "$DET_DEPTH" -gt 0 ]] && DET_DEPTH=$((DET_DEPTH - 1))
+          DET_CLOSED=1
+        fi
+        rest="${rest:1}"
+      else
+        rest="${rest:1}"
+      fi
+      ;;
+    esac
   done
-  return 0
+}
+
+# span_end <run length> <text> — <text> follows an opening run of backticks. Succeed when the next run of
+# exactly that length stands in <text>, and set SPAN_REST to what follows it. Fail when the opening run has
+# no partner.
+span_end() {
+  local rest="$2" before run
+
+  while [[ "$rest" == *'`'* ]]; do
+    before="${rest%%\`*}"
+    rest="${rest:${#before}}"
+    run="${rest%%[!\`]*}"
+    rest="${rest:${#run}}"
+    if [[ "${#run}" -eq "$1" ]]; then
+      SPAN_REST="$rest"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# det_flush — read the paragraph that DET_BUF holds, once its last line is known: a code span runs over the
+# lines of a paragraph, and whether a run of backticks opens one depends on the whole paragraph.
+det_flush() {
+  local text="$DET_BUF"
+
+  [[ -n "$text" ]] || return 0
+  DET_BUF=''
+  details_step "$text" text
 }
 
 # report_depth <line number> — print the too-deep record and succeed when the last step asked for a
@@ -653,10 +740,12 @@ report_depth() {
 # <details> block is open is a folded section, whatever the block holds above it: a bare <details>,
 # a plain <summary>, and a <summary> over several lines render the heading collapsed in the same way.
 scan_body() {
-  local line number=0 in_merge_risk=0 text block=none was_html skipped form
+  local line number=0 in_merge_risk=0 text block=none was_html skipped form prev_block mode
 
   CS_N=0
   DET_DEPTH=0
+  DET_COMMENT=0
+  DET_BUF=''
   DEEP=0
   LEAF=none
   cr_header_fence_reset
@@ -700,6 +789,7 @@ scan_body() {
       text="${BASH_REMATCH[2]}"
       block=none
       form=heading
+      det_flush
       if [[ "$DET_DEPTH" -gt 0 ]]; then
         form=details
         printf 'fold|%s|%s\n' "$number" "$DET_DEPTH"
@@ -729,6 +819,7 @@ scan_body() {
       # A folded Merge risk carries its grade in the summary; it is named as the section it folds.
       [[ "$text" == 'Merge risk'* ]] && text='Merge risk'
       # A summary with no opener above it still folds the section, as the first block it closes.
+      det_flush
       printf 'fold|%s|%s\n' "$number" "$((DET_DEPTH > 0 ? DET_DEPTH : 1))"
       printf 'section|%s|details:%s\n' "$number" "$text"
       continue
@@ -746,15 +837,32 @@ scan_body() {
       fi
     fi
 
+    prev_block="$block"
     next_block "$block" "$line" "$was_html"
     report_depth "$number" && return 0
     block="$NEXT_BLOCK"
     # The <details> blocks open at this line, unless it opens a container: the text of an item or a quote
-    # is read by the stack. The fold check counts the content of a folded section up to the </details>
-    # that closes the block the section sits in, so a block nested in it ends nothing.
-    if [[ "$CS_N" -eq 0 ]]; then
-      details_step "$line"
-      [[ "$line" =~ $DETAILS_END ]] && printf 'details-end|%s|%s\n' "$number" "$DET_DEPTH"
+    # is read by the stack. A line of an indented code block holds no tag. A code span, and a comment that
+    # started inside a paragraph, end with the paragraph. The fold check counts the content of a folded
+    # section up to the </details> that closes the block the section sits in, so a block nested in it ends
+    # nothing.
+    if [[ "$CS_N" -eq 0 && "$block" != code ]]; then
+      if [[ "$prev_block" == paragraph && "$block" == paragraph ]]; then
+        DET_BUF="$DET_BUF$line"$'\n'
+      else
+        det_flush
+        if [[ "$block" == paragraph ]]; then
+          DET_BUF="$line"$'\n'
+        else
+          mode=text
+          if [[ "$block" == container || -n "$was_html" || "$line" =~ $COMMENT_AT_START ]]; then
+            mode=raw
+          fi
+          DET_CLOSED=0
+          details_step "$line" "$mode"
+          [[ "$DET_CLOSED" -eq 1 && "$line" =~ $DETAILS_END ]] && printf 'details-end|%s|%s\n' "$number" "$DET_DEPTH"
+        fi
+      fi
     fi
     merge_risk_line "$in_merge_risk" "$line"
   done
@@ -839,7 +947,7 @@ check_folding() {
   local template="$1" scanned="$2"
   local -a sec_line=() sec_kind=() sec_name=() sec_depth=() end_line=() end_depth=() cp=() blank=() text=() tnames=()
   local record kind value line number=0 total=0 i n m j k d start end next first last len depth=0 tname known
-  local name form stripped stray=0 closer want
+  local name form stripped stray=0 closer want opener
 
   while IFS= read -r record; do
     [[ -n "$record" ]] && tnames[${#tnames[@]}]="${record#*|}"
@@ -907,10 +1015,17 @@ check_folding() {
       next=$((total + 1))
     fi
     end="$next"
-    # The <details> opener directly above the <summary> of the next section is not content.
-    if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details && "$((next - 1))" -gt "$start" ]]; then
-      [[ "${text[$((next - 1))]}" =~ $DETAILS_OPEN ]] && end=$((next - 1))
+    # The <details> opener above the <summary> of the next section, with blank lines between them at most,
+    # is the block of that section and not content.
+    opener=0
+    if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details ]]; then
+      d=$((next - 1))
+      while [[ "$d" -gt "$start" && "${blank[$d]}" -eq 1 ]]; do
+        d=$((d - 1))
+      done
+      [[ "$d" -gt "$start" && "${text[$d]}" =~ $DETAILS_OPEN ]] && opener="$d"
     fi
+    [[ "$opener" -eq 0 ]] || end="$opener"
     # The section of a folded form ends at the </details> that closes the block it sits in: the first
     # one that leaves fewer blocks open than the section's line had. A block nested in it ends nothing.
     closer=0
@@ -966,10 +1081,8 @@ check_folding() {
     if [[ "$closer" -eq 1 && "$stray" -eq 0 ]]; then
       d=$((end + 1))
       last=$((next - 1))
-      # The <details> opener directly above the next summary is the one non-content line.
-      if [[ "$i" -lt "$n" && "${sec_kind[$i]}" == details && "$last" -ge "$d" && "${text[$last]}" =~ $DETAILS_OPEN ]]; then
-        last=$((last - 1))
-      fi
+      # The <details> opener above the next summary is the one non-content line.
+      [[ "$opener" -eq 0 || "$opener" -lt "$d" ]] || last=$((opener - 1))
       while [[ "$d" -le "$last" ]]; do
         if [[ "${blank[$d]}" -eq 0 && ! "${text[$d]}" =~ $DETAILS_END ]]; then
           printf 'Folding: line %s holds text outside every section\n' "$d"
@@ -1215,6 +1328,9 @@ refold() {
   FOLD_PLAN_FILE=""
   again="$(set -e; printf '%s' "$result" | judge_body "$template")" || return 2
   [[ -z "$again" ]] || return 3
+  # Folding adds text to every section it repairs, so the result can pass the sections and be over the limit.
+  # The caller reads the file without its trailing line breaks, as the check does.
+  [[ "$(printf '%s' "$(printf '%s' "$result")" | count_chars)" -le "$MAX_CHARS" ]] || return 3
   printf '%s' "$result"
   return 0
 }
@@ -1438,7 +1554,7 @@ $f601" render)" 'Folding: line 20 holds text outside every section'
   # The refold (the merge-risk refresh of a body rendered before the fold rule): it repairs a folding problem
   # and nothing else, and its result passes the check.
   refold_scenario() {
-    local label="$1" expected="$2" body="$3" template="${4:-resolve-issue}" output status verdict=0
+    local label="$1" expected="$2" body="$3" want="${4:-}" template="${5:-resolve-issue}" output status verdict=0
     printf '%s\n' "$body" >"$tmp/body.md"
     set +e
     output="$("$script" --refold "$tmp/body.md" --template "$template" 2>/dev/null)"
@@ -1449,16 +1565,45 @@ $f601" render)" 'Folding: line 20 holds text outside every section'
       verdict=$?
     fi
     set -e
-    if [[ "$status" -eq "$expected" && "$verdict" -eq 0 && ( "$expected" -eq 0 || -z "$output" ) ]]; then
+    # A non-empty <want> is the exact body the refold prints: every line but the fold markup is the line of
+    # the input, and a body that follows the rule comes back as it went in.
+    if [[ "$status" -eq "$expected" && "$verdict" -eq 0 && ( "$expected" -eq 0 || -z "$output" ) && ( -z "$want" || "$output" == "$want" ) ]]; then
       printf 'ok    %-66s exit %s\n' "$label" "$status"
     else
-      printf 'FAIL  %-66s expected exit %s and a refolded body that passes the check, got %s and %s\n' "$label" "$expected" "$status" "$verdict" >&2
+      printf 'FAIL  %-66s expected exit %s and the expected body that passes the check, got %s and %s\n' "$label" "$expected" "$status" "$verdict" >&2
       failures=$((failures + 1))
     fi
   }
   refold_scenario 'the refold folds a long open section and opens a short folded one' 0 \
-    "$(printf 'Closes #42\n\n%s\n\n%s\n\n## Walkthrough\n\nrow\n\n%s\n\n## Audit\n\nnone\n' "$risk_ok" "$(section Summary open "$f601")" "$(section '✅ Testing' folded ok)")"
-  refold_scenario 'the refold keeps a body that follows the rule as it is' 0 "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" render)"
+    "$(printf 'Closes #42\n\n%s\n\n%s\n\n## Walkthrough\n\nrow\n\n%s\n\n## Audit\n\nnone\n' "$risk_ok" "$(section Summary open "$f601")" "$(section '✅ Testing' folded ok)")" \
+    "$(printf 'Closes #42\n\n%s\n\n%s\n\n## Walkthrough\n\nrow\n\n%s\n\n## Audit\n\nnone\n' "$risk_ok" "$(section Summary folded "$f601")" "$(section '✅ Testing' open ok)")"
+  refold_scenario 'the refold folds a long open section and keeps every other line' 0 \
+    "$(SUMMARY="$(section Summary open "$f601")" render)" "$(SUMMARY="$(section Summary folded "$f601")" render)"
+  refold_scenario 'the refold opens a short folded section and keeps every other line' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough folded ok)" render)" "$(WALKTHROUGH="$(section Walkthrough open ok)" render)"
+  # A body that follows the rule comes back as it went in, the Merge risk block included.
+  refold_scenario 'the refold keeps a body that follows the rule as it is' 0 \
+    "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" render)" "$(WALKTHROUGH="$(section Walkthrough folded "$f601")" render)"
+  # The folded form adds text to a section, so a body just under the limit can leave the refold over it.
+  local probe_chars near_limit near_n
+  probe_chars="$(printf '%s' "$(SUMMARY="$(section Summary open '')" render)" | count_chars)"
+  # The probe has no content, so the content of the open Summary needs two characters less: its heading
+  # line is followed by a blank line.
+  near_n=$((6477 - probe_chars - 2))
+  near_limit="$(SUMMARY="$(section Summary open "$(filler "$near_n")")" render)"
+  scenario 'a body of 6,477 characters is within the length and has a long open section' 3 "$near_limit" "has $near_n characters, over the limit of 600"
+  if [[ "$(printf '%s' "$near_limit" | count_chars)" -ne 6477 ]]; then
+    printf 'FAIL  %-66s the near-limit body is not 6,477 characters long\n' 'the near-limit body has the length the scenario names' >&2
+    failures=$((failures + 1))
+  fi
+  refold_scenario 'the refold refuses a result over the length limit' 3 "$near_limit"
+  # An open section directly above a folded section that opens with a <details> line, a blank line, and its summary:
+  # the closing tag of the fold goes above that opener, so the next section never renders inside the folded one.
+  local next_folded
+  next_folded="$(printf '<details>\n\n<summary><strong>Walkthrough</strong></summary>\n\n%s\n\n</details>' "$f601")"
+  refold_scenario 'the refold closes a fold above the opener of the next folded section' 0 \
+    "$(SUMMARY="$(section Summary open "$f601")" WALKTHROUGH="$next_folded" render)" \
+    "$(SUMMARY="$(section Summary folded "$f601")" WALKTHROUGH="$next_folded" render)"
   refold_scenario 'the refold refuses a body with a problem that is not a folding one' 3 "$(render '' '## Problem
 x')"
   refold_scenario 'the refold refuses a Merge risk heading under a bare <details>' 3 \
@@ -1503,6 +1648,62 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(WALKTHROUGH="$(printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n<details>\n<summary>more</summary>\n\nshort\n\n</details>\n\n%s\n\n</details>' "$f601")" render)" '"valid": true'
   scenario 'a short folded section with a nested <details> is refused' 3 \
     "$(WALKTHROUGH="$(printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n<details>\n<summary>more</summary>\n\nshort\n\n</details>\n\nmore\n\n</details>')" render)" 'the folded section \"Walkthrough\" has 58 characters'
+  # The depth counter reads a tag only where GitHub renders one (checked with `gh api markdown -f mode=gfm`).
+  # Each body below puts a <details> or </details> in a place that renders as text or as another block, above
+  # the Merge risk heading, and closes with a </details> that would hide the open block from a counter that
+  # read it as a tag.
+  local never_folded='the Merge risk section is never folded' risk_in_open_block
+  # tag_scenario <label> <exit> <text above the Merge risk heading> — a body that ends in a </details>.
+  tag_scenario() {
+    risk_in_open_block="$(render "$(printf '%s\n\n%s' "$3" "$risk_ok")")
+</details>"
+    scenario "$1" "$2" "$risk_in_open_block" "${4:-}"
+  }
+  tag_scenario 'a </details> line in an indented code block closes no block' 3 $'<details>\n\n    </details>' "$never_folded"
+  tag_scenario 'a </details> in a one-line comment closes no block' 3 $'<details>\n<!-- </details> -->' "$never_folded"
+  tag_scenario 'a </details> in a three-line comment closes no block' 3 $'<details>\n<!--\n</details>\n-->' "$never_folded"
+  tag_scenario 'a </details> in a code span of two backticks closes no block' 3 $'<details>\n\n``</details>``' "$never_folded"
+  tag_scenario 'a </details> behind a backslash closes no block' 3 $'<details>\n\n\\</details>' "$never_folded"
+  tag_scenario 'a </details> with an attribute inside a paragraph closes no block' 3 $'<details>\n\nx </details y>' "$never_folded"
+  tag_scenario 'a </details> in a fenced code block closes no block' 3 $'<details>\n\n```\n</details>\n```' "$never_folded"
+  tag_scenario 'a </details> in a paragraph closes the block' 0 $'<details>\n\nx </details>' '"valid": true'
+  tag_scenario 'a <details> in a one-line comment opens no block' 0 '<!-- <details> -->' '"valid": true'
+  tag_scenario 'a <details> in a comment of three lines opens no block' 0 $'<!--\n<details>\n-->' '"valid": true'
+  tag_scenario 'a <details> in a comment inside a paragraph opens no block' 0 $'text <!-- <details> --> text' '"valid": true'
+  tag_scenario 'a comment with no end hides nothing inside a paragraph' 3 $'text <!-- no end\n\n<details>' "$never_folded"
+  # shellcheck disable=SC2016
+  tag_scenario 'a <details> in a code span of two backticks opens no block' 0 '``<details>``' '"valid": true'
+  # shellcheck disable=SC2016
+  tag_scenario 'a <details> in a code span of three backticks opens no block' 0 '```<details>```' '"valid": true'
+  tag_scenario 'a <details> in a code span that runs over two lines opens no block' 0 $'Closes `x\nfoo <details> y` z' '"valid": true'
+  tag_scenario 'a <details> behind a backslash opens no block' 0 '\<details>' '"valid": true'
+  tag_scenario 'an indented <details> after a blank line is code and opens no block' 0 '    <details>' '"valid": true'
+  # A run of backticks closes a span only at a run of the same length, and an escaped backtick opens none.
+  # shellcheck disable=SC2016
+  tag_scenario 'one backtick and a closing run of two leave the <details> a tag' 3 'Closes #42 `<details>``' "$never_folded"
+  # shellcheck disable=SC2016
+  tag_scenario 'two backticks and a closing run of one leave the <details> a tag' 3 'Closes #42 ``<details>`' "$never_folded"
+  # shellcheck disable=SC2016
+  tag_scenario 'an escaped backtick opens no span around a <details>' 3 'Closes #42 \`<details>\`' "$never_folded"
+  # shellcheck disable=SC2016
+  tag_scenario 'a code span that ends at a heading line opens no span' 3 $'Closes `x\n<details>` y' "$never_folded"
+  # A line of an HTML block holds no code span: the tag in it is a tag.
+  # shellcheck disable=SC2016
+  tag_scenario 'backticks around a <details> in an HTML block line leave a tag' 3 '<div>`<details>`' "$never_folded"
+  # The indented <details> under the Merge risk block is code and does not fold the section after it.
+  scenario 'an indented <details> under the Merge risk block folds no later section' 0 \
+    "$(render "$(printf '%s\n\n    <details>' "$risk_ok")")" '"valid": true'
+  # The inherited FOLD_PLAN_FILE of the environment never receives a record of the check.
+  local inherited="$tmp/inherited-plan"
+  set +e
+  FOLD_PLAN_FILE="$inherited" "$script" --file <(printf '%s\n' "$near_limit") >/dev/null 2>&1
+  set -e
+  if [[ ! -e "$inherited" ]]; then
+    printf 'ok    %-66s\n' 'an inherited FOLD_PLAN_FILE receives no record of the check'
+  else
+    printf 'FAIL  %-66s the check wrote %s\n' 'an inherited FOLD_PLAN_FILE receives no record of the check' "$inherited" >&2
+    failures=$((failures + 1))
+  fi
   scenario 'the fold rule applies to the dependency-update template' 3 \
     "$(OTHER_UPDATES="$(section 'Other updates' open "$f601")" render_update)" 'the open section \"Other updates\" has 601 characters' composer-update
   scenario 'a folded long section is valid in the dependency-update template' 0 \
