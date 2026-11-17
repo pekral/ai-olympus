@@ -89,7 +89,7 @@ test('the rule makes the package write the line at the moment of the write and n
         ->toContain('A failed attempt writes a `note` line')
         ->toContain('A wrapper never changes its interface')
         ->toContain('What stays manual')
-        ->toContain('`seed-labels.sh`, `assign-priorities.sh`')
+        ->toContain('`seed-labels.sh`, the label script of the backlog tier. `assign-priorities.sh` writes its own line')
         ->toContain('audit-trail.sh verify --file <.audit> --branch <branch> --pr <PR>')
         ->toContain('check-handoff.sh --audit-file <.audit>');
 });

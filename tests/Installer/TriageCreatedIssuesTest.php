@@ -29,9 +29,10 @@ test('the tracker rule owns the triage of a created issue once, and runs the scr
         ->and($rule)->toContain('A human who creates an issue by hand keeps the manual triage.')
         ->and($rule)->toContain('Triage those issues only, with the same rules as a manual run:')
         ->and($rule)->toContain('Run `skills/github-issue-triage/scripts/assign-priorities.sh --issue <number>` once, with one `--issue` for each')
-        ->and($rule)->toContain('writes its own audit line for each label write. It never assigns `priority: critical`.')
+        ->and($rule)->toContain('writes its audit line for each label write through `audit-trail.sh run`. It never assigns `priority: critical`.')
         ->and($rule)->toContain('`skills/github-issue-triage/scripts/derive-effort.sh` and writes exactly one `effort:` label in the same write')
         ->and($rule)->toContain('Never run the triage script without `--issue` for this.')
+        ->and($rule)->toContain('drops a derived label the repository lacks, names it in its output, and still writes the labels that exist.')
         ->and($rule)->not->toContain('gh issue edit <URL>')
         ->and($rule)->toContain('A withheld item is never triaged.')
         ->and($rule)->toContain('A failed triage never fails the creation.')
@@ -49,6 +50,10 @@ test('the triage write of a created issue is audited and the consent table carri
     expect($rule)->toContain('`AUDIT_TRAIL_FILE=<absolute path of the .audit file> AUDIT_TRAIL_ROLE=<role>`')
         ->and($orchestration)->toContain($row)
         ->and($orchestration)->toContain('which records its own audit line, and a failed write never fails the creation |')
+        ->and($orchestration)->toContain(
+            '`assign-priorities.sh` writes its own line when `AUDIT_TRAIL_FILE` is set, through `audit-trail.sh run`, so the agent appends none.',
+        )
+        ->and($orchestration)->not->toContain('(`seed-labels.sh`, `assign-priorities.sh`)')
         ->and($orchestration)->toContain('never `priority: critical`, and never a backlog-wide labelling.');
 });
 
@@ -120,8 +125,15 @@ test('assign-priorities.sh limits the walk to the issues named with --issue and 
 
     expect($script)->toContain('assign-priorities.sh [--dry-run] [--issue <number>]...')
         ->and($script)->toContain('--issue needs an issue number')
-        ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo"')
         ->and($script)->toContain('DERIVE_EFFORT="$(cd')
+        ->and($script)->toContain('trap \'rm -f "$ISSUES_JSON" "$NAMED_JSON" "$EFFORT_FILE"\' EXIT')
+        ->and($script)->not->toContain('effort_file="$(mktemp)"')
+        ->and($script)->toContain('gh label list --limit 1000 --json name')
+        ->and($script)->toContain('write=(bash "$AUDIT_TRAIL" run -- "${write[@]}")')
+        ->and($script)->not->toContain('bash "$AUDIT_TRAIL" record --target "gh issue edit')
+        ->and($script)->toContain('e2e \'--issue — a repository without the effort labels still gets the type and the priority\'')
+        ->and($script)->toContain('e2e \'--issue — a repository without any derived label gets no write and every label is named\'')
+        ->and($script)->toContain('e2e \'--issue — a failed effort derivation is named and the effort label stays\'')
         ->and($script)->toContain('e2e \'--issue — the derived effort replaces an earlier effort label\'')
         ->and($script)->toContain('e2e \'--issue — only the named issue is written\'')
         ->and($script)->toContain('e2e \'--issue — an uppercase prefix derives no type\'')

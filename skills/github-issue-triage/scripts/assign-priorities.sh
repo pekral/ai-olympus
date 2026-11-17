@@ -282,8 +282,8 @@ end_to_end_cases() {
 
   cat >"$stub/gh" <<'STUB'
 #!/usr/bin/env bash
-# Stand-in for the `gh` calls the triage makes: `repo view`, `issue list`, and
-# `issue view` are answered from the fixture, and every `issue edit` argv is
+# Stand-in for the `gh` calls the triage makes: `repo view`, `issue list`,
+# `issue view`, and `label list` are answered from the fixture, and every `issue edit` argv is
 # recorded — pipe-joined, one call per line — so the test asserts the exact
 # write and not merely the printed plan.
 set -euo pipefail
@@ -298,8 +298,27 @@ case "${1:-} ${2:-}" in
   'issue view')
     jq -ce --argjson n "$3" '[.[] | select(.number == $n)] | if length == 0 then error("no such issue") else .[0] | . + {state: (.state // "OPEN")} end' "$GH_STUB_ISSUES"
     ;;
+  'label list')
+    if [[ -n "${GH_STUB_LABELS:-}" ]]; then
+      cat "$GH_STUB_LABELS"
+    else
+      printf '%s\n' bug enhancement documentation test refactor chore marketing plan security question \
+        'priority: critical' 'priority: high' 'priority: medium' 'priority: low' \
+        'effort: small' 'effort: medium' 'effort: large'
+    fi
+    ;;
   'issue edit')
     shift 2
+    # With a label fixture the stub refuses an edit that adds a label the repository lacks, as GitHub does.
+    if [[ -n "${GH_STUB_LABELS:-}" ]]; then
+      stub_args=("$@")
+      for ((stub_i = 0; stub_i < ${#stub_args[@]} - 1; stub_i++)); do
+        if [[ "${stub_args[stub_i]}" == '--add-label' ]] && ! grep -qxF -- "${stub_args[stub_i + 1]}" "$GH_STUB_LABELS"; then
+          echo "label not found: ${stub_args[stub_i + 1]}" >&2
+          exit 1
+        fi
+      done
+    fi
     (
       IFS='|'
       printf '%s\n' "$*"
@@ -314,6 +333,7 @@ STUB
   chmod +x "$stub/gh"
 
   local STUB_NWO='stub-owner/stub-repo'
+  local E2E_LABELS=''
 
   # Runs the real script over a one-off fixture and asserts three things: the
   # exit code, the expected line on stdout, and the `gh issue edit` argv the
@@ -331,6 +351,7 @@ STUB
       GH_STUB_NWO="$STUB_NWO" \
       GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
       GH_STUB_EDITS="$SELF_TEST_TMP/edits" \
+      GH_STUB_LABELS="$E2E_LABELS" \
       "$script" $mode 2>&1)"
     rc=$?
     set -e
@@ -507,6 +528,42 @@ STUB
     '#8  skipped — not an open issue' \
     '-'
 
+  # A label the repository lacks is dropped and named, and the labels that exist are still written.
+  printf '%s\n' enhancement bug 'priority: medium' 'priority: high' >"$SELF_TEST_TMP/labels-no-effort"
+  E2E_LABELS="$SELF_TEST_TMP/labels-no-effort"
+  e2e '--issue — a repository without the effort labels still gets the type and the priority' "$two_open" '--issue 2' \
+    '#2  enhancement (title) — applied: +enhancement +priority: medium (untriaged for effort: small: the label is missing in the repository)' \
+    '2|--add-label|enhancement|--add-label|priority: medium'
+
+  printf '%s\n' bug 'priority: medium' 'priority: high' 'effort: small' >"$SELF_TEST_TMP/labels-no-type"
+  E2E_LABELS="$SELF_TEST_TMP/labels-no-type"
+  e2e '--issue — a repository without the type label still gets the priority and the effort' "$two_open" '--issue 2' \
+    '#2  enhancement (title) — applied: +priority: medium +effort: small (untriaged for enhancement: the label is missing in the repository)' \
+    '2|--add-label|priority: medium|--add-label|effort: small'
+  E2E_LABELS=''
+
+  # Attack: when the repository lacks every derived label, nothing is written and each one is named.
+  printf '%s\n' bug >"$SELF_TEST_TMP/labels-none"
+  E2E_LABELS="$SELF_TEST_TMP/labels-none"
+  e2e '--issue — a repository without any derived label gets no write and every label is named' "$two_open" '--issue 2' \
+    '#2  enhancement (title) — nothing written (untriaged for enhancement: the label is missing in the repository) (untriaged for priority: medium: the label is missing in the repository) (untriaged for effort: small: the label is missing in the repository)' \
+    '-'
+  E2E_LABELS=''
+
+  # A failed effort derivation is named and leaves the effort labels unchanged. The copy of this script
+  # sits next to a derive-effort.sh stub that fails, so no override of the real path exists.
+  local real_script="$script"
+  mkdir -p "$SELF_TEST_TMP/failing"
+  cp "$script" "$SELF_TEST_TMP/failing/assign-priorities.sh"
+  printf '#!/usr/bin/env bash\necho "derive-effort.sh: boom" >&2\nexit 1\n' >"$SELF_TEST_TMP/failing/derive-effort.sh"
+  chmod +x "$SELF_TEST_TMP/failing/assign-priorities.sh" "$SELF_TEST_TMP/failing/derive-effort.sh"
+  script="$SELF_TEST_TMP/failing/assign-priorities.sh"
+  e2e '--issue — a failed effort derivation is named and the effort label stays' \
+    '[{"number":11,"title":"feat(core): eleven","body":"","labels":[{"name":"effort: large"}]}]' '--issue 11' \
+    '#11  enhancement (title) — applied: +enhancement +priority: medium (effort not derived: derive-effort.sh: boom)' \
+    '11|--add-label|enhancement|--add-label|priority: medium'
+  script="$real_script"
+
   # A named issue that does not exist stops the run with exit 3 and writes nothing; a bad number is a usage error.
   local rc
   set +e
@@ -536,8 +593,13 @@ STUB
     "$script" --issue 2 >"$SELF_TEST_TMP/out" 2>&1)
   rc=$?
   checks=$((checks + 1))
-  if [[ "$rc" -ne 0 ]] || ! grep -q '^donatello|.*|external-write|gh issue edit #2 on stub-owner/stub-repo|' "$SELF_TEST_TMP/run.audit"; then
-    echo "self-test FAIL: the write of --issue 2 left no audit line" >&2
+  if [[ "$rc" -ne 0 ]] || ! grep -q '^donatello|.*|external-write|.*+label enhancement' "$SELF_TEST_TMP/run.audit"; then
+    echo "self-test FAIL: the write of --issue 2 left no audit line with its label tokens" >&2
+    failures=$((failures + 1))
+  fi
+
+  if [[ "$(grep -c 'external-write' "$SELF_TEST_TMP/run.audit")" -ne 1 ]]; then
+    echo "self-test FAIL: the write of --issue 2 left more than one audit line" >&2
     failures=$((failures + 1))
   fi
 
@@ -741,15 +803,25 @@ fi
 echo "assign-priorities.sh: target repository: $repo_nwo"
 
 ISSUES_JSON="$(mktemp)"
-trap 'rm -f "$ISSUES_JSON"' EXIT
+NAMED_JSON=''
+EFFORT_FILE=''
+REPO_LABELS=''
+trap 'rm -f "$ISSUES_JSON" "$NAMED_JSON" "$EFFORT_FILE"' EXIT
 
 if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
   # The walk is limited to the named issues. Each one is read by its own number,
   # so no other issue is read, and an issue beyond the listing's page limit is
   # still reached. The array keeps only the open ones, in the order named.
   NAMED_JSON="$(mktemp)"
-  trap 'rm -f "$ISSUES_JSON" "$NAMED_JSON"' EXIT
+  EFFORT_FILE="$(mktemp)"
   : >"$NAMED_JSON"
+
+  # The label set is read once. A derived label the repository lacks is dropped and named, so the labels
+  # that exist are still written: `gh issue edit` refuses the whole edit for one missing label.
+  if ! REPO_LABELS="$(gh label list --limit 1000 --json name --jq '.[].name' 2>&1)"; then
+    echo "assign-priorities.sh: failed to list the labels of the repository: $REPO_LABELS" >&2
+    exit 3
+  fi
   named_skipped=0
   named_seen=' '
 
@@ -918,17 +990,14 @@ while IFS= read -r -d '' number <&3 &&
 
   # The effort size is derived only for a named issue, from its body, by the one script that owns the method.
   if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 ]]; then
-    effort_file="$(mktemp)"
-    printf '%s' "$body" >"$effort_file"
+    printf '%s' "$body" >"$EFFORT_FILE"
     effort_label=''
 
-    if effort_out="$("$DERIVE_EFFORT" --assignment "$effort_file" 2>&1)"; then
+    if effort_out="$("$DERIVE_EFFORT" --assignment "$EFFORT_FILE" 2>&1)"; then
       effort_label="$(sed -n 's/^label=//p' <<<"$effort_out" | head -n 1)"
     else
       priority_note="$priority_note (effort not derived: $(head -n 1 <<<"$effort_out"))"
     fi
-
-    rm -f "$effort_file"
 
     if [[ -n "$effort_label" ]]; then
       has_effort=false
@@ -951,7 +1020,34 @@ while IFS= read -r -d '' number <&3 &&
     fi
   fi
 
+  dropped=false
+
+  if [[ "${#ISSUE_NUMBERS[@]}" -gt 0 && "${#adds[@]}" -gt 0 ]]; then
+    present=()
+
+    for label in "${adds[@]}"; do
+      if [[ $'\n'"$REPO_LABELS"$'\n' == *$'\n'"$label"$'\n'* ]]; then
+        present+=("$label")
+      else
+        dropped=true
+        priority_note="$priority_note (untriaged for $label: the label is missing in the repository)"
+      fi
+    done
+
+    adds=()
+
+    if [[ "${#present[@]}" -gt 0 ]]; then
+      adds=("${present[@]}")
+    fi
+  fi
+
   if [[ "${#adds[@]}" -eq 0 && "${#removes[@]}" -eq 0 ]]; then
+    if [[ "$dropped" == true ]]; then
+      echo "#$number  $type ($type_source) — nothing written$priority_note"
+      skipped=$((skipped + 1))
+      continue
+    fi
+
     echo "#$number  $type ($type_source) — already triaged$priority_note"
     unchanged=$((unchanged + 1))
     continue
@@ -983,18 +1079,17 @@ while IFS= read -r -d '' number <&3 &&
       exit 3
     fi
 
-    if ! gh_error="$(gh issue edit "$number" "${args[@]}" 2>&1 >/dev/null)"; then
-      if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
-        bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo" --status 1 || true
-      fi
+    # An agent run names its ledger in AUDIT_TRAIL_FILE: the write then goes through `audit-trail.sh run`,
+    # which leaves the one audit line with the `+label` and `-label` tokens that `verify` matches.
+    write=(gh issue edit "$number" "${args[@]}")
 
-      echo "assign-priorities.sh: failed to edit issue #$number: $gh_error" >&2
-      exit 3
+    if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
+      write=(bash "$AUDIT_TRAIL" run -- "${write[@]}")
     fi
 
-    # An agent run names its ledger in AUDIT_TRAIL_FILE; the write leaves its own line.
-    if [[ -n "${AUDIT_TRAIL_FILE:-}" ]]; then
-      bash "$AUDIT_TRAIL" record --target "gh issue edit #$number on $repo_nwo" --status 0 --detail "triage labels:$actions" || true
+    if ! gh_error="$("${write[@]}" 2>&1 >/dev/null)"; then
+      echo "assign-priorities.sh: failed to edit issue #$number: $gh_error" >&2
+      exit 3
     fi
 
     echo "#$number  $type ($type_source) — applied:$actions$priority_note"
