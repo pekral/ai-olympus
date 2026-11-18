@@ -359,19 +359,40 @@ observe_item_writes() {
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
 }
 
-# 0 when an `external-write` line of `$writes` names that label change: "+label <name>" for labeled and
+# 0 when an `external-write` line of `$writes` names that label change on the item under check
+# (`$3` its number, `$4` its `<owner>/<repo>`, empty for a bare number): "+label <name>" for labeled and
 # "-label <name>" for unlabeled, as a whole token (followed by " +label", " -label", " ->", or the field end).
+# The line must name the same item: by an issue or pull-request URL, or, when it carries no URL, by the
+# number that follows `gh issue|pr <command>`.
 label_recorded() {
-  LABEL_SIGN="$1" LABEL_NAME="$2" awk -F'|' '
-    BEGIN { needle = " " ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"] }
+  LABEL_SIGN="$1" LABEL_NAME="$2" ITEM_NUMBER="$3" ITEM_REPO="$4" awk -F'|' '
+    BEGIN {
+      needle = " " ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"]
+      number = ENVIRON["ITEM_NUMBER"]
+      repository = ENVIRON["ITEM_REPO"]
+    }
+    function names_item(text,   rest, token, word, has_url) {
+      rest = text
+      has_url = 0
+      while (match(rest, /https?:\/\/[^ ]+/)) {
+        token = substr(rest, RSTART, RLENGTH)
+        rest = substr(rest, RSTART + RLENGTH)
+        has_url = 1
+        if (token ~ ("/(issues|pull)/" number "$") && (repository == "" || index(token, "/" repository "/") > 0)) return 1
+      }
+      split(text, word, " ")
+      return (!has_url && word[1] == "gh" && word[4] == number) ? 1 : 0
+    }
     {
       target = " " $4
       offset = 0
+      matched = 0
       while ((at = index(substr(target, offset + 1), needle)) > 0) {
         offset += at
         rest = substr(target, offset + length(needle))
-        if (rest == "" || rest ~ /^ [+-]label / || rest ~ /^ ->/) { found = 1 }
+        if (rest == "" || rest ~ /^ [+-]label / || rest ~ /^ ->/) { matched = 1 }
       }
+      if (matched && names_item($4)) found = 1
     }
     END { exit found ? 0 : 1 }
   ' <<<"$writes"
@@ -390,11 +411,14 @@ note_names() {
 # change with none is not verified, because a label event cannot be told from the operator's own.
 # Reads and writes the caller's `problems`, `notes`, `writes`, `note_target`, `since`, and `login` variables.
 observe_item() {
-  local item="$1" is_pr="${2:-}" base pulls="" kind id when observed sign name seen_reviews=" "
+  local item="$1" is_pr="${2:-}" base pulls="" kind id when observed sign name seen_reviews=" " item_number item_repo=""
   if [[ "$item" =~ ^https://[^/]+/([^/]+)/([^/]+)/(pull|issues)/([0-9]+) ]]; then
     base="repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/issues/${BASH_REMATCH[4]}"
+    item_number="${BASH_REMATCH[4]}"
+    item_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
   elif [[ "$item" =~ ^[0-9]+$ ]]; then
     base="repos/{owner}/{repo}/issues/$item"
+    item_number="$item"
   else
     notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
     return 0
@@ -421,7 +445,7 @@ observe_item() {
       sign="+"
       [[ "$kind" == unlabeled ]] && sign="-"
       name="$(clean_field "$id")"
-      label_recorded "$sign" "$name" || note_names "label $name" || notes+=("label '$name' $kind by $login on $(clean_field "$item") (at $when) has no external-write line, and a label event carries no agent marker, so it cannot be told from the operator's own; when this run made it, run the write through audit-trail.sh run, otherwise append a note line with the target 'label $name'")
+      label_recorded "$sign" "$name" "$item_number" "$item_repo" || note_names "label $name" || notes+=("label '$name' $kind by $login on $(clean_field "$item") (at $when) has no external-write line, and a label event carries no agent marker, so it cannot be told from the operator's own; when this run made it, run the write through audit-trail.sh run, otherwise append a note line with the target 'label $name'")
       ;;
     esac
   done <<<"$observed"
@@ -975,6 +999,25 @@ OBS
     PATH="$tmp/obsbin:$PATH" FAKE_GH_FAIL=1 "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
     expect_eq 'a failed read is no problem' "$rc" 0
     if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
+
+    # A label written on another issue is no record of the same label on the issue under check.
+    local scoped="$tmp/scoped.audit"
+    cat >"$scoped" <<'SCOPED'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 8 +label surprise +label tag -> https://example.test/o/r/issues/8|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 5 +label other-tag -> https://example.test/o/r/issues/5|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh pr edit 5 +label ready to merge|ok (exit 0)
+SCOPED
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$scoped" --issue 5 >"$tmp/scoped.out" || true
+    if grep -q "^not verified: label 'surprise' labeled " "$tmp/scoped.out" && grep -q "^not verified: label 'tag' labeled " "$tmp/scoped.out"; then
+      ok 'a label written on another issue does not count as recorded for the issue under check'
+    else
+      bad "verify counted a label of another issue as recorded: $(cat "$tmp/scoped.out")"
+    fi
+    if ! grep -q "label 'other-tag' labeled\|label 'ready to merge' labeled" "$tmp/scoped.out"; then
+      ok 'a label written on the issue under check stays recorded, by its URL or by its number'
+    else
+      bad "verify lost a label of the issue under check: $(cat "$tmp/scoped.out")"
+    fi
   else
     ok 'skipped the comment and label checks of verify: jq is not installed'
   fi
