@@ -78,8 +78,13 @@ test('krang reports a stopped swap and names every kept tree with its reason (is
     'the owner reference' => ['`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*'],
     'the report copy' => ['into the `Kept worktrees` item of the final report before the brief is deleted'],
     'the report item' => ['- **Kept worktrees:** each worktree or tree *Run cleanup* left in place, as its absolute path and the reason it is kept'],
-    'the report reads it on a blocked stop' => ['Read it from the specialist handoffs and the cleanup result before the run ends, on a `Blocked` stop too.'],
-    'the report reads none only when nothing is kept' => ['`none` only when *Run cleanup* removed every worktree the run created, left no tree in place, and no `donatello` handoff named a swap directory'],
+    'the report reads it on a blocked stop' => [
+        'Read it from the specialist handoffs and the cleanup result before the run ends, on a `Blocked` stop too.',
+    ],
+    'the report reads none only when nothing is kept' => [
+        '`none` only when *Run cleanup* removed every worktree the run created, left no tree in place, '
+        . 'and no `donatello` handoff named a swap directory',
+    ],
     'the swap directory in the report' => ['also the absolute path of the swap directory that holds the saved copy, and what the fix attempt restored'],
 ]);
 
