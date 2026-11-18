@@ -1,6 +1,6 @@
 # Deferred-item follow-up issues
 
-Referenced from `skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*. Extracted to keep the skill body under the skill-check token limit (issue #59); the procedure is unchanged.
+Referenced from `skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*.
 
 Every item the run knowingly deferred — the *Out of scope (deferred)* group from step 7 and every pre-existing security vulnerability deferred per `references/pre-existing-issue-handling.md` rule 5 — must be registered as a **new issue in the originating tracker** per `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues*. A PR `## TODO` checklist alone is not durable: the PR gets merged and the list is forgotten. Run this step right after the PR exists (so the new issue can link to it) and before the final report:
 

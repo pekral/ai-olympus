@@ -79,7 +79,7 @@ test('the pre-push gate runs the fast checks on every repository and keeps ci an
             'Exit `4` → a check failed: read the log the JSON names, delete it, fix what it reports, commit, and run the script again.',
         )
         ->and($gates)->toContain('blocks the push until you name the check, its failure, and why it cannot be fixed in the handoff.')
-        ->and($gates)->toContain('Exit `5` → the manifest sets no `fast-checks`: no fast check runs, and the push goes on as before.')
+        ->and($gates)->toContain('Exit `5` → the manifest sets no `fast-checks`: no fast check runs, and the push goes on.')
         ->and($gates)->toContain('- The fast checks never replace CI or the pre-merge gate: those stay the final word on every merge.')
         ->and($gates)->toContain('`fast-checks: <passed | skipped | failed — <check>: <reason> | not set>`');
     expect(strpos($gates, '2. **The `fast-checks`, on every repository'))

@@ -8,7 +8,7 @@ The procedure boots the application of the checkout it runs in. The configuratio
 
 Every item is checked before the application boots. The first item that fails ends the Tinker test.
 
-- When item 1, 2, or 3 fails, the Tinker test does not apply. The report keeps the plain database client path of `SKILL.md`, unchanged, and its `DB access:` line names that path as before.
+- When item 1, 2, or 3 fails, the Tinker test does not apply. The report uses the plain database client path of `SKILL.md`, and its `DB access:` line names that path.
 - When item 4 or 5 fails, the report goes on with static analysis and names the item as the reason in its `DB access:` line.
 
 1. The dispatch carries a pull request URL and its head SHA. With no pull request there is no author whose trust the rule can read.
@@ -19,7 +19,7 @@ Every item is checked before the application boots. The first item that fails en
 
 ## The trust rule — where `casey` may boot the application
 
-The owner decided this on 2026-11-16 (issue #349, option A). `casey` boots the application only when all of these hold:
+`casey` boots the application only when all of these hold:
 
 1. **The pull request does not come from a fork.** The loader field `isCrossRepository` is `false`. A missing or `null` value counts as a fork (fail closed).
 2. **The author of the pull request is trusted** (`@rules/code-review/general.md` *Authorship trust*). `casey` reads the loader field `authorAssociation` from the output of `skills/code-review-github/scripts/load-issue.sh <PR-URL>`, which `agents/casey.md` *Workflow* step 1 already loads, and decides it with `write_access` of `skills/_shared/review-trust.jq`: `jq -L skills/_shared 'include "review-trust"; .authorAssociation | write_access'`. Only the output `true` is trusted. The output `false`, a `null` association (the loader could not read it), an empty output, and a failed command are untrusted.
@@ -105,7 +105,7 @@ CASEY_SNIPPET
   Boost runs every tool in its own `php artisan boost:execute-tool` process. The `TELESCOPE_ENABLED=false` of the command and the Telescope stop of the snippet do not reach that process, so Telescope would record the call. A project that requires `laravel/telescope` therefore reads the schema without Boost.
   The tool keeps the schema it read for 20 seconds in the default cache store of the application (`Cache::remember`). That is a write, so `casey:cache=ok` is the proof for the store Boost writes to. A `redis`, `memcached`, `dynamodb`, or `database` store writes over a connection the guard never checked, so a project with such a default store reads the schema without Boost.
   Without that argument Boost reads the default connection, so `casey:default=ok` is the proof for the connection Boost reads; `casey:guard=ok` alone proves only the connection of the model.
-  A project without Boost, and a session without that tool, read the schema from the migrations and from the plain database client as before. `casey` never calls the Boost tool `tinker` (it executes arbitrary PHP and is off unless `boost.tinker_tool_enabled` is set) or `database-query` (it runs a statement that `casey` typed, outside the accept rule). Both tool names, and `database-schema`, were verified in the source of `laravel/boost` v2.10.4 (`src/Mcp/Tools/`), where a tool is named after its class in kebab case.
+  A project without Boost, and a session without that tool, read the schema from the migrations and from the plain database client. `casey` never calls the Boost tool `tinker` (it executes arbitrary PHP and is off unless `boost.tinker_tool_enabled` is set) or `database-query` (it runs a statement that `casey` typed, outside the accept rule). Both tool names, and `database-schema`, were verified in the source of `laravel/boost` v2.10.4 (`src/Mcp/Tools/`), where a tool is named after its class in kebab case.
 - **Laravel Telescope.** When the project uses `laravel/telescope`, `@skills/laravel-telescope/SKILL.md` may read the query entries the application recorded before this run for the same statement, and only after the guard printed `ok`. The Tinker run stores no Telescope entry: the command sets `TELESCOPE_ENABLED=false`, the snippet stops the recording and drops the queued entries first, and the guard refuses with `refused:telescope` when the configuration still enables it. A Telescope fact is the recorded `time`, the `slow` flag, or the number of entries with the same `hash`. The report never quotes the recorded statement: Telescope stores it with its bindings inlined. The report quotes the `file` of an entry relative to the project root and never an absolute path.
 
 ## What the mechanism does not cover

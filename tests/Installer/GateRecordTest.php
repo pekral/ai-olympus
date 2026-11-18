@@ -321,7 +321,7 @@ test('the manifest documents the three gate keys and keeps the built-in behaviou
     }
 
     expect($gates)->toContain(
-        'A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and keeps the textual record exactly as before.',
+        'A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and uses the textual record.',
     );
     expect($gates)->toContain('The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`.');
     expect($gates)->toContain('| `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |');

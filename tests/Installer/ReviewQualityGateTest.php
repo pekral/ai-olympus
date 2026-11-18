@@ -246,7 +246,7 @@ test('the loop contract documents a round, the configuration, the statuses, esca
         ->toContain('| open → `dismissed` | a trusted author, through `dismiss` |')
         ->toContain('The script has no command that marks a finding resolved, and it reads no status from a report.')
         ->toContain('**A match never inherits a closed status.**')
-        ->toContain('**The security floor overrides one sentence of the assignment of #225.**')
+        ->toContain('**A security finding blocks even while unverified.**')
         ->toContain('**An escalation is terminal.**')
         ->toContain('Keep the state at `.claude/run/review-state/<owner>-<name>-<pr>.json` (Codex: `.codex/run/review-state/…`).')
         ->toContain('## Recovery after an interruption')

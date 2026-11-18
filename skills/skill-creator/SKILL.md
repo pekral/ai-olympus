@@ -101,9 +101,9 @@ Portability rules from the Agent Skills spec — a skill that breaks one of thes
 - `description`: non-empty, ≤ 1024 chars, no XML tags, written in the **third person** ("Resolves…", never "I can help you…"). It is injected into the system prompt and is the only thing a host sees before deciding to load the skill, so it states both *what the skill does* and *when to use it*. The repo's "Use when …" opening satisfies the *when* half — keep the *what* in the same sentence.
 
 ### 4. Compose the body
-The repo accepts two body layouts. Pick one and stay consistent within the file.
+Use Layout A for a new skill. Layout B appears in some existing skills; keep it only when editing such a skill.
 
-**Layout A — Constraints-first (preferred for new skills):**
+**Layout A — Constraints-first:**
 
 1. `## Constraints` — applied rules and hard limits (one bullet per item)
 2. `## Scope` *(optional)* — what the skill covers, what it deliberately leaves to another skill, and the focus areas it works through. Write it only when the skill carries scope the `description:` field does not already state; never restate the frontmatter here.
@@ -114,7 +114,7 @@ The repo accepts two body layouts. Pick one and stay consistent within the file.
 
 Examples in the repo: `refactor-entry-point-to-action`, `smartest-project-addition`, `test-driven-development`, `tester-cookbook`, `security-review`.
 
-**Layout B — Title + Purpose (legacy, still acceptable):**
+**Layout B — Title + Purpose (existing skills):**
 
 1. `# <Title Case Name>`
 2. `## Purpose` — one short paragraph plus a bullet list of focus areas

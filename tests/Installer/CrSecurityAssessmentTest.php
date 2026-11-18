@@ -10,10 +10,10 @@ function securityAssessmentSource(string $relativePath): string
 test('the security review owns the four security verdicts of every code change', function (): void {
     $skill = securityAssessmentSource('skills/security-review/SKILL.md');
 
-    expect(substr_count($skill, '## Change Security Assessment (issue #236)'))->toBe(1)
+    expect(substr_count($skill, '## Change Security Assessment'))->toBe(1)
         ->and(substr_count($skill, '### Network Exposure of New Services and Ports (issue #236)'))->toBe(1);
 
-    $assessment = substr($skill, (int) strpos($skill, '## Change Security Assessment (issue #236)'));
+    $assessment = substr($skill, (int) strpos($skill, '## Change Security Assessment'));
 
     $verdicts = ['**Untrusted data, deserialization, dependency.**', '**Public exposure.**', '**Security regression test.**', '**Automatic rule.**'];
 

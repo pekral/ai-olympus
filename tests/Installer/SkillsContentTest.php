@@ -386,8 +386,8 @@ test('refactoring requires pre-refactor 100% coverage and unchanged tests in the
     expect($rule)->toContain('**Enforce the coverage half of the Test Coverage Contract above on every refactor PR.**');
 
     // The two commit-history steps stay as authoring guidance and are labelled as unverified.
-    expect($rule)->toContain('### What the review no longer verifies — and what that costs');
-    expect($rule)->toContain('**Authoring guidance only; no longer verified by review**');
+    expect($rule)->toContain('### What the review does not verify — and what that costs');
+    expect($rule)->toContain('**Authoring guidance only; not verified by review**');
     expect($rule)->toContain('**What is lost, stated rather than hidden: the proof that behaviour was preserved across the refactor.**');
     expect($rule)->toContain('Steps 1 and 4 are unaffected.');
 
@@ -1448,7 +1448,7 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
 
     // One gate, on the commit that actually ships.
-    expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
+    expect($gates)->toContain('## Gate placement — deferred to the merge boundary');
     expect($gates)->toContain('**During implementation and during the review loop — no gate.**');
     expect($gates)->toContain('**Once the work is finished — the full gate, once.**');
     expect($gates)->toContain('**The merge re-checks rather than re-runs.**');
@@ -1456,7 +1456,7 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
     expect($gates)->toContain('before the pull request is offered as ready');
 
     // The merge bar itself is unchanged — issue #75's guarantee still has an owner, now two.
-    expect($gates)->toContain('guarantee a merge never lands with a broken project (issue #75)');
+    expect($gates)->toContain('guarantee a merge never lands with a broken project');
     expect($gates)->toContain('*Pre-merge quality gate*');
 
     // The fixes the gate produces are a commit, not an amend of a reviewed one.

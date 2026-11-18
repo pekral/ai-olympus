@@ -1,6 +1,6 @@
 # Per-tracker follow-up after the PR is open
 
-Referenced from `skills/resolve-issue/SKILL.md` *Per-tracker follow-up*. Extracted to keep the skill body under the skill-check token limit; the procedure is unchanged. Every step here runs once the pull request exists, right after the non-technical report is posted.
+Referenced from `skills/resolve-issue/SKILL.md` *Per-tracker follow-up*. Every step here runs once the pull request exists, right after the non-technical report is posted.
 
 ### GitHub-specific follow-up
 - Once the PR is open, mark the source issue as waiting for code review (per `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*). This is phase 2 of that invariant, so it always runs — never conditional on the repository already carrying the label:
