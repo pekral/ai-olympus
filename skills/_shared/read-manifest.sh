@@ -36,7 +36,10 @@
 #
 # Output (stdout)
 #   The manifest as one line of JSON. `{}` when there is no default-branch ref,
-#   no composer.json on it, or no `extra.ai-olympus` object in it.
+#   no composer.json on it, or no `extra.ai-olympus` object in it. A composer.json
+#   that exists on the ref but cannot be read or parsed is not an empty manifest:
+#   the script names it on stderr and exits 3, and a caller that falls back to
+#   the built-in behaviour must not hide that report.
 #
 # Environment (--env)
 #   Every consumer that exports the manifest `env` reads it through `--env`, so
@@ -52,7 +55,8 @@
 #   0  the manifest was printed (possibly `{}`)
 #   1  usage error
 #   2  missing required tool (git, or jq unless --raw or --default-ref)
-#   3  composer.json on the ref is not valid JSON; `{}` is still printed
+#   3  composer.json exists on the ref but cannot be read, or is not valid JSON; the
+#      report is on stderr, and `{}` is still printed (nothing with --raw or --env)
 #   4  --env refused an entry; nothing is printed
 #   5  --default-ref found no default-branch ref, or no git checkout; nothing is printed
 set -euo pipefail
@@ -178,10 +182,26 @@ read_manifest() {
     return 0
   fi
 
-  local composer
-  if ! composer="$(git show "$ref:./composer.json" 2>/dev/null)"; then
+  # A composer.json that is absent on the ref is no manifest, and that is not an error. A composer.json that is
+  # present but that git cannot read is a broken manifest: it is reported and never read as an empty one.
+  local composer listing
+  if ! git rev-parse --verify --quiet "$ref^{tree}" >/dev/null 2>&1; then
     [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
+  fi
+  if ! listing="$(git ls-tree "$ref" -- ./composer.json 2>/dev/null)"; then
+    echo "$PROG: the tree of $ref cannot be read, so its composer.json is not read as a manifest" >&2
+    [[ "$mode" == "json" ]] && printf '{}\n'
+    return 3
+  fi
+  if [[ -z "$listing" ]]; then
+    [[ "$mode" == "json" ]] && printf '{}\n'
+    return 0
+  fi
+  if ! composer="$(git show "$ref:./composer.json" 2>/dev/null)"; then
+    echo "$PROG: composer.json on $ref exists but cannot be read — the project manifest is not read as an empty one" >&2
+    [[ "$mode" == "json" ]] && printf '{}\n'
+    return 3
   fi
 
   if [[ "$mode" == "raw" ]]; then
@@ -236,6 +256,20 @@ self_test() {
       return 0
     fi
     printf 'ok    %-58s %s\n' "$label" "$out"
+  }
+
+  expect_stderr() {
+    local label="$1" dir="$2" needle="$3" err
+    shift 3
+    set +e
+    err="$(cd "$dir" && "$script" "$@" 2>&1 >/dev/null)"
+    set -e
+    if [[ "$err" != *"$needle"* ]]; then
+      printf 'FAIL  %-58s expected stderr with "%s", got "%s"\n' "$label" "$needle" "$err" >&2
+      failures=$((failures + 1))
+      return 0
+    fi
+    printf 'ok    %-58s %s\n' "$label" "$err"
   }
 
   commit_composer() {
@@ -330,6 +364,23 @@ self_test() {
 
   commit_composer "$repo" '{ not json'
   expect_output 'invalid composer.json yields {} and exit 3' "$repo" '{}' 3 --ref HEAD
+
+  # A composer.json that exists but that git cannot read is reported, never read as an empty manifest. A ref with no
+  # composer.json stays an empty manifest. The unreadable blob is made by deleting its loose object.
+  commit_composer "$repo" '{ "extra": { "ai-olympus": { "gate": ["make unreadable"] } } }'
+  local blob
+  blob="$(git -C "$repo" rev-parse HEAD:composer.json)"
+  rm -f "$repo/.git/objects/${blob:0:2}/${blob:2}"
+  expect_output 'a composer.json git cannot read yields {} and exit 3' "$repo" '{}' 3 --ref HEAD
+  expect_output 'a composer.json git cannot read yields nothing and exit 3 with --raw' "$repo" '' 3 --ref HEAD --raw
+  expect_output 'a composer.json git cannot read yields nothing and exit 3 with --env' "$repo" '' 3 --ref HEAD --env
+  expect_stderr 'a composer.json git cannot read is named on stderr' "$repo" 'exists but cannot be read' --ref HEAD
+  expect_stderr 'invalid composer.json is named on stderr' "$repo" 'is not valid JSON' --ref HEAD~1
+  git -C "$repo" rm -q composer.json
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m 'no manifest'
+  expect_output 'a ref without composer.json stays an empty manifest' "$repo" '{}' 0 --ref HEAD
+  expect_output 'a ref without composer.json prints nothing with --raw' "$repo" '' 0 --ref HEAD --raw
+  git -C "$repo" reset -q --hard HEAD~2
 
   commit_composer "$repo" '{ "extra": { "ai-olympus": { "env": { "CLAUDECODE": "1", "TELESCOPE_ENABLED": "false" } } } }'
   expect_output '--env prints validated NAME=value lines' "$repo" $'CLAUDECODE=1\nTELESCOPE_ENABLED=false' 0 --ref HEAD --env
