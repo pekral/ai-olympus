@@ -194,7 +194,10 @@ json_object() {
 # composer.json on the ref, read by read-manifest.sh, the one owner of that read.
 read_composer() {
   local content
-  content="$("$SCRIPT_DIR/read-manifest.sh" --ref "$1" --raw 2>/dev/null)" || return 3
+  content="$("$SCRIPT_DIR/read-manifest.sh" --ref "$1" --raw 2>/dev/null)" || {
+    echo "$PROG: composer.json on $1 exists but cannot be read, so the manifest is unknown" >&2
+    return 3
+  }
   json_object "$1" composer.json "$content"
 }
 
@@ -423,6 +426,20 @@ self_test() {
   commit_files '{"extra": "not an object", "require-dev": {"laravel/pint": "^1"}}' - >/dev/null
   run --ref HEAD
   check 'a manifest read-manifest.sh cannot read exits 3' "$([[ "$code" -eq 3 ]] && echo pass)"
+
+  # A composer.json that exists but that git cannot read is refused with a reason, never read as an absent manifest.
+  # The unreadable blob is made by deleting its loose object.
+  local unreadable blob err
+  unreadable="$(commit_files '{"extra": {"ai-olympus": {"pr-gate": ["composer unreadable"]}}}' -)"
+  blob="$(git -C "$repo" rev-parse "$unreadable:composer.json")"
+  rm -f "$repo/.git/objects/${blob:0:2}/${blob:2}"
+  set +e
+  err="$(cd "$repo" && "$script" --ref "$unreadable" 2>&1 >/dev/null)"
+  code=$?
+  set -e
+  out="$err"
+  check 'a composer.json git cannot read exits 3' "$([[ "$code" -eq 3 ]] && echo pass)"
+  check 'a composer.json git cannot read is named on stderr' "$([[ "$err" == *'exists but cannot be read'* ]] && echo pass)"
 
   # --- The fast checks: the same discovery with the tables of the checkers -------------------------
   local checks_only checks_base checks_head

@@ -882,9 +882,13 @@ reach_tags() {
 # The default-branch allow-list as W records. Read through read-manifest.sh, which reads composer.json
 # from the default branch only; the branch under review never supplies it.
 allow_records() {
-  local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh"
+  local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh" json status=0
   [[ -f "$manifest" ]] || return 0
-  bash "$manifest" 2>/dev/null | jq -r '
+  json="$(bash "$manifest" 2>/dev/null)" || status=$?
+  # Exit 3: the default-branch composer.json exists but cannot be read. The allow-list is then empty, and the report
+  # says so, so a scan never looks like one that applied the project's suppressions.
+  [[ "$status" -ne 3 ]] || printf 'E\tdefault-branch manifest\tcomposer.json on the default branch cannot be read, so history-exposure.allow suppresses nothing; fix it and run the scan again\n'
+  printf '%s' "$json" | jq -r '
     (.["history-exposure"].allow // [])
     | if type == "array" then .[] else empty end
     | select(type == "object" and (.rule | type) == "string" and (.path | type) == "string")
@@ -1737,6 +1741,31 @@ st_text_cases() {
   st_text_refused "$ST_TMP" 'an issue' '{"kind":"issue","url":"https://github.com/o/r/issues/1","title":"x","body":"y"}'
   st_text_refused "$ST_TMP" 'two objects' "$(<"$json")$(<"$json")"
   st_text_refused "$ST_TMP" 'invalid JSON' '{"kind":'
+  st_manifest_cases "$json"
+}
+
+# A default-branch composer.json that git cannot read is named in the report, never read as an empty allow-list.
+# The unreadable blob is made by deleting its loose object in a repository of its own.
+st_manifest_cases() {
+  local json="$1" repo="$ST_TMP/manifest" blob
+  mkdir -p "$repo"
+  (
+    cd "$repo" || exit 1
+    st_git init -q
+    printf '{"extra":{"ai-olympus":{"history-exposure":{"allow":[{"rule":"internal-hostname","path":"x"}]}}}}\n' >composer.json
+    st_commit 'manifest'
+    st_git update-ref refs/remotes/origin/master HEAD
+    st_git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  ) || { st_ok 1 'build the manifest fixture'; return; }
+  st_scan text-manifest-readable "$repo" "$json" text
+  st_check_not 'text: a readable default-branch manifest is no report' st_has 'default-branch manifest'
+  blob="$(git -C "$repo" rev-parse HEAD:composer.json)"
+  rm -f "$repo/.git/objects/${blob:0:2}/${blob:2}"
+  st_scan text-manifest "$repo" "$json" text
+  st_res=0
+  [[ $ST_RC == 3 ]] || st_res=1
+  st_ok "$st_res" 'text: a default-branch composer.json that cannot be read fails the scan'
+  st_check 'text: a default-branch composer.json that cannot be read is named as not verified' st_has 'not-verified: default-branch manifest - composer.json on the default branch cannot be read'
 }
 
 # st_text_refused <dir> <label> <stdin text>: input that is not one pull-request object exits 3, never clean.
