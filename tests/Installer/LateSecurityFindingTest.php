@@ -53,7 +53,9 @@ test('the review-state contract owns the late rule and leonardo points at it (is
         ->toContain('No late finding escalates with `cap-spent-after-convergence`')
         ->toContain('The round limit and the two security rounds stay as they are.')
         ->toContain('**Every finding of a late report is a security finding.**')
-        ->toContain('so `krang` passes `review depth: full` to the round that fixes it')
+        ->toContain('so `krang` passes `review depth: full` to the round that fixes it');
+
+    expect(lateSecurityFindingFile('skills/process-code-review/references/review-state.md'))
         ->not->toContain('a finding that is not security-relevant, and a `Reviewed revision`');
 
     expect(lateSecurityFindingFile('agents/krang.md'))
