@@ -31,14 +31,8 @@ function attackClassNamesGitStash(string $content): bool
 function attackClassAgentInstructionFiles(): array
 {
     $isInstruction = static fn (string $path): bool => preg_match('#^(agents|skills|rules|codex)/#', $path) === 1;
-    $files = array_filter(packageTextFiles(), $isInstruction, ARRAY_FILTER_USE_KEY);
-    $adapters = glob(dirname(__DIR__, 2) . '/codex/agents/*.toml');
 
-    foreach ($adapters === false ? [] : $adapters as $adapter) {
-        $files['codex/agents/' . basename($adapter)] = (string) file_get_contents($adapter);
-    }
-
-    return $files;
+    return array_filter(packageTextFiles(), $isInstruction, ARRAY_FILTER_USE_KEY);
 }
 
 test('the owner reference makes the fix round attack the whole class before the push (issue #608)', function (): void {
