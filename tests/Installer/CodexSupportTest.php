@@ -85,3 +85,47 @@ test('the bundled AGENTS.md teaches Codex how to load AI Olympus artifacts', fun
     expect($content)->toContain('`.codex/run/`');
     expect($content)->toContain('`$skill-name`');
 });
+
+test('install delivers every package TOML agent file unchanged and nothing else into the Codex agents directory', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $root = installerCreateProjectRoot();
+    $cwd = getcwd();
+    $originalCwd = $cwd !== false ? $cwd : '';
+
+    try {
+        chdir($root);
+        ob_start();
+        Installer::run(['ai-olympus', 'install']);
+        ob_end_clean();
+
+        $packageToml = glob($packageDir . '/codex/agents/*.toml');
+        $installed = glob($root . '/.codex/agents/*');
+
+        expect($packageToml)->not->toBeEmpty();
+        expect(array_map(basename(...), is_array($installed) ? $installed : []))
+            ->toBe(array_map(basename(...), is_array($packageToml) ? $packageToml : []));
+
+        foreach (is_array($packageToml) ? $packageToml : [] as $source) {
+            expect(file_get_contents($root . '/.codex/agents/' . basename($source)))->toBe(file_get_contents($source));
+        }
+    } finally {
+        if ($originalCwd !== '') {
+            chdir($originalCwd);
+        }
+
+        installerRemoveDirectory($root);
+    }
+});
+
+test('the package text file listing carries the package TOML files and no TOML file outside the package', function (): void {
+    $files = packageTextFiles();
+
+    expect($files)->toHaveKey('codex/agents/krang.toml');
+    expect($files['codex/agents/krang.toml'])->toBe(packageSource('codex/agents/krang.toml'));
+
+    foreach (array_keys($files) as $path) {
+        expect($path)->not->toStartWith('vendor/')
+            ->and($path)->not->toStartWith('.claude/')
+            ->and($path)->not->toStartWith('.codex/');
+    }
+});
