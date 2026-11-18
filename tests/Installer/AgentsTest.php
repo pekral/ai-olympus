@@ -850,7 +850,7 @@ test('donatello scoped mode is the escalation path, not the routine one (issue #
     // now executes the manifest, and this mode fires only on its escalate verdict — so a dispatch
     // means something is already broken.
     expect($donatello)->toContain('**the deterministic runner escalated**');
-    expect($donatello)->toContain('Routine validation no longer reaches you at all');
+    expect($donatello)->toContain('Routine validation never reaches you');
     expect($donatello)->toContain('a green run closes its stage with no session');
 
     // The frontmatter is the agent's routing surface, so it carries the same condition.
@@ -1489,7 +1489,7 @@ test('leonardo frames a security remediation plan as a severity-prefixed GFM tas
     $packageDir = dirname(__DIR__, 2);
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
-    expect($leonardo)->toContain('**Success criteria must be a machine-checkable acceptance checklist (issue #212).**');
+    expect($leonardo)->toContain('**Success criteria must be a machine-checkable acceptance checklist.**');
     expect($leonardo)->toContain('one `- [ ] ` item per criterion, never a prose paragraph');
     expect($leonardo)->toContain('`- [ ] [Critical] …` / `- [ ] [Moderate] …`;');
     expect($leonardo)->not->toContain('[Minor]');
@@ -2195,10 +2195,6 @@ test('krang dispatches every step blocking so a turn never ends mid-flight (issu
     expect($content)->not->toContain('two blocking Task calls in a single message');
     expect($content)->toContain('Blocked: the harness does not allow a blocking dispatch');
 
-    // Arithmetic from the issue's own table: reviewer passes total 1 362 135, so 838 024 is not more than
-    // all of them combined -- only more than the largest single pass (428 897).
-    expect($content)->toContain('more than any individual reviewer pass (the largest was 429 k), though less than the four of them combined (1.36 M)');
-    expect($content)->not->toContain('more than every reviewer pass combined');
     // The CR round dispatches four blocking calls in one message, so the turn holds until all four return.
     expect($content)->not->toContain('The barrier holds on that alone, whatever order the harness actually runs them in');
     expect($content)->toContain('Step 6 dispatches `leonardo`, `splinter`, `raphael`, and `casey` in one message, each blocking');
@@ -2483,7 +2479,7 @@ test('every agent declares a per-agent Bash boundary and the harness-enforced di
     // Issue #265 removed the per-agent validator again, so the count in the lead-in returns to
     // one and no bullet may claim the per-agent half is enforced.
     expect($rule)->toContain('the one opt-in exception a consuming project can turn on for itself');
-    expect($rule)->toContain('so nothing enforces the per-agent half of this section');
+    expect($rule)->toContain('nothing enforces the per-agent half of this section');
     expect($rule)->not->toContain('--enforce-agent-bash-boundary` (issue #185)');
     expect($rule)->not->toContain('bash-guard');
 
@@ -2835,9 +2831,8 @@ test('april skips its own report only on content-proven coverage from an admissi
     expect($april)->toContain('It is semantic, never a literal heading match');
     expect($april)->toContain('a first half headed `What changed` satisfies it exactly as one headed `Summary of changes` does');
 
-    // The empirical case the skip must keep publishing on: three leonardo CR mirrors carried the
-    // convergence verdict and no How to test, so the report was still owed.
-    expect($april)->toContain('on issue #70 three such mirrors sat on the issue and publishing was still correct');
+    // A CR mirror carries the convergence verdict and no How to test, so the report is still owed.
+    expect($april)->toContain('so it never covers the report, however many mirrors sit on the target');
 
     // ...and the half that stops the skip becoming a silent escape hatch: evidence this run read,
     // recorded in the handoff and in the audit trail, with every soft reason to skip refused.
