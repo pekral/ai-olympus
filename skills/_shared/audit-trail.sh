@@ -20,8 +20,9 @@
 #       Run one write command, then `record` its own exit status. The command's stdout, stderr,
 #       and exit status pass through unchanged. Allowed commands: `git push`,
 #       `gh pr create|ready|edit|close|merge|update-branch|reopen`,
-#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. `close` and `reopen` with `-c` or `--comment` are refused:
-#       they post a comment. A comment goes through
+#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`, and `gh release create`
+#       (the tag and the release URL it prints are the target; any other `gh release` command is refused).
+#       `close` and `reopen` with `-c` or `--comment` are refused: they post a comment. A comment goes through
 #       `upsert-comment.sh` only: it adds the agent marker, and a comment without one reads as the
 #       operator's own.
 #   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
@@ -299,6 +300,33 @@ first_ref() {
   if [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then printf ' %s' "$arg"; fi
 }
 
+# The tag that a `gh release create` names, as " <tag>", or nothing when no safe tag is named: the first
+# positional argument. An option takes the next word as its value unless it is a known flag without a value
+# or carries its value after `=`, so the value of a title, a notes file, or a target is never read as the
+# tag. After `--` every word is positional. Words after the tag are asset files and are not part of the target.
+release_tag() {
+  local skip=0 end=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      --draft | --prerelease | --generate-notes | --verify-tag | --notes-from-tag | --fail-on-no-commits | -h | --help) continue ;;
+      -*=*) continue ;;
+      -*)
+        [[ "$arg" =~ ^-[dp]+$ ]] || skip=1
+        continue
+        ;;
+      esac
+    fi
+    if [[ "$arg" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then printf ' %s' "$arg"; fi
+    return 0
+  done
+}
+
 # Describe an allowed write command in a bounded, secret-free target; return 1 when it is not allowed.
 describe_command() {
   local -a argv=("$@")
@@ -342,6 +370,11 @@ describe_command() {
   "gh label")
     [[ " create edit delete " == *" $sub2 "* ]] || return 1
     printf 'gh label %s' "$sub2"
+    ;;
+  "gh release")
+    # Only the creation of a release is a write of the ledger. An edit, a deletion, and an upload stay refused.
+    [[ "$sub2" == create ]] || return 1
+    printf 'gh release create%s' "$(release_tag "${argv[@]:3}")"
     ;;
   *) return 1 ;;
   esac
@@ -791,7 +824,11 @@ self_test() {
   mkdir "$tmp/bin"
   cat >"$tmp/bin/gh" <<'EOF'
 #!/usr/bin/env bash
-echo "https://example.test/o/r/pull/9"
+if [[ "${1:-} ${2:-}" == "release create" ]]; then
+  echo "https://example.test/o/r/releases/tag/v0.6.0"
+else
+  echo "https://example.test/o/r/pull/9"
+fi
 exit "${FAKE_GH_EXIT:-0}"
 EOF
   chmod +x "$tmp/bin/gh"
@@ -839,6 +876,38 @@ EOF
     PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
     expect_eq "run still allows '$refused': it posts no comment" "$rc" 0
     expect_eq "an allowed '$refused' writes one line" "$(line_count)" "$((before + 1))"
+  done
+
+  # --- run: publishing a GitHub release is a write of the ledger; every other release command is not ---
+  before="$(line_count)"
+  out="$(PATH="$tmp/bin:$PATH" "$script" run -- gh release create v0.6.0 --title 'Release v0.6.0' --notes 'some | notes')"
+  expect_eq 'a release creation passes the command stdout through' "$out" 'https://example.test/o/r/releases/tag/v0.6.0'
+  l="$(last_line)"
+  expect_eq 'a release creation writes one line' "$(line_count)" "$((before + 1))"
+  expect_eq 'a release creation is recorded as external-write' "$(field 3 "$l")" external-write
+  expect_eq 'a release creation names the tag and the release URL it printed' "$(field 4 "$l")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  expect_eq 'a release creation line has five fields' "$(awk -F'|' '{ print NF }' <<<"$l")" 5
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create --draft -p --title 'Release v0.6.0' --notes-file notes.md --target master v0.6.0 dist.zip >/dev/null
+  expect_eq 'a release creation reads its tag past options and their values' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create -dp --latest=false -- v0.6.0 >/dev/null
+  expect_eq 'a release creation reads its tag past a bundle of short flags and after --' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create --generate-notes --title 'a b' >/dev/null
+  expect_eq 'a release creation with no tag names no tag' "$(field 4 "$(last_line)")" 'gh release create -> https://example.test/o/r/releases/tag/v0.6.0'
+  before="$(line_count)"
+  rc=0
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create v0.6.0 >/dev/null 2>&1 || rc=$?
+  expect_eq 'a failed release creation exits with the command status' "$rc" 1
+  l="$(last_line)"
+  expect_eq 'a failed release creation is recorded as a note line' "$(field 3 "$l")" note
+  expect_eq 'a failed release creation names its tag' "$(field 4 "$l")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  before="$(line_count)"
+  for refused in 'gh release edit v0.6.0 --draft=false' 'gh release delete v0.6.0 --yes' 'gh release upload v0.6.0 dist.zip' \
+    'gh release delete-asset v0.6.0 dist.zip' 'gh release download v0.6.0' 'gh release list' 'gh release view v0.6.0' 'gh release'; do
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run refuses '$refused' with exit 64: only a release creation is a write of the ledger" "$rc" 64
+    expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
   done
 
   rc=0
