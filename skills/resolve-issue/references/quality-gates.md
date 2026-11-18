@@ -132,7 +132,7 @@ What the exit code tells the caller:
 | `10` / `11` / `12` | — | missing / failed / stale, with the reason | runs `run-gate.sh --tier full`, or stops; never merges on it |
 | `3` | refused | refused | stops and reports the reason; never runs the commands another way and never merges on it |
 | `1` / `2` | usage error / `git` or `jq` missing | usage error, including an invalid or unknown `<sha>` / `git` or `jq` missing | handled like `3`: stops and reports the reason; never merges on it |
-| `5` | not configured | not configured | follows the built-in path of this file unchanged |
+| `5` | not configured | not configured | uses the textual-record path of this file |
 | `6` | a live run holds the lock | — | stops and reports; never runs a second gate beside it |
 | `7` | the tree is not clean | — | commits the change, then runs the gate |
 
