@@ -3,22 +3,11 @@
 declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
+use Tests\Support\ReportCheckRun;
 
 function runSupportCommentCheck(string $source): Process
 {
-    $packageDir = dirname(__DIR__, 3);
-    $file = sys_get_temp_dir() . '/ai-olympus-support-comment-' . bin2hex(random_bytes(6));
-    file_put_contents($file, $source);
-
-    $process = new Process(['php', $packageDir . '/skills/analyze-support-issue/scripts/check-comment.php', $file], $packageDir);
-
-    try {
-        $process->run();
-    } finally {
-        unlink($file);
-    }
-
-    return $process;
+    return ReportCheckRun::over('skills/analyze-support-issue/scripts/check-comment.php', $source);
 }
 
 function validSupportTldr(): string

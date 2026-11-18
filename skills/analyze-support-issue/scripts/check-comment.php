@@ -21,6 +21,8 @@ declare(strict_types = 1);
  * Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.
  * stdout: one `violation: <check>: <match>` line per violation.
  */
+require __DIR__ . '/../../_shared/report-check-common.php';
+
 const SUPPORT_COMMENT_MAX_CHARACTERS = 1500;
 
 const SUPPORT_COMMENT_HEADING = 'h2. TL;DR';
@@ -31,20 +33,16 @@ const SUPPORT_COMMENT_ESTIMATE_PATTERN = '/(?<![\p{L}\p{N}])('
     . '|probabl\p{L}*|likely|maybe|perhaps|seems?|presumabl\p{L}*|might|could be|we assume|hypothes\p{L}*'
     . ')(?![\p{L}\p{N}])/iu';
 
-const SUPPORT_COMMENT_DEVELOPER_PATTERN = '/\.(?:php|ts|js|sql|json|ya?ml)\b|::|->|\{\{|\{code'
-    . '|(?<![0-9A-Za-z])(?=[0-9a-f]*[a-f])[0-9a-f]{10,40}(?![0-9A-Za-z])/u';
+const SUPPORT_COMMENT_DEVELOPER_PATTERN = '/\.(?:php|ts|js|sql|json|ya?ml)\b|::|->|' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
+
+const SUPPORT_COMMENT_MARKDOWN_PATTERN = '/^(?:#{2,}\s|>|-\s|\*\*)|\*\*|`|\]\(/u';
 
 /**
  * @return list<string>
  */
 function supportCommentViolations(string $source): array
 {
-    $violations = [];
-    $length = mb_strlen($source);
-
-    if ($length > SUPPORT_COMMENT_MAX_CHARACTERS) {
-        $violations[] = sprintf('length: %d characters, the limit is %d', $length, SUPPORT_COMMENT_MAX_CHARACTERS);
-    }
+    $violations = reportCheckLengthViolations($source, SUPPORT_COMMENT_MAX_CHARACTERS);
 
     if (preg_match_all(SUPPORT_COMMENT_ESTIMATE_PATTERN, $source, $estimates) > 0) {
         foreach ($estimates[1] as $estimate) {
@@ -52,13 +50,11 @@ function supportCommentViolations(string $source): array
         }
     }
 
-    if (preg_match_all(SUPPORT_COMMENT_DEVELOPER_PATTERN, $source, $tokens) > 0) {
-        foreach ($tokens[0] as $token) {
-            $violations[] = 'developer token: ' . $token;
-        }
-    }
-
-    return [...$violations, ...supportCommentFormatViolations($source)];
+    return [
+        ...$violations,
+        ...reportCheckDeveloperTokenViolations($source, SUPPORT_COMMENT_DEVELOPER_PATTERN),
+        ...supportCommentFormatViolations($source),
+    ];
 }
 
 /**
@@ -66,10 +62,7 @@ function supportCommentViolations(string $source): array
  */
 function supportCommentFormatViolations(string $source): array
 {
-    $lines = array_values(array_filter(
-        preg_split('/\R/u', $source) ?: [],
-        static fn (string $line): bool => trim($line) !== '',
-    ));
+    $lines = reportCheckLines($source);
     $violations = [];
 
     if (($lines[0] ?? '') !== SUPPORT_COMMENT_HEADING) {
@@ -85,9 +78,7 @@ function supportCommentFormatViolations(string $source): array
             $violations[] = 'format: a quote must open and close on one line: ' . $line;
         }
 
-        if (preg_match('/^(?:#{2,}\s|>|-\s|\*\*)|\*\*|`|\]\(/u', $line) === 1) {
-            $violations[] = 'format: Markdown: ' . $line;
-        }
+        $violations = [...$violations, ...reportCheckMarkdownViolations($line, SUPPORT_COMMENT_MARKDOWN_PATTERN)];
     }
 
     return $violations;
@@ -98,17 +89,4 @@ if (!isset($argv[1]) || isset($argv[2])) {
     exit(1);
 }
 
-$source = is_file($argv[1]) ? file_get_contents($argv[1]) : false;
-
-if ($source === false) {
-    fwrite(STDERR, 'check-comment.php: cannot read ' . $argv[1] . "\n");
-    exit(1);
-}
-
-$violations = supportCommentViolations($source);
-
-foreach ($violations as $violation) {
-    echo 'violation: ' . $violation . "\n";
-}
-
-exit($violations === [] ? 0 : 2);
+reportCheckFinish(supportCommentViolations(reportCheckReadSource('check-comment.php', $argv[1])));

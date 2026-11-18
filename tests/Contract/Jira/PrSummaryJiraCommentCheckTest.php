@@ -3,22 +3,11 @@
 declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
+use Tests\Support\ReportCheckRun;
 
 function runJiraSummaryCheck(string $source, string $criteria): Process
 {
-    $packageDir = dirname(__DIR__, 3);
-    $file = sys_get_temp_dir() . '/ai-olympus-jira-summary-' . bin2hex(random_bytes(6));
-    file_put_contents($file, $source);
-
-    $process = new Process(['php', $packageDir . '/skills/pr-summary/scripts/check-jira-comment.php', '--criteria', $criteria, $file], $packageDir);
-
-    try {
-        $process->run();
-    } finally {
-        unlink($file);
-    }
-
-    return $process;
+    return ReportCheckRun::over('skills/pr-summary/scripts/check-jira-comment.php', $source, '--criteria', $criteria);
 }
 
 /**
@@ -92,7 +81,8 @@ function jiraSummaryForTwoPullRequests(): string
         "h2. Akceptační kritéria\n\nVšechna 2 kritéria jsou splněná.",
         $group(11),
         $group(12),
-        "[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]\n\n----\n\n_Tento komentář je generovaný automaticky._",
+        "[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]",
+        "----\n\n_Tento komentář je generovaný automaticky._",
     ]);
 }
 
@@ -216,4 +206,16 @@ test('the check refuses a wrong call and a missing source file', function (array
     'missing source file' => [['--criteria', 'none', '/nonexistent/source'], 'cannot read /nonexistent/source'],
     'no criteria flag' => [['/nonexistent/source'], 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
     'unknown criteria value' => [['--criteria', 'maybe', '/nonexistent/source'], 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
+]);
+
+test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
+    $summary = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* Synchronizace Ecwidu běží ve vlastní frontě.' => $text]), 'none');
+    $support = ReportCheckRun::over('skills/analyze-support-issue/scripts/check-comment.php', "h2. TL;DR\n" . $text);
+
+    expect($summary->getOutput())->toContain('violation: ' . $violation)
+        ->and($support->getOutput())->toContain('violation: ' . $violation);
+})->with([
+    'code block' => ['{code:php}echo 1;{code}', 'developer token: {code'],
+    'commit hash' => ['* Oprava je v commitu a3f9c2d41b.', 'developer token: a3f9c2d41b'],
+    'inline code' => ['* Hodnota {{price_vat}} je špatně.', 'developer token: {{'],
 ]);
