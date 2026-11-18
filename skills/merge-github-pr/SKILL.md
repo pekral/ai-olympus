@@ -134,7 +134,7 @@ The project's fixers and checkers do not run during the branch's working life �
 
 - Delete branch (if configured)
 - **Remove worktree (opt-in only)** — if an isolated git worktree was explicitly created for this work unit (per `@rules/git/general.md` *Worktrees / Workspaces*), remove it now that the merge is complete:
-  1. Verify the worktree is not the currently active working tree and has no uncommitted changes. If it is active or dirty, report the issue and skip removal — never pass `--force`.
+  1. Verify the worktree is not the currently active working tree and has no uncommitted changes. If active, dirty, or holding a swap directory, skip removal and report it; never pass `--force`.
   2. `git worktree remove <path>` — removes the worktree directory and its metadata.
   3. `git worktree prune` — cleans up any remaining stale worktree metadata.
   A parallel unit's worktree (`.claude/worktrees/agent-impl-<source-slug>-donatello`, `@rules/compound-engineering/concurrency.md` *Parallel units*) is such a worktree: unlock it first with `git worktree unlock <path>` only when its lock reason names this run's own `$PPID`, otherwise only after the confirmed-dead probe of `skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*; a live, EPERM, or unparseable probe leaves it in place and the report names it. Remove it before you delete the local branch, because git refuses to delete a branch that a worktree has checked out.

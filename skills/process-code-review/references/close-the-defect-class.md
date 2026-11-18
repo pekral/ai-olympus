@@ -56,6 +56,7 @@ The swap directory holds the only copy of the fix while the attacks run. This su
   4. what was restored: nothing, or the tracked files restored by swap step 3 before the stop.
 - **A refused scratch path creates no swap directory.** That stop names the refused path, and no worktree is kept for it.
 - **No saved work is deleted or overwritten without a check.** The run deletes a swap directory only after the check of swap step 5 passed. It never reuses a swap directory, never writes into one a check did not pass, and never removes the worktree that holds a swap directory that was not deleted.
+- **A worktree that holds a swap directory is never removed.** The swap directory is git-ignored, so `git status --porcelain` prints nothing for it, and a removal that checks only for a clean tree deletes it. Before any removal of a worktree, run `find <path>/.claude/run/attack -mindepth 1 -maxdepth 1` (`.codex/run/attack` on Codex). A worktree for which it prints an entry stays in place, whatever else is true of it, and the report names the worktree, that entry, and this reason. The removal paths are `krang` *Run cleanup*, the startup sweep, the removal of a batch unit, and the removal after a merge. Each of them runs this check and points here.
 - **The operator finds the work from the report alone.** The recovery is a copy from the named swap directory into the named worktree. `krang` keeps that worktree and names it with the reason (`agents/krang.md` *Run cleanup*).
 
 ## Limits
