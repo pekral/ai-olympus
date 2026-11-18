@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+require __DIR__ . '/../../_shared/report-check-common.php';
+
 const JIRA_SUMMARY_MAX_CHARACTERS = 3000;
 
 const JIRA_SUMMARY_MAX_BULLETS = 3;
@@ -14,7 +16,7 @@ const JIRA_SUMMARY_GROUP_HEADING = '/^h2\. \[PR #\d+\|/u';
 
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
-const JIRA_SUMMARY_DEVELOPER_TOKEN = '/\{\{|\{code|(?<![0-9A-Za-z])(?=[0-9a-f]*[a-f])[0-9a-f]{10,40}(?![0-9A-Za-z])/u';
+const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
 
 const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <stated|none> <source-file>\n"
     . "  Checks the Wiki Markup source of a pr-summary JIRA comment before it is published.\n"
@@ -22,17 +24,6 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <stated|non
     . "  --criteria none    the assignment states none, so the comment has no criteria section\n"
     . "  Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.\n"
     . "  stdout: one `violation: <check>: <detail>` line per violation.\n";
-
-/**
- * @return list<string>
- */
-function jiraSummaryLines(string $source): array
-{
-    return array_values(array_filter(
-        preg_split('/\R/u', $source) ?: [],
-        static fn (string $line): bool => trim($line) !== '',
-    ));
-}
 
 /**
  * @param list<string> $lines
@@ -187,17 +178,12 @@ function jiraSummaryTextViolations(array $lines): array
     $violations = [];
 
     foreach ($lines as $line) {
-        if ($line !== '----' && preg_match(JIRA_SUMMARY_MARKDOWN, $line) === 1) {
-            $violations[] = 'format: Markdown: ' . $line;
+        if ($line !== '----') {
+            $violations = [...$violations, ...reportCheckMarkdownViolations($line, JIRA_SUMMARY_MARKDOWN)];
         }
 
         $withoutLinks = (string) preg_replace('/\[~accountid:[^\]]+\]|\[[^|\]]+\|[^\]]+\]/u', '', $line);
-
-        if (preg_match_all(JIRA_SUMMARY_DEVELOPER_TOKEN, $withoutLinks, $tokens) > 0) {
-            foreach ($tokens[0] as $token) {
-                $violations[] = 'developer token: ' . $token;
-            }
-        }
+        $violations = [...$violations, ...reportCheckDeveloperTokenViolations($withoutLinks, JIRA_SUMMARY_DEVELOPER_TOKEN)];
     }
 
     return $violations;
@@ -229,18 +215,12 @@ function jiraSummaryFrameViolations(array $lines): array
  */
 function jiraSummaryViolations(string $source, bool $criteriaStated): array
 {
-    $lines = jiraSummaryLines($source);
-    $violations = [];
-    $length = mb_strlen($source);
-
-    if ($length > JIRA_SUMMARY_MAX_CHARACTERS) {
-        $violations[] = sprintf('length: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_CHARACTERS);
-    }
+    $lines = reportCheckLines($source);
 
     $grouped = array_filter($lines, static fn (string $line): bool => preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) !== [];
 
     return [
-        ...$violations,
+        ...reportCheckLengthViolations($source, JIRA_SUMMARY_MAX_CHARACTERS),
         ...jiraSummaryFrameViolations($lines),
         ...($grouped ? jiraSummaryGroupedShapeViolations($lines, $criteriaStated) : jiraSummarySingleShapeViolations($lines, $criteriaStated)),
         ...jiraSummaryTextViolations($lines),
@@ -252,17 +232,4 @@ if (!isset($argv[3]) || isset($argv[4]) || $argv[1] !== '--criteria' || !in_arra
     exit(1);
 }
 
-$source = is_file($argv[3]) ? file_get_contents($argv[3]) : false;
-
-if ($source === false) {
-    fwrite(STDERR, 'check-jira-comment.php: cannot read ' . $argv[3] . "\n");
-    exit(1);
-}
-
-$violations = jiraSummaryViolations($source, $argv[2] === 'stated');
-
-foreach ($violations as $violation) {
-    echo 'violation: ' . $violation . "\n";
-}
-
-exit($violations === [] ? 0 : 2);
+reportCheckFinish(jiraSummaryViolations(reportCheckReadSource('check-jira-comment.php', $argv[3]), $argv[2] === 'stated'));
