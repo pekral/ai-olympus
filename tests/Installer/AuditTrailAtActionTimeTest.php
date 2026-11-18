@@ -53,6 +53,7 @@ test('run accepts exactly the write commands the rule names and refuses every ot
         '" create edit close reopen "',
         '" create edit delete "',
         '"git push")',
+        '[[ "$sub2" == create ]] || return 1',
     ] as $allowed) {
         expect($source)->toContain($allowed);
     }
@@ -62,6 +63,7 @@ test('run accepts exactly the write commands the rule names and refuses every ot
         '`gh pr create|ready|edit|close|merge|update-branch|reopen`',
         '`gh issue create|edit|close|reopen`',
         '`gh label create|edit|delete`',
+        '`gh release create`',
     ] as $named) {
         expect($section)->toContain($named);
     }
