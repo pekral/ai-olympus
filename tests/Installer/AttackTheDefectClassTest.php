@@ -176,11 +176,11 @@ function attackClassWordsNameGitStash(array $words): bool
 
 function attackClassConfigKey(string $word): string
 {
-    return attackClassMatches('/^(?:alias\.[\w.-]++|help\.autocorrect)(?:=|$)/i', $word)
-        ? strtolower(
-        (string) strstr($word . '=', '=', before_needle: true),
-    )
-        : '';
+    if (!attackClassMatches('/^(?:alias\.[\w.-]++|help\.autocorrect)(?:=|$)/i', $word)) {
+        return '';
+    }
+
+    return strtolower(attackClassReplace('/=.*$/s', '', $word));
 }
 
 /**
