@@ -42,7 +42,7 @@ A caller may declare a run a HOTFIX (`@rules/compound-engineering/orchestration.
 - **The reproduction stays; the committed test becomes optional.** `@skills/resolve-issue/SKILL.md` *If bug* requires a failing test before the fix. Under HOTFIX that relaxes to: observe the failure before the fix and its absence after, by whatever is fastest — a test, a one-off script, or the running application — and state which was used in the handoff and the pull request.
 - **Write the regression test when it is cheap.** When it is not, say so in the pull request, so the gap is visible rather than assumed. Everything else in the bug branch is unchanged, the data repair included.
 
-## Gate placement — deferred to the merge boundary (issue #65, revised)
+## Gate placement — deferred to the merge boundary
 
 A full build proves the same thing on every run over the same bytes, and on a larger task repeated builds dominate the wall-clock cost of delivering the change. The gate therefore runs **once, immediately before the merge**, and the fixes it produces land as their own commit.
 
@@ -56,7 +56,7 @@ A full build proves the same thing on every run over the same bytes, and on a la
      - Exit `0` → push; a passed run leaves no log. Exit `4` → a check failed: read the log the JSON names, delete it, fix what it reports, commit, and run the script again. Resolve means change the code, never silence the tool (*Checkers* above).
      - A failure that the change cannot fix — a defect outside the diff, or a check that needs what the machine lacks — blocks the push until you name the check, its failure, and why it cannot be fixed in the handoff. Then push; CI and the pre-merge gate decide.
      - Exit `7` → commit first. Exit `3`, `6`, or any other non-zero exit stops the push with `Blocked` and the reason.
-     - Exit `5` → the manifest sets no `fast-checks`: no fast check runs, and the push goes on as before. `krang` proposes the key the way it proposes `pr-gate` (`skills/_shared/orchestration/pr-gate-discovery.md` *The fast checks*).
+     - Exit `5` → the manifest sets no `fast-checks`: no fast check runs, and the push goes on. `krang` proposes the key the way it proposes `pr-gate` (`skills/_shared/orchestration/pr-gate-discovery.md` *The fast checks*).
      - The fast checks never replace CI or the pre-merge gate: those stay the final word on every merge.
   3. **The checkers and tests, only where CI cannot check.** On a repository with CI no other checker and no test runs locally before a push. On a repository without CI, and after a CI billing failure, they run locally too, as *Skip the pre-push gate when CI is green* and *A repository with CI waits for CI instead of a local pre-push gate* state. They run as the project's full gate: `skills/_shared/run-gate.sh --tier full`, and on exit `5` the gate commands this file discovers through `run-gate.sh --exclusive`.
 
@@ -75,7 +75,7 @@ On a repository without CI (*A repository with CI waits for CI instead of a loca
 - **This section changes only the pre-push gate.** The full gate at the merge boundary keeps its own rules below.
 - **Once the work is finished — the full gate, once.** The project's full gate (discovered in the order at the top of this file — install + fixers + full `check`, including full-suite coverage) runs after the code review has converged, before the pull request is offered as ready. `@skills/process-code-review/SKILL.md` *Finalization* owns that run: the review loop deliberately ran no fixers and no checkers, so this is the first point where they execute, and the fixes they produce land as the branch's last commit.
 - **The merge re-checks rather than re-runs.** `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* is the last safety net before an irreversible action: it accepts the recorded Finalization run only when all four of that step's conditions hold — the record is authentic, names this exact head commit, is a pass, and the tree is clean — or, on a project that opted into the machine record, only when `verify-gate.sh` accepts it (*Machine gate record* below) — and it runs the gate itself otherwise —
-  for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project (issue #75) while the gate still executes only once per set of bytes. After a rebase that only moved the base, *Rebase that moves the head — analyse the incoming changes first* below decides whether the recorded run carries forward to the new head.
+  for a PR that never went through the review loop, or one whose head moved afterwards. Together the two guarantee a merge never lands with a broken project while the gate still executes only once per set of bytes. After a rebase that only moved the base, *Rebase that moves the head — analyse the incoming changes first* below decides whether the recorded run carries forward to the new head.
 - **Fixes from the gate land as a new commit.** When the gate reports anything — a fixer rewrote a file, a checker flagged an error, coverage fell short — resolve it and commit the result as a **new commit** on the branch (`chore(gate): apply pre-merge fixer and checker fixes (#<N>)`, or a `fix(scope):` subject when the resolution changed behaviour). Never amend a commit already under review, and never force-push a branch a reviewer has commented on (`@rules/git/general.md`).
 - **Re-run the gate after the fix commit.** The fix commit is a new tree, so the gate has not passed on it yet. Re-run the full build on the new head and repeat until it is green on the exact commit being merged. A merge proceeds only on a head commit whose own gate run passed.
 - **A behaviour-changing fix re-opens the code review.** Whether the fix commit invalidates the converged review depends on what it changed, and the distinction is load-bearing:
@@ -107,8 +107,8 @@ This section changes only the pre-push gate and the push of a rebased branch. Th
 
 ## Machine gate record — one run per tree
 
-The textual `Quality gate:` line proves a run only to the extent its author is trusted, so every later step used to run the gate again on the same bytes. Two scripts replace that declaration with a record a script can check.
-The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`. `gate` is then tier `full`, and `pr-gate` is tier `pr`. A project that sets none of the three keeps the built-in path of this file exactly as before, even when it sets `gate`.
+The textual `Quality gate:` line proves a run only to the extent its author is trusted. Two scripts back it with a record a script can check, so later steps need not run the gate again on the same bytes.
+The record is opt-in: it applies when the manifest sets at least one of `pr-gate`, `gate-fresh`, or `gate-evidence`. `gate` is then tier `full`, and `pr-gate` is tier `pr`. A project that sets none of the three uses the textual-record path of this file, even when it sets `gate`.
 
 - **`skills/_shared/run-gate.sh --tier full|pr [--actor <name>]`** runs the tier's commands from the default-branch manifest, in order, as an argv without a shell, with only `read-manifest.sh --env` exported. It refuses a working tree with any uncommitted or untracked change.
   **`--tier pr` is not the pre-push path.** The `pr-gate` fixers run before a push through `run-gate.sh --exclusive` (*Gate placement — deferred to the merge boundary* above), never through `--tier pr`: a fixer that rewrites a file changes the tree, and `--tier pr` fails on that. The tier stays only as a record of the `pr-gate` commands on a tree they leave unchanged, and no step of this package runs it.
@@ -138,7 +138,7 @@ What the exit code tells the caller:
 
 Any other non-zero exit code is handled like `3`. A code the table does not list is never a pass.
 
-A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and keeps the textual record exactly as before. Run the scripts unconditionally; the exit code says which path applies.
+A project whose manifest sets none of `pr-gate`, `gate-fresh`, and `gate-evidence` gets exit `5` and uses the textual record. Run the scripts unconditionally; the exit code says which path applies.
 
 **Trust model.** The record is a local cache on one machine and one account. A public commenter cannot write it, so it is stronger than a textual line in a comment. The code the gate runs — tests and Composer scripts from the branch — runs under the same account and can forge a record, exactly as it can already make its own gate pass. The defence against hostile branch code is code review, required CI, and a fresh `gate-fresh` run, never the record. The SHA-256 of the log detects a damaged or swapped log; it does not prove that the log is authentic. A record from another machine is missing, and the gate runs again.
 
@@ -158,7 +158,7 @@ A targeted check is a heavy command: Pest with `--parallel`, Rector, and PHPStan
 
 The holder runs a reporter beside the command. The reporter samples the CPU its process tree has used and the set of processes in the tree every `AI_OLYMPUS_GATE_HEARTBEAT_INTERVAL` seconds (30 by default), and writes the time of the last change to the `heartbeat` file of the lock. A hung test or a process that waits on input changes neither value.
 
-1. **A lock is stale when the holder PID is dead or recycled** (a waiter reclaims it, as before), **or when the holder is alive and its last progress is older than `AI_OLYMPUS_GATE_STUCK_AFTER` seconds** (1800 by default). A waiter never reclaims a stuck holder, because its process is alive and a second heavy command beside it is what the lock prevents.
+1. **A lock is stale when the holder PID is dead or recycled** (a waiter reclaims it), **or when the holder is alive and its last progress is older than `AI_OLYMPUS_GATE_STUCK_AFTER` seconds** (1800 by default). A waiter never reclaims a stuck holder, because its process is alive and a second heavy command beside it is what the lock prevents.
 2. **`skills/_shared/gate-lock.sh status`** prints the state (`free`, `held`, `dead`, `stuck`, `unproven`) and the holder. It exits `0` for `free`, `held`, and `unproven`, `10` for `dead`, and `11` for `stuck`.
 3. **`skills/_shared/gate-lock.sh repair --audit <abs .audit path>`** releases the lock of a dead holder. For a stuck holder it stops one process tree, only after it proves a wrapper of this package started the holder: the holder file names `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`, the live process at that PID runs it, its start time equals the recorded one, and two samples `AI_OLYMPUS_GATE_PROBE` seconds apart (5 by default) show no progress.
    It sends SIGTERM to the holder and its descendants, waits `AI_OLYMPUS_GATE_REPAIR_GRACE` seconds (10 by default), and sends SIGKILL. Each signal goes only to a process whose start time still equals the one listed with its PID, and the holder's own start is checked again after the listing, so the children of a reused holder PID are never signalled either. It stops no other process: a holder it cannot prove stays running and the exit is `3`.
@@ -191,7 +191,7 @@ A rebase onto the newest default branch gives the head a new SHA. The branch's o
    - it has a project-wide effect: a dependency manifest or lockfile, a tool or checker configuration, a test bootstrap or shared test helper, a CI workflow, or an environment or build file.
 
    Search the PR's changed symbols in the incoming files and the incoming symbols in the PR's files; never classify from file names alone. When the classification is unclear, the change is related.
-5. **Related → the rebase behaves exactly as before.** Run the full gate on `H` (*A history rewrite re-runs the gate* in `@rules/git/general.md`).
+5. **Related → run the full gate.** Run the full gate on `H` (*A history rewrite re-runs the gate* in `@rules/git/general.md`).
 6. **Unrelated and CI green on `H` → carry the gate verdict forward.** CI must have run and passed on `H` itself; when it did not run (the billing exception included), run the gate. Do not run the fixers, checkers, or coverage again on `H`. Run only the dependency advisory audit (for example `composer audit`, or the manifest `gate-fresh` commands), because its verdict depends on when it ran. Record in the merge report: `G`, `H`, both fingerprints, the incoming file list, and the reason each change is unrelated.
 
 The trade, stated rather than hidden: the combined tree `H` is not re-tested as a whole. The default branch's own gate covers the incoming changes, and the analysis above covers their interaction with the branch. A related change, an unclear one, or a changed fingerprint always takes the full gate.

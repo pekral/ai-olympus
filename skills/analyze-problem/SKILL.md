@@ -16,8 +16,6 @@ metadata:
 - Never modify code (implementation-time bug diagnosis lives in `@skills/resolve-issue/references/bug-diagnosis.md`)
 - Output Markdown only
 - Use one language only
-- Do not jump directly to solutions
-- Do not assume a single cause
 - State verified facts only; report every open point as not verified, with the step that settles it (`@rules/general/general.md` *Verified statements only*)
 
 ---
@@ -81,7 +79,7 @@ Execute the detailed procedures below inside those phases, not after them: Analy
 
 ## Analysis Framework
 
-Apply these 10 steps in order. Each step feeds the next — never jump ahead to a solution before evidence and root cause are settled.
+The analysis covers these 10 parts. Propose a solution only once the evidence and the root cause are settled.
 
 1. **Context extraction** — what we actually know from the assignment, comments, linked / sub-issues, attachments, and surrounding code (all loaded via the *Issue-tracker context* mandatory pre-flight above).
 2. **Task-type classification & problem statement** — first classify the task from the context (feature, bug, regression, performance, data issue, security, UX, refactor, tooling, unclear requirement, or other) and state that type explicitly at the top of the Summary so a reader sees it immediately; then write one precise sentence describing the real problem — for a feature, the target behavior to build rather than a malfunction.

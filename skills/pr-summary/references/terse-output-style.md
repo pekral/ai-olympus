@@ -1,4 +1,4 @@
-# Terse output style (issue #51)
+# Terse output style
 
 Loaded by `@skills/pr-summary/SKILL.md` *Constraints*. Section names in italics refer to that skill.
 

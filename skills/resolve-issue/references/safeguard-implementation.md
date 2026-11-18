@@ -1,6 +1,6 @@
 # Safeguard implementation
 
-Expanded procedure for `@skills/resolve-issue/SKILL.md` *Pre-PR self-check*, for a source that is a prevention proposal. It is phase 4 of the recurring-defect epic (#185). It builds on `@skills/code-review/references/prevention-proposal.md` (what a proposal holds) and `@skills/code-review/references/feedback-loop.md` (who runs what and *Approval*). It adds no skill and no agent: `donatello` implements through this pipeline, and `leonardo` reviews through the ordinary review.
+Expanded procedure for `@skills/resolve-issue/SKILL.md` *Pre-PR self-check*, for a source that is a prevention proposal. It builds on `@skills/code-review/references/prevention-proposal.md` (what a proposal holds) and `@skills/code-review/references/feedback-loop.md` (who runs what and *Approval*). It adds no skill and no agent: `donatello` implements through this pipeline, and `leonardo` reviews through the ordinary review.
 
 **Applies only when the source issue is a prevention proposal.** The proposal ends with the marker `<!-- prevention-proposal:key=<repo>:<category>:<cause_key> -->` alone on a line. When the issue carries no such line, this whole section is a **no-op — skip it**.
 

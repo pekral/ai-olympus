@@ -181,7 +181,7 @@ On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule. 
 - Do not restate the acceptance criteria as a checklist and do not publish a coverage verdict. `@skills/assignment-compliance-check/SKILL.md` owns the assignment verdict. On GitHub and Bugsnag it reaches this comment through the `{embedded_blocks}` slot, and this skill authors no verdict sentence of its own there: it renders the block it was passed. On JIRA that same verdict renders into the `Acceptance criteria` section, so the section carries it rather than the slot. On GitHub and Bugsnag it reaches the reader on every CR run with a linked tracker — met, not met, or no criteria stated (`@rules/code-review/general.md` *Two-Part CR Output* → *The tracker comment carries the same verdict — in all three cases*). A checklist of satisfied criteria is never rendered on any target.
   - On JIRA the section is left out when the assignment states no explicit criteria (*The JIRA shape* above).
 
-### Terse output style (issue #51)
+### Terse output style
 
 Every authored sentence carries a fact and nothing else. Apply `references/terse-output-style.md` in full before you write: what to drop, what stays verbatim, and the auto-clarity carve-outs (`Cause`, `Result`, security warnings, must-hold outcomes).
 
@@ -263,7 +263,7 @@ Post the summary as a comment to the related PR or issue if available, using the
 - **Check a JIRA source before the publish.** Write the rendered source to a file and run `php skills/pr-summary/scripts/check-jira-comment.php --criteria <stated|none> <source-file>`, with `stated` when the assignment states explicit acceptance criteria and `none` otherwise. Exit `0` means the source passed. Exit `2` lists each violation: the 3 000-character cap, a text above the first heading, a criteria section that does not match `--criteria`, more than three bullets or a bullet over 200 characters in `What changed` or `Impact after deployment`, leaked Markdown, a code macro or a commit hash, and a missing footer. Fix the source and run the check again. Never publish a source the check refused.
 - **JIRA target**: pipe the rendered source into `skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -`. The helper appends the visible marker line `_cr-comment:actor=<actor-digest>_` (a digest of the account e-mail, never the address), converts the source to ADF, creates a new comment, and applies the ADF to that new comment through `--body-adf`; it never updates the comment of an earlier run. Fall back to the JIRA MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure), and only when the read-back of that same rule finds no comment of this run, creating a new comment with an ADF document rather than Wiki Markup — append the same `_cr-comment:actor=<actor-digest>_` marker line to that ADF, per the same rule.
 - **Bugsnag target**: pipe the rendered body into `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -`. The helper POSTs a new comment on every run. Fall back to the Bugsnag MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
-- Pre-existing comments published before these conventions were introduced are left untouched.
+- Comments that earlier runs published are left untouched.
 - Log the action (`created`) plus the resulting comment URL in the CR wrapper's summary line.
 
 ---

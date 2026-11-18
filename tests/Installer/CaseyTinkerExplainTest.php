@@ -82,7 +82,6 @@ test('the trust rule states where casey may boot the application, with the owner
         'The output `false`, a `null` association (the loader could not read it), an empty output, and a failed command are untrusted.',
     ],
     'the booting limit' => ['The procedure boots the application of the checkout it runs in.'],
-    'the decision' => ['The owner decided this on 2026-11-16 (issue #349, option A).'],
     'the fallback' => ['In every other case the Tinker test does not run, and the report names the failed item'],
     'the fork limit' => ['The loader field `isCrossRepository` is `false`. A missing or `null` value counts as a fork (fail closed).'],
     'the head test' => ['`git rev-parse HEAD` equals the head SHA of the dispatch, and `git status --porcelain --untracked-files=no` prints nothing.'],
@@ -187,7 +186,7 @@ test('Boost names only the tools whose names the implementation verified, and ca
     expect($reference)->toContain('`casey` calls the Boost tool `database-schema`')
         ->and($reference)->toContain('without its `database` argument')
         ->and($reference)->toContain(
-            'A project without Boost, and a session without that tool, read the schema from the migrations and from the plain database client as before.',
+            'A project without Boost, and a session without that tool, read the schema from the migrations and from the plain database client.',
         )
         ->and($reference)->toContain('`casey` never calls the Boost tool `tinker`')
         ->and($reference)->toContain('or `database-query`')
@@ -465,8 +464,8 @@ test('a failed precondition 1, 2, or 3 keeps the plain database client path, nev
         . 'and a project whose dependencies are not installed keep the plain database client path of `SKILL.md`, unchanged.',
     ],
     'the plain path' => [
-        'When item 1, 2, or 3 fails, the Tinker test does not apply. The report keeps the plain database client path of `SKILL.md`, unchanged, '
-        . 'and its `DB access:` line names that path as before.',
+        'When item 1, 2, or 3 fails, the Tinker test does not apply. The report uses the plain database client path of `SKILL.md`, '
+        . 'and its `DB access:` line names that path.',
     ],
     'the static path' => ['When item 4 or 5 fails, the report goes on with static analysis and names the item as the reason in its `DB access:` line.'],
 ]);

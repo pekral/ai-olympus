@@ -393,14 +393,14 @@ test('security-review is stack-aware for CVEs and targets the attack surface (is
 
     // CVE awareness is scoped to the project's own stack — no hardcoded
     // cross-ecosystem CVE list that could never fire (e.g. WordPress in Laravel).
-    expect($content)->toContain('Known-CVE awareness for the project\'s own stack (issue #83)');
+    expect($content)->toContain('Known-CVE awareness for the project\'s own stack');
     expect($content)->toContain('relevant to this project\'s stack');
     expect($content)->toContain('never a hardcoded CVE list from another ecosystem');
     expect($content)->toContain('@skills/security-threat-analysis/SKILL.md');
 
     // Security effort targets the attack surface, but that is prioritization,
     // not exclusion — a data-flow trace pulls an off-surface line back in.
-    expect($content)->toContain('Target the attack surface, not every changed line (issue #83)');
+    expect($content)->toContain('Target the attack surface, not every changed line');
     expect($content)->toContain('This is prioritization, not exclusion');
 });
 

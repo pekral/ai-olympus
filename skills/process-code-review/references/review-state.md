@@ -2,7 +2,7 @@
 
 Referenced from `skills/process-code-review/SKILL.md` *Review loop*. This file is the one contract for the state of a review-and-fix loop. `skills/_shared/review-state.sh` is its only implementation, and the record it stores is `@skills/code-review/references/finding-records.md` *Review-loop records (schema 2)*. The convergence gate itself stays where it is: *Review loop* step 4. This file decides which findings that gate counts and when the loop stops.
 
-The state makes four things deterministic that the loop used to decide in prose:
+The state makes four things deterministic:
 
 - **Identity.** One defect keeps one `finding_id` from round to round, so it is never counted as new twice.
 - **Evidence.** A finding without independently assessable evidence does not block, except a security finding.
@@ -77,7 +77,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 
 A finding may block only when it names a concrete defect or a violated explicit requirement, carries evidence another reader can assess without trusting the review, has not been resolved or dismissed, and is not deferred. The review template's `Evidence` field names the kind: a failing test, a static-analysis error, a reproducible runtime failure, a concrete exploit path, a traced logic defect, or the explicit rule the line breaks. A point without such evidence goes under `## Needs verification` and does not block.
 
-**The security floor overrides one sentence of the assignment of #225.** *"Potential problems that cannot yet be verified must remain non-blocking findings requiring further investigation"* does not apply to a security finding. An S1–S3 point that needs verification blocks until it is proven and fixed, or proven absent (`@rules/general/general.md` *Project instructions take precedence*, item 1).
+**A security finding blocks even while unverified.** Every other point that cannot yet be verified stays non-blocking under `## Needs verification`; an S1–S3 point that needs verification blocks until it is proven and fixed, or proven absent (`@rules/general/general.md` *Project instructions take precedence*, item 1).
 
 ## Verdicts and escalation
 
