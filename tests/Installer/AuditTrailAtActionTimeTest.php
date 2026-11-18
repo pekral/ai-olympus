@@ -293,3 +293,13 @@ test('no agent or skill hand-appends the external-write line of a write a wrappe
     );
     expect($followUp)->not->toContain('and record an `external-write` line in the run\'s audit ledger');
 });
+
+test('the consent inventory carries one L2 row for publishing a GitHub release through the audit wrapper', function (): void {
+    $rule = auditTrailSource('rules/compound-engineering/orchestration.md');
+    $inventory = installerDocsSection($rule, '## Externally-visible actions & consent levels');
+
+    expect($inventory)->toContain(
+        '| top-level session | Publish a GitHub release (`gh release create`) | L2 | only on the operator\'s explicit request in this run, '
+        . 'only through `skills/_shared/audit-trail.sh run --`, which records the line; every other `gh release` write stays refused |',
+    );
+});
