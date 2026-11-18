@@ -50,6 +50,13 @@ function auditRunReleaseOutcome(array $command, int $ghExit = 0): array
 }
 
 dataset('release creations', [
+    '--latest=false before the tag and an asset' => [['gh', 'release', 'create', '--latest=false', 'v1.2.3', 'a.zip']],
+    '--latest before the tag and an asset' => [['gh', 'release', 'create', '--latest', 'v1.2.3', 'dist.zip']],
+    'bundle with an attached value' => [['gh', 'release', 'create', '-dtTitle', 'v1.2.3', 'notes.txt']],
+    'bundle with a separate value' => [['gh', 'release', 'create', '-dt', 'Title', 'v1.2.3']],
+    'short notes and notes file with attached values' => [['gh', 'release', 'create', '-nText', '-Ffile.md', 'v1.2.3', 'a.zip']],
+    'short repo with its value attached' => [['gh', 'release', 'create', '-Rowner/repo', 'v1.2.3', 'a.zip']],
+    'short title with its value attached' => [['gh', 'release', 'create', '-tTitle', 'v1.2.3']],
     'tag, title and notes' => [['gh', 'release', 'create', 'v1.2.3', '--title', 'Release v1.2.3', '--notes', 'a | b']],
     'tag after a bundle of short flags and --' => [['gh', 'release', 'create', '-dp', '--latest=false', '--', 'v1.2.3']],
     'tag after options and their values' => [['gh', 'release', 'create', '--draft', '--title', 'Release', '--target', 'master', 'v1.2.3', 'dist.zip']],

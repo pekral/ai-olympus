@@ -302,8 +302,8 @@ first_ref() {
 
 # The tag that a `gh release create` names, as " <tag>", or nothing when no safe tag is named: the first
 # positional argument. An option takes the next word as its value unless it is a known flag without a value
-# or carries its value after `=`, so the value of a title, a notes file, or a target is never read as the
-# tag. After `--` every word is positional. Words after the tag are asset files and are not part of the target.
+# (`--latest` is one: `--latest[=true|false]`) or carries its value after `=` or stuck to the short letter,
+# so the value of a title, a notes file, or a target is never read as the tag. After `--` every word is positional. Words after the tag are asset files and are not part of the target.
 release_tag() {
   local skip=0 end=0 arg
   for arg in "$@"; do
@@ -314,10 +314,13 @@ release_tag() {
     if [[ "$end" -eq 0 ]]; then
       case "$arg" in
       --) end=1; continue ;;
-      --draft | --prerelease | --generate-notes | --verify-tag | --notes-from-tag | --fail-on-no-commits | -h | --help) continue ;;
+      --draft | --prerelease | --latest | --generate-notes | --verify-tag | --notes-from-tag | --fail-on-no-commits | -h | --help) continue ;;
       -*=*) continue ;;
+      --*) skip=1; continue ;;
       -*)
-        [[ "$arg" =~ ^-[dp]+$ ]] || skip=1
+        # A short option takes the next word only when its last letter takes a value and the word ends there:
+        # `-t Title`, `-dt Title`. `-tTitle`, `-dtTitle`, and `-Rowner/repo` carry their value.
+        if [[ "$arg" =~ ^-[dp]*[tnFR]$ ]]; then skip=1; fi
         continue
         ;;
       esac
@@ -891,6 +894,16 @@ EOF
   expect_eq 'a release creation reads its tag past options and their values' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
   PATH="$tmp/bin:$PATH" "$script" run -- gh release create -dp --latest=false -- v0.6.0 >/dev/null
   expect_eq 'a release creation reads its tag past a bundle of short flags and after --' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  local release_case
+  for release_case in '--latest v0.6.0 dist.zip' '--latest=false v0.6.0 a.zip' '-tTitle v0.6.0' '-Rowner/repo v0.6.0 a.zip' '-dtTitle v0.6.0 notes.txt' '-dt Title v0.6.0' \
+    '-nText v0.6.0 a.zip' '-Ffile.md v0.6.0 a.zip' '-n Text -F file.md --latest v0.6.0 a.zip' '--latest --draft v0.6.0 a.zip' \
+    '-dpt Title v0.6.0 a.zip' '--target master --notes-start-tag v0.5.0 --discussion-category General v0.6.0 a.zip'; do
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- gh release create $release_case >/dev/null
+    expect_eq "a release creation names the tag for '$release_case'" "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  done
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create --latest v0.6.0 dist.zip >/dev/null 2>&1 || true
+  expect_eq 'a failed release creation after --latest names the tag, never an asset file' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
   PATH="$tmp/bin:$PATH" "$script" run -- gh release create --generate-notes --title 'a b' >/dev/null
   expect_eq 'a release creation with no tag names no tag' "$(field 4 "$(last_line)")" 'gh release create -> https://example.test/o/r/releases/tag/v0.6.0'
   before="$(line_count)"
