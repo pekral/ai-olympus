@@ -33,6 +33,14 @@ DATA_PATH_RE='migration[^/]*/|(^"?|/)[0-9][0-9][0-9][0-9]_[0-9][0-9]_[0-9][0-9]_
 DATA_RE="$DATA_PATH_RE|migration"
 QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|lock|mutex|semaphore|concurren|cache|redis|schedul|cron|broadcast'
 
+# TEST_RE names a test file by its lower-cased path: a `test` or `tests` directory, a `spec`
+# directory, `test.php` and `tests.php` file names, `.test.`, `.spec.`, and `_test.` suffixes, a
+# `test_*.py` file, and the PHPUnit and Pest configuration files. `classify-risk.sh` reads it for
+# the `tests-only` signal of the merge risk, and `post-inline-review.sh` reads it to decide whether a
+# Walkthrough row may name a test file, so both give one answer for one path. The pattern is an ERE
+# that bash, awk, and the regular expressions of jq all read.
+TEST_RE='(^|/)tests?/|(^|/)spec/|tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[a-z0-9_]+\.py$|(^|/)phpunit\.xml|(^|/)pest\.php$'
+
 # The names of the business-only headings of an assignment, in both project languages
 # (rules/compound-engineering/assignment.md). `classify-risk.sh` reads them as a heading
 # that states what "done" means, and `count-assignment.sh` reads them as the sections whose
