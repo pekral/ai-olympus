@@ -269,7 +269,6 @@ EOF
 # its own.
 
 DOC_RE='(^|/)(docs?|documentation)/|\.(md|mdx|markdown|rst|txt|adoc)$|(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
-TEST_RE='(^|/)tests?/|(^|/)spec/|tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[a-z0-9_]+\.py$|(^|/)phpunit\.xml|(^|/)pest\.php$'
 FORMAT_RE='(^|/)\.(editorconfig|gitignore|gitattributes|prettierrc|eslintrc|styleci)([.-][a-z0-9]+)*$|(^|/)(pint|\.php-cs-fixer)\.[a-z.]+$|(^|/)(ruleset|phpcs)\.xml(\.dist)?$|(^|/)rector\.php$|(^|/)phpstan\.neon(\.dist)?$'
 
 PAY_RE='payment|billing|invoice|subscription|checkout|stripe|paypal|braintree|adyen|gopay|refund|pricing|currency'

@@ -47,6 +47,9 @@
 #                  visible Merge Risk block: the record is the one owner of both. A record with no `Merge risk:` line, or
 #                  with a suggestion block, is refused. So is a record whose `## Interactive testing` table holds
 #                  result rows and every one of them is `Blocked`: a walkthrough that did not run is not reported.
+#                  A result row is a data row of the table, never the header row or the separator row, and it
+#                  counts as run when its verdict is anything but `Blocked` (`Met`, `Not met`, `Passed`, `Failed`,
+#                  `Partial`).
 #   --walkthrough-file
 #                  A JSON object, the data of the TL;DR and of the Walkthrough block (templates/review-body.md):
 #                    tldr          required, what the pull request changes in plain sentences. At most 500 code points
@@ -56,9 +59,9 @@
 #                    title         optional, the name of the change group, shown as `Changes: <title>`
 #                    areas         required, 1 to 20 rows: {layer, files[], summary}; every file is a changed file of the
 #                                  pull request, and the row shows at most four of them. A row that names a test
-#                                  file is refused, unless the pull request changes only tests. A test file is a
-#                                  path under a `test`, `tests`, `spec`, `specs`, `__tests__`, or `e2e` directory,
-#                                  or a file named `*Test.<ext>`, `*_test.<ext>`, `*.test.<ext>`, or `*.spec.<ext>`
+#                                  file is refused, unless the pull request changes only tests. A test file is what
+#                                  TEST_RE of skills/_shared/domain-vocabulary.sh matches, the one definition that
+#                                  skills/_shared/classify-risk.sh reads for the `tests-only` signal too
 #                    effort        required: {level 1-5, minutes 1-999}; the label (Trivial, Simple, Moderate, Complex,
 #                                  Critical) comes from the level
 #                    change_type   required: Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, Chore
@@ -153,6 +156,9 @@ source "$HERE/../../_shared/github-target.sh"
 # The one encoder of the hidden review record.
 # shellcheck source=../../_shared/cr-header.sh
 source "$HERE/../../_shared/cr-header.sh"
+# The one definition of a test file (TEST_RE).
+# shellcheck source=../../_shared/domain-vocabulary.sh
+source "$HERE/../../_shared/domain-vocabulary.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -341,7 +347,7 @@ IFS= read -r -d '' JQ_WALK <<'JQ' || true
 def oneline: printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
 def cell: oneline | inert;
 def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
-def testfile: test("(^|/)(tests?|specs?|__tests__|e2e)/") or test("(Test|_test|\\.test|\\.spec)\\.[A-Za-z0-9]+$");
+def testfile: ascii_downcase | test($test_re);
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
 | req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
@@ -536,13 +542,15 @@ cmd_post() {
     die 1 "the review record holds a suggestion block: a review carries no code, nothing was published"
   fi
   if ! awk '
-    /^## / { inside = ($0 ~ /^## Interactive testing[[:space:]]*$/); next }
+    /^## / { inside = ($0 ~ /^## Interactive testing[[:space:]]*$/); header = 0; next }
     inside && /^\|/ {
+      if (!header) { header = 1; next }
       n = split($0, cell, "|")
       verdict = cell[4]
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", verdict)
+      if (verdict ~ /^:?-+:?$/) next
       if (verdict == "Blocked") blocked++
-      else if (verdict == "Met" || verdict == "Not met" || verdict == "Partial") ran++
+      else ran++
     }
     END { exit (blocked > 0 && ran == 0) ? 1 : 0 }
   ' "$TMP_ROOT/meta.md"; then
@@ -584,7 +592,7 @@ cmd_post() {
     || die 3 "repository tree lookup on ${NWO}@${commit} returned no path list, nothing was published"
   jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
-  jq --slurpfile files "$TMP_ROOT/files.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
+  jq --arg test_re "$TEST_RE" --slurpfile files "$TMP_ROOT/files.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
     || die 1 "the walkthrough was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/walk.err" | head -n 1)"
 
   jq --argjson private "$private" "$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
@@ -810,9 +818,11 @@ MD
   printf '**Status:** clean\n' >"$tmp/meta-bad.md"
   grep -v '^\*\*Merge risk:' "$tmp/meta.md" >"$tmp/meta-norisk.md"
   { cat "$tmp/meta.md"; printf '\n- **Suggested fix:**\n  ```suggestion\n  echo e($v);\n  ```\n'; } >"$tmp/meta-suggestion.md"
-  local walk_table='\n## Interactive testing\n\n| Scenario | Viewport | Verdict | Observation |\n|---|---|---|---|\n'
-  { cat "$tmp/meta.md"; printf "$walk_table"'| Open the page | desktop | Blocked | No browser was available. |\n| Open the page | mobile | Blocked | No browser was available. |\n'; } >"$tmp/meta-walk-blocked.md"
-  { cat "$tmp/meta.md"; printf "$walk_table"'| Open the page | desktop | Met | The page opens. |\n| Save the form | desktop | Blocked | No test account. |\n'; } >"$tmp/meta-walk-ran.md"
+  local walk_head=$'\n## Interactive testing\n\n| Scenario | Viewport | Verdict | Observation |\n|---|---|---|---|\n'
+  { cat "$tmp/meta.md"; printf '%s' "$walk_head"; printf '| Open the page | desktop | Blocked | No browser was available. |\n| Open the page | mobile | Blocked | No browser was available. |\n'; } >"$tmp/meta-walk-blocked.md"
+  { cat "$tmp/meta.md"; printf '%s' "$walk_head"; printf '| Open the page | desktop | Met | The page opens. |\n| Save the form | desktop | Blocked | No test account. |\n'; } >"$tmp/meta-walk-ran.md"
+  { cat "$tmp/meta.md"; printf '%s' "$walk_head"; printf '| Open the page | desktop | Failed | The page shows an error. |\n| Save the form | desktop | Blocked | No test account. |\n'; } >"$tmp/meta-walk-failed.md"
+  { cat "$tmp/meta.md"; printf '%s' "$walk_head"; printf '| Open the page | desktop | Passed | The page opens. |\n| Save the form | desktop | Blocked | No test account. |\n'; } >"$tmp/meta-walk-passed.md"
 
   # The data of the Walkthrough block: one area over the one file of the pull request, and a diagram.
   local diagram='sequenceDiagram\n  participant Owner\n  participant Colleague\n  Owner->>Colleague: Send invitation'
@@ -1304,6 +1314,10 @@ Outside the diff.
   check 'a record whose interactive testing rows are all Blocked publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'interactive testing that did not run' "$tmp/stderr" && echo yes || echo no)"
   META_FILE="$tmp/meta-walk-ran.md" run_post "[$f_in]"
   check 'a record whose interactive testing ran a scenario is published' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && echo yes || echo no)"
+  META_FILE="$tmp/meta-walk-failed.md" run_post "[$f_in]"
+  check 'a record whose interactive testing has a Failed row beside a Blocked row is published' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && echo yes || echo no)"
+  META_FILE="$tmp/meta-walk-passed.md" run_post "[$f_in]"
+  check 'a record whose interactive testing has a Passed row beside a Blocked row is published' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && echo yes || echo no)"
   jq -c '. + [{filename: "tests/Feature/ATest.php"}]' "$tmp/files.json" >"$tmp/files.with-test.json"
   jq -c '.areas += [{layer: "Tests", files: ["tests/Feature/ATest.php"], summary: "The happy path."}]' "$tmp/walk.json" >"$tmp/walk-test-row.json"
   GH_FILES_FILE="$tmp/files.with-test.json" WALK_FILE="$tmp/walk-test-row.json" run_post "[$f_in]"
@@ -1314,6 +1328,9 @@ Outside the diff.
   jq -c '.areas = [{layer: "Tests", files: ["tests/Feature/ATest.php"], summary: "The happy path."}]' "$tmp/walk.json" >"$tmp/walk-only-test.json"
   GH_FILES_FILE="$tmp/files.only-test.json" WALK_FILE="$tmp/walk-only-test.json" run_post "[]"
   check 'a pull request that changes only tests may list its test files' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  printf '[{"filename":"tests/Feature/ATest.php","patch":"@@ -1 +1 @@\\n+x"},{"filename":"phpunit.xml","patch":"@@ -1 +1 @@\\n+x"}]' >"$tmp/files.tests-and-config.json"
+  GH_FILES_FILE="$tmp/files.tests-and-config.json" WALK_FILE="$tmp/walk-only-test.json" run_post "[]"
+  check 'a pull request that changes tests and phpunit.xml only is a tests-only pull request, as classify-risk.sh grades it' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   WALK_FILE="$tmp/does-not-exist.json" run_post "[$f_in]"
   check 'a missing walkthrough file publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'cannot read the walkthrough file' "$tmp/stderr" && echo yes || echo no)"
   set +e

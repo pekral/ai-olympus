@@ -72,6 +72,12 @@ dataset('wrapper self-test scenarios', [
     'hidden record keeps a package path' => ['the hidden record may keep a package path'],
     'hidden record round trip' => ['the hidden record comes back byte for byte, --> and --!> and &lt; and <!-- included'],
     'interactive testing all Blocked' => ['a record whose interactive testing rows are all Blocked publishes nothing'],
+    'interactive testing Failed beside Blocked' => [
+        'a record whose interactive testing has a Failed row beside a Blocked row is published',
+    ],
+    'interactive testing Passed beside Blocked' => [
+        'a record whose interactive testing has a Passed row beside a Blocked row is published',
+    ],
     'interactive testing that ran' => ['a record whose interactive testing ran a scenario is published'],
     'invalid document' => ['invalid document is refused'],
     'invalid walkthrough' => ['invalid walkthrough is refused'],
@@ -145,6 +151,9 @@ dataset('wrapper self-test scenarios', [
     'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded or escaped'],
     'test file in the walkthrough' => ['a walkthrough row that names a test file is refused and nothing is posted'],
     'test-only pull request' => ['a pull request that changes only tests may list its test files'],
+    'tests-only pull request with phpunit.xml' => [
+        'a pull request that changes tests and phpunit.xml only is a tests-only pull request, as classify-risk.sh grades it',
+    ],
     'visible order' => ['the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments'],
     'walkthrough beside a changed test' => ['a walkthrough with no test file is published for a pull request that changes a test too'],
     'walkthrough without a diagram' => ['a walkthrough with no diagram renders no sequence diagram and no fenced block in the body'],
