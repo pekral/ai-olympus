@@ -87,6 +87,17 @@ test('run records a failed release creation as a note line and passes the exit s
         ->and($outcome['rows'][0][3])->toBe('gh release create v1.2.3 -> https://example.test/o/r/releases/tag/v1.2.3');
 });
 
+test('run reads a lone dash as the first positional word, in a created release and in a failed one', function (int $ghExit, string $class): void {
+    $outcome = auditRunReleaseOutcome(['gh', 'release', 'create', '-', 'v1.2.3', 'a.zip'], $ghExit);
+
+    expect($outcome['rows'])->toHaveCount(1)
+        ->and($outcome['rows'][0][2])->toBe($class)
+        ->and($outcome['rows'][0][3])->toBe('gh release create - -> https://example.test/o/r/releases/tag/v1.2.3');
+})->with([
+    'created' => [0, 'external-write'],
+    'failed' => [4, 'note'],
+]);
+
 dataset('release commands that stay refused', [
     'delete' => [['gh', 'release', 'delete', 'v1.2.3', '--yes']],
     'delete-asset' => [['gh', 'release', 'delete-asset', 'v1.2.3', 'dist.zip']],

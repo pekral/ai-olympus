@@ -303,7 +303,7 @@ first_ref() {
 # The tag that a `gh release create` names, as " <tag>", or nothing when no safe tag is named: the first
 # positional argument. An option takes the next word as its value unless it is a known flag without a value
 # (`--latest` is one: `--latest[=true|false]`) or carries its value after `=` or stuck to the short letter,
-# so the value of a title, a notes file, or a target is never read as the tag. After `--` every word is positional. Words after the tag are asset files and are not part of the target.
+# so the value of a title, a notes file, or a target is never read as the tag. A lone `-` and every word after `--` are positional. Words after the tag are asset files and are not part of the target.
 release_tag() {
   local skip=0 end=0 arg
   for arg in "$@"; do
@@ -317,6 +317,7 @@ release_tag() {
       --draft | --prerelease | --latest | --generate-notes | --verify-tag | --notes-from-tag | --fail-on-no-commits | -h | --help) continue ;;
       -*=*) continue ;;
       --*) skip=1; continue ;;
+      -) ;;
       -*)
         # A short option takes the next word only when its last letter takes a value and the word ends there:
         # `-t Title`, `-dt Title`. `-tTitle`, `-dtTitle`, and `-Rowner/repo` carry their value.
@@ -902,6 +903,10 @@ EOF
     PATH="$tmp/bin:$PATH" "$script" run -- gh release create $release_case >/dev/null
     expect_eq "a release creation names the tag for '$release_case'" "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
   done
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create - v0.6.0 a.zip >/dev/null
+  expect_eq 'a lone - is a positional word, the first one, so it is the tag' "$(field 4 "$(last_line)")" 'gh release create - -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create - v0.6.0 a.zip >/dev/null 2>&1 || true
+  expect_eq 'a failed release creation with a lone - names that word, as the command does' "$(field 4 "$(last_line)")" 'gh release create - -> https://example.test/o/r/releases/tag/v0.6.0'
   PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create --latest v0.6.0 dist.zip >/dev/null 2>&1 || true
   expect_eq 'a failed release creation after --latest names the tag, never an asset file' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
   PATH="$tmp/bin:$PATH" "$script" run -- gh release create --generate-notes --title 'a b' >/dev/null
