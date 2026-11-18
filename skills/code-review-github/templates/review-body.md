@@ -99,7 +99,7 @@ sequenceDiagram
 ````
 
 - **`**Changes: {title}**` renders only when the walkthrough sets a `title`.** The table has one row for each changed area, and a row names at most four files and then `and {n} more`.
-- **The Walkthrough lists no test file.** A row names production files only, and the table has no row for the tests. A pull request that changes only tests is the one exception.
+- **The Walkthrough lists no test file.** A row names production files only, and the table has no row for the tests. A pull request that changes only tests is the one exception. The wrapper refuses a row that names a test file, with exit `1` and nothing posted; the header of `post-inline-review.sh` states which paths count as test files.
 - **The Where to test table has one row for each route, and `{METHOD}` is GET, POST, PUT, PATCH, or DELETE.** The whole block is left out when the change touches no page or route.
 - **The sequence diagram renders only when the change has a flow worth drawing.** The walkthrough sets `diagram` for it and leaves it out otherwise, and the heading and the fence go with it.
 - **A finding with no line has no `· {file:line}` place.** A functional gap is one.

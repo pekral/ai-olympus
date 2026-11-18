@@ -223,7 +223,7 @@ test('the Walkthrough lists no test file, in the template, the wrapper header, a
 
     expect($template)->toContain('**The Walkthrough lists no test file.** A row names production files only, and the table has no row for the tests.')
         ->and($template)->toContain('A pull request that changes only tests is the one exception.')
-        ->and($script)->toContain('The author lists no test file and no row for the tests, unless the pull request changes only tests')
+        ->and($script)->toContain('a walkthrough area names a test file: the walkthrough lists no test file unless the pull request changes only tests')
         ->and($files)->not->toBeEmpty();
 
     foreach ($files as $file) {

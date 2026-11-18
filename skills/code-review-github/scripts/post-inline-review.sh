@@ -45,7 +45,8 @@
 #                  skills/_shared/check-cr-header.sh accepts. It lists every published finding in full and never a
 #                  finding withheld on a public repository. Its `Merge risk:` line gives the grade and the sentence of the
 #                  visible Merge Risk block: the record is the one owner of both. A record with no `Merge risk:` line, or
-#                  with a suggestion block, is refused.
+#                  with a suggestion block, is refused. So is a record whose `## Interactive testing` table holds
+#                  result rows and every one of them is `Blocked`: a walkthrough that did not run is not reported.
 #   --walkthrough-file
 #                  A JSON object, the data of the TL;DR and of the Walkthrough block (templates/review-body.md):
 #                    tldr          required, what the pull request changes in plain sentences. At most 500 code points
@@ -54,8 +55,10 @@
 #                    description   required, the change in one to three plain sentences, 1500 characters at most
 #                    title         optional, the name of the change group, shown as `Changes: <title>`
 #                    areas         required, 1 to 20 rows: {layer, files[], summary}; every file is a changed file of the
-#                                  pull request, and the row shows at most four of them. The author lists no test
-#                                  file and no row for the tests, unless the pull request changes only tests
+#                                  pull request, and the row shows at most four of them. A row that names a test
+#                                  file is refused, unless the pull request changes only tests. A test file is a
+#                                  path under a `test`, `tests`, `spec`, `specs`, `__tests__`, or `e2e` directory,
+#                                  or a file named `*Test.<ext>`, `*_test.<ext>`, `*.test.<ext>`, or `*.spec.<ext>`
 #                    effort        required: {level 1-5, minutes 1-999}; the label (Trivial, Simple, Moderate, Complex,
 #                                  Critical) comes from the level
 #                    change_type   required: Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, Chore
@@ -338,6 +341,7 @@ IFS= read -r -d '' JQ_WALK <<'JQ' || true
 def oneline: printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
 def cell: oneline | inert;
 def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
+def testfile: test("(^|/)(tests?|specs?|__tests__|e2e)/") or test("(Test|_test|\\.test|\\.spec)\\.[A-Za-z0-9]+$");
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
 | req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
@@ -353,6 +357,7 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
     and ((.files | type) == "array") and (.files | length) >= 1 and (.files | length) <= 500 and (.files | all(relpath))); "every walkthrough area needs a layer, a summary, and 1 to 500 relative file paths")
 | req([.areas[].files[]] | all(. as $f | $changed[$f] == true); "a walkthrough area names a file that the pull request does not change")
+| req(($changed | keys | all(testfile)) or ([.areas[].files[]] | all(testfile | not)); "a walkthrough area names a test file: the walkthrough lists no test file unless the pull request changes only tests")
 | req(.effort | type == "object" and ((keys - ["level", "minutes"]) | length) == 0 and (.level | isint) and .level <= 5 and (.minutes | isint) and .minutes <= 999; "walkthrough effort needs a level of 1 to 5 and minutes of 1 to 999")
 | req(.change_type as $c | ["Feature", "Bug fix", "Refactor", "Performance", "Security", "Tests", "Documentation", "Chore"] | any(. == $c); "walkthrough change_type must be Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, or Chore")
 | req(.diagram == null or (.diagram | type == "string" and length <= 4000 and (printable | test("^sequenceDiagram") and nocode and (test("<!--") | not) and ((split("\n") | length) <= 60))); "the walkthrough diagram must be a mermaid sequenceDiagram of 60 lines at most, with no fenced block and no comment marker")
@@ -529,6 +534,19 @@ cmd_post() {
     || die 1 "the review record was refused by check-cr-header.sh, nothing was published: $(jq -r '.problems // [] | join("; ")' "$TMP_ROOT/meta-check.json" 2>/dev/null | head -c 300)"
   if grep -Eq '^[[:space:]]*(```|~~~)[[:space:]]*suggestion' "$TMP_ROOT/meta.md"; then
     die 1 "the review record holds a suggestion block: a review carries no code, nothing was published"
+  fi
+  if ! awk '
+    /^## / { inside = ($0 ~ /^## Interactive testing[[:space:]]*$/); next }
+    inside && /^\|/ {
+      n = split($0, cell, "|")
+      verdict = cell[4]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", verdict)
+      if (verdict == "Blocked") blocked++
+      else if (verdict == "Met" || verdict == "Not met" || verdict == "Partial") ran++
+    }
+    END { exit (blocked > 0 && ran == 0) ? 1 : 0 }
+  ' "$TMP_ROOT/meta.md"; then
+    die 1 "the review record reports interactive testing that did not run: every result row is Blocked, so leave the section out; nothing was published"
   fi
   jq -n -c --rawfile meta "$TMP_ROOT/meta.md" "$JQ_DEFS"$'\n'"$JQ_RISK" >"$TMP_ROOT/risk.json" 2>"$TMP_ROOT/risk.err" \
     || die 1 "the Merge Risk block could not be read from the review record, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/risk.err" | head -n 1)"
@@ -792,6 +810,9 @@ MD
   printf '**Status:** clean\n' >"$tmp/meta-bad.md"
   grep -v '^\*\*Merge risk:' "$tmp/meta.md" >"$tmp/meta-norisk.md"
   { cat "$tmp/meta.md"; printf '\n- **Suggested fix:**\n  ```suggestion\n  echo e($v);\n  ```\n'; } >"$tmp/meta-suggestion.md"
+  local walk_table='\n## Interactive testing\n\n| Scenario | Viewport | Verdict | Observation |\n|---|---|---|---|\n'
+  { cat "$tmp/meta.md"; printf "$walk_table"'| Open the page | desktop | Blocked | No browser was available. |\n| Open the page | mobile | Blocked | No browser was available. |\n'; } >"$tmp/meta-walk-blocked.md"
+  { cat "$tmp/meta.md"; printf "$walk_table"'| Open the page | desktop | Met | The page opens. |\n| Save the form | desktop | Blocked | No test account. |\n'; } >"$tmp/meta-walk-ran.md"
 
   # The data of the Walkthrough block: one area over the one file of the pull request, and a diagram.
   local diagram='sequenceDiagram\n  participant Owner\n  participant Colleague\n  Owner->>Colleague: Send invitation'
@@ -1279,6 +1300,20 @@ Outside the diff.
   check 'a record with no Merge risk line publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'Merge Risk block could not be read' "$tmp/stderr" && echo yes || echo no)"
   META_FILE="$tmp/meta-suggestion.md" run_post "[$f_in]"
   check 'a record that holds a suggestion block publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'holds a suggestion block' "$tmp/stderr" && echo yes || echo no)"
+  META_FILE="$tmp/meta-walk-blocked.md" run_post "[$f_in]"
+  check 'a record whose interactive testing rows are all Blocked publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'interactive testing that did not run' "$tmp/stderr" && echo yes || echo no)"
+  META_FILE="$tmp/meta-walk-ran.md" run_post "[$f_in]"
+  check 'a record whose interactive testing ran a scenario is published' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && echo yes || echo no)"
+  jq -c '. + [{filename: "tests/Feature/ATest.php"}]' "$tmp/files.json" >"$tmp/files.with-test.json"
+  jq -c '.areas += [{layer: "Tests", files: ["tests/Feature/ATest.php"], summary: "The happy path."}]' "$tmp/walk.json" >"$tmp/walk-test-row.json"
+  GH_FILES_FILE="$tmp/files.with-test.json" WALK_FILE="$tmp/walk-test-row.json" run_post "[$f_in]"
+  check 'a walkthrough row that names a test file is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names a test file' "$tmp/stderr" && echo yes || echo no)"
+  GH_FILES_FILE="$tmp/files.with-test.json" run_post "[$f_in]"
+  check 'a walkthrough with no test file is published for a pull request that changes a test too' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  printf '[{"filename":"tests/Feature/ATest.php","patch":"@@ -1 +1 @@\\n+x"}]' >"$tmp/files.only-test.json"
+  jq -c '.areas = [{layer: "Tests", files: ["tests/Feature/ATest.php"], summary: "The happy path."}]' "$tmp/walk.json" >"$tmp/walk-only-test.json"
+  GH_FILES_FILE="$tmp/files.only-test.json" WALK_FILE="$tmp/walk-only-test.json" run_post "[]"
+  check 'a pull request that changes only tests may list its test files' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   WALK_FILE="$tmp/does-not-exist.json" run_post "[$f_in]"
   check 'a missing walkthrough file publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'cannot read the walkthrough file' "$tmp/stderr" && echo yes || echo no)"
   set +e

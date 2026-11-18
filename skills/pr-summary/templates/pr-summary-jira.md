@@ -182,6 +182,14 @@ Length
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
   one target it applies to.
 
+Check before the publish
+  Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
+  <stated|none> <source-file> on the rendered source, and publish only a source
+  it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
+  cap, the missing status line, the criteria section against the flag, the
+  three bullets of at most 200 characters in What changed and Impact after
+  deployment, leaked Markdown, code macros, commit hashes, and the footer.
+
 No embedded blocks
   The JIRA template has no {embedded_blocks} slot. The Assignment Compliance
   verdict is the Acceptance criteria section above, which is why that section is
