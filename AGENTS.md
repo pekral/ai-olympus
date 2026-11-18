@@ -20,10 +20,10 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 
 Before implementing:
 
-- State your assumptions explicitly. If uncertain, ask.
+- State your assumptions explicitly. Ask only when the issue, the codebase, and the configuration cannot settle the point.
 - If multiple interpretations exist, present them; don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- If something stays unclear after that, name what is confusing and ask, with every question in one round.
 
 ## 2. Simplicity First
 
@@ -65,7 +65,7 @@ Transform tasks into verifiable goals:
 - "Fix the bug" becomes "write a test that reproduces it, then make it pass."
 - "Refactor X" becomes "ensure tests pass before and after."
 
-For multi-step tasks, state a brief plan with a verification check for every step.
+For multi-step tasks, name the check that verifies each step.
 
 Strong success criteria let you loop independently. Weak criteria require constant clarification.
 
