@@ -482,7 +482,7 @@ test('pr-summary output style is terse — caveman-style prose compression (issu
 
     $terse = (string) file_get_contents($packageDir . '/skills/pr-summary/references/terse-output-style.md');
 
-    expect($prSummary)->toContain('Terse output style (issue #51)');
+    expect($prSummary)->toContain('Terse output style');
     expect($prSummary)->toContain('Apply `references/terse-output-style.md` in full before you write');
     expect($terse)->toContain('never invent new abbreviations');
     expect($terse)->toContain('Compress the style, never the language');
@@ -2095,7 +2095,7 @@ test('the CI-reuse mechanism is retired with the loop gate it served (issue #144
     expect($gates)->not->toContain('the reuse path is structurally unreachable here (issue #144)');
 
     // What replaced it: one gate, at the merge boundary, never reused from a CI result.
-    expect($gates)->toContain('## Gate placement — deferred to the merge boundary (issue #65, revised)');
+    expect($gates)->toContain('## Gate placement — deferred to the merge boundary');
     expect($gates)->toContain('**Once the work is finished — the full gate, once.**');
 });
 
@@ -2133,7 +2133,7 @@ test('the Minor bucket is retired everywhere, security-lens findings included', 
     $rule = codeReviewRuleContents();
 
     expect($rule)->toContain('## Minor findings are not detected');
-    expect($rule)->toContain('**The review no longer detects one, no longer raises one, and no longer renders one.**');
+    expect($rule)->toContain('**The review does not detect, raise, or render one.**');
     expect($rule)->toContain('**The whole bucket is gone, not merely hidden.**');
 
     // No security exception: a security lens maps Low onto Moderate, which blocks, and Info is not published.
@@ -2235,7 +2235,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
 
     // Every normative block is its own heading, so a reader can jump to the one they need.
     foreach ([
-        '### Terse output style (issue #51)',
+        '### Terse output style',
         '### What changed — four required fields, two conditional ones',
         '### How to test — a scenario, not a checklist of tests',
         '### Closing line — the PR and the source issue',

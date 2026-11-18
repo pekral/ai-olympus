@@ -61,7 +61,7 @@ An agent never generates documentation into `docs/` — no new file and no new s
 | Analysis, plans, and reports for one task | the tracker item |
 
 - **Deleting a committed file is a stated decision, never a side effect.** Run `git status` before you commit and stage only the changes you intended. The commit message says who decided the deletion and why.
-- In code review, a diff that adds a file under `docs/`, other than the memory file, is a **Moderate** finding. The Suggested Fix names the row of the table the content moves to.
+- In code review, a diff that adds a file under `docs/` is a **Moderate** finding. The Suggested Fix names the row of the table the content moves to.
 
 ## What Not To Do
 

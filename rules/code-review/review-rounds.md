@@ -84,7 +84,7 @@ Another round runs only when one of exactly two things changed since the reviewe
 - a content-identical history rewrite — a rebase, squash, amend, or force-push, already covered by the diff fingerprint of *Baseline resolution* in `@rules/code-review/general.md`,
 - a reviewer comment that asks for nothing actionable.
 
-**Three things this never relaxes.** A new **actionable reviewer comment** is unfulfilled feedback and keeps its own gate, unchanged. A finding still open from the previous round blocks exactly as before, because carrying a verdict forward carries its open findings with it. And **an unclear classification counts as business logic**: an unclear commit gets the round. This trigger narrows a decision that used to be *always*; it never converts an unexamined change into an examined one.
+**Three things this never relaxes.** A new **actionable reviewer comment** is unfulfilled feedback and keeps its own gate, unchanged. A finding still open from the previous round blocks exactly as before, because carrying a verdict forward carries its open findings with it. And **an unclear classification counts as business logic**: an unclear commit gets the round. This trigger never converts an unexamined change into an examined one.
 
 **The review-only path decides it with a script.** A review-only run (`/report-code-review`) classifies nothing by reading a diff or a comment. `skills/_shared/review-carry-forward.sh decide` compares the recomputed diff fingerprint and assignment fingerprint with the newest trusted review, and only an identical diff and an identical assignment carry the verdict forward (`agents/krang.md` *Review-only mode — `/report-code-review`*).
 
