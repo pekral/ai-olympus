@@ -81,7 +81,7 @@ function jiraSummaryForTwoPullRequests(): string
         "h2. Akceptační kritéria\n\nVšechna 2 kritéria jsou splněná.",
         $group(11),
         $group(12),
-        "[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]",
+        '[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]',
         "----\n\n_Tento komentář je generovaný automaticky._",
     ]);
 }
@@ -133,22 +133,25 @@ test('the criteria section must match what the assignment states', function (str
     'missing criteria section for stated criteria' => [jiraSummaryWithoutCriteria(), 'stated', '3 h2 sections, expected 4 with a criteria section'],
 ]);
 
-test('the last two sections are a TL;DR of at most three short bullets', function (array $replace, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria($replace), 'none');
+test('the last two sections are a TL;DR of at most three short bullets', function (string $search, string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: tldr: ' . $violation);
 })->with([
     'four bullets under the impact section' => [
-        ['* Připojení obchodu' => "* Objednávky: beze změny.\n* Kontakty: beze změny.\n* Připojení obchodu"],
+        '* Připojení obchodu',
+        "* Objednávky: beze změny.\n* Kontakty: beze změny.\n* Připojení obchodu",
         '4 bullets under "h2. Co může změna ovlivnit po nasazení", the limit is 3',
     ],
     'four bullets under what changed' => [
-        ['* Synchronizace Ecwidu' => "* Třetí změna.\n* Čtvrtá změna.\n* Synchronizace Ecwidu"],
+        '* Synchronizace Ecwidu',
+        "* Třetí změna.\n* Čtvrtá změna.\n* Synchronizace Ecwidu",
         '4 bullets under "h2. Co se změnilo", the limit is 3',
     ],
     'long bullet' => [
-        ['* Synchronizace Ecwidu běží ve vlastní frontě.' => '* ' . str_repeat('ž', 201)],
+        '* Synchronizace Ecwidu běží ve vlastní frontě.',
+        '* ' . str_repeat('ž', 201),
         'a bullet of 201 characters under "h2. Co se změnilo", the limit is 200',
     ],
 ]);
@@ -195,17 +198,17 @@ test('a summary without the footer fails the check', function (): void {
         ->and($process->getOutput())->toContain('violation: footer: a ---- line followed by the italic footer line is missing');
 });
 
-test('the check refuses a wrong call and a missing source file', function (array $arguments, string $error): void {
+test('the check refuses a wrong call and a missing source file', function (string $arguments, string $error): void {
     $packageDir = dirname(__DIR__, 3);
-    $process = new Process(['php', $packageDir . '/skills/pr-summary/scripts/check-jira-comment.php', ...$arguments], $packageDir);
+    $process = new Process(['php', $packageDir . '/skills/pr-summary/scripts/check-jira-comment.php', ...explode(' ', $arguments)], $packageDir);
     $process->run();
 
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
-    'missing source file' => [['--criteria', 'none', '/nonexistent/source'], 'cannot read /nonexistent/source'],
-    'no criteria flag' => [['/nonexistent/source'], 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
-    'unknown criteria value' => [['--criteria', 'maybe', '/nonexistent/source'], 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
+    'missing source file' => ['--criteria none /nonexistent/source', 'cannot read /nonexistent/source'],
+    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
+    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
 ]);
 
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
