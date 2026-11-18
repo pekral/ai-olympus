@@ -16,6 +16,7 @@
 # Usage
 #   review-state.sh init     --state <file> --repo <owner/name> --pr <number>
 #   review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->] [--operator-authorised <comment-url>]
+#   review-state.sh late     --state <file> --input <report|->
 #   review-state.sh evaluate --state <file> [--final]
 #   review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
@@ -39,6 +40,13 @@
 #                    or `authorize round <n>` (any case, blanks around it), so a sentence that only mentions the
 #                    phrase, such as `I do not authorise round 4`, authorises nothing; the script verifies its author
 #                    exactly as for --comment. The round is recorded, and its findings count as in every other round.
+#   late             adds the security findings a round's security view reported after the round was recorded to that
+#                    round. --input is a round report that carries only those findings, with the `Reviewed revision` of
+#                    the last recorded round. The round count does not move, and no finding the report omits changes.
+#                    `late` refuses (exit 4) a report without a finding, a finding that is not security-relevant, and a
+#                    revision other than the last round's, and refuses (exit 5) an escalated loop. The verdict is then
+#                    the one of any other open finding: `continue`, or `security-round` at the cap, or, in the last
+#                    security round, the escalation `security-rounds-spent`.
 #   --final          at the cap round, escalate when a blocking finding is still neither fixed nor deferred.
 #   --comment        the URL of the rejection: a comment on the pull request of the state
 #                    (https://github.com/<owner>/<name>/pull/<n>#issuecomment-<id>). The script loads the pull
@@ -100,6 +108,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh record   --state <file> --input <report|-> [--changed-files <file|->] [--operator-authorised <comment-url>]
+       review-state.sh late     --state <file> --input <report|->
        review-state.sh evaluate --state <file> [--final]
        review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
        review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
@@ -286,6 +295,26 @@ def settle($cap; $threshold; $final):
     elif $v.verdict == "escalated" then .status = "escalated" | .escalation_reason = $v.escalation_reason
     elif $v.verdict == "deferral-required" and $final then .status = "escalated" | .escalation_reason = "cap-reached-undeferred-blockers"
     else .status = "open" | .escalation_reason = null end;
+
+# A first report of a finding is a new finding, and a second report with evidence confirms it.
+def lift: if . == "new" then "confirmed" else . end;
+
+# One finding a round report carries, merged with the state's finding of the same identity ($prev maps the
+# identity to the stored finding). A closed finding reopens, an open one keeps the stronger status and severity.
+def merge_reported($prev):
+  . as $c | $prev[$c.finding_id] as $p
+  | if $p == null then {rec: $c, from: null, carried: false}
+    elif ($p.status == "resolved" or $p.status == "dismissed") then
+      {rec: ($c | .status = (.status | lift)), from: $p.status, carried: false}
+    else
+      ([($c.status | lift), ($p.status | lift)] | max_by(status_rank)) as $st
+      | {rec: ($c
+          | .status = $st
+          | .severity = ([$c.severity, $p.severity] | max_by(severity_rank))
+          | .security = ($c.security or $p.security)
+          | .evidence = (if $st == "confirmed" then ($c.evidence // $p.evidence) else $c.evidence end)),
+         from: $p.status, carried: false}
+    end;
 EOF
 
 # Merge one round into the state. Reads the state; $cur is the round's records, $changed the delta's paths or
@@ -301,20 +330,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
 | (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope
-| def lift: if . == "new" then "confirmed" else . end;
-  [ $cur[] | . as $c | $prev[$c.finding_id] as $p
-    | if $p == null then {rec: $c, from: null, carried: false}
-      elif ($p.status == "resolved" or $p.status == "dismissed") then
-        {rec: ($c | .status = (.status | lift)), from: $p.status, carried: false}
-      else
-        ([($c.status | lift), ($p.status | lift)] | max_by(status_rank)) as $st
-        | {rec: ($c
-            | .status = $st
-            | .severity = ([$c.severity, $p.severity] | max_by(severity_rank))
-            | .security = ($c.security or $p.security)
-            | .evidence = (if $st == "confirmed" then ($c.evidence // $p.evidence) else $c.evidence end)),
-           from: $p.status, carried: false}
-      end ]
+| [ $cur[] | merge_reported($prev) ]
   + [ $s.findings[] | select($now[.finding_id] == null) | . as $f
       | if ($f | is_open | not) then {rec: $f, from: $f.status, carried: false}
         elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}
@@ -343,6 +359,36 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
     }]
   | settle($cap; $threshold; false)
   | {state: ., carried: ($merged | map(select(.carried) | .rec.finding_id))}
+EOF
+
+# Add the findings of a late report to the last recorded round. Reads the state; $cur is the late report's records.
+# The round count does not move, and no finding the report omits changes: a late view reads only what it
+# reports. A new finding counts as new in the last round, a closed finding it reports again reopens, and the
+# round's own counters and verdict are computed again from the findings, as `record` computes them.
+JQ_LATE=''
+IFS= read -r -d '' JQ_LATE <<'EOF' || true
+. as $s
+| $s.iteration as $n
+| ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
+| ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
+| ([ $cur[] | merge_reported($prev) ]
+   + [ $s.findings[] | select($now[.finding_id] == null) | {rec: ., from: .status, carried: false} ]) as $merged
+| [ $merged[] | select(.from != .rec.status)
+    | {iteration: $n, finding_id: .rec.finding_id, from, to: .rec.status, actor: "reviewer"} ] as $moves
+| $s
+| .findings = ($merged | map(.rec) | sort_by(.finding_id))
+| .transitions += $moves
+| . as $next
+| verdict($cap; $threshold) as $v
+| .rounds[-1] |= (
+    .new += ($moves | map(select(.from == null)) | length)
+    | .reopened += ($moves | map(select((.from == "resolved" or .from == "dismissed") and (.to | . == "confirmed" or . == "needs-verification"))) | length)
+    | .confirmed = ($next.findings | map(select(.status == "confirmed")) | length)
+    | .dismissed = ($next.findings | map(select(.status == "dismissed")) | length)
+    | .needs_verification = ($next.findings | map(select(.status == "needs-verification")) | length)
+    | .remaining_blocking = ($v.open | length)
+    | .verdict = $v.verdict)
+| settle($cap; $threshold; false)
 EOF
 
 # effective_config — the round cap and the blocking threshold of the default-branch manifest, as
@@ -564,6 +610,56 @@ cmd_record() {
   write_state "$TMP/next.json" "$state"
   jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
     "$JQ_STATE"' output($cap; $threshold; $carried)' "$TMP/next.json"
+}
+
+cmd_late() {
+  local state='' input=''
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
+    --input) [[ $# -ge 2 ]] || die_usage '--input needs a value'; input="$2"; shift 2 ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
+    esac
+  done
+  [[ -n "$state" ]] || die_usage '--state is required'
+  [[ -n "$input" ]] || die_usage '--input is required'
+  check_writable "$state"
+  new_tmp
+  load_state "$state" "$TMP/state.json"
+
+  local iteration
+  iteration="$(jq -r '.iteration' "$TMP/state.json")"
+  [[ "$iteration" -gt 0 ]] || fail 4 "no review round is recorded yet; a late finding has no round to count for"
+  [[ "$(jq -r '.status' "$TMP/state.json")" != 'escalated' ]] \
+    || fail 5 "the loop escalated; a late finding opens no further automatic review round"
+
+  local repo pr
+  repo="$(jq -r '.repo' "$TMP/state.json")"
+  pr="$(jq -r '.pr' "$TMP/state.json")"
+  if [[ "$input" == '-' ]]; then
+    cat >"$TMP/report.md"
+    input="$TMP/report.md"
+  fi
+  "$HERE/extract-findings.sh" --header --input "$input" >"$TMP/header.json" \
+    || fail 3 "the round report could not be read; nothing was recorded"
+  "$HERE/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
+    || fail 3 "the round report could not be read; nothing was recorded"
+
+  # A late view belongs to the last recorded round only: the report names that round's revision, carries a
+  # finding, and carries only security findings. Any other finding needs a round of its own.
+  jq -e -s --slurpfile s "$TMP/state.json" --slurpfile h "$TMP/header.json" \
+    'length > 0 and all(.[]; .security) and $h[0].revision == $s[0].rounds[-1].revision' "$TMP/round.jsonl" >/dev/null \
+    || fail 4 "a late report must carry at least one finding, only security findings, and the revision of the last recorded round; nothing was recorded"
+
+  local config cap threshold
+  config="$(effective_config)"
+  cap="${config%% *}"
+  threshold="${config#* }"
+  jq -c -s -L "$HERE" --slurpfile s "$TMP/state.json" --argjson cap "$cap" --arg threshold "$threshold" \
+    "$JQ_STATE"$'\n'". as \$cur | \$s[0] | $JQ_LATE" "$TMP/round.jsonl" >"$TMP/next.json"
+  jq -c --argjson cap "$cap" --arg t "$threshold" '.max_iterations = $cap | .blocking_threshold = $t' "$TMP/next.json" >"$TMP/next2.json"
+  write_state "$TMP/next2.json" "$state"
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next2.json"
 }
 
 cmd_evaluate() {
@@ -1232,6 +1328,52 @@ EOF
   run_case 'a security finding after a convergence in the last security round is refused' 5 -- record --state "$S" --input "$tmp/w4.md" --changed-files "$tmp/changed-both"
   check 'a security finding after a convergence in the last security round escalates with cap-spent-after-convergence' "$(q '.escalation_reason == "cap-spent-after-convergence" and .iteration == 3')"
 
+  # --- a security finding reported late counts for the round the reviewer already recorded -------------------
+  # The security view can report after `leonardo` recorded the round as converged. `late` adds that finding to the
+  # recorded round, without a new round, so the loop opens the next fix round as for any other open finding.
+  manifest '{}'
+  cp "$tmp/converged-at-cap" "$repo/$S"
+  report "$tmp/l3.md" 3 "$F_SQL"
+  run_case 'a security finding reported late for a round converged at the cap is recorded' 0 -- late --state "$S" --input "$tmp/l3.md"
+  check 'a late security finding counts for the cap round and opens a security round' "$(q '.verdict == "security-round" and .status == "open" and .escalation_reason == null and .iteration == 3 and .counts.remaining_blocking == 1')"
+  check 'the late finding is counted as new in the round it was reported for' "$(jq -e '.rounds | length == 3 and .[2].new == 1 and .[2].remaining_blocking == 1 and .[2].verdict == "security-round"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'the same late report is recorded again' 0 -- late --state "$S" --input "$tmp/l3.md"
+  check 'a late report repeated does not count the finding twice' "$(jq -e '.rounds[2].new == 1 and .iteration == 3' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  report "$tmp/l4.md" 4
+  run_case 'the next round after a late finding is recorded as the security round' 0 -- record --state "$S" --input "$tmp/l4.md" --changed-files "$tmp/changed-both"
+  check 'the fix of a late finding converges the loop in the security round' "$(q '.verdict == "converged" and .status == "converged" and .iteration == 4 and .counts.resolved == 2 and .counts.remaining_blocking == 0')"
+  run_case 'a late report for a round that is no longer the last is refused' 4 -- late --state "$S" --input "$tmp/l3.md"
+  check 'a late report for an earlier round changes nothing' "$(jq -e '.iteration == 4 and .status == "converged"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+
+  cp "$tmp/converged-at-cap" "$repo/$S"
+  run_case 'a late report that reads another revision than the recorded round is refused' 4 -- late --state "$S" --input "$tmp/v5.md"
+  report "$tmp/l3s.md" 3 "$F_STRUCT"
+  run_case 'a late finding that is not security-relevant is refused' 4 -- late --state "$S" --input "$tmp/l3s.md"
+  report "$tmp/l3c.md" 3
+  run_case 'a late report without a finding is refused' 4 -- late --state "$S" --input "$tmp/l3c.md"
+  check 'a refused late report leaves the convergence in place' "$(jq -e '.status == "converged" and .iteration == 3 and ([.findings[] | select(.status != "resolved")] | length) == 0' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+
+  # A round below the cap that converged takes the late finding as an ordinary open finding.
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/b1.md" >/dev/null)
+  report "$tmp/l1.md" 1 "$F_SQL"
+  run_case 'a security finding reported late for a converged round below the cap is recorded' 0 -- late --state "$S" --input "$tmp/l1.md"
+  check 'a late finding below the cap continues the loop' "$(q '.verdict == "continue" and .status == "open" and .iteration == 1')"
+  (cd "$repo" && "$script" init --state .claude/run/review-state-empty.json --repo acme/shop --pr 7 >/dev/null)
+  run_case 'a late report for a state without a round is refused' 4 -- late --state .claude/run/review-state-empty.json --input "$tmp/l1.md"
+
+  # A late finding in the last security round leaves no security round: the operator decides.
+  manifest '{ "review": { "max-iterations": 1 } }'
+  cp "$tmp/security-round" "$repo/$S"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/k1b.md" --changed-files "$tmp/changed-both" >/dev/null)
+  report "$tmp/w3.md" 3
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/w3.md" --changed-files "$tmp/changed-render" >/dev/null)
+  report "$tmp/lw3.md" 3 "$F_LOW_SEC"
+  run_case 'a security finding reported late for the last security round is recorded' 0 -- late --state "$S" --input "$tmp/lw3.md"
+  check 'a late finding in the last security round escalates with security-rounds-spent, for the operator to decide' "$(q '.verdict == "escalated" and .escalation_reason == "security-rounds-spent" and .iteration == 3')"
+  run_case 'a late report for an escalated loop is refused' 5 -- late --state "$S" --input "$tmp/lw3.md"
+
   # --- an operator-authorised round past the cap: only the operator's own comment that names the round ---------
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
@@ -1516,6 +1658,7 @@ shift
 case "$command" in
 init) cmd_init "$@" ;;
 record) cmd_record "$@" ;;
+late) cmd_late "$@" ;;
 evaluate) cmd_evaluate "$@" ;;
 scope) cmd_scope "$@" ;;
 dismiss) cmd_dismiss "$@" ;;
