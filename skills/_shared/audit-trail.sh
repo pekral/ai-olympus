@@ -48,10 +48,14 @@
 #   - with --pr or --issue, every label the account added (`+label <name>`) or removed (`-label <name>`)
 #     since the first ledger line is named by an `external-write` line. A label event carries no
 #     marker, so an unrecorded one is `not verified:`, never a problem;
-#   - a later `note` line whose target is `comment <id>` or `label <name>` resolves that comment or label.
+#   - a later `note` line whose target is `comment <id>` or `label <name>` resolves that comment or label;
+#   - the ledger alone shows which label writes belong to an issue the run created: a `linked:` line names
+#     the issue, the line of its creation, and the label writes of the lines after it; a `standalone:` line
+#     names a label write on any other issue or pull request. Both are information, never a problem, and no
+#     ledger line is rewritten to show the link.
 #   A check that needs the network and cannot run prints `not verified: …` and never fails verify.
 #
-# Output (stdout of verify): `problem: …` and `not verified: …` lines, or `audit trail ok: …`.
+# Output (stdout of verify): `problem: …`, `not verified: …`, `linked: …`, and `standalone: …` lines, then `audit trail ok: …` when there is no problem.
 #
 # Exit codes
 #   0   written / verified (for `run`: the write command's own exit status, 0 included)
@@ -423,6 +427,83 @@ observe_item() {
   done <<<"$observed"
 }
 
+# Show which label writes of the ledger belong to an issue the run itself created. A creation line is an
+# `external-write` line of `gh issue create -> <issue URL>`, or one whose target is an issue URL and whose
+# result says `created` (a wrapper that files an issue). A label write is an `external-write` line of
+# `gh issue|pr edit` that carries a `+label` or `-label` token. It is linked when it names an issue created
+# by an earlier line: by the issue URL after ` -> `, by an issue URL argument, or by a bare number that
+# exactly one created issue has. Every other label write is shown on its own. The ledger is only read: the
+# link is part of the output of `verify`, never a change to a line. One line per created issue, then one
+# per label write on its own, each one "linked: ..." or "standalone: ...".
+label_write_links() {
+  awk -F'|' '
+    function labels_of(head,   rest, sign, name, out) {
+      rest = " " head
+      out = ""
+      while (match(rest, / [+-]label /)) {
+        sign = substr(rest, RSTART + 1, 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        name = match(rest, / [+-]label /) ? substr(rest, 1, RSTART - 1) : rest
+        out = out (out == "" ? "" : "; ") sign "label " name
+      }
+      return out
+    }
+    NF == 5 && $3 == "external-write" {
+      target = $4
+      if ((target ~ /^gh issue create( |$)/ && match(target, /https?:\/\/[^ ]+\/issues\/[0-9]+/)) \
+          || (target ~ /^https?:\/\/[^ ]+\/issues\/[0-9]+$/ && $5 ~ /created/)) {
+        if (!match(target, /https?:\/\/[^ ]+\/issues\/[0-9]+/)) next
+        url = substr(target, RSTART, RLENGTH)
+        if (url in created) next
+        created[url] = NR
+        order[++orders] = url
+        number = url
+        sub(/.*\//, "", number)
+        same[number]++
+        byNumber[number] = url
+        next
+      }
+      if (target !~ /^gh (issue|pr) edit /) next
+      head = target
+      destination = ""
+      arrow = index(target, " -> ")
+      if (arrow > 0) {
+        head = substr(target, 1, arrow - 1)
+        destination = substr(target, arrow + 4)
+      }
+      changes = labels_of(head)
+      if (changes == "") next
+      split(head, word, " ")
+      argument = word[4]
+      kind = word[2]
+      reference = ""
+      if (destination ~ /^https?:\/\/[^ ]+\/(issues|pull)\/[0-9]+$/) {
+        reference = destination
+      } else if (argument ~ /^https?:\/\//) {
+        reference = argument
+      } else if (kind == "issue" && argument ~ /^[0-9]+$/ && same[argument] == 1) {
+        reference = byNumber[argument]
+      }
+      if (kind == "issue" && reference in created && created[reference] < NR) {
+        creation[reference] = creation[reference] (creation[reference] == "" ? "" : ", ") NR
+        written[reference] = written[reference] (written[reference] == "" ? "" : "; ") changes
+        next
+      }
+      if (reference == "") reference = kind " " (argument ~ /^[0-9]+$/ ? argument : "of an unnamed target")
+      alone[++alones] = "standalone: label write on " reference " (line " NR ") is not part of an issue this run created: " changes
+    }
+    END {
+      for (i = 1; i <= orders; i++) {
+        url = order[i]
+        if (url in written) {
+          print "linked: " url " was created by this run (line " created[url] "); label writes on line(s) " creation[url] " belong to its creation and triage: " written[url]
+        }
+      }
+      for (i = 1; i <= alones; i++) print alone[i]
+    }
+  ' "$1"
+}
+
 cmd_verify() {
   local file="" branch="" pr="" issue="" remote="origin"
   while [[ $# -gt 0 ]]; do
@@ -526,6 +607,9 @@ cmd_verify() {
   for item in ${notes[@]+"${notes[@]}"}; do
     printf 'not verified: %s\n' "$item"
   done
+  while IFS= read -r item; do
+    [[ -z "$item" ]] || printf '%s\n' "$item"
+  done < <(label_write_links "$file" | tr -d '\000-\010\013\014\016-\037\177')
   if [[ "${#problems[@]}" -gt 0 ]]; then
     for item in "${problems[@]}"; do
       printf 'problem: %s\n' "$item"
@@ -893,6 +977,78 @@ OBS
     if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
   else
     ok 'skipped the comment and label checks of verify: jq is not installed'
+  fi
+
+  # --- verify: a label write on an issue this run created belongs to that issue's creation and triage ---
+  local lnk="$tmp/link.audit"
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 12 +label early -> https://example.test/o/r/issues/12|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue create -> https://example.test/o/r/issues/7|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 7 +label bug +label priority: medium -> https://example.test/o/r/issues/7|ok (exit 0)
+donatello|2026-11-11T10:03:00Z|external-write|gh issue edit 9 +label stale -> https://example.test/o/r/issues/9|ok (exit 0)
+donatello|2026-11-11T10:04:00Z|external-write|gh issue create -> https://example.test/o/r/issues/12|ok (exit 0)
+donatello|2026-11-11T10:05:00Z|external-write|gh issue edit 7 -label bug|ok (exit 0)
+donatello|2026-11-11T10:06:00Z|external-write|gh pr edit 5 +label ready to merge -> https://example.test/o/r/pull/5|ok (exit 0)
+donatello|2026-11-11T10:07:00Z|external-write|https://example.test/o/r/issues/20|sub-issue created under https://example.test/o/r/issues/1 (exit 0)
+donatello|2026-11-11T10:08:00Z|external-write|gh issue edit 20 +label tech-debt -> https://example.test/o/r/issues/20|ok (exit 0)
+donatello|2026-11-11T10:09:00Z|external-write|gh issue edit 7 --title only -> https://example.test/o/r/issues/7|ok (exit 0)
+LNK
+  local lnk_before
+  lnk_before="$(cksum <"$lnk")"
+  rc=0
+  "$script" verify --file "$lnk" >"$tmp/link.out" || rc=$?
+  expect_eq 'a ledger of label writes on created issues is accepted' "$rc" 0
+  if grep -q '^linked: https://example.test/o/r/issues/7 was created by this run (line 2); label writes on line(s) 3, 6 belong to its creation and triage: +label bug; +label priority: medium; -label bug$' "$tmp/link.out"; then
+    ok 'verify shows the label writes on a created issue as part of its creation and triage'
+  else
+    bad "verify missed the link to a created issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^linked: https://example.test/o/r/issues/20 was created by this run (line 8); label writes on line(s) 9 belong to its creation and triage: +label tech-debt$' "$tmp/link.out"; then
+    ok 'verify links the label writes to an issue that a wrapper created, named by its URL'
+  else
+    bad "verify missed the wrapper-created issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/issues/9 (line 4) is not part of an issue this run created: +label stale$' "$tmp/link.out"; then
+    ok 'a label write on an issue the run did not create is shown on its own'
+  else
+    bad "verify folded a label write on another issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/issues/12 (line 1) is not part of an issue this run created: +label early$' "$tmp/link.out"; then
+    ok 'a label write that comes before the creation of its issue is shown on its own'
+  else
+    bad "verify linked a label write that predates the issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/pull/5 (line 7) is not part of an issue this run created: +label ready to merge$' "$tmp/link.out"; then
+    ok 'a label write on a pull request is shown on its own'
+  else
+    bad "verify missed the pull request label write: $(cat "$tmp/link.out")"
+  fi
+  if [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 2 && "$(grep -c '^standalone: ' "$tmp/link.out")" == 3 ]] && ! grep -q 'line(s) 10\|--title' "$tmp/link.out"; then
+    ok 'verify shows each label write once and ignores an edit that changes no label'
+  else
+    bad "verify counted the writes wrongly: $(cat "$tmp/link.out")"
+  fi
+  expect_eq 'verify never rewrites a ledger line to show the link' "$(cksum <"$lnk")" "$lnk_before"
+  if ! grep -q '^problem: \|^not verified: ' "$tmp/link.out"; then ok 'a linked or standalone label write is neither a problem nor not verified'; else bad "verify raised a finding for a label write: $(cat "$tmp/link.out")"; fi
+
+  # A bare issue number links only when exactly one issue of that number was created by the run.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/3|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 3 +label bug|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue create -> https://example.test/o/s/issues/4|ok (exit 0)
+donatello|2026-11-11T10:03:00Z|external-write|gh issue create -> https://example.test/o/t/issues/4|ok (exit 0)
+donatello|2026-11-11T10:04:00Z|external-write|gh issue edit 4 +label bug|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^linked: https://example.test/o/r/issues/3 was created by this run (line 1); label writes on line(s) 2 belong to its creation and triage: +label bug$' "$tmp/link.out"; then
+    ok 'a bare issue number links to the one issue of that number that the run created'
+  else
+    bad "verify missed the bare issue number: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on issue 4 (line 5) is not part of an issue this run created: +label bug$' "$tmp/link.out" && [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 1 ]]; then
+    ok 'a bare issue number that two created issues share links to neither'
+  else
+    bad "verify linked an ambiguous issue number: $(cat "$tmp/link.out")"
   fi
 
   # --- a package wrapper records its own write: the GitHub comment publisher --------------------
