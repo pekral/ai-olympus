@@ -50,17 +50,26 @@ function auditRunCloseOutcome(array $command): array
 dataset('close commands that post a comment', [
     'issue --comment' => [['gh', 'issue', 'close', '5', '--comment', 'x']],
     'issue -c' => [['gh', 'issue', 'close', '5', '-c', 'x']],
+    'issue reopen --comment' => [['gh', 'issue', 'reopen', '5', '--comment', 'x']],
     'pr --comment=' => [['gh', 'pr', 'close', '5', '--comment=x']],
     'pr in a short bundle' => [['gh', 'pr', 'close', '5', '-dc', 'x']],
+    'pr reopen --comment=' => [['gh', 'pr', 'reopen', '5', '--comment=x']],
+    'pr reopen -c' => [['gh', 'pr', 'reopen', '5', '-c', 'x']],
     'pr value stuck to the option' => [['gh', 'pr', 'close', '5', '-cx']],
 ]);
 
-test('run refuses a close that posts a comment, runs nothing, and writes no line', function (array $command): void {
+test('run refuses a close or a reopen that posts a comment, runs nothing, and writes no line', function (array $command): void {
     /** @var list<string> $command */
     expect(auditRunCloseOutcome($command))->toEqual(['exitCode' => 64, 'ran' => false, 'lines' => 0]);
 })->with('close commands that post a comment');
 
-test('run still allows a close that posts no comment', function (): void {
-    expect(auditRunCloseOutcome(['gh', 'pr', 'close', '5', '--delete-branch']))
-        ->toEqual(['exitCode' => 0, 'ran' => true, 'lines' => 1]);
-});
+dataset('commands that post no comment', [
+    'issue reopen' => [['gh', 'issue', 'reopen', '5']],
+    'pr close --delete-branch' => [['gh', 'pr', 'close', '5', '--delete-branch']],
+    'pr merge with a merge commit body' => [['gh', 'pr', 'merge', '5', '--body', 'x', '--subject', 'y']],
+]);
+
+test('run still allows a command that posts no comment', function (array $command): void {
+    /** @var list<string> $command */
+    expect(auditRunCloseOutcome($command))->toEqual(['exitCode' => 0, 'ran' => true, 'lines' => 1]);
+})->with('commands that post no comment');
