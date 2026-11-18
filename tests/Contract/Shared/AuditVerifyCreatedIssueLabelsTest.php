@@ -126,7 +126,20 @@ test('the rule describes the linked line the way the check prints it', function 
     $rule = (string) file_get_contents(dirname(__DIR__, 3) . '/rules/compound-engineering/orchestration.md');
 
     expect($rule)->toContain(
-        'prints a `linked:` line for each issue that an earlier `gh issue create` line names and that has at least one later label write',
+        'prints a `linked:` line for each issue that an earlier creation line names and that has at least one later label write',
+    )->toContain('or a wrapper line (`file-deferred-moderate.sh`) whose target is the issue URL and whose result says `created`');
+});
+
+test('the issue that a wrapper created is linked by the URL that is the target of its line', function (): void {
+    $result = auditVerifyLedgerLines([
+        'donatello|2026-11-11T10:00:00Z|external-write|https://example.test/o/r/issues/20|'
+            . 'sub-issue created under https://example.test/o/r/issues/1 (exit 0)',
+        'donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 20 +label tech-debt -> https://example.test/o/r/issues/20|ok (exit 0)',
+    ]);
+
+    expect($result['output'])->toContain(
+        'linked: https://example.test/o/r/issues/20 was created by this run (line 1); '
+            . 'label writes on line(s) 2 belong to its creation and triage: +label tech-debt',
     );
 });
 

@@ -11,11 +11,13 @@ const AUDIT_SCOPE_FAKE_GH = <<<'BASH'
 #!/usr/bin/env bash
 case "$*" in
 "api user --jq .login") echo bot ;;
+"repo view --json nameWithOwner --jq .nameWithOwner") echo o/r ;;
 *"issues/5/timeline"*)
   printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tsurprise\n'
   printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tother-tag\n'
   printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tby-number\n'
   ;;
+*"issues/7/timeline"*) printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tbug\n' ;;
 esac
 BASH;
 
@@ -50,7 +52,7 @@ test('a label written on another issue is not a record of the same label on the 
     $output = implode("\n", auditScopeVerifyOutput([
         'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 8 +label surprise -> https://example.test/o/r/issues/8|ok (exit 0)',
         'donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 5 +label other-tag -> https://example.test/o/r/issues/5|ok (exit 0)',
-        'donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 5 +label by-number|ok (exit 0)',
+        'donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 5 +label by-number -> https://example.test/o/r/issues/5|ok (exit 0)',
     ], '5'));
 
     expect($output)->toContain('not verified: label \'surprise\' labeled')
@@ -65,4 +67,16 @@ test('an issue URL names the issue under check with its repository, and another 
 
     expect(implode("\n", auditScopeVerifyOutput($lines, 'https://example.test/o/r/issues/5')))
         ->toContain('not verified: label \'surprise\' labeled');
+});
+
+test('a bare issue number names the current repository, so a label written on that number elsewhere is no record', function (): void {
+    $other = 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/other/issues/7|ok (exit 0)';
+    $here = 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/r/issues/7|ok (exit 0)';
+    $without = 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug|ok (exit 0)';
+    $second = 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 3 7 +label bug -> https://example.test/o/other/issues/3|ok (exit 0)';
+
+    expect(implode("\n", auditScopeVerifyOutput([$other], '7')))->toContain('not verified: label \'bug\' labeled')
+        ->and(implode("\n", auditScopeVerifyOutput([$without], '7')))->toContain('not verified: label \'bug\' labeled')
+        ->and(implode("\n", auditScopeVerifyOutput([$second], '7')))->toContain('not verified: label \'bug\' labeled')
+        ->and(implode("\n", auditScopeVerifyOutput([$here], '7')))->not->toContain('label \'bug\'');
 });

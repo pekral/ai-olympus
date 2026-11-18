@@ -266,27 +266,37 @@ close_has_comment() {
   return 1
 }
 
-# Every issue or pull request that a `gh pr|issue <command>` names, as " <number or URL>" for each: a
-# command can name several, and each one is part of the write. The value of a option that takes one is
-# skipped, so a title or a milestone is never read as an issue.
+# Every issue or pull request that a `gh pr|issue edit` names, as " <number or URL>" for each: an edit can
+# name several, and each one is part of the write. Only a positional argument counts. An option takes the
+# next word as its value unless it is a known flag without a value or carries its value after `=`, so the
+# value of a title, a milestone, or a relation option (`--parent`, `--add-blocked-by`) is never read as an
+# issue. After `--` every word is positional.
 edit_refs() {
-  local out="" skip=0 arg
+  local out="" skip=0 end=0 arg
   for arg in "$@"; do
     if [[ "$skip" -eq 1 ]]; then
       skip=0
       continue
     fi
-    case "$arg" in
-    -a | --add-assignee | --add-label | --add-project | -b | --body | -F | --body-file | -m | --milestone | --remove-assignee | --remove-label | --remove-project | -t | --title | -R | --repo | -B | --base | -r | --add-reviewer | --remove-reviewer)
-      skip=1
-      continue
-      ;;
-    esac
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      --remove-milestone | -h | --help) continue ;;
+      -*=*) continue ;;
+      -*) skip=1; continue ;;
+      esac
+    fi
     if [[ "$arg" =~ ^#?[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then
       out="$out ${arg#\#}"
     fi
   done
   printf '%s' "$out"
+}
+
+# The one issue or pull request that a `gh pr|issue <command>` other than `edit` names: its first argument.
+first_ref() {
+  local arg="${1:-}"
+  if [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then printf ' %s' "$arg"; fi
 }
 
 # Describe an allowed write command in a bounded, secret-free target; return 1 when it is not allowed.
@@ -322,12 +332,12 @@ describe_command() {
   "gh pr")
     [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
     if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
-    printf 'gh pr %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
+    printf 'gh pr %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
     [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
     if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
-    printf 'gh issue %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
+    printf 'gh issue %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh label")
     [[ " create edit delete " == *" $sub2 "* ]] || return 1
@@ -472,16 +482,25 @@ label_recorded() {
       number = ENVIRON["ITEM_NUMBER"]
       repository = ENVIRON["ITEM_REPO"]
     }
+    function repository_of(url,   rest, part) {
+      if (!match(url, /^https?:\/\/[^\/]+\/[^\/]+\/[^\/]+\/(issues|pull)\//)) return ""
+      rest = url
+      sub(/^https?:\/\/[^\/]+\//, "", rest)
+      split(rest, part, "/")
+      return part[1] "/" part[2]
+    }
     function url_matches(url) {
       return url ~ ("/(issues|pull)/" number "$") && (repository == "" || index(url, "/" repository "/") > 0)
     }
-    function names_item(   count, ref, i) {
+    function names_item(   count, ref, i, owner) {
       count = split($4, ref, " ")
       if (count == 0) return url_matches($5)
+      owner = repository_of($5)
+      for (i = 1; i <= count && owner == ""; i++) if (ref[i] ~ /^https?:/) owner = repository_of(ref[i])
       for (i = 1; i <= count; i++) {
         if (ref[i] ~ /^https?:/) { if (url_matches(ref[i])) return 1 }
         else if (i == 1 && $5 != "") { if (url_matches($5)) return 1 }
-        else if (ref[i] == number) return 1
+        else if (ref[i] == number && (repository == "" || owner == repository)) return 1
       }
       return 0
     }
@@ -516,6 +535,7 @@ observe_item() {
   elif [[ "$item" =~ ^[0-9]+$ ]]; then
     base="repos/{owner}/{repo}/issues/$item"
     item_number="$item"
+    item_repo="$current_repo"
   else
     notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
     return 0
@@ -679,9 +699,11 @@ cmd_verify() {
   fi
 
   if [[ -n "$pr" || -n "$issue" ]]; then
-    local since login
+    local since login current_repo
     since="$(awk -F'|' 'NF == 5 && $2 ~ /Z$/ { print $2; exit }' "$file")"
     login="$(gh api user --jq .login 2>/dev/null || true)"
+    current_repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+    [[ "$current_repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || current_repo=""
     if [[ -z "$since" || -z "$login" ]]; then
       notes+=("the comments and the label changes of the account could not be compared with the ledger (no ledger time, or the account login could not be read)")
     else
@@ -968,7 +990,7 @@ EOF
 donatello|2026-11-11T10:00:00Z|external-write|gh pr create -> https://example.test/o/r/pull/5|ok (exit 0)
 donatello|2026-11-11T10:30:00Z|external-write|https://example.test/o/r/issues/5#issuecomment-101|created (exit 0)
 donatello|2026-11-11T10:35:00Z|external-write|https://example.test/o/r/pull/5#pullrequestreview-902|created review with 2 inline comments
-donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge +label other-tag|ok (exit 0)
+donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge +label other-tag -> https://example.test/o/r/pull/5|ok (exit 0)
 OBS
     mkdir -p "$tmp/obsbin"
     cat >"$tmp/obsbin/gh" <<'OBSGH'
@@ -982,6 +1004,7 @@ for arg in "$@"; do
 done
 case "$*" in
 "api user --jq .login") echo bot ;;
+"repo view --json nameWithOwner --jq .nameWithOwner") echo o/r ;;
 *"issues/5/comments"*)
   jq -r "$expr" <<'JSON'
 [
@@ -1078,7 +1101,7 @@ OBS
     cat >"$scoped" <<'SCOPED'
 donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 8 +label surprise +label tag -> https://example.test/o/r/issues/8|ok (exit 0)
 donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 5 +label other-tag -> https://example.test/o/r/issues/5|ok (exit 0)
-donatello|2026-11-11T10:02:00Z|external-write|gh pr edit 5 +label ready to merge|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh pr edit 5 +label ready to merge -> https://example.test/o/r/pull/5|ok (exit 0)
 SCOPED
     PATH="$tmp/obsbin:$PATH" "$script" verify --file "$scoped" --issue 5 >"$tmp/scoped.out" || true
     if grep -q "^not verified: label 'surprise' labeled " "$tmp/scoped.out" && grep -q "^not verified: label 'tag' labeled " "$tmp/scoped.out"; then
@@ -1091,6 +1114,31 @@ SCOPED
     else
       bad "verify lost a label of the issue under check: $(cat "$tmp/scoped.out")"
     fi
+
+    # A bare number names the repository of the current directory, never another repository.
+    mkdir "$tmp/repobin"
+    cat >"$tmp/repobin/gh" <<'REPOGH'
+#!/usr/bin/env bash
+case "$*" in
+"api user --jq .login") echo bot ;;
+"repo view --json nameWithOwner --jq .nameWithOwner") echo o/r ;;
+*"issues/7/timeline"*) printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tbug\n' ;;
+esac
+REPOGH
+    chmod +x "$tmp/repobin/gh"
+    local other="$tmp/other.audit"
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/other/issues/7|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a label written on issue 7 of another repository is no record for issue 7 of this one'; else bad "verify counted another repository: $(cat "$tmp/other.out")"; fi
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/r/issues/7|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if ! grep -q "label 'bug'" "$tmp/other.out"; then ok 'a label written on issue 7 of this repository is recorded for a bare issue 7'; else bad "verify lost a label of this repository: $(cat "$tmp/other.out")"; fi
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a label write that names no repository is no record for a bare issue 7'; else bad "verify counted a write with no repository: $(cat "$tmp/other.out")"; fi
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 3 7 +label bug -> https://example.test/o/other/issues/3|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a second number of an edit takes the repository of the URL the edit printed'; else bad "verify counted a second number of another repository: $(cat "$tmp/other.out")"; fi
   else
     ok 'skipped the comment and label checks of verify: jq is not installed'
   fi
@@ -1206,6 +1254,34 @@ EDITGH
   else
     bad "verify linked a multi-issue edit: $(cat "$tmp/link.out")"
   fi
+
+  # Only an edit names every issue it changes, and only a positional argument names one.
+  mkdir "$tmp/refbin"
+  cat >"$tmp/refbin/gh" <<'REFGH'
+#!/usr/bin/env bash
+echo "https://example.test/o/r/issues/100"
+REFGH
+  chmod +x "$tmp/refbin/gh"
+  local refcase refwant
+  while IFS='>' read -r refcase refwant; do
+    : >"$lnk"
+    # shellcheck disable=SC2086
+    AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/refbin:$PATH" "$script" run -- $refcase >/dev/null
+    expect_eq "run records '$refcase' as '$refwant'" "$(awk -F'|' '{ print $4 }' "$lnk" | sed 's/ -> .*//')" "$refwant"
+  done <<'REFS'
+gh issue edit 100 --parent 7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --add-sub-issue https://example.test/o/r/issues/7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --add-blocked-by 7 --remove-blocking 8 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --duplicate-of 7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit --add-label bug -- 100 7>gh issue edit 100 7 +label bug
+gh issue close 5 --reason https://example.test/o/r/pull/632>gh issue close 5
+gh pr merge 5 --subject 77>gh pr merge 5
+gh issue create --label 7>gh issue create
+gh pr create --head 5>gh pr create
+REFS
+  : >"$lnk"
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/refbin:$PATH" "$script" run -- gh issue close 5 --reason https://example.test/o/r/pull/632 >/dev/null
+  if ! grep -q 'pull/632' "$lnk"; then ok 'the value of an option of a close names no pull request in the ledger'; else bad "a close line names a pull request through an option: $(cat "$lnk")"; fi
 
   # The URLs that an edit printed are all part of its line: a second URL is a second issue.
   cat >"$lnk" <<'LNK'
