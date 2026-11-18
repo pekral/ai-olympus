@@ -11,16 +11,8 @@ function stoppedSwapFile(string $relativePath): string
     return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
 }
 
-function stoppedSwapSection(string $content, string $heading, string $marker = "\n## "): string
-{
-    $start = (int) strpos($content, $heading);
-    $end = strpos($content, $marker, $start + strlen($heading));
-
-    return $end === false ? substr($content, $start) : substr($content, $start, $end - $start);
-}
-
 test('the saved copy is checked before the fixed files are restored (issue #622)', function (): void {
-    $section = stoppedSwapSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## Attack the fix before the push');
+    $section = installerDocsSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## Attack the fix before the push');
     $check = (int) strpos($section, '2. Check the saved copy before anything is restored.');
     $restore = (int) strpos($section, '3. Restore the fixed tracked files with `git restore --source=HEAD --worktree');
     $attacks = (int) strpos($section, '4. Run the attacks.');
@@ -33,7 +25,7 @@ test('the saved copy is checked before the fixed files are restored (issue #622)
 });
 
 test('the check names each condition of a complete saved copy (issue #622)', function (string $condition): void {
-    $section = stoppedSwapSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## Attack the fix before the push');
+    $section = installerDocsSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## Attack the fix before the push');
 
     expect($section)->toContain($condition);
 })->with([
@@ -45,7 +37,7 @@ test('the check names each condition of a complete saved copy (issue #622)', fun
 
 test('a stop of the swap names the saved copy, its worktree, the reason, and what was restored (issue #622)', function (string $item): void {
     $reference = stoppedSwapFile(STOPPED_SWAP_REFERENCE);
-    $subsection = stoppedSwapSection($reference, '### A stopped swap keeps its saved copy');
+    $subsection = installerDocsSection($reference, '### A stopped swap keeps its saved copy');
 
     expect($subsection)->toContain($item);
 })->with([
@@ -61,16 +53,8 @@ test('a stop of the swap names the saved copy, its worktree, the reason, and wha
     'what was restored' => ['4. what was restored: nothing, or the tracked files restored by swap step 3 before the stop.'],
 ]);
 
-test('the swap directory is deleted only after the round-trip check (issue #622)', function (): void {
-    $section = stoppedSwapSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## Attack the fix before the push');
-
-    expect($section)
-        ->toContain('Delete the swap directory after the check passes.')
-        ->toContain('name the swap path in the handoff, and keep the worktree:');
-});
-
 test('the fix handoff carries the stop report of a stopped swap (issue #622)', function (): void {
-    $handoff = stoppedSwapSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## The handoff');
+    $handoff = installerDocsSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '## The handoff');
 
     expect($handoff)->toContain(
         'A fix attempt that stopped during the swap also hands back the stop report of *A stopped swap keeps its saved copy*: '
@@ -87,30 +71,96 @@ test('the stopped-swap rule stays in the owner reference only (issue #622)', fun
     'agents/leonardo.md',
 ]);
 
-test('krang keeps the worktree of a stopped swap and names it with the reason (issue #622)', function (string $text): void {
+test('krang reports a stopped swap and names every kept tree with its reason (issue #622)', function (string $text): void {
     expect(stoppedSwapFile('agents/krang.md'))->toContain($text);
 })->with([
-    'a blocked stop reports it too' => ['on a `Blocked` stop too.'],
-    'every kept worktree has a reason' => ['**Every worktree this item leaves in place is named in the report with its reason**'],
+    'every kept worktree has a reason' => ['**Every worktree that *Run cleanup* leaves in place is named in the report with its reason**'],
     'the owner reference' => ['`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*'],
-    'the report copy' => ['Copy the swap path, the worktree path, and the reason from that handoff into the `Kept worktrees` item of the final report.'],
-    'the report item' => ['- **Kept worktrees:** each worktree *Run cleanup* left in place, as its absolute path and the reason it is kept'],
+    'the report copy' => ['into the `Kept worktrees` item of the final report before the brief is deleted'],
+    'the report item' => ['- **Kept worktrees:** each worktree or tree *Run cleanup* left in place, as its absolute path and the reason it is kept'],
+    'the report reads it on a blocked stop' => ['Read it from the specialist handoffs and the cleanup result before the run ends, on a `Blocked` stop too.'],
+    'the report reads none only when nothing is kept' => ['`none` only when *Run cleanup* removed every worktree the run created, left no tree in place, and no `donatello` handoff named a swap directory'],
     'the swap directory in the report' => ['also the absolute path of the swap directory that holds the saved copy, and what the fix attempt restored'],
-    'the worktree stays' => ['**A worktree that holds a stopped swap stays, whatever its state.**'],
 ]);
 
-test('the kept-worktree item sits in Run cleanup and the report lists it before the memory entries (issue #622)', function (): void {
+test('the stopped-swap item is its own Run cleanup item for the shared working tree too (issue #622)', function (): void {
     $krang = stoppedSwapFile('agents/krang.md');
-    $cleanup = (int) strpos($krang, '**A worktree that holds a stopped swap stays, whatever its state.**');
-    $implementation = (int) strpos($krang, '**Remove the implementation worktree of a parallel unit**');
-    $memoryWrite = (int) strpos($krang, '- **Write the memory entries**');
+    $item = '   - **Keep every tree that holds a stopped swap, and report it.**';
+    $position = (int) strpos($krang, $item);
+    $implementation = (int) strpos($krang, '   - **Remove the implementation worktree of a parallel unit**');
+    $memoryWrite = (int) strpos($krang, '   - **Write the memory entries**');
     $reportItem = (int) strpos($krang, '- **Kept worktrees:**');
     $memoryItem = (int) strpos($krang, '- **Memory entries:**');
 
-    expect($cleanup)->toBeGreaterThan($implementation)
-        ->and($cleanup)->toBeLessThan($memoryWrite)
+    expect($position)->toBeGreaterThan($implementation)
+        ->and($position)->toBeLessThan($memoryWrite)
         ->and($reportItem)->toBeGreaterThan(0)
-        ->and($reportItem)->toBeLessThan($memoryItem);
+        ->and($reportItem)->toBeLessThan($memoryItem)
+        ->and(substr($krang, $position, $memoryWrite - $position))
+        ->toContain('The tree is the parallel-unit worktree, the batch unit worktree, or the shared working tree')
+        ->toContain('run no `git restore`, `git checkout`, or `git clean` in the tree');
+});
+
+test('every removal path of a worktree checks for a swap directory first (issue #622)', function (string $relativePath, string $anchor): void {
+    expect(stoppedSwapFile($relativePath))->toContain($anchor);
+})->with([
+    'krang Run cleanup' => ['agents/krang.md', 'Check every worktree for a swap directory before you remove it.'],
+    'the batch unit removal' => ['skills/_shared/orchestration/batch-preparation.md', '- **A swap directory keeps the worktree.**'],
+    'the general worktree cleanup' => ['rules/git/general.md', 'and it holds no swap directory'],
+    'the post-merge removal' => ['skills/merge-github-pr/SKILL.md', 'If active, dirty, or holding a swap directory, skip removal and report it'],
+    'the startup sweep' => ['skills/_shared/orchestration/stale-run-recovery.md', '**Verify it holds no swap directory before the removal.**'],
+]);
+
+test('each removal path that carries the check points to the owner reference (issue #622)', function (string $relativePath): void {
+    expect(stoppedSwapFile($relativePath))
+        ->toContain('`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*');
+})->with([
+    'agents/krang.md',
+    'skills/_shared/orchestration/stale-run-recovery.md',
+    'skills/_shared/orchestration/batch-preparation.md',
+    'rules/git/general.md',
+]);
+
+test('the owner reference states the swap-directory check once for every removal (issue #622)', function (string $text): void {
+    $subsection = installerDocsSection(stoppedSwapFile(STOPPED_SWAP_REFERENCE), '### A stopped swap keeps its saved copy');
+
+    expect($subsection)->toContain($text);
+})->with([
+    'the clean check misses it' => ['The swap directory is git-ignored, so `git status --porcelain` prints nothing for it'],
+    'the Codex path' => ['`.codex/run/attack` on Codex'],
+    'the command' => ['`find <path>/.claude/run/attack -mindepth 1 -maxdepth 1`'],
+    'the removal paths' => ['`krang` *Run cleanup*, the startup sweep, the removal of a batch unit, and the removal after a merge'],
+    'the rule' => ['**A worktree that holds a swap directory is never removed.**'],
+]);
+
+test('the documented swap-directory check finds an ignored swap that the clean check misses (issue #622)', function (): void {
+    $root = sys_get_temp_dir() . '/ai-olympus-swap-' . bin2hex(random_bytes(4));
+    $repository = $root . '/repository';
+    $worktree = $root . '/worktree';
+    $git = 'git -c commit.gpgsign=false -c user.name=test -c user.email=test@example.com -C ' . escapeshellarg($repository);
+    $check = 'find ' . escapeshellarg($worktree . '/.claude/run/attack') . ' -mindepth 1 -maxdepth 1 2>/dev/null';
+    mkdir($repository, 0777, recursive: true);
+    file_put_contents($repository . '/.gitignore', ".claude/run/\n");
+    shell_exec($git . ' init -q 2>&1');
+    shell_exec($git . ' add .gitignore 2>&1');
+    shell_exec($git . ' commit -q -m base 2>&1');
+    shell_exec($git . ' worktree add -q ' . escapeshellarg($worktree) . ' -b swap-test 2>&1');
+
+    $withoutDirectory = (string) shell_exec($check);
+    mkdir($worktree . '/.claude/run/attack', 0777, recursive: true);
+    $withEmptyParent = (string) shell_exec($check);
+    mkdir($worktree . '/.claude/run/attack/AbCd1234');
+    $withSwap = trim((string) shell_exec($check));
+    $status = (string) shell_exec('git -C ' . escapeshellarg($worktree) . ' status --porcelain 2>&1');
+    $removal = (string) shell_exec($git . ' worktree remove ' . escapeshellarg($worktree) . ' 2>&1; echo $?');
+
+    installerRemoveDirectory($root);
+
+    expect($withoutDirectory)->toBe('')
+        ->and($withEmptyParent)->toBe('')
+        ->and($withSwap)->toEndWith('/.claude/run/attack/AbCd1234')
+        ->and($status)->toBe('')
+        ->and(trim($removal))->toBe('0');
 });
 
 test('Claude Code and Codex install the stopped-swap rule and the kept-worktree report item (issue #622)', function (): void {
