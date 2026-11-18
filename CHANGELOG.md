@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🐛 **Fixed**: a project manifest that exists on the default branch but cannot be read is reported, never read as an empty one (#621). `skills/_shared/read-manifest.sh` tells a `composer.json` that is absent on the ref (an empty manifest, exit `0`, no report) from one that is present but that git cannot read: it names the file on stderr and exits `3`, as it already did for invalid JSON, with `{}` on stdout for the default form and nothing for `--raw` and `--env`. The callers that fall back to the built-in behaviour after exit `3` (`analyze-recurrence.sh`, `plan-parallel.sh`, `project-commands.sh`, `review-state.sh`, and `resolve-voice.sh`) now print that report instead of discarding it. The self-test of the reader and `tests/Contract/Shared/ReadManifestUnreadableTest.php` pin both cases.
+
 ## [0.5.2] - 2026-11-17
 
 - 🔒 **Fixed**: `skills/github-issue-triage/scripts/assign-priorities.sh` validates the issue number against `^[1-9][0-9]*$` right before each `gh issue edit`, in the full walk and with `--issue`, and refuses the write otherwise. The self-test pins six refused forms.

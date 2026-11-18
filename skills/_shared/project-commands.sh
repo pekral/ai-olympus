@@ -181,7 +181,7 @@ load_project_manifest() {
   local reader project entry
   reader="$PROJECT_COMMANDS_DIR/read-manifest.sh"
   [[ -f "$reader" ]] || return 0
-  project="$(bash "$reader" 2>/dev/null)" || project='{}'
+  project="$(bash "$reader" 2>/dev/null)" || { [[ $? -ne 3 ]] || bash "$reader" >/dev/null || true; project='{}'; }
   PROJECT_MANIFEST="$project"
 
   if [[ "$project" == '{}' && -z "${PROJECT_DEFAULT_REF_HINTED:-}" ]]; then

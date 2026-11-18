@@ -356,7 +356,7 @@ effective_config() {
 
 manifest_config() {
   local manifest
-  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || manifest='{}'
+  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$HERE/read-manifest.sh" >/dev/null || true; manifest='{}'; }
   printf '%s' "$manifest" | jq -r --argjson def "$DEFAULT_CAP" --argjson max "$MAX_CAP" '
     (if type == "object" and (.review | type) == "object" then .review else {} end) as $r
     | $r["max-iterations"] as $c

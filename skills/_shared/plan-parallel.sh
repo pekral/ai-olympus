@@ -139,7 +139,7 @@ die() {
 limit_from_manifest() {
   local manifest raw
   MAX_CONCURRENT="$DEFAULT_MAX_UNITS"
-  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || return 0
+  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$HERE/read-manifest.sh" >/dev/null || true; return 0; }
   raw="$(printf '%s' "$manifest" | jq -r '
     if (.parallel | type) == "object" and (.parallel | has("max-units")) then (.parallel["max-units"] | tojson) else "unset" end
   ' 2>/dev/null)" || return 0

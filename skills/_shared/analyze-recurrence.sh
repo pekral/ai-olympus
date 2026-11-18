@@ -215,7 +215,7 @@ EOF
 # `invalid` when it is not a number.
 manifest_setting() {
   local manifest
-  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || manifest='{}'
+  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$HERE/read-manifest.sh" >/dev/null || true; manifest='{}'; }
   printf '%s' "$manifest" | jq -r --arg s "$1" --arg k "$2" '
     try (
       (.[$s] // {}) as $r

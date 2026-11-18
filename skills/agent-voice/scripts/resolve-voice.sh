@@ -59,7 +59,10 @@ CASES
 
 case "${1:-}" in
 "")
-  manifest="$("$HERE/../../_shared/read-manifest.sh" 2>/dev/null)" || manifest="{}"
+  manifest="$("$HERE/../../_shared/read-manifest.sh" 2>/dev/null)" || {
+    [[ $? -ne 3 ]] || "$HERE/../../_shared/read-manifest.sh" >/dev/null || true
+    manifest="{}"
+  }
   voice_of_manifest "$manifest"
   ;;
 --stdin)
