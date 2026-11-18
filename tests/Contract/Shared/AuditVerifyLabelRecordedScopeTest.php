@@ -36,8 +36,7 @@ function auditScopeVerifyOutput(array $lines, string $issue): array
     try {
         $process = new Process(
             [dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'verify', '--file', $ledger['file'], '--issue', $issue],
-            null,
-            ['PATH' => $bin . PATH_SEPARATOR . ($path === false ? '/usr/bin:/bin' : $path)],
+            env: ['PATH' => $bin . PATH_SEPARATOR . ($path === false ? '/usr/bin:/bin' : $path)],
         );
         $process->run();
 
@@ -54,9 +53,9 @@ test('a label written on another issue is not a record of the same label on the 
         'donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 5 +label by-number|ok (exit 0)',
     ], '5'));
 
-    expect($output)->toContain("not verified: label 'surprise' labeled")
-        ->and($output)->not->toContain("label 'other-tag'")
-        ->and($output)->not->toContain("label 'by-number'");
+    expect($output)->toContain('not verified: label \'surprise\' labeled')
+        ->and($output)->not->toContain('label \'other-tag\'')
+        ->and($output)->not->toContain('label \'by-number\'');
 });
 
 test('an issue URL names the issue under check with its repository, and another repository does not', function (): void {
@@ -65,5 +64,5 @@ test('an issue URL names the issue under check with its repository, and another 
     ];
 
     expect(implode("\n", auditScopeVerifyOutput($lines, 'https://example.test/o/r/issues/5')))
-        ->toContain("not verified: label 'surprise' labeled");
+        ->toContain('not verified: label \'surprise\' labeled');
 });

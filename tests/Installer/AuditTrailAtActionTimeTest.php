@@ -209,7 +209,7 @@ test('run refuses a comment path and verify reads only the comments that carry a
     expect($source)->not->toContain('close reopen comment');
     expect($source)
         ->toContain('test("<!-- [a-z][a-z0-9-]*:actor=")')
-        ->toContain('label_recorded "$sign" "$name" || note_names "label $name"')
+        ->toContain('label_recorded "$sign" "$name" "$item_number" "$item_repo" || note_names "label $name"')
         ->toContain('note_names "comment $id"');
     expect($section)
         ->toContain('`run` refuses `gh pr comment`, `gh pr review`, and `gh issue comment` with exit 64')
