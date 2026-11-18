@@ -46,13 +46,13 @@
 #     pull-request review and every review comment of the account that carries an agent marker: an
 #     `external-write` line must name `pullrequestreview-<id>` of the review;
 #   - with --pr or --issue, every label the account added (`+label <name>`) or removed (`-label <name>`)
-#     since the first ledger line is named by an `external-write` line. A label event carries no
-#     marker, so an unrecorded one is `not verified:`, never a problem;
+#     since the first ledger line is named by an `external-write` line that names the same issue. A label
+#     event carries no marker, so an unrecorded one is `not verified:`, never a problem;
 #   - a later `note` line whose target is `comment <id>` or `label <name>` resolves that comment or label;
 #   - the ledger alone shows which label writes belong to an issue the run created: a `linked:` line names
-#     the issue, the line of its creation, and the label writes of the lines after it; a `standalone:` line
-#     names a label write on any other issue or pull request. Both are information, never a problem, and no
-#     ledger line is rewritten to show the link.
+#     the issue, the line of its creation, and the label writes of the later lines that name exactly that
+#     one issue by its URL; a `standalone:` line names every other label write. Both are information, never
+#     a problem, and no ledger line is rewritten to show the link.
 #   A check that needs the network and cannot run prints `not verified: …` and never fails verify.
 #
 # Output (stdout of verify): `problem: …`, `not verified: …`, `linked: …`, and `standalone: …` lines, then `audit trail ok: …` when there is no problem.
@@ -250,6 +250,29 @@ label_changes() {
   printf '%s' "$out"
 }
 
+# Every issue or pull request that a `gh pr|issue <command>` names, as " <number or URL>" for each: a
+# command can name several, and each one is part of the write. The value of a option that takes one is
+# skipped, so a title or a milestone is never read as an issue.
+edit_refs() {
+  local out="" skip=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    case "$arg" in
+    -a | --add-assignee | --add-label | --add-project | -b | --body | -F | --body-file | -m | --milestone | --remove-assignee | --remove-label | --remove-project | -t | --title | -R | --repo | -B | --base | -r | --add-reviewer | --remove-reviewer)
+      skip=1
+      continue
+      ;;
+    esac
+    if [[ "$arg" =~ ^#?[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then
+      out="$out ${arg#\#}"
+    fi
+  done
+  printf '%s' "$out"
+}
+
 # Describe an allowed write command in a bounded, secret-free target; return 1 when it is not allowed.
 describe_command() {
   local -a argv=("$@")
@@ -282,15 +305,11 @@ describe_command() {
     ;;
   "gh pr")
     [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
-    arg="${argv[3]:-}"
-    [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
-    printf 'gh pr %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
+    printf 'gh pr %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
     [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
-    arg="${argv[3]:-}"
-    [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]] || arg=""
-    printf 'gh issue %s%s%s' "$sub2" "${arg:+ $arg}" "$(label_changes "${argv[@]:3}")"
+    printf 'gh issue %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh label")
     [[ " create edit delete " == *" $sub2 "* ]] || return 1
@@ -327,6 +346,10 @@ cmd_run() {
 
   local url head="" detail=""
   url="$(awk 'match($0, /https:\/\/[^ \t]+/) { print substr($0, RSTART, RLENGTH); exit }' "$out")"
+  # An edit prints the URL of each issue or pull request it changed: the line names all of them.
+  if [[ "$described" == "gh issue edit"* || "$described" == "gh pr edit"* ]]; then
+    url="$(awk '{ if (match($0, /https:\/\/[^ \t]+/)) { printf "%s%s", sep, substr($0, RSTART, RLENGTH); sep = " " } }' "$out")"
+  fi
   rm -f "$out"
   if [[ "$rc" -eq 0 && "$described" == "git push"* ]]; then
     head="$(pushed_head "$@")"
@@ -359,43 +382,99 @@ observe_item_writes() {
   awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
 }
 
-# 0 when an `external-write` line of `$writes` names that label change on the item under check
-# (`$3` its number, `$4` its `<owner>/<repo>`, empty for a bare number): "+label <name>" for labeled and
-# "-label <name>" for unlabeled, as a whole token (followed by " +label", " -label", " ->", or the field end).
-# The line must name the same item: by an issue or pull-request URL, or, when it carries no URL, by the
-# number that follows `gh issue|pr <command>`.
+# The label writes and the issue creations of a ledger, one record per line, tab-separated:
+#   created<TAB>line<TAB>issue URL
+#   edit<TAB>line<TAB>issue|pr<TAB>numbers and URLs the command names<TAB>URL it printed<TAB>label changes
+# The label changes are separated by the control character \037, which a ledger field never carries. A
+# creation is an `external-write` line of `gh issue create ... -> <issue URL>`, where the URL ends the field,
+# or one whose target is an issue URL and whose result says `created` (a wrapper that files an issue). A
+# label write is an `external-write` line of `gh issue|pr edit` with a `+label` or `-label` token.
+label_ledger_records() {
+  awk -F'|' '
+    function labels_of(head,   rest, sign, name, out) {
+      rest = " " head
+      out = ""
+      while (match(rest, / [+-]label /)) {
+        sign = substr(rest, RSTART + 1, 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        name = match(rest, / [+-]label /) ? substr(rest, 1, RSTART - 1) : rest
+        out = out (out == "" ? "" : "\037") sign "label " name
+      }
+      return out
+    }
+    NF == 5 && $3 == "external-write" {
+      target = $4
+      gsub(/[\t\r]/, " ", target)
+      if (target ~ /^gh issue create( |$)/ && match(target, / -> https?:\/\/[^ ]+\/issues\/[0-9]+$/)) {
+        printf "created\t%d\t%s\n", NR, substr(target, RSTART + 4)
+        next
+      }
+      if (target ~ /^https?:\/\/[^ ]+\/issues\/[0-9]+$/ && $5 ~ /created/) {
+        printf "created\t%d\t%s\n", NR, target
+        next
+      }
+      if (target !~ /^gh (issue|pr) edit /) next
+      head = target
+      destination = ""
+      printed = ""
+      arrow = index(target, " -> ")
+      if (arrow > 0) {
+        head = substr(target, 1, arrow - 1)
+        printed = substr(target, arrow + 4)
+        destination = printed
+        sub(/ .*/, "", destination)
+        if (destination !~ /^https?:\/\/[^ ]+\/(issues|pull)\/[0-9]+$/) destination = ""
+      }
+      changes = labels_of(head)
+      if (changes == "") next
+      before = (match(" " head, / [+-]label /) ? substr(" " head, 1, RSTART - 1) : head)
+      count = split(before, word, " ")
+      refs = ""
+      for (i = 4; i <= count; i++) {
+        if (word[i] ~ /^[0-9]+$/ || word[i] ~ /^https?:\/\//) refs = refs (refs == "" ? "" : " ") word[i]
+      }
+      # Every further URL that the command printed is one more issue it edited.
+      extras = split(printed, shown, " ")
+      for (i = 2; i <= extras; i++) {
+        if (shown[i] ~ /^https?:\/\// && index(" " refs " ", " " shown[i] " ") == 0) refs = refs (refs == "" ? "" : " ") shown[i]
+      }
+      printf "edit\t%d\t%s\t%s\t%s\t%s\n", NR, word[2], refs, destination, changes
+    }
+  ' "$1"
+}
+
+# 0 when `$label_records` (the records of `label_ledger_records`) holds a write of that label change on the
+# item under check (`$3` its number, `$4` its `<owner>/<repo>`, empty for a bare number): "+label <name>" for
+# labeled and "-label <name>" for unlabeled. A write names the item by an issue or pull-request URL with the
+# same repository, or by the number it carries; the URL the command printed stands for its first number.
 label_recorded() {
-  LABEL_SIGN="$1" LABEL_NAME="$2" ITEM_NUMBER="$3" ITEM_REPO="$4" awk -F'|' '
+  LABEL_SIGN="$1" LABEL_NAME="$2" ITEM_NUMBER="$3" ITEM_REPO="$4" awk -F'\t' '
     BEGIN {
-      needle = " " ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"]
+      needle = ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"]
       number = ENVIRON["ITEM_NUMBER"]
       repository = ENVIRON["ITEM_REPO"]
     }
-    function names_item(text,   rest, token, word, has_url) {
-      rest = text
-      has_url = 0
-      while (match(rest, /https?:\/\/[^ ]+/)) {
-        token = substr(rest, RSTART, RLENGTH)
-        rest = substr(rest, RSTART + RLENGTH)
-        has_url = 1
-        if (token ~ ("/(issues|pull)/" number "$") && (repository == "" || index(token, "/" repository "/") > 0)) return 1
-      }
-      split(text, word, " ")
-      return (!has_url && word[1] == "gh" && word[4] == number) ? 1 : 0
+    function url_matches(url) {
+      return url ~ ("/(issues|pull)/" number "$") && (repository == "" || index(url, "/" repository "/") > 0)
     }
-    {
-      target = " " $4
-      offset = 0
-      matched = 0
-      while ((at = index(substr(target, offset + 1), needle)) > 0) {
-        offset += at
-        rest = substr(target, offset + length(needle))
-        if (rest == "" || rest ~ /^ [+-]label / || rest ~ /^ ->/) { matched = 1 }
+    function names_item(   count, ref, i) {
+      count = split($4, ref, " ")
+      if (count == 0) return url_matches($5)
+      for (i = 1; i <= count; i++) {
+        if (ref[i] ~ /^https?:/) { if (url_matches(ref[i])) return 1 }
+        else if (i == 1 && $5 != "") { if (url_matches($5)) return 1 }
+        else if (ref[i] == number) return 1
       }
-      if (matched && names_item($4)) found = 1
+      return 0
+    }
+    $1 == "edit" {
+      count = split($6, change, "\037")
+      for (i = 1; i <= count; i++) {
+        if (change[i] == needle && names_item()) found = 1
+      }
     }
     END { exit found ? 0 : 1 }
-  ' <<<"$writes"
+  ' <<<"$label_records"
 }
 
 # 0 when a later `note` line names that write: its target is exactly the text given (`comment <id>`, `label <name>`).
@@ -451,81 +530,46 @@ observe_item() {
   done <<<"$observed"
 }
 
-# Show which label writes of the ledger belong to an issue the run itself created. A creation line is an
-# `external-write` line of `gh issue create -> <issue URL>`, or one whose target is an issue URL and whose
-# result says `created` (a wrapper that files an issue). A label write is an `external-write` line of
-# `gh issue|pr edit` that carries a `+label` or `-label` token. It is linked when it names an issue created
-# by an earlier line: by the issue URL after ` -> `, by an issue URL argument, or by a bare number that
-# exactly one created issue has. Every other label write is shown on its own. The ledger is only read: the
-# link is part of the output of `verify`, never a change to a line. One line per created issue, then one
-# per label write on its own, each one "linked: ..." or "standalone: ...".
+# Show which label writes of the ledger belong to an issue the run itself created. A label write is linked
+# when it names exactly one issue and that issue is, by its URL, a created issue of an earlier line. Every
+# other label write is shown on its own: a write on another issue or pull request, one that comes before the
+# creation, one that names a bare number, and one that names more than one issue. The ledger is only read:
+# the link is part of the output of `verify`, never a change to a line. One line per created issue that has a
+# linked label write, then one line per label write on its own, each "linked: ..." or "standalone: ...".
 label_write_links() {
-  awk -F'|' '
-    function labels_of(head,   rest, sign, name, out) {
-      rest = " " head
-      out = ""
-      while (match(rest, / [+-]label /)) {
-        sign = substr(rest, RSTART + 1, 1)
-        rest = substr(rest, RSTART + RLENGTH)
-        name = match(rest, / [+-]label /) ? substr(rest, 1, RSTART - 1) : rest
-        out = out (out == "" ? "" : "; ") sign "label " name
-      }
-      return out
+  label_ledger_records "$1" | awk -F'\t' '
+    $1 == "created" {
+      if (!($3 in created)) { created[$3] = $2; order[++orders] = $3 }
+      next
     }
-    NF == 5 && $3 == "external-write" {
-      target = $4
-      if ((target ~ /^gh issue create( |$)/ && match(target, /https?:\/\/[^ ]+\/issues\/[0-9]+/)) \
-          || (target ~ /^https?:\/\/[^ ]+\/issues\/[0-9]+$/ && $5 ~ /created/)) {
-        if (!match(target, /https?:\/\/[^ ]+\/issues\/[0-9]+/)) next
-        url = substr(target, RSTART, RLENGTH)
-        if (url in created) next
-        created[url] = NR
-        order[++orders] = url
-        number = url
-        sub(/.*\//, "", number)
-        same[number]++
-        byNumber[number] = url
+    $1 == "edit" {
+      count = split($4, ref, " ")
+      exact = $5
+      if (count == 1 && ref[1] ~ /^https?:/ && (exact == "" || exact == ref[1])) exact = ref[1]
+      else if (count > 1 || (count == 1 && ref[1] !~ /^https?:/ && exact == "")) exact = ""
+      changes = $6
+      gsub(/\037/, "; ", changes)
+      if (count <= 1 && $3 == "issue" && exact in created && created[exact] < $2) {
+        lines[exact] = lines[exact] (lines[exact] == "" ? "" : ", ") $2
+        written[exact] = written[exact] (written[exact] == "" ? "" : "; ") changes
         next
       }
-      if (target !~ /^gh (issue|pr) edit /) next
-      head = target
-      destination = ""
-      arrow = index(target, " -> ")
-      if (arrow > 0) {
-        head = substr(target, 1, arrow - 1)
-        destination = substr(target, arrow + 4)
-      }
-      changes = labels_of(head)
-      if (changes == "") next
-      split(head, word, " ")
-      argument = word[4]
-      kind = word[2]
-      reference = ""
-      if (destination ~ /^https?:\/\/[^ ]+\/(issues|pull)\/[0-9]+$/) {
-        reference = destination
-      } else if (argument ~ /^https?:\/\//) {
-        reference = argument
-      } else if (kind == "issue" && argument ~ /^[0-9]+$/ && same[argument] == 1) {
-        reference = byNumber[argument]
-      }
-      if (kind == "issue" && reference in created && created[reference] < NR) {
-        creation[reference] = creation[reference] (creation[reference] == "" ? "" : ", ") NR
-        written[reference] = written[reference] (written[reference] == "" ? "" : "; ") changes
-        next
-      }
-      if (reference == "") reference = kind " " (argument ~ /^[0-9]+$/ ? argument : "of an unnamed target")
-      alone[++alones] = "standalone: label write on " reference " (line " NR ") is not part of an issue this run created: " changes
+      reference = $5
+      if (count > 1) { reference = ref[1]; for (i = 2; i <= count; i++) reference = reference ", " ref[i]; reference = $3 " " reference }
+      else if (reference == "" && count == 1) reference = ($3 " " ref[1])
+      else if (reference == "") reference = $3 " of an unnamed target"
+      alone[++alones] = "standalone: label write on " reference " (line " $2 ") is not part of an issue this run created: " changes
     }
     END {
       for (i = 1; i <= orders; i++) {
         url = order[i]
         if (url in written) {
-          print "linked: " url " was created by this run (line " created[url] "); label writes on line(s) " creation[url] " belong to its creation and triage: " written[url]
+          print "linked: " url " was created by this run (line " created[url] "); label writes on line(s) " lines[url] " belong to its creation and triage: " written[url]
         }
       }
       for (i = 1; i <= alones; i++) print alone[i]
     }
-  ' "$1"
+  '
 }
 
 cmd_verify() {
@@ -592,8 +636,9 @@ cmd_verify() {
     [[ "$resolved" -eq 1 ]] || problems+=("line ${bad_no[$i]} ${bad_msg[$i]}")
   done
 
-  local writes
+  local writes label_records
   writes="$(awk -F'|' 'NF == 5 && $3 == "external-write"' "$file")"
+  label_records="$(label_ledger_records "$file")"
 
   if [[ -n "$branch" ]]; then
     local head
@@ -633,7 +678,7 @@ cmd_verify() {
   done
   while IFS= read -r item; do
     [[ -z "$item" ]] || printf '%s\n' "$item"
-  done < <(label_write_links "$file" | tr -d '\000-\010\013\014\016-\037\177')
+  done < <(label_write_links "$file" | tr '\r\t' '  ' | tr -d '\000-\010\013\014\016-\037\177')
   if [[ "${#problems[@]}" -gt 0 ]]; then
     for item in "${problems[@]}"; do
       printf 'problem: %s\n' "$item"
@@ -1030,7 +1075,7 @@ donatello|2026-11-11T10:01:00Z|external-write|gh issue create -> https://example
 donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 7 +label bug +label priority: medium -> https://example.test/o/r/issues/7|ok (exit 0)
 donatello|2026-11-11T10:03:00Z|external-write|gh issue edit 9 +label stale -> https://example.test/o/r/issues/9|ok (exit 0)
 donatello|2026-11-11T10:04:00Z|external-write|gh issue create -> https://example.test/o/r/issues/12|ok (exit 0)
-donatello|2026-11-11T10:05:00Z|external-write|gh issue edit 7 -label bug|ok (exit 0)
+donatello|2026-11-11T10:05:00Z|external-write|gh issue edit 7 -label bug -> https://example.test/o/r/issues/7|ok (exit 0)
 donatello|2026-11-11T10:06:00Z|external-write|gh pr edit 5 +label ready to merge -> https://example.test/o/r/pull/5|ok (exit 0)
 donatello|2026-11-11T10:07:00Z|external-write|https://example.test/o/r/issues/20|sub-issue created under https://example.test/o/r/issues/1 (exit 0)
 donatello|2026-11-11T10:08:00Z|external-write|gh issue edit 20 +label tech-debt -> https://example.test/o/r/issues/20|ok (exit 0)
@@ -1074,24 +1119,86 @@ LNK
   expect_eq 'verify never rewrites a ledger line to show the link' "$(cksum <"$lnk")" "$lnk_before"
   if ! grep -q '^problem: \|^not verified: ' "$tmp/link.out"; then ok 'a linked or standalone label write is neither a problem nor not verified'; else bad "verify raised a finding for a label write: $(cat "$tmp/link.out")"; fi
 
-  # A bare issue number links only when exactly one issue of that number was created by the run.
+  # A bare issue number names no repository, so it never links to a created issue.
   cat >"$lnk" <<'LNK'
 donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/3|ok (exit 0)
 donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 3 +label bug|ok (exit 0)
-donatello|2026-11-11T10:02:00Z|external-write|gh issue create -> https://example.test/o/s/issues/4|ok (exit 0)
-donatello|2026-11-11T10:03:00Z|external-write|gh issue create -> https://example.test/o/t/issues/4|ok (exit 0)
-donatello|2026-11-11T10:04:00Z|external-write|gh issue edit 4 +label bug|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 3 +label bug -> https://example.test/o/elsewhere/issues/3|ok (exit 0)
 LNK
   "$script" verify --file "$lnk" >"$tmp/link.out" || true
-  if grep -q '^linked: https://example.test/o/r/issues/3 was created by this run (line 1); label writes on line(s) 2 belong to its creation and triage: +label bug$' "$tmp/link.out"; then
-    ok 'a bare issue number links to the one issue of that number that the run created'
+  if grep -q '^standalone: label write on issue 3 (line 2) is not part of an issue this run created: +label bug$' "$tmp/link.out" \
+    && grep -q '^standalone: label write on https://example.test/o/elsewhere/issues/3 (line 3) ' "$tmp/link.out" \
+    && ! grep -q '^linked: ' "$tmp/link.out"; then
+    ok 'a bare issue number, and the same number in another repository, link to no created issue'
   else
-    bad "verify missed the bare issue number: $(cat "$tmp/link.out")"
+    bad "verify linked an issue by its number: $(cat "$tmp/link.out")"
   fi
-  if grep -q '^standalone: label write on issue 4 (line 5) is not part of an issue this run created: +label bug$' "$tmp/link.out" && [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 1 ]]; then
-    ok 'a bare issue number that two created issues share links to neither'
+
+  # A created issue that has no label write prints no linked line.
+  printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/8|ok (exit 0)\n' >"$lnk"
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if [[ "$(cat "$tmp/link.out")" == 'audit trail ok: 1 line(s)' ]]; then ok 'a created issue with no label write prints no linked line'; else bad "verify printed a line for an unlabelled issue: $(cat "$tmp/link.out")"; fi
+
+  # A label write names the created issue only by the URL that ends the creation line.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create follow-up of https://example.test/o/r/issues/99 -> https://example.test/o/r/issues/100|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 99 +label wontfix -> https://example.test/o/r/issues/99|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 100 +label bug -> https://example.test/o/r/issues/100|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^linked: https://example.test/o/r/issues/100 was created by this run (line 1); label writes on line(s) 3 ' "$tmp/link.out" \
+    && grep -q '^standalone: label write on https://example.test/o/r/issues/99 (line 2) ' "$tmp/link.out" \
+    && [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 1 ]]; then
+    ok 'the created issue is the URL that ends the creation line, never another URL of that line'
   else
-    bad "verify linked an ambiguous issue number: $(cat "$tmp/link.out")"
+    bad "verify took the wrong URL of a creation line: $(cat "$tmp/link.out")"
+  fi
+
+  # A command that edits several issues is recorded with every issue it names, and links to none.
+  mkdir "$tmp/editbin"
+  cat >"$tmp/editbin/gh" <<'EDITGH'
+#!/usr/bin/env bash
+case "$*" in
+"issue create"*) echo "https://example.test/o/r/issues/100" ;;
+"issue edit 100 7"*) printf 'https://example.test/o/r/issues/7\nhttps://example.test/o/r/issues/100\n' ;;
+"issue edit"*) echo "https://example.test/o/r/issues/100" ;;
+esac
+EDITGH
+  chmod +x "$tmp/editbin/gh"
+  : >"$lnk"
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue create --title t >/dev/null
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue edit 100 7 --add-label deploy-now >/dev/null
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue edit --title 5 --add-label solo https://example.test/o/r/issues/100 >/dev/null
+  expect_eq 'run records every issue that an edit names' "$(awk -F'|' 'NR == 2 { print $4 }' "$lnk")" 'gh issue edit 100 7 +label deploy-now -> https://example.test/o/r/issues/7 https://example.test/o/r/issues/100'
+  expect_eq 'run skips the value of an option and records the URL of an issue' "$(awk -F'|' 'NR == 3 { print $4 }' "$lnk")" 'gh issue edit https://example.test/o/r/issues/100 +label solo -> https://example.test/o/r/issues/100'
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^standalone: label write on issue 100, 7, https://example.test/o/r/issues/100 (line 2) ' "$tmp/link.out" \
+    && grep -q '^linked: https://example.test/o/r/issues/100 was created by this run (line 1); label writes on line(s) 3 belong to its creation and triage: +label solo$' "$tmp/link.out"; then
+    ok 'a label write that names two issues is shown on its own, and one that names the created issue is linked'
+  else
+    bad "verify linked a multi-issue edit: $(cat "$tmp/link.out")"
+  fi
+
+  # The URLs that an edit printed are all part of its line: a second URL is a second issue.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/100|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit https://example.test/o/r/issues/100 +label bug -> https://example.test/o/r/issues/100 https://example.test/o/r/issues/7|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^standalone: label write on issue https://example.test/o/r/issues/100, https://example.test/o/r/issues/7 (line 2) ' "$tmp/link.out" && ! grep -q '^linked: ' "$tmp/link.out"; then
+    ok 'an edit whose output names a second issue is shown on its own'
+  else
+    bad "verify linked an edit that printed two issues: $(cat "$tmp/link.out")"
+  fi
+
+  # A control character in a label name never reaches the output.
+  printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 9 +label x\033[2Jy\rz\tw -> https://example.test/o/r/issues/9|ok (exit 0)\n' >"$lnk"
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q 'standalone: label write on https://example.test/o/r/issues/9 (line 1) .*: +label x\[2Jy z w$' "$tmp/link.out" \
+    && ! LC_ALL=C grep -q "$(printf '[\001-\011\013-\037\177]')" "$tmp/link.out"; then
+    ok 'a control character, a carriage return, or a tab in a label name never reaches the output'
+  else
+    bad "verify let a control character through: $(od -c "$tmp/link.out" | head -5)"
   fi
 
   # --- a package wrapper records its own write: the GitHub comment publisher --------------------
