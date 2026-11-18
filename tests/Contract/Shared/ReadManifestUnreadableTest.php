@@ -43,13 +43,17 @@ function repositoryWithManifest(string $state): string
 }
 
 /**
- * @param list<string> $arguments
+ * @param string $arguments space-separated arguments
  * @param string $input standard input; `%HEAD%` stands for the head commit of the repository
  */
-function runInRepository(string $dir, string $script, array $arguments = [], string $input = ''): Process
+function runInRepository(string $dir, string $script, string $arguments = '', string $input = ''): Process
 {
     $input = str_replace('%HEAD%', manifestRepositoryGit($dir, 'rev-parse', 'HEAD'), $input);
-    $process = new Process(['bash', dirname(__DIR__, 3) . '/' . $script, ...$arguments], $dir, input: $input);
+    $process = new Process(
+        ['bash', dirname(__DIR__, 3) . '/' . $script, ...($arguments === '' ? [] : explode(' ', $arguments))],
+        $dir,
+        input: $input,
+    );
     $process->run();
 
     return $process;
@@ -84,7 +88,7 @@ test('a project with no composer.json keeps the built-in behaviour without a rep
  * Every script that reads the manifest through read-manifest.sh and carries on after exit 3. Each row is the script,
  * its arguments, its standard input, the stream that carries the report, and the text the report holds.
  *
- * @return array<string, array{0: string, 1: list<string>, 2: string, 3: string, 4: string}>
+ * @return array<string, array{0: string, 1: string, 2: string, 3: string, 4: string}>
  */
 function manifestCallers(): array
 {
@@ -92,20 +96,32 @@ function manifestCallers(): array
     $diff = "diff --git a/src/a.php b/src/a.php\n--- a/src/a.php\n+++ b/src/a.php\n@@ -1 +1 @@\n-a\n+b\n";
 
     return [
-        'analyze-recurrence' => ['skills/_shared/analyze-recurrence.sh', ['--store', '/dev/null'], '', 'stderr', 'read-manifest.sh'],
-        'classify-risk' => ['skills/_shared/classify-risk.sh', ['--merge-risk', '--diff', '-'], $diff, 'stdout', 'project-paths=unavailable'],
-        'discover-fixers' => ['skills/_shared/discover-fixers.sh', [], '', 'stderr', 'discover-fixers.sh: composer.json on'],
-        'history-scan text' => ['skills/git-history-exposure-audit/scripts/history-scan.sh', ['text'], $pullRequest, 'stdout', 'not-verified: default-branch manifest'],
-        'plan-parallel' => ['skills/_shared/plan-parallel.sh', [], "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
-        'resolve-voice' => ['skills/agent-voice/scripts/resolve-voice.sh', [], '', 'stderr', 'read-manifest.sh'],
-        'run-fast-checks' => ['skills/_shared/run-fast-checks.sh', [], '', 'stdout', 'cannot be read as a manifest'],
-        'run-validation (project-commands)' => ['skills/_shared/run-validation.sh', ['--manifest', '-', '--dry-run'], '{"tests":["vendor/bin/pest tests/x.php"],"head_sha":"%HEAD%"}', 'stderr', 'read-manifest.sh'],
+        'analyze-recurrence' => ['skills/_shared/analyze-recurrence.sh', '--store /dev/null', '', 'stderr', 'read-manifest.sh'],
+        'classify-risk' => ['skills/_shared/classify-risk.sh', '--merge-risk --diff -', $diff, 'stdout', 'project-paths=unavailable'],
+        'discover-fixers' => ['skills/_shared/discover-fixers.sh', '', '', 'stderr', 'discover-fixers.sh: composer.json on'],
+        'history-scan text' => [
+            'skills/git-history-exposure-audit/scripts/history-scan.sh',
+            'text',
+            $pullRequest,
+            'stdout',
+            'not-verified: default-branch manifest',
+        ],
+        'plan-parallel' => ['skills/_shared/plan-parallel.sh', '', "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
+        'resolve-voice' => ['skills/agent-voice/scripts/resolve-voice.sh', '', '', 'stderr', 'read-manifest.sh'],
+        'run-fast-checks' => ['skills/_shared/run-fast-checks.sh', '', '', 'stdout', 'cannot be read as a manifest'],
+        'run-validation (project-commands)' => [
+            'skills/_shared/run-validation.sh',
+            '--manifest - --dry-run',
+            '{"tests":["vendor/bin/pest tests/x.php"],"head_sha":"%HEAD%"}',
+            'stderr',
+            'read-manifest.sh',
+        ],
     ];
 }
 
 test(
     'every caller that carries on after a manifest it cannot read says so',
-    function (string $script, array $arguments, string $input, string $stream, string $needle, string $state): void {
+    function (string $script, string $arguments, string $input, string $stream, string $needle, string $state): void {
         $dir = repositoryWithManifest($state);
         $process = runInRepository($dir, $script, $arguments, $input);
         $report = $stream === 'stderr' ? $process->getErrorOutput() : $process->getOutput();
@@ -122,7 +138,7 @@ test(
 
 test(
     'no caller reports a project with no composer.json',
-    function (string $script, array $arguments, string $input, string $stream, string $needle): void {
+    function (string $script, string $arguments, string $input, string $stream, string $needle): void {
         $dir = repositoryWithManifest('absent');
         $process = runInRepository($dir, $script, $arguments, $input);
         $report = $stream === 'stderr' ? $process->getErrorOutput() : $process->getOutput();
@@ -136,7 +152,7 @@ test('the fixer discovery and the history scan stop with exit 3 on a composer.js
     $scan = runInRepository(
         repositoryWithManifest('unreadable'),
         'skills/git-history-exposure-audit/scripts/history-scan.sh',
-        ['text'],
+        'text',
         manifestCallers()['history-scan text'][2],
     );
 
