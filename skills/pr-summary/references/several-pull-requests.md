@@ -8,10 +8,9 @@ Apply it when the issue the comment is published on links more than one pull req
 
 Render these once, above the groups, because they describe the issue and not one pull request:
 
-1. The JIRA status line.
-2. The assignment verdict: `Acceptance criteria` on JIRA, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
-3. The author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
-4. The closing links line, which lists every pull request, and the JIRA footer.
+1. The assignment verdict: `Acceptance criteria` on JIRA when the assignment states explicit criteria, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
+2. The author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
+3. The closing links line, which lists every pull request, and the JIRA footer.
 
 ## What goes into the group of a pull request
 

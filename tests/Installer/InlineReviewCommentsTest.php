@@ -131,14 +131,14 @@ dataset('wrapper self-test scenarios', [
     'stderr names the listed count' => ['the review stderr names the listed count and no inline count'],
     'suggestion is refused' => ['a suggestion is refused with its own message: a review carries no code'],
     'summary is plain sentences' => ['a TL;DR with a heading, a quote, a table, or a tag line is refused: it holds plain sentences'],
-    'summary limit counts characters' => ['the TL;DR limit counts characters, not bytes: 4000 two-byte characters pass'],
+    'summary limit counts characters' => ['the TL;DR limit counts characters, not bytes: 500 two-byte characters pass'],
     'summary limit counts the neutralised text' => [
-        'the TL;DR limit counts the neutralised text: a marker closer that grows to 4001 characters is refused',
+        'the TL;DR limit counts the neutralised text: a marker closer that grows to 501 characters is refused',
     ],
     'summary naming a withheld finding' => ['a TL;DR that names a withheld finding by its title is refused and nothing is posted'],
-    'summary of 3999 characters' => ['a TL;DR of 3999 characters is published whole'],
-    'summary of 4000 characters' => ['a TL;DR of exactly 4000 characters is published whole'],
-    'summary of 4001 characters' => ['a TL;DR of 4001 characters is refused, not cut, and nothing is posted'],
+    'summary of 499 characters' => ['a TL;DR of 499 characters is published whole'],
+    'summary of 500 characters' => ['a TL;DR of exactly 500 characters is published whole'],
+    'summary of 501 characters' => ['a TL;DR of 501 characters is refused, not cut, and nothing is posted'],
     'summary opens the body' => ['the summary paragraph opens the review body, with no label and no findings count line'],
     'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded or escaped'],
     'visible order' => ['the visible order is the summary, Merge Risk, Walkthrough, Where to test, Actionable comments'],
@@ -334,7 +334,7 @@ test('the review rule publishes one review on GitHub and moves the machine recor
             'reaches no part of the review**, the visible body and the hidden record included: hidden HTML is public.',
         )
         ->and($rule)->toContain('3. **The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`.**')
-        ->and($rule)->toContain('a summary paragraph of what the pull request changes (at most 4,000 characters, with no label and no heading)')
+        ->and($rule)->toContain('a summary paragraph of what the pull request changes (at most 500 characters, with no label and no heading)')
         ->and($rule)->toContain(
             'The body is visible text (*Visible review text names none of the package\'s own tooling* below), and the merge gate never reads it.',
         )

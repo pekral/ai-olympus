@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # post-inline-review.sh — GitHub pull-request review publisher used by CR-track skills. It publishes one review round
 # as ONE pull-request review with no inline comment: its body carries the visible layout of templates/review-body.md (a
-# TL;DR of at most 4000 characters, a collapsed Merge Risk block, a collapsed Walkthrough block, a collapsed Where to test
+# TL;DR of at most 500 characters, a collapsed Merge Risk block, a collapsed Walkthrough block, a collapsed Where to test
 # block, and a collapsed Actionable comments block that lists every published finding) above the hidden machine record
 # of the round. It also resolves an agent inline thread that an earlier release posted, once a later round found its
 # finding fixed. A review never carries code: no fenced block and no suggestion block in the visible body; the one fence
@@ -48,13 +48,14 @@
 #                  with a suggestion block, is refused.
 #   --walkthrough-file
 #                  A JSON object, the data of the TL;DR and of the Walkthrough block (templates/review-body.md):
-#                    tldr          required, what the pull request changes in plain sentences. At most 4000 code points
+#                    tldr          required, what the pull request changes in plain sentences. At most 500 code points
 #                                  once the text is normalised: a longer text is refused, never cut (exit 1), so the
 #                                  author rewrites it shorter
 #                    description   required, the change in one to three plain sentences, 1500 characters at most
 #                    title         optional, the name of the change group, shown as `Changes: <title>`
 #                    areas         required, 1 to 20 rows: {layer, files[], summary}; every file is a changed file of the
-#                                  pull request, and the row shows at most four of them
+#                                  pull request, and the row shows at most four of them. The author lists no test
+#                                  file and no row for the tests, unless the pull request changes only tests
 #                    effort        required: {level 1-5, minutes 1-999}; the label (Trivial, Simple, Moderate, Complex,
 #                                  Critical) comes from the level
 #                    change_type   required: Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, Chore
@@ -340,7 +341,7 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
 | req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
-| req(.tldr | isstr(8000); "walkthrough tldr must be 1 to 4000 characters")
+| req(.tldr | isstr(1000); "walkthrough tldr must be 1 to 500 characters")
 | req(.tldr | printable | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
 | req(.description | isstr(1500); "walkthrough description must be 1 to 1500 characters")
 | req(.title == null or (.title | isstr(100)); "walkthrough title must be 1 to 100 characters when set")
@@ -366,7 +367,7 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
     diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
     routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"]
   }
-| req((.tldr | length) >= 1 and (.tldr | length) <= 4000; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 4000, so write it shorter")
+| req((.tldr | length) >= 1 and (.tldr | length) <= 500; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 500, so write it shorter")
 JQ
 
 # The draft body of the review. It ends with the actor marker; the fingerprint marker is added by
@@ -986,34 +987,34 @@ Outside the diff.
   check 'a walkthrough with no diagram renders no sequence diagram and no fenced block in the body' \
     "$(yes_if review_has '(.body | split("\n\n<!-- cr-review-meta\n")[0] | test("```|~~~|Sequence Diagram") | not) and (.body | contains("**Estimated code review effort:** 1 (Trivial) | ~5 minutes\n**Change:** Bug fix"))')"
 
-  # 4a. the TL;DR holds 4000 code points at most, counted once the text is normalised, and is never cut
+  # 4a. the TL;DR holds 500 code points at most, counted once the text is normalised, and is never cut
   local tl_under tl_at tl_over tl_wide tl_marker
-  tl_under="$(printf 'a%.0s' $(seq 1 3999))"
-  tl_at="$(printf 'a%.0s' $(seq 1 4000))"
-  tl_over="$(printf 'a%.0s' $(seq 1 4001))"
-  tl_wide="$(printf 'é%.0s' $(seq 1 4000))"
-  tl_marker="$(printf 'a%.0s' $(seq 1 3995))"
+  tl_under="$(printf 'a%.0s' $(seq 1 499))"
+  tl_at="$(printf 'a%.0s' $(seq 1 500))"
+  tl_over="$(printf 'a%.0s' $(seq 1 501))"
+  tl_wide="$(printf 'é%.0s' $(seq 1 500))"
+  tl_marker="$(printf 'a%.0s' $(seq 1 495))"
   walk_with_tldr() {
     jq -c --arg t "$1" '.tldr = $t' "$tmp/walk.json" >"$tmp/walk-tldr.json"
   }
   walk_with_tldr "$tl_under"
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'a TL;DR of 3999 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_under" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
+  check 'a TL;DR of 499 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_under" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
   walk_with_tldr "$tl_at"
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'a TL;DR of exactly 4000 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_at" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
+  check 'a TL;DR of exactly 500 characters is published whole' "$([[ $rc -eq 0 ]] && yes_if jq -e --arg t "$tl_at" '.body | startswith($t + "\n\n<details>")' "$tmp/review.json" || echo no)"
   walk_with_tldr "$tl_over"
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'a TL;DR of 4001 characters is refused, not cut, and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 4001 characters once normalised' "$tmp/stderr" && echo yes || echo no)"
+  check 'a TL;DR of 501 characters is refused, not cut, and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 501 characters once normalised' "$tmp/stderr" && echo yes || echo no)"
   walk_with_tldr "$tl_wide"
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'the TL;DR limit counts characters, not bytes: 4000 two-byte characters pass' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  check 'the TL;DR limit counts characters, not bytes: 500 two-byte characters pass' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   walk_with_tldr "${tl_marker}-->"
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'the TL;DR limit counts the neutralised text: a marker closer that grows to 4001 characters is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 4001 characters' "$tmp/stderr" && echo yes || echo no)"
+  check 'the TL;DR limit counts the neutralised text: a marker closer that grows to 501 characters is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'tldr is 501 characters' "$tmp/stderr" && echo yes || echo no)"
   walk_with_tldr "  $tl_under  "
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
-  check 'the TL;DR limit counts the trimmed text: padding around 3999 characters passes' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  check 'the TL;DR limit counts the trimmed text: padding around 499 characters passes' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   walk_with_tldr ""
   WALK_FILE="$tmp/walk-tldr.json" run_post '[]'
   check 'an empty TL;DR is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"

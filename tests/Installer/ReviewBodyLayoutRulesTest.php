@@ -67,11 +67,11 @@ test('the review body template opens with the summary and no label, and every bl
         ->and($sample)->not->toMatch('/pre-merge|recent review|explain change|share|<button|<img|badge/i');
 });
 
-test('the review body template states the 4,000 character limit and the one fence it allows', function (): void {
+test('the review body template states the 500 character limit and the one fence it allows', function (): void {
     $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
     $sample = reviewBodyTemplateSample();
 
-    expect($template)->toContain('The summary holds at most 4,000 characters')
+    expect($template)->toContain('The summary holds at most 500 characters')
         ->and($template)->toContain('The one fence the body allows is the mermaid sequence diagram of the Walkthrough')
         ->and(substr_count($sample, '```'))->toBe(2)
         ->and($sample)->toContain('```mermaid')
@@ -108,7 +108,7 @@ test('the code review rule owns the visible layout in one place and names the bl
     $section = installerDocsSection($rule, '## One published comment per review run');
 
     expect($section)->toContain('The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`')
-        ->and($section)->toContain('a summary paragraph of what the pull request changes (at most 4,000 characters, with no label and no heading)')
+        ->and($section)->toContain('a summary paragraph of what the pull request changes (at most 500 characters, with no label and no heading)')
         ->and($section)->toContain('a collapsed **Merge Risk** block, a collapsed **Walkthrough** block, a collapsed **Where to test** block')
         ->and($section)->toContain('a collapsed **Actionable comments** block')
         ->and($section)->toContain('no pre-merge checks, no recent review information, no CI result, no button, and no share link')
@@ -207,7 +207,7 @@ test('the wrapper contract names the walkthrough file, its sources, and the reus
     $contract = reviewLayoutRepoFile('skills/code-review-github/references/cr-wrapper-contract.md');
 
     expect($contract)->toContain('--walkthrough-file <walkthrough-file>')
-        ->and($contract)->toContain('`tldr` (what the pull request changes, in plain sentences, at most 4,000 characters)')
+        ->and($contract)->toContain('`tldr` (what the pull request changes, in plain sentences, at most 500 characters)')
         ->and($contract)->toContain('Route Access of Changed Routes')
         ->and($contract)->toContain('reused, never rebuilt, and never read from a running application')
         ->and($contract)->toContain('The wrapper refuses a record without it');

@@ -270,7 +270,7 @@ test('the review opens with the summary paragraph: no TL;DR label, no heading, n
 });
 
 test(
-    'the summary holds 4000 code points at most: 3999 and 4000 pass, 4001 is refused and nothing is posted',
+    'the summary holds 500 code points at most: 499 and 500 pass, 501 is refused and nothing is posted',
     function (int $length, bool $accepted): void {
         $review = renderReview(['tldr' => str_repeat('a', $length)]);
     
@@ -286,13 +286,13 @@ test(
             ->and($review['stderr'])->toContain('tldr is ' . $length . ' characters once normalised');
     },
 )->with([
-    'at the limit' => [4_000, true],
-    'just over' => [4_001, false],
-    'just under' => [3_999, true],
+    'at the limit' => [500, true],
+    'just over' => [501, false],
+    'just under' => [499, true],
 ]);
 
 test('the summary limit counts code points and not bytes', function (): void {
-    $review = renderReview(['tldr' => str_repeat('é', 4_000)]);
+    $review = renderReview(['tldr' => str_repeat('é', 500)]);
 
     expect($review['exit'])->toBe(0, $review['stderr']);
 });

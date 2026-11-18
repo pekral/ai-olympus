@@ -54,7 +54,7 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
 
     // Issue #118: on JIRA the same verdict renders as the first section instead of travelling
     // through the slot. The verdict is relocated on that one target, never dropped.
-    expect($prSummary)->toContain('on JIRA the `Acceptance criteria` section carries the same verdict under the same rule');
+    expect($prSummary)->toContain('on JIRA the `Acceptance criteria` section carries the same verdict whenever the assignment states explicit criteria');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');
@@ -96,18 +96,18 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
 
     // The binding section order, asserted as an order and not merely as presence. Every run
     // renders this one shape: the review is retold in plain language, and there is no How to test.
-    $statusLine = mb_strpos($body, '[Status line:');
     $criteria = mb_strpos($body, 'h2. Acceptance criteria');
     $findings = mb_strpos($body, 'h2. Review findings');
     $whatChanged = mb_strpos($body, 'h2. What changed');
     $impact = mb_strpos($body, 'h2. Impact after deployment');
     $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
     $footer = mb_strpos($body, '_This comment is generated automatically.');
-    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false);
+    assert($criteria !== false && $findings !== false && $whatChanged !== false);
     assert($impact !== false && $closingLine !== false && $footer !== false);
 
-    expect($statusLine)->toBe(0);
-    expect($criteria)->toBeGreaterThan($statusLine);
+    expect($criteria)->toBe(0);
+    expect($body)->not->toContain('[Status line:');
+    expect($body)->toContain('only when the assignment states explicit acceptance criteria');
     expect($findings)->toBeGreaterThan($criteria);
     expect($whatChanged)->toBeGreaterThan($findings);
     expect($impact)->toBeGreaterThan($whatChanged);
@@ -117,7 +117,8 @@ test('the JIRA pr-summary template opens with the verdict and drops the mechanis
 
     // The ticket owner learns what to watch once the change is in production. A converged review
     // with nothing affected outside the diff omits that section, so it is never read as "no review".
-    expect($body)->toContain('One part of the application a production deployment of this change can affect');
+    expect($body)->toContain('TL;DR of one feature a production deployment of this change can affect');
+    expect($body)->toContain('TL;DR of one observable change in behaviour, in one short sentence');
     expect($jiraTemplate)->toContain('When no code-review comment exists for the current head yet');
     expect($jiraTemplate)->toContain('the review found no affected part outside the diff');
     expect($jiraTemplate)->not->toContain('It states impact, never mechanism');
@@ -150,8 +151,6 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
     // fits the cap. The example below is the run behind that issue — a bulk-pipeline change whose
     // published comment was 10 964 B of method names, SHAs, gate results, and coverage figures.
     $filledIn = <<<'WIKI'
-        Code review is done. The change is not ready to merge yet. Nothing was merged or deployed.
-
         h2. Acceptance criteria
 
         3 of 4 criteria are met and an automated test verifies each of them.
@@ -165,14 +164,14 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
 
         h2. What changed
 
-        * Adding an action no longer empties the pipeline when two people edit one campaign at once. Before, the second save discarded the first action.
-        * A bulk send now reports the number of recipients it actually reached, instead of always reporting the number requested.
-        * Reordering actions saves on the first attempt. Before, the order silently reverted for pipelines with more than ten actions.
+        * Adding an action no longer empties the pipeline when two people edit one campaign at once.
+        * A bulk send now reports the number of recipients it actually reached, instead of the number requested.
+        * Reordering actions saves on the first attempt, also for pipelines with more than ten actions.
 
         h2. Impact after deployment
 
-        * Campaign pipelines: every save of a pipeline goes through the changed code. A user may notice a slower save on a pipeline with many actions.
-        * Bulk sending: the delivery report shows the reached count, so it can be lower than before for the same send.
+        * Campaign pipelines: a user may notice a slower save on a pipeline with many actions.
+        * Bulk sending: the delivery report can show a lower count than before for the same send.
 
         [PR #482|https://github.com/acme/pipelines/pull/482] · [PROJ-6974|https://acme.atlassian.net/browse/PROJ-6974]
 
@@ -182,16 +181,14 @@ test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 char
         WIKI;
 
     // Structure first: a length check over a body in the wrong shape would prove nothing.
-    $statusLine = mb_strpos($filledIn, 'Code review is done.');
     $criteria = mb_strpos($filledIn, 'h2. Acceptance criteria');
     $findings = mb_strpos($filledIn, 'h2. Review findings');
     $whatChanged = mb_strpos($filledIn, 'h2. What changed');
     $impact = mb_strpos($filledIn, 'h2. Impact after deployment');
     $closingLine = mb_strpos($filledIn, '[PR #482|');
-    assert($statusLine !== false && $criteria !== false && $findings !== false && $whatChanged !== false && $impact !== false && $closingLine !== false);
+    assert($criteria !== false && $findings !== false && $whatChanged !== false && $impact !== false && $closingLine !== false);
 
-    expect($statusLine)->toBe(0);
-    expect($criteria)->toBeGreaterThan($statusLine);
+    expect($criteria)->toBe(0);
     expect($findings)->toBeGreaterThan($criteria);
     expect($whatChanged)->toBeGreaterThan($findings);
     expect($impact)->toBeGreaterThan($whatChanged);
@@ -2231,8 +2228,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → a status line, `Acceptance criteria`, `Review findings`, `What changed`, '
-        . '`Impact after deployment`. An open question closes the bullet it belongs to.',
+        '**JIRA renders one shape on every run** → `Acceptance criteria` (only when the assignment states explicit criteria), '
+        . '`Review findings`, `What changed`, `Impact after deployment`, with no status line above them.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4514,8 +4511,8 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
 
     // The ticket's own sections, restated where this wrapper describes its output.
     expect($jira)->toContain(
-        'Its sections are `Acceptance criteria`, `Review findings`, `What changed`, and `Impact after deployment`, '
-        . 'under one status line and above a footer',
+        'Its sections are `Acceptance criteria` (only when the assignment states explicit criteria), `Review findings`, '
+        . '`What changed`, and `Impact after deployment`, with no status line and above a footer',
     );
 });
 

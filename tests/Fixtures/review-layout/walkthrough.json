@@ -27,13 +27,6 @@
         "routes/web.php"
       ],
       "summary": "The link signs the colleague up and adds them to the workspace as a member."
-    },
-    {
-      "layer": "Tests",
-      "files": [
-        "tests/Feature/Workspace/InvitationTest.php"
-      ],
-      "summary": "Send and accept happy path."
     }
   ],
   "effort": {

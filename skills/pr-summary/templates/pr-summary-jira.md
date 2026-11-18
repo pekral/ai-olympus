@@ -1,8 +1,6 @@
-[Status line: one to three short sentences — the state of the work, whether the change is ready to merge, and that nothing was merged or deployed. When a security point that still needs verification blocks the merge, name it here as a blocker, without the detail of the suspicion. Example: "Code review is done. The change is not ready to merge yet. Nothing was merged or deployed."]
-
 h2. Acceptance criteria
 
-[One sentence carrying the verdict: "All N criteria are met and an automated test verifies each of them." or "N of M met." or, when the assignment states no explicit criteria, the basis the state was judged on.]
+[Render this heading and everything under it only when the assignment states explicit acceptance criteria. One sentence carrying the verdict: "All N criteria are met and an automated test verifies each of them." or "N of M met."]
 
 * [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing and why the review judged it so, in plain prose. When a question for a human is open, it is the closing sentence of this bullet.]
 
@@ -10,7 +8,7 @@ h2. Acceptance criteria
 
 h2. Review findings
 
-* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words.]
+* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
 * [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
@@ -19,13 +17,13 @@ h3. Already reported in an earlier review
 
 h2. What changed
 
-* [One observable change in behaviour. Where a before exists: before -> after.]
-* [Next. Three to five bullets in total.]
+* [TL;DR of one observable change in behaviour, in one short sentence. Where a before exists: before -> after.]
+* [Next. At most three bullets in total.]
 
 h2. Impact after deployment
 
-* [One part of the application a production deployment of this change can affect: the feature in plain language, and what a user there may notice — or that nothing visible should change.]
-* [Next part. At most five bullets, one feature per bullet.]
+* [TL;DR of one feature a production deployment of this change can affect, in one short sentence: the feature in plain language and what a user there may notice.]
+* [Next feature. At most three bullets. The features where nothing visible should change share one bullet.]
 
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
@@ -55,9 +53,10 @@ Who reads this comment
   it.
 
 Section order is binding, and it is the same on every run
-  Status line, then Acceptance criteria, then Review findings, then What
-  changed, then Impact after deployment, then the closing links line and the
-  footer. There is no separate
+  Acceptance criteria (only when the assignment states explicit criteria),
+  then Review findings, then What changed, then Impact after deployment, then
+  the closing links line and the footer. The comment opens with its first
+  heading. There is no separate
   section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
   the post-convergence report, and the merge-readiness TL;DR all render this
   one shape. The verdict comes first because it is the one thing the reader
@@ -67,26 +66,25 @@ Section order is binding, and it is the same on every run
   is JIRA's own; the GitHub and Bugsnag templates keep their What changed /
   How to test shape.
 
-Status line
-  One to three short sentences, above the first heading. It states the state of
-  the work, whether the change is ready to merge or what blocks it, and whether
-  anything was merged or deployed. Never a heading of its own, and never an
-  English headline above assignment-language prose.
+No status line
+  No sentence stands above the first heading: not the state of the work, not
+  whether the change is ready to merge, and not that nothing was merged or
+  deployed. A point that blocks the merge is a Review findings bullet.
 
 Acceptance criteria
+  Rendered only when the assignment states explicit acceptance criteria. When
+  it states none, leave out the heading and everything under it, and say
+  nothing about the missing criteria anywhere in the comment.
   One verdict sentence, then a bullet only for a criterion that is unmet,
   partially met, or awaiting a human's confirmation. Satisfied criteria are
   never enumerated one by one — the verdict is the whole report for them.
   An unmet or partially met criterion states why, and one closing sentence
   mentions the author of the changes (@skills/pr-summary/SKILL.md, An unmet
-  criterion addresses the author). When
-  the assignment states no explicit criteria, say so and name the basis judged
-  instead (the described expected behaviour, the reporter's example, the
-  reproduction steps), so "no criteria" never reads as "nobody checked".
+  criterion addresses the author).
   This section is the only route the assignment verdict takes into this comment,
-  and a CR run with a linked tracker always carries it — met, not met, or no
-  criteria stated (@rules/code-review/general.md, Two-Part CR Output, "The
-  tracker comment carries the same verdict — in all three cases"). The
+  and a CR run on a ticket with explicit criteria always carries it — met or
+  not met (@rules/code-review/general.md, Two-Part CR Output, "The tracker
+  comment carries the same verdict — in all three cases"). The
   @skills/assignment-compliance-check/SKILL.md result is what fills it; on JIRA
   that result is rendered into this section rather than appended as an embedded
   block.
@@ -99,8 +97,9 @@ Questions
     Acceptance criteria. The criterion is then reported as unmet, partially met,
     or awaiting a human's confirmation, even when the code meets its wording.
   - A question that concerns no criterion — a documentation mismatch, a blocking
-    documentation request, a Critical decision outside the assignment — closes
-    the Review findings bullet it belongs to.
+    documentation request, a Critical decision outside the assignment, or any
+    question on a ticket that states no explicit criteria — closes the Review
+    findings bullet it belongs to.
   A question may carry one recommendation sentence after it. Never render a
   question twice, and never as a bullet of its own.
 
@@ -123,6 +122,10 @@ Review findings
     (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
+  - Interactive testing that did not run because no local or test environment
+    was available is never mentioned, in this section or in any other
+    (@rules/code-review/general.md, What a code review checks, and nothing
+    else).
   - The review carries no out-of-scope point and no follow-up proposal
     (@rules/code-review/general.md, What a code review checks, and nothing
     else), so none is listed.
@@ -135,8 +138,10 @@ Review findings
     count.
 
 What changed
-  Three to five bullets, observable behaviour only, in before -> after form
-  where a before exists. It states observable behaviour, never mechanism — a bullet that
+  A TL;DR: at most three bullets of one short sentence each, observable
+  behaviour only, in before -> after form where a before exists. A bullet
+  carries no quoted confirmation text and no second sentence. It states
+  observable behaviour, never mechanism — a bullet that
   explains how the code works belongs on the pull request instead. The JIRA
   shape carries no Problem / Cause / Result fields: Cause asks for a mechanism,
   and a mechanism is what invites method names into a product manager's ticket.
@@ -144,10 +149,12 @@ What changed
 Impact after deployment
   The parts of the application a production deployment of the change can
   affect, so the ticket owner knows what to watch after the release. What
-  changed says what behaves differently; this section says where.
-  - One bullet per affected feature, at most five: the feature in plain
-    language, and what a user there may notice. When a feature runs through
-    the changed code but nothing visible should change, say that.
+  changed says what behaves differently; this section says where. It is a
+  TL;DR too.
+  - At most three bullets of one short sentence each: the feature in plain
+    language, and what a user there may notice. The features that run through
+    the changed code with nothing visible to change share one bullet that
+    names them.
   - Source: the features the diff itself changes, plus the parts the newest
     pull-request review lists under "Affected behaviour outside the diff"
     (@rules/code-review/core-analysis.md, Behaviour changed outside the diff).
@@ -178,8 +185,7 @@ Length
 No embedded blocks
   The JIRA template has no {embedded_blocks} slot. The Assignment Compliance
   verdict is the Acceptance criteria section above, which is why that section is
-  first and always rendered, and every open question sits in a bullet per
-  Questions above.
+  first, and every open question sits in a bullet per Questions above.
 
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of
