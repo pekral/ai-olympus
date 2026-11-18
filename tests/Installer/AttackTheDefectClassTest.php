@@ -176,7 +176,11 @@ function attackClassWordsNameGitStash(array $words): bool
 
 function attackClassConfigKey(string $word): string
 {
-    return attackClassMatches('/^(?:alias|help)\.[\w.-]++(?:=|$)/i', $word) ? strtolower((string) strstr($word . '=', '=', before_needle: true)) : '';
+    return attackClassMatches('/^(?:alias\.[\w.-]++|help\.autocorrect)(?:=|$)/i', $word)
+        ? strtolower(
+        (string) strstr($word . '=', '=', before_needle: true),
+    )
+        : '';
 }
 
 /**
@@ -194,20 +198,30 @@ function attackClassConfigValue(array $words, int $position): string
     };
 }
 
+/**
+ * Only the values that switch the automatic correction off, or only show it, are safe. Git runs it for every other value.
+ */
 function attackClassAutocorrectRuns(string $value): bool
 {
-    return attackClassMatches('/^\s*+(?:immediate|true|yes|on|[1-9][0-9]*+)\s*+$/i', $value);
+    return !attackClassMatches('/^\s*+(?:false|off|no|show|never|prompt|[+-]?0++[kmg]?)\s*+$/i', $value);
+}
+
+function attackClassAliasRuns(string $value, int $depth): bool
+{
+    $command = ltrim($value);
+
+    if (str_starts_with($command, '!')) {
+        return attackClassNamesGitStash(substr($command, 1), $depth + 1);
+    }
+
+    $words = attackClassShellWords($command);
+
+    return attackClassIsStashWord($words[attackClassAfterGlobalOptions($words, 0)] ?? '');
 }
 
 function attackClassConfigRuns(string $key, string $value, int $depth): bool
 {
-    $command = ltrim($value);
-
-    return match (true) {
-        $key === 'help.autocorrect' => attackClassAutocorrectRuns($value),
-        str_starts_with($command, '!') => attackClassNamesGitStash(substr($command, 1), $depth + 1),
-        default => attackClassIsStashWord($command),
-    };
+    return $key === 'help.autocorrect' ? attackClassAutocorrectRuns($value) : attackClassAliasRuns($value, $depth);
 }
 
 /**
@@ -226,18 +240,26 @@ function attackClassWordsSetRunningConfig(array $words, int $depth): bool
     return false;
 }
 
-function attackClassSectionLineRuns(string $section, string $line): bool
+function attackClassSectionLineRuns(string $section, string $line, int $depth): bool
 {
-    $autocorrect = '/^\s*autocorrect\s*+=/i';
+    $found = preg_match('/^\s*([\w.-]++)\s*+(?:=(.*))?$/s', $line, $parts);
 
-    return match ($section) {
-        'alias' => attackClassMatches('/^\s*[\w.-]++\s*+=\s*+stash(?![\w-])/i', $line),
-        'help' => attackClassMatches($autocorrect, $line) && attackClassAutocorrectRuns(attackClassReplace($autocorrect, '', $line)),
+    if ($found === false) {
+        attackClassPatternFailed();
+    }
+
+    $key = strtolower($parts[1] ?? '');
+    $value = $parts[2] ?? '';
+
+    return match (true) {
+        $found === 0 => false,
+        $section === 'alias' && isset($parts[2]) => attackClassAliasRuns(attackClassReplace('/\\\\(["\\\\])/', '$1', $value), $depth),
+        $section === 'help' && $key === 'autocorrect' => attackClassAutocorrectRuns(attackClassReplace('/["\']/', '', $value)),
         default => false,
     };
 }
 
-function attackClassSectionRuns(string $text): bool
+function attackClassSectionRuns(string $text, int $depth): bool
 {
     $section = '';
 
@@ -247,7 +269,7 @@ function attackClassSectionRuns(string $text): bool
             $line = attackClassReplace('/^\s*\[[^\]]*\]/', '', $line);
         }
 
-        if (attackClassSectionLineRuns($section, attackClassReplace('/["\']/', '', $line))) {
+        if (attackClassSectionLineRuns($section, $line, $depth)) {
             return true;
         }
     }
@@ -259,7 +281,7 @@ function attackClassTextNamesGitStash(string $text, int $depth): bool
 {
     $words = attackClassShellWords($text);
 
-    if (attackClassWordsNameGitStash($words) || attackClassWordsSetRunningConfig($words, $depth) || attackClassSectionRuns($text)) {
+    if (attackClassWordsNameGitStash($words) || attackClassWordsSetRunningConfig($words, $depth) || attackClassSectionRuns($text, $depth)) {
         return true;
     }
 
@@ -270,6 +292,20 @@ function attackClassTextNamesGitStash(string $text, int $depth): bool
     }
 
     return false;
+}
+
+/**
+ * @return list<string>
+ */
+function attackClassCodeSpans(string $text): array
+{
+    $found = preg_match_all('/`([^`\n]++)`/', $text, $matches);
+
+    if ($found === false) {
+        attackClassPatternFailed();
+    }
+
+    return array_values($matches[1]);
 }
 
 function attackClassNamesGitStash(string $content, int $depth = 0): bool
@@ -284,10 +320,16 @@ function attackClassNamesGitStash(string $content, int $depth = 0): bool
         return true;
     }
 
-    // A quote that an earlier line leaves open must not change how a later line is read.
-    $lines = explode("\n", $joined);
+    // A quote that an earlier part of a line leaves open must not change how a later line or an inline code span is read.
+    $parts = [...(str_contains($joined, "\n") ? explode("\n", $joined) : []), ...attackClassCodeSpans($joined)];
 
-    return count($lines) > 1 && array_filter($lines, static fn (string $line): bool => attackClassTextNamesGitStash($line, $depth)) !== [];
+    foreach ($parts as $part) {
+        if (attackClassTextNamesGitStash($part, $depth)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -458,6 +500,8 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias key on the section line' => ['[alias] s = stash'],
     'alias key quoted in a command-line option' => ['git -c "alias.s"=stash s'],
     'alias key with an escaped dot' => ['git config alias\.s stash'],
+    'alias line with a leading option in a section' => ["[alias]\n\ts = -p stash"],
+    'alias line with escaped quotes in a section' => ["[alias]\n\ts = st\\\"a\\\"sh"],
     'alias set in a named file' => ['git config --file .git/config alias.s stash'],
     'alias set on the command line to a quoted shell command' => ['git -c alias.s="!git stash" s'],
     'alias set on the command line to a shell command' => ['git -c \'alias.s=!git stash\' s'],
@@ -465,6 +509,11 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias that points at the command' => ['git -c alias.s=stash s push'],
     'alias to a partly quoted command' => ['git -c "alias.s=!git sta\\"\\"sh" s'],
     'alias to a path-qualified git' => ['git -c alias.s=\'!/usr/bin/git stash\' s'],
+    'alias value in double quotes inside single quotes' => ['git -c \'alias.s="stash"\' s'],
+    'alias value with a leading option' => ['git -c \'alias.s=-p stash\' s'],
+    'alias value with an escaped letter' => ['git -c \'alias.s=st\\ash\' s'],
+    'alias value with a quoted letter' => ['git -c \'alias.s=st"a"sh\' s'],
+    'alias value with empty quotes' => ['git -c "alias.s=sta\'\'sh" s'],
     'alias value with quotes inside' => ["[alias]\n\ts = st\"a\"sh"],
     'alias with a quoted value' => ['git config alias.sv "stash push"'],
     'alias with a shell command' => ['git config alias.s \'!git stash\''],
@@ -475,12 +524,23 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'ansi-c long unicode escape' => ['git $\'sta\\U00000073h\' push'],
     'ansi-c quoted command' => ['git $\'stash\' push'],
     'ansi-c quoted command with a hex escape' => ['git $\'sta\\x73h\' push'],
+    'automatic correction bare key in a section' => ["[help]\n\tautocorrect"],
+    'automatic correction bare key on the section line' => ['[help] autocorrect'],
     'automatic correction in a configuration section' => ["[help]\n\tautocorrect = immediate"],
     'automatic correction in an upper case section' => ["It's here.\n[Help]\n\tautocorrect = IMMEDIATE"],
+    'automatic correction key with no value' => ['git -c help.autocorrect verison'],
+    'automatic correction leading zero in a section' => ["[help]\n\tautocorrect = 01"],
+    'automatic correction negative in a section' => ["[help]\n\tautocorrect = -1"],
     'automatic correction set in the configuration' => ['git config help.autocorrect immediate'],
     'automatic correction switched on with one' => ['git config help.autocorrect 1'],
     'automatic correction that runs at once' => ['git -c help.autocorrect=immediate stahs push'],
     'automatic correction with a delay' => ['git config help.autocorrect 20'],
+    'automatic correction with a hex number' => ['git -c help.autocorrect=0x1 stahs'],
+    'automatic correction with a leading zero' => ['git -c help.autocorrect=01 stahs'],
+    'automatic correction with a negative delay' => ['git -c help.autocorrect=-5 stahs'],
+    'automatic correction with a negative number' => ['git -c help.autocorrect=-1 stahs'],
+    'automatic correction with a plus sign' => ['git -c help.autocorrect=+1 stahs'],
+    'automatic correction with a unit suffix' => ['git config help.autocorrect 1k'],
     'backslash continuation after a long option with a value' => ["git --git-dir /srv/repo \\\n  stash push"],
     'backslash continuation after a path option' => ["git -C \"my dir\" \\\n  stash pop"],
     'backslash continuation after a short option' => ["git -P \\\n  stash pop"],
@@ -492,12 +552,17 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'backslash continuation with carriage returns' => ["git \\\r\n  stash push"],
     'bare command in a code span' => ['take the fix out with `git stash`'],
     'carriage returns after global options' => ["git -C a \\\r\n  -P \\\r\n  stash pop"],
+    'code span in a sentence after an apostrophe' => ['Don\'t skip it, run `git sta\'\'sh push` first.'],
     'command inside a double-quoted shell string' => ['bash -c "git stash push"'],
     'command inside a single-quoted shell string' => ['sh -c \'git stash\''],
     'command with an option value that has a separate argument' => ['git --shallow-file x stash push'],
+    'configured alias value in quotes' => ['git config alias.s \'"stash"\''],
+    'configured alias value with a leading option' => ['git config alias.s \'-p stash\''],
+    'configured alias value with a quoted letter' => ['git config alias.s \'st"a"sh\''],
     'continuation inside a fenced command' => ["```bash\ngit \\\n  stash push -- src/Fix.php\n```"],
     'double-quoted command' => ['git "stash" push'],
     'double space' => ['git  stash push'],
+    'empty quotes in a code span after an apostrophe' => ['Don\'t forget: `git sta\'\'sh push`'],
     'escaped blank in a path' => ['git -C my\\ dir stash'],
     'escaped letter' => ['git st\\ash push'],
     'escaped option name' => ['git \\-P stash'],
@@ -517,6 +582,8 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'push of a path' => ['run `git stash push -- src/Fix.php` first'],
     'quoted automatic correction key' => ['git -c "help.autocorrect"=immediate x'],
     'quoted git' => ['"git" stash push'],
+    'quoted letter in a code span after an apostrophe' => ['The branch\'s tip: `git s\'t\'ash push`'],
+    'quoted letter in a code span after a short apostrophe' => ['It\'s here: `git s\'t\'ash push`'],
     'quoted option name' => ['git "-C" a stash'],
     'quoted option with an equals sign' => ['git "--git-dir=x" stash'],
     'quoted path-qualified git' => ['"/usr/bin/git" stash push'],
@@ -546,6 +613,7 @@ test('the git stash detector catches every spelling of the command (issue #608)'
 test('the git stash detector ignores text that only mentions the word, on one line or several (issue #623)', function (string $instruction): void {
     expect(attackClassNamesGitStash($instruction))->toBeFalse();
 })->with([
+    'a code span with another command' => ['Don\'t forget: `git sta\'\'tus`'],
     'a command separator between the words' => ['git; stash push'],
     'a commit message' => ['git commit -m "never stash"'],
     'a commit message after a continuation' => ["git commit \\\n  -m stash"],
@@ -554,6 +622,8 @@ test('the git stash detector ignores text that only mentions the word, on one li
     'a file name' => ['git add stash.txt'],
     'a file name after a continuation' => ["git add \\\n  stash.md"],
     'a file name in quotes' => ['git add "stash.txt"'],
+    'alias line with a leading option and another command in a section' => ["[alias]\n\ts = -p status"],
+    'alias value with a leading option and another command' => ['git -c \'alias.s=-p status\' s'],
     'a long list of path options with no command' => ['git ' . str_repeat('-C ', 25) . 'status'],
     'a long option list with no command' => ['git ' . str_repeat('--x ', 25) . 'status'],
     'a message with an apostrophe' => ['git commit -m "don\'t stash"'],
@@ -568,9 +638,13 @@ test('the git stash detector ignores text that only mentions the word, on one li
     'a path whose last segment only starts with git' => ['/usr/bin/gitk stash'],
     'a section that is not an alias section' => ["[alias]\n\ts = status\n[core]\n\tpager = stash"],
     'automatic correction that asks first' => ['git config help.autocorrect prompt'],
+    'automatic correction that is a double zero' => ['git config help.autocorrect 00'],
+    'automatic correction that is false' => ['git -c help.autocorrect=false x'],
     'automatic correction that is off' => ['git config help.autocorrect 0'],
+    'automatic correction that is off in a section' => ["[help]\n\tautocorrect = no"],
     'automatic correction that never runs' => ['git config help.autocorrect never'],
     'automatic correction that never runs on the command line' => ['git -c help.autocorrect=never x'],
+    'automatic correction that only shows' => ['git config help.autocorrect show'],
     'a word that continuation joins to git' => ["git\\\nstash push"],
     'the word on its own line' => ["git log\nstash"],
 ]);
