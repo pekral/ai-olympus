@@ -4853,22 +4853,6 @@ test('a run that only processes the owner answers and lands no change publishes 
 });
 
 dataset('interactive testing exception carriers', [
-    'wrapper contract' => [
-        'skills/code-review-github/references/cr-wrapper-contract.md',
-        'The one exception is a walkthrough that did not run because no local or test environment was available',
-    ],
-    'record template' => [
-        'skills/code-review-github/templates/pr-comment-output.md',
-        'when the walkthrough could not run for want of an environment',
-    ],
-    'pr-summary skill' => [
-        'skills/pr-summary/SKILL.md',
-        'Interactive testing that did not run is never listed.',
-    ],
-    'pr-summary JIRA template' => [
-        'skills/pr-summary/templates/pr-summary-jira.md',
-        'Interactive testing that did not run because no local or test environment was available is never mentioned',
-    ],
     'krang' => [
         'agents/krang.md',
         'A raphael walkthrough that could not run for want of an environment stays out of the review report',
@@ -4877,9 +4861,25 @@ dataset('interactive testing exception carriers', [
         'agents/leonardo.md',
         'A walkthrough that could not run for want of an environment gets no section and no word in the review',
     ],
+    'pr-summary JIRA template' => [
+        'skills/pr-summary/templates/pr-summary-jira.md',
+        'Interactive testing that did not run because no local or test environment was available is never mentioned',
+    ],
+    'pr-summary skill' => [
+        'skills/pr-summary/SKILL.md',
+        'Interactive testing that did not run is never listed.',
+    ],
+    'record template' => [
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'when the walkthrough could not run for want of an environment',
+    ],
     'review-only mode' => [
         'skills/_shared/orchestration/review-only-mode.md',
         'The one exception is a raphael walkthrough that could not run for want of an environment',
+    ],
+    'wrapper contract' => [
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'The one exception is a walkthrough that did not run because no local or test environment was available',
     ],
 ]);
 
