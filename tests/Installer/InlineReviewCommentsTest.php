@@ -149,8 +149,8 @@ dataset('wrapper self-test scenarios', [
     'summary of 501 characters' => ['a TL;DR of 501 characters is refused, not cut, and nothing is posted'],
     'summary opens the body' => ['the summary paragraph opens the review body, with no label and no findings count line'],
     'table rows keep their cells' => ['every table row of the visible body keeps its own cells: a pipe in a value is encoded or escaped'],
-    'test file in the walkthrough' => ['a walkthrough row that names a test file is refused and nothing is posted'],
     'test-only pull request' => ['a pull request that changes only tests may list its test files'],
+    'test file in the walkthrough' => ['a walkthrough row that names a test file is refused and nothing is posted'],
     'tests-only pull request with phpunit.xml' => [
         'a pull request that changes tests and phpunit.xml only is a tests-only pull request, as classify-risk.sh grades it',
     ],
