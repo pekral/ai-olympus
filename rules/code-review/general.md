@@ -138,7 +138,7 @@ conformant | N gap(s) | no linked issue` keeps rendering on the Summary line (th
 
 ### The tracker comment carries the same verdict — in all three cases
 
-`## Functional Review` above makes the verdict always present on the **pull request**. The ticket owner reads the **tracker**, where a positive verdict used to be silent: `@skills/assignment-compliance-check/SKILL.md` returned a skip status when every requirement was satisfied, and `@skills/pr-summary/SKILL.md` rendered no verdict of its own, so *"every criterion is met"* and *"nobody checked"* looked identical to the person who decides whether the change ships.
+`## Functional Review` above makes the verdict always present on the **pull request**. The ticket owner reads the **tracker**. Without a verdict there, *"every criterion is met"* and *"nobody checked"* look identical to the person who decides whether the change ships.
 
 Both behaviours are therefore overridden **for the tracker comment**. This is the tracker-side counterpart of the `## Functional Review` decision above, not a second mechanism: the same Assignment Conformance Gate direction 1 result is rendered on a second surface, in non-technical prose.
 
@@ -620,7 +620,7 @@ A published review reads as the review of a person who works in the project: a n
 
 ## Minor findings are not detected
 
-The review reports **Critical and Moderate findings only**. A Minor finding never blocked anything — `@skills/process-code-review/SKILL.md` fixes Critical and Moderate findings alone, and the convergence gate reads only those two — so every Minor entry cost a reader's attention on every round and changed no outcome. **The review no longer detects one, no longer raises one, and no longer renders one.**
+The review reports **Critical and Moderate findings only**. A Minor finding never blocked anything — `@skills/process-code-review/SKILL.md` fixes Critical and Moderate findings alone, and the convergence gate reads only those two — so every Minor entry cost a reader's attention on every round and changed no outcome. **The review does not detect, raise, or render one.**
 
 - **The whole bucket is gone, not merely hidden.** No Core Analysis bullet, no walk, no lens, and no output rule produces a Minor finding, so nothing is being suppressed at render time and the counts never lie about a finding that was found and dropped. No template carries a Minor sub-heading, and neither the `Counts:` line nor the `Summary:` line carries a Minor slot.
 - **There is no exception, and a security lens has no Minor either.** Every security lens — `@skills/security-review/SKILL.md`, `@skills/laravel-authorization-review/SKILL.md`, and any other lens with its own audit scale — maps that scale onto the two CR severities:
@@ -636,7 +636,7 @@ The review reports **Critical and Moderate findings only**. A Minor finding neve
 - **Nothing about the gates changes.** Convergence and the merge gate read Critical and Moderate only, so removing the bucket lowers no bar. The Assignment Conformance verdict's `N` never counted a Minor either.
 - **A defect that genuinely matters was never Minor.** The default severity stratification (*Default severity for a rule violation* above) routes architectural and structural violations to Critical and PHP-practice violations to Moderate; only "naming or wording nits without a binding rule" landed in the retired tier.
 
-**What is lost, stated rather than hidden:** a genuine but non-blocking nit — a less-descriptive name, a stray dead line the diff introduced — is no longer reported anywhere, and neither is a security `Info` observation. That is the intended trade. A security `Low` moves the other way: it now blocks the merge as a Moderate.
+**What is lost, stated rather than hidden:** a genuine but non-blocking nit — a less-descriptive name, a stray dead line the diff introduced — is not reported anywhere, and neither is a security `Info` observation. That is the intended trade. A security `Low` blocks the merge as a Moderate.
 
 ---
 

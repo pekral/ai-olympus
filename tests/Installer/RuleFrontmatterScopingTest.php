@@ -480,7 +480,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the operator-line pointer keeps the section's original name (issue #607, review round 1).
         // Re-baselined: a walkthrough that could not run for want of an environment is not reported, a JIRA comment
         // leaves out the criteria section when the assignment states none, and the review summary holds 500 characters.
-        'rules/code-review/general.md' => '696b46850a27fe54b62829b9d9ff70d029da127c31d2e6a08c17ff149a9483b1',
+        // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
+        'rules/code-review/general.md' => '89458051fe0b4109ba0a68893113d566679d5a6f054366796b72c0c768c3adbb',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -569,7 +570,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // behaviour change in it is a Moderate finding instead of a Critical one.
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
-        'rules/refactoring/general.md' => '5bb9994d55094363d5a9e96a8c8838d8d60de51fb56762be2779c4d3457d3ff9',
+        // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
+        'rules/refactoring/general.md' => 'cecee55969d3c1dc138fdac62349c7bccba0a40ec7ea50fbe345c33f689b0e2e',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves

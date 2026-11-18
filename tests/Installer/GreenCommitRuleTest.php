@@ -137,8 +137,8 @@ test('the withdrawn cherry-pick guarantee is named as withdrawn, not left implie
     // This used to assert that cherry-pick independence survived the gate deferral. The granularity
     // mandate it belonged to is now withdrawn too, so the rule must say both properties are gone
     // rather than leave a reader to infer that the ordering discipline still holds.
-    expect($rule)->toContain('has since been withdrawn with the rest of the granularity mandate');
-    expect($rule)->toContain('neither property is guaranteed today');
+    expect($rule)->toContain('Cherry-pick independence is not required either');
+    expect($rule)->toContain('neither property is guaranteed');
 });
 
 test('a rebase that only moved the base carries the gate verdict forward after an analysis of the incoming changes', function (): void {
@@ -149,7 +149,7 @@ test('a rebase that only moved the base carries the gate verdict forward after a
     expect($gates)->toContain('## Rebase that moves the head — analyse the incoming changes first');
     expect($gates)->toContain('A different fingerprint means the branch\'s own change moved → run the gate, exactly as before.');
     expect($gates)->toContain('When the classification is unclear, the change is related.');
-    expect($gates)->toContain('**Related → the rebase behaves exactly as before.**');
+    expect($gates)->toContain('**Related → run the full gate.**');
     expect($gates)->toContain('**Unrelated and CI green on `H` → carry the gate verdict forward.**');
     expect($gates)->toContain('Run only the dependency advisory audit');
     expect($gates)->toContain('CI must have run and passed on `H` itself');
