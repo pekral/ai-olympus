@@ -248,3 +248,14 @@ test('a JIRA account mention becomes an ADF mention node', function (): void {
 
     expect($mention)->toBe(['type' => 'mention', 'attrs' => ['id' => '5b10ac8d82e05b22cc7d4ef5']]);
 });
+
+test('the merge-preparation consolidation opens a JIRA comment with its first heading, never with a verdict sentence', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $april = (string) preg_replace('/\s+/', ' ', (string) file_get_contents($packageDir . '/agents/april.md'));
+    $skill = (string) preg_replace('/\s+/', ' ', (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md'));
+
+    expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
+        ->and($april)->toContain('On a JIRA ticket the comment opens with its first heading, and the exact blocker is the first `Review findings` bullet.')
+        ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
+        ->and($skill)->toContain('`Review findings` with the exact blocker first');
+});

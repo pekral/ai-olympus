@@ -4851,3 +4851,43 @@ test('a run that only processes the owner answers and lands no change publishes 
 
     expect($leonardo)->toContain('The owner-answers case of `@rules/code-review/general.md` *One published comment per review run* publishes nothing.');
 });
+
+dataset('interactive testing exception carriers', [
+    'wrapper contract' => [
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'The one exception is a walkthrough that did not run because no local or test environment was available',
+    ],
+    'record template' => [
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'when the walkthrough could not run for want of an environment',
+    ],
+    'pr-summary skill' => [
+        'skills/pr-summary/SKILL.md',
+        'Interactive testing that did not run is never listed.',
+    ],
+    'pr-summary JIRA template' => [
+        'skills/pr-summary/templates/pr-summary-jira.md',
+        'Interactive testing that did not run because no local or test environment was available is never mentioned',
+    ],
+    'krang' => [
+        'agents/krang.md',
+        'A raphael walkthrough that could not run for want of an environment stays out of the review report',
+    ],
+    'leonardo' => [
+        'agents/leonardo.md',
+        'A walkthrough that could not run for want of an environment gets no section and no word in the review',
+    ],
+    'review-only mode' => [
+        'skills/_shared/orchestration/review-only-mode.md',
+        'The one exception is a raphael walkthrough that could not run for want of an environment',
+    ],
+]);
+
+test('every carrier of the interactive-testing exception keeps it and points to its owner', function (string $path, string $exception): void {
+    $pointer = 'What a code review checks, and nothing else';
+    $text = (string) preg_replace('/\s+/', ' ', str_replace(['`', '*', ','], '', crContractText($path)));
+    $position = strpos($text, str_replace(',', '', $exception));
+
+    expect($position)->not->toBeFalse();
+    expect(substr($text, (int) $position, 400))->toContain(str_replace(',', '', $pointer));
+})->with('interactive testing exception carriers');

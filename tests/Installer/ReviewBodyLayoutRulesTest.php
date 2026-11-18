@@ -210,5 +210,23 @@ test('the wrapper contract names the walkthrough file, its sources, and the reus
         ->and($contract)->toContain('`tldr` (what the pull request changes, in plain sentences, at most 500 characters)')
         ->and($contract)->toContain('Route Access of Changed Routes')
         ->and($contract)->toContain('reused, never rebuilt, and never read from a running application')
-        ->and($contract)->toContain('The wrapper refuses a record without it');
+        ->and($contract)->toContain('The wrapper refuses a record without it')
+        ->and($contract)->toContain('the author lists no test file and no row for the tests, unless the pull request changes only tests');
+});
+
+test('the Walkthrough lists no test file, in the template, the wrapper header, and the fixture', function (): void {
+    $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
+    $script = (string) preg_replace('/\s*\n#\s*/', ' ', reviewLayoutRepoFile('skills/code-review-github/scripts/post-inline-review.sh'));
+    /** @var array{areas: list<array{files: list<string>}>} $walkthrough */
+    $walkthrough = json_decode(reviewLayoutRepoFile('tests/Fixtures/review-layout/walkthrough.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+    $files = array_merge(...array_column($walkthrough['areas'], 'files'));
+
+    expect($template)->toContain('**The Walkthrough lists no test file.** A row names production files only, and the table has no row for the tests.')
+        ->and($template)->toContain('A pull request that changes only tests is the one exception.')
+        ->and($script)->toContain('The author lists no test file and no row for the tests, unless the pull request changes only tests')
+        ->and($files)->not->toBeEmpty();
+
+    foreach ($files as $file) {
+        expect($file)->not->toStartWith('tests/');
+    }
 });
