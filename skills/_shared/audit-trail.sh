@@ -20,7 +20,8 @@
 #       Run one write command, then `record` its own exit status. The command's stdout, stderr,
 #       and exit status pass through unchanged. Allowed commands: `git push`,
 #       `gh pr create|ready|edit|close|merge|update-branch|reopen`,
-#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. A comment goes through
+#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. `close` with `-c` or `--comment` is refused:
+#       it posts a comment. A comment goes through
 #       `upsert-comment.sh` only: it adds the agent marker, and a comment without one reads as the
 #       operator's own.
 #   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
@@ -250,6 +251,21 @@ label_changes() {
   printf '%s' "$out"
 }
 
+# 0 when the arguments of a `gh pr|issue close` carry `-c`, `--comment`, or `--comment=<text>`, also inside a
+# bundle of short options (`-dc`). That option posts a comment, and a comment posted this way carries no agent
+# marker, so `run` refuses it like `gh issue comment`.
+close_has_comment() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+    --comment | --comment=*) return 0 ;;
+    --*) ;;
+    -*c*) [[ "$arg" =~ ^-[A-Za-z]*c ]] && return 0 ;;
+    esac
+  done
+  return 1
+}
+
 # Every issue or pull request that a `gh pr|issue <command>` names, as " <number or URL>" for each: a
 # command can name several, and each one is part of the write. The value of a option that takes one is
 # skipped, so a title or a milestone is never read as an issue.
@@ -305,10 +321,12 @@ describe_command() {
     ;;
   "gh pr")
     [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
+    if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
     printf 'gh pr %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
     [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
+    if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
     printf 'gh issue %s%s%s' "$sub2" "$(edit_refs "${argv[@]:3}")" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh label")
@@ -777,12 +795,22 @@ EOF
   expect_eq 'run refuses a command that is not an allowed write' "$rc" 64
   expect_eq 'a refused command writes no line' "$(line_count)" "$before"
   local refused
-  for refused in 'gh pr comment 5 --body x' 'gh pr review 5 --approve' 'gh issue comment 5 --body x'; do
+  for refused in 'gh pr comment 5 --body x' 'gh pr review 5 --approve' 'gh issue comment 5 --body x' \
+    'gh issue close 5 --comment x' 'gh issue close 5 -c x' 'gh pr close 5 --comment=x' 'gh pr close 5 -dc x' 'gh pr close 5 -cx'; do
     rc=0
     # shellcheck disable=SC2086
     PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
     expect_eq "run refuses '$refused' with exit 64: a comment goes through upsert-comment.sh" "$rc" 64
     expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
+  done
+
+  for refused in 'gh issue close 5 --reason completed' 'gh pr close 5 --delete-branch'; do
+    before="$(line_count)"
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run still allows '$refused': it posts no comment" "$rc" 0
+    expect_eq "an allowed '$refused' writes one line" "$(line_count)" "$((before + 1))"
   done
 
   rc=0

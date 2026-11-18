@@ -1,0 +1,66 @@
+<?php
+
+declare(strict_types = 1);
+
+use Symfony\Component\Process\Process;
+
+// `audit-trail.sh run` refuses a close that posts a comment: that comment carries no agent marker.
+// The fake `gh` records that it ran.
+
+const AUDIT_CLOSE_FAKE_GH = <<<'BASH'
+#!/usr/bin/env bash
+touch "$FAKE_GH_RAN"
+echo "https://example.test/o/r/issues/5"
+BASH;
+
+/**
+ * @param list<string> $command
+ * @return array{exitCode: int|null, ran: bool, lines: int}
+ */
+function auditRunCloseOutcome(array $command): array
+{
+    $ledger = auditLedgerCreate();
+    $bin = $ledger['directory'] . '/fake-bin';
+    installerEnsureDirectory($bin);
+    file_put_contents($bin . '/gh', AUDIT_CLOSE_FAKE_GH);
+    chmod($bin . '/gh', 0o700);
+    $path = getenv('PATH');
+
+    try {
+        $process = new Process(
+            [dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'run', '--', ...$command],
+            null,
+            [
+                ...$ledger['env'],
+                'FAKE_GH_RAN' => $ledger['directory'] . '/ran',
+                'PATH' => $bin . PATH_SEPARATOR . ($path === false ? '/usr/bin:/bin' : $path),
+            ],
+        );
+        $process->run();
+
+        return [
+            'exitCode' => $process->getExitCode(),
+            'ran' => file_exists($ledger['directory'] . '/ran'),
+            'lines' => count(auditLedgerRows($ledger)),
+        ];
+    } finally {
+        auditLedgerRemove($ledger);
+    }
+}
+
+dataset('close commands that post a comment', [
+    'issue --comment' => [['gh', 'issue', 'close', '5', '--comment', 'x']],
+    'issue -c' => [['gh', 'issue', 'close', '5', '-c', 'x']],
+    'pr --comment=' => [['gh', 'pr', 'close', '5', '--comment=x']],
+    'pr in a short bundle' => [['gh', 'pr', 'close', '5', '-dc', 'x']],
+    'pr value stuck to the option' => [['gh', 'pr', 'close', '5', '-cx']],
+]);
+
+test('run refuses a close that posts a comment, runs nothing, and writes no line', function (array $command): void {
+    expect(auditRunCloseOutcome($command))->toBe(['exitCode' => 64, 'ran' => false, 'lines' => 0]);
+})->with('close commands that post a comment');
+
+test('run still allows a close that posts no comment', function (): void {
+    expect(auditRunCloseOutcome(['gh', 'pr', 'close', '5', '--delete-branch']))
+        ->toBe(['exitCode' => 0, 'ran' => true, 'lines' => 1]);
+});
