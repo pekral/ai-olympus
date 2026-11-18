@@ -29,8 +29,7 @@ function auditRunCloseOutcome(array $command): array
     try {
         $process = new Process(
             [dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'run', '--', ...$command],
-            null,
-            [
+            env: [
                 ...$ledger['env'],
                 'FAKE_GH_RAN' => $ledger['directory'] . '/ran',
                 'PATH' => $bin . PATH_SEPARATOR . ($path === false ? '/usr/bin:/bin' : $path),
@@ -40,8 +39,8 @@ function auditRunCloseOutcome(array $command): array
 
         return [
             'exitCode' => $process->getExitCode(),
-            'ran' => file_exists($ledger['directory'] . '/ran'),
             'lines' => count(auditLedgerRows($ledger)),
+            'ran' => file_exists($ledger['directory'] . '/ran'),
         ];
     } finally {
         auditLedgerRemove($ledger);
@@ -57,10 +56,11 @@ dataset('close commands that post a comment', [
 ]);
 
 test('run refuses a close that posts a comment, runs nothing, and writes no line', function (array $command): void {
-    expect(auditRunCloseOutcome($command))->toBe(['exitCode' => 64, 'ran' => false, 'lines' => 0]);
+    /** @var list<string> $command */
+    expect(auditRunCloseOutcome($command))->toEqual(['exitCode' => 64, 'ran' => false, 'lines' => 0]);
 })->with('close commands that post a comment');
 
 test('run still allows a close that posts no comment', function (): void {
     expect(auditRunCloseOutcome(['gh', 'pr', 'close', '5', '--delete-branch']))
-        ->toBe(['exitCode' => 0, 'ran' => true, 'lines' => 1]);
+        ->toEqual(['exitCode' => 0, 'ran' => true, 'lines' => 1]);
 });
