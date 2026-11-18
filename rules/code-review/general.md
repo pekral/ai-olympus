@@ -31,6 +31,7 @@ The review has no other content:
 - **No point unrelated to the assignment.** A point outside the assignment that is not a security issue is dropped. It is not a finding, not an observation, not a nice-to-have, and not a note in the handoff.
 - **The security exception stays.** A security vulnerability found outside the assignment is never dropped. The reviewer reports it in its handoff (`@agents/leonardo.md` *Hand a security vulnerability found outside the assignment to the agent that files issues*). The security floor never moves.
 - **An unrequested change in the diff is a point about the assignment.** It stays a finding of area 1 (*Changes → requirements* in the Assignment Conformance Gate).
+- **Interactive testing that could not run is not reported.** The case is a `raphael` walkthrough that did not run because no local or test environment was available: the application could not be brought up, or no interactive browser could drive it. The published review then says nothing about the walkthrough, on the pull request and on the tracker: no `## Interactive testing` section, no finding, no open question, no `Not verified` point, and no sentence of a summary. The `raphael` handoff and the final report to the user still name the blocker and its remediation. A scenario that ran and ended `Not met`, `Failed`, or `Partial` stays a finding.
 
 ## Code Context
 - Ensure the review is based on the latest available state of:
@@ -146,6 +147,7 @@ Both behaviours are therefore overridden **for the tracker comment**. This is th
 1. **Every acceptance criterion is met** → one explicit positive sentence, in the assignment's own language. The sentence is the whole report: never a checklist of satisfied requirements, never a "what is working" list.
 2. **Something is not met** → which criterion, and what concretely is missing: one entry per Critical gap, each with its plain-language example.
 3. **The assignment states no explicit acceptance criteria** → say that too, plus the basis the state was judged on (the described expected behaviour, the reporter's example, the reproduction steps). Otherwise the absence of criteria is indistinguishable from the absence of a check.
+   - **JIRA is the one exception.** A JIRA comment renders no `Acceptance criteria` section for this verdict and says nothing about the missing criteria (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The pull-request comment still carries the verdict in `## Functional Review`.
 
 Four boundaries keep this narrow:
 
@@ -490,7 +492,7 @@ Every published review carries the first three, and the first two are what make 
 
 1. **The review carries no inline comment.** No finding is posted on a line of the diff, whatever lens raised it.
 2. **Every finding is an entry of the Actionable comments block of the review body**, on a changed line, outside the diff, or a functional gap with no line, with its `file:line` place when it has one.
-3. **The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`.** In this order and nothing else: a summary paragraph of what the pull request changes (at most 4,000 characters, with no label and no heading), a collapsed **Merge Risk** block, a collapsed **Walkthrough** block, a collapsed **Where to test** block (only for a changed page or route), and a collapsed **Actionable comments** block (only when a finding is published). It shows no pre-merge checks, no recent review information, no CI result, no button, and no share link.
+3. **The visible body of the review has one owner, `@skills/code-review-github/templates/review-body.md`.** In this order and nothing else: a summary paragraph of what the pull request changes (at most 500 characters, with no label and no heading), a collapsed **Merge Risk** block, a collapsed **Walkthrough** block, a collapsed **Where to test** block (only for a changed page or route), and a collapsed **Actionable comments** block (only when a finding is published). It shows no pre-merge checks, no recent review information, no CI result, no button, and no share link.
    - The summary, the walkthrough, and the routes come from the diff, the assignment, and the route inventory of `@skills/security-review/SKILL.md` *Route Access of Changed Routes* (a second inventory is never built), as one JSON object; the Merge Risk block from the record's `Merge risk:` line; the Actionable comments from the findings file. The wrapper refuses a longer summary (exit `1`) and never cuts it.
    - The body is visible text (*Visible review text names none of the package's own tooling* below), and the merge gate never reads it.
 4. **The machine record is hidden HTML in the review body.** It is this template's report — the header block, every published finding in full, and every section below — without the human prose of *Quick overview* below. It carries the `<!-- cr-comment:lines=… -->` and `<!-- cr-comment:actor=<login> -->` markers, so the trust test and every reader read it.
@@ -504,7 +506,7 @@ Every reader reads the newest trusted report across both homes: the review and a
 2. `## Changed areas` (*Quick overview* below), then `## TL;DR` — one line per change the review loop landed on the branch, in plain language. When the run landed no change, one line stating the reviewed scope and the verdict,
 3. `## Functional Review` — the assignment verdict, unchanged from *Two-Part CR Output* above,
 4. `## Affected behaviour outside the diff`, `## Deferred to sub-issues`, `## Pre-existing fixes`, and `## Answers to reviewer questions`, each rendered only when it has an entry, and `## Input consistency` and `## Reuse (DRY)` per *Input consistency and reuse* below. `## Affected behaviour outside the diff` carries the entries of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*. An answer follows *Answering a question raised during a review* above.
-5. `## Interactive testing` and `## Database report`, each rendered only when the caller passed the `raphael` or the `casey` report (`agents/krang.md` *Parallel CR round*).
+5. `## Interactive testing` and `## Database report`, each rendered only when the caller passed the `raphael` or the `casey` report (`agents/krang.md` *Parallel CR round*). A walkthrough that could not run for want of an environment renders no `## Interactive testing` (*What a code review checks, and nothing else*).
 
 **Merge verdict — the direct answer to "can we merge, and is the assignment met with no Critical finding?".** Every review comment carries it in the header, converged or not. The verdict is `yes` only when all of these hold:
 

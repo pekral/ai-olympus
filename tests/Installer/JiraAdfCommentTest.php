@@ -233,11 +233,10 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
     $krang = krangContractText();
 
     // Both files instructed the headline into the `Problem` field on every target. The JIRA
-    // template has no such field, and its status line states the state of the work in the
-    // assignment language instead of an English headline.
+    // template has no such field and no status line: the comment opens with its first heading.
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
     expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
-    expect($april)->toContain('On **JIRA** there is no headline: the **status line above `h2. Acceptance criteria`**');
+    expect($april)->toContain('On **JIRA** there is no headline and no status line: the comment opens with its first heading');
     expect($krang)->not->toContain('the opening sentence of the `Problem` field is');
     expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });

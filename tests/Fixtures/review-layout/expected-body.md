@@ -27,7 +27,6 @@ The change lets a workspace owner invite a colleague by e-mail. The colleague ac
 |**Send, list and cancel invitations** <br> <code>app/Http/Controllers/Workspace/InvitationController.php</code>, <code>app/Http/Controllers/Api/InvitationController.php</code>, <code>app/Mail/WorkspaceInvitation.php</code>|The owner sends an invitation from the settings or the API; the e-mail carries the link. Open invitations are listed and can be cancelled.|
 |**Store invitations** <br> <code>app/Models/Invitation.php</code>, <code>database/migrations/2026&#95;11&#95;17&#95;000000&#95;create&#95;invitations&#95;table.php</code>|A new invitation record holds the e-mail, the token, the expiry and the acceptance time.|
 |**Accept an invitation** <br> <code>app/Http/Controllers/InvitationAcceptController.php</code>, <code>routes/web.php</code>|The link signs the colleague up and adds them to the workspace as a member.|
-|**Tests** <br> <code>tests/Feature/Workspace/InvitationTest.php</code>|Send and accept happy path.|
 
 **Estimated code review effort:** 3 (Moderate) | ~25 minutes
 **Change:** Feature

@@ -367,7 +367,8 @@ test('the tracker comment always carries the assignment verdict, the affirmative
     // Issue #118: JIRA carries the same verdict in its first section instead of the slot, so the
     // "always" half of the contract holds there through the section rather than through a block.
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
-    expect($jiraTemplate)->toContain('a CR run with a linked tracker always carries it');
+    expect($jiraTemplate)->toContain('a CR run on a ticket with explicit criteria always carries it');
+    expect($jiraTemplate)->toContain('it states none, leave out the heading and everything under it');
     expect($jiraTemplate)->not->toContain('the only route an assignment gap takes into this comment');
 });
 

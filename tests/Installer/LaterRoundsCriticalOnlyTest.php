@@ -92,7 +92,7 @@ test('a later round is an iteration of one review-and-fix loop, and a published-
 });
 
 test(
-    'the pr-summary lists every point that blocks the merge and names a blocking security point in the JIRA status line (issue #455)',
+    'the pr-summary lists every point that blocks the merge and names a blocking security point in the first JIRA finding (issue #455)',
     function (string $path): void {
         expect(laterRoundsFile($path))->not->toContain('that is not Critical');
         expect(laterRoundsFile($path))->not->toContain('only when it is Critical');
@@ -105,11 +105,11 @@ test(
     'agents/april.md',
 ]);
 
-test('the JIRA status line names a security point that needs verification as a blocker (issue #455)', function (): void {
+test('the first JIRA finding names a security point that needs verification as a blocker (issue #455)', function (): void {
     expect(laterRoundsFile('skills/pr-summary/templates/pr-summary-jira.md'))
-        ->toContain('When a security point that still needs verification blocks the merge, name it here as a blocker');
+        ->toContain('A security point that still needs verification and blocks the merge is the first bullet, named as a blocker');
     expect(laterRoundsFile('skills/pr-summary/SKILL.md'))
-        ->toContain('A security point that still needs verification blocks the merge: the status line names it as a blocker in plain words');
+        ->toContain('A security point that still needs verification blocks the merge: it is the first bullet, named as a blocker in plain words');
 });
 
 test('the security hand-off keeps its renamed field name in every line that routes to it (issue #455)', function (string $path): void {

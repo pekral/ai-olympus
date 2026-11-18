@@ -478,7 +478,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the parts only some review runs need moved verbatim into five on-demand companions, and a pointer names
         // each one where it used to sit (issue #607).
         // Re-baselined: the operator-line pointer keeps the section's original name (issue #607, review round 1).
-        'rules/code-review/general.md' => '272c53e54be2408aec2e9b9943bc783a9afa61adc19f6d4e64c5398734f0be34',
+        // Re-baselined: a walkthrough that could not run for want of an environment is not reported, a JIRA comment
+        // leaves out the criteria section when the assignment states none, and the review summary holds 500 characters.
+        'rules/code-review/general.md' => '696b46850a27fe54b62829b9d9ff70d029da127c31d2e6a08c17ff149a9483b1',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -593,7 +595,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the JIRA length note points to the pull-request length limit instead of saying the description has no cap (PR #524).
         // Re-baselined: the GitHub exception names the visible body of `review-body.md` instead of the visible lines (issue #595).
         // Re-baselined: the GitHub exception names the visible body with its Actionable comments and no inline comment (release 0.5.2).
-        'rules/reports/general.md' => 'dd694e498d448f9c0961e933caa587d19e650acd1d89f92afcb385a73f57daa9',
+        // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
+        // and writes *What changed* and *Impact after deployment* as a TL;DR each.
+        'rules/reports/general.md' => 'a921abe63bb34aa8c29f6f5d48a1fd718499c4ebb248fbbd23d0d8614c04e875',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
