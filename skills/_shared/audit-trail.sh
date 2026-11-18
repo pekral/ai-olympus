@@ -20,8 +20,8 @@
 #       Run one write command, then `record` its own exit status. The command's stdout, stderr,
 #       and exit status pass through unchanged. Allowed commands: `git push`,
 #       `gh pr create|ready|edit|close|merge|update-branch|reopen`,
-#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. `close` with `-c` or `--comment` is refused:
-#       it posts a comment. A comment goes through
+#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`. `close` and `reopen` with `-c` or `--comment` are refused:
+#       they post a comment. A comment goes through
 #       `upsert-comment.sh` only: it adds the agent marker, and a comment without one reads as the
 #       operator's own.
 #   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
@@ -251,7 +251,7 @@ label_changes() {
   printf '%s' "$out"
 }
 
-# 0 when the arguments of a `gh pr|issue close` carry `-c`, `--comment`, or `--comment=<text>`, also inside a
+# 0 when the arguments of a `gh pr|issue close|reopen` carry `-c`, `--comment`, or `--comment=<text>`, also inside a
 # bundle of short options (`-dc`). That option posts a comment, and a comment posted this way carries no agent
 # marker, so `run` refuses it like `gh issue comment`.
 close_has_comment() {
@@ -331,12 +331,12 @@ describe_command() {
     ;;
   "gh pr")
     [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
-    if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
+    if [[ "$sub2" == close || "$sub2" == reopen ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
     printf 'gh pr %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh issue")
     [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
-    if [[ "$sub2" == close ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
+    if [[ "$sub2" == close || "$sub2" == reopen ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
     printf 'gh issue %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
     ;;
   "gh label")
@@ -536,6 +536,11 @@ observe_item() {
     base="repos/{owner}/{repo}/issues/$item"
     item_number="$item"
     item_repo="$current_repo"
+    if [[ -z "$item_repo" ]]; then
+      # A repository that matches no URL: no label change of this item counts as recorded.
+      item_repo="?"
+      notes+=("the current repository could not be read; run 'gh repo view' and name the repository of $(clean_field "$item"): no label change of that item counts as recorded")
+    fi
   else
     notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
     return 0
@@ -818,7 +823,8 @@ EOF
   expect_eq 'a refused command writes no line' "$(line_count)" "$before"
   local refused
   for refused in 'gh pr comment 5 --body x' 'gh pr review 5 --approve' 'gh issue comment 5 --body x' \
-    'gh issue close 5 --comment x' 'gh issue close 5 -c x' 'gh pr close 5 --comment=x' 'gh pr close 5 -dc x' 'gh pr close 5 -cx'; do
+    'gh issue close 5 --comment x' 'gh issue close 5 -c x' 'gh pr close 5 --comment=x' 'gh pr close 5 -dc x' 'gh pr close 5 -cx' \
+    'gh issue reopen 5 --comment x' 'gh pr reopen 5 -c x' 'gh pr reopen 5 --comment=x'; do
     rc=0
     # shellcheck disable=SC2086
     PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
@@ -826,7 +832,7 @@ EOF
     expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
   done
 
-  for refused in 'gh issue close 5 --reason completed' 'gh pr close 5 --delete-branch'; do
+  for refused in 'gh issue close 5 --reason completed' 'gh pr close 5 --delete-branch' 'gh issue reopen 5' 'gh pr reopen 5' 'gh pr merge 5 --body x --subject y'; do
     before="$(line_count)"
     rc=0
     # shellcheck disable=SC2086
@@ -1130,6 +1136,23 @@ REPOGH
     printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/other/issues/7|ok (exit 0)\n' >"$other"
     PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
     if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a label written on issue 7 of another repository is no record for issue 7 of this one'; else bad "verify counted another repository: $(cat "$tmp/other.out")"; fi
+    # When the current repository cannot be read, a bare number matches no repository and the read is reported.
+    mkdir "$tmp/norepobin"
+    sed 's/^"repo view --json nameWithOwner --jq .nameWithOwner") echo o\/r ;;$/"repo view"*) exit 1 ;;/' "$tmp/repobin/gh" >"$tmp/norepobin/gh"
+    chmod +x "$tmp/norepobin/gh"
+    local failcase failargs
+    for failcase in '--issue 7' '--pr 7'; do
+      for failargs in 'gh issue edit 7 +label bug -> https://example.test/o/other/issues/7' 'gh issue edit 3 7 +label bug -> https://example.test/o/other/issues/3' 'gh issue edit 7 +label bug -> https://example.test/o/r/issues/7'; do
+        printf 'donatello|2026-11-11T10:00:00Z|external-write|%s|ok (exit 0)\n' "$failargs" >"$other"
+        # shellcheck disable=SC2086
+        PATH="$tmp/norepobin:$PATH" "$script" verify --file "$other" $failcase >"$tmp/other.out" || true
+        if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out" && grep -q "^not verified: the current repository could not be read" "$tmp/other.out"; then
+          ok "an unreadable current repository counts no label as recorded for $failcase: $failargs"
+        else
+          bad "verify $failcase counted a label with no repository: $(cat "$tmp/other.out")"
+        fi
+      done
+    done
     printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/r/issues/7|ok (exit 0)\n' >"$other"
     PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
     if ! grep -q "label 'bug'" "$tmp/other.out"; then ok 'a label written on issue 7 of this repository is recorded for a bare issue 7'; else bad "verify lost a label of this repository: $(cat "$tmp/other.out")"; fi
