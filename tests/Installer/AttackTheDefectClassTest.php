@@ -17,13 +17,45 @@ function attackClassSection(string $content, string $heading): string
     return $end === false ? substr($content, $start) : substr($content, $start, $end - $start);
 }
 
+function attackClassMatches(string $pattern, string $subject): bool
+{
+    $result = preg_match($pattern, $subject);
+
+    if ($result === false) {
+        throw new RuntimeException('The git stash detector could not read the text: ' . preg_last_error_msg());
+    }
+
+    return $result === 1;
+}
+
+/**
+ * The shell ignores quotes and escapes inside a word, so every letter of the word may carry them.
+ */
+function attackClassShellWord(string $word): string
+{
+    $noise = '[\\\\"\']*+';
+
+    return $noise . implode($noise, str_split($word)) . $noise;
+}
+
 function attackClassNamesGitStash(string $content): bool
 {
-    $gap = '(?:\s|\\\\\r?\n)+';
-    $value = '(?:"[^"]*"|\'[^\']*\'|\S+)';
-    $globalOption = '(?:-C' . $gap . $value . '|-[A-Za-z]+|--[a-z][a-z-]*(?:=' . $value . '|' . $gap . $value . ')?)';
+    $joined = preg_replace('/\\\\\r?\n/', '', $content);
 
-    return preg_match('/\bgit\b(?:' . $gap . $globalOption . ')*' . $gap . 'stash(?![\w-])/i', $content) === 1;
+    if ($joined === null) {
+        throw new RuntimeException('The git stash detector could not read the text: ' . preg_last_error_msg());
+    }
+
+    $value = '(?:"[^"]*+"|\'[^\']*+\'|(?:\\\\.|[^\s\\\\])++)';
+    $valueOptions = '(?:git-dir|work-tree|namespace|super-prefix|config-env|attr-source)';
+    $pathOption = '-C\s++' . $value;
+    $valueOption = '--' . $valueOptions . '(?:=' . $value . '|\s++' . $value . ')';
+    $otherOption = '--[a-z][a-z-]*+(?:=' . $value . ')?+|-[A-Za-z]++';
+    $globalOption = '(?>' . $pathOption . '|' . $valueOption . '|' . $otherOption . ')';
+    $stashCommand = '/(?<!\w)' . attackClassShellWord('git') . '(?:\s++' . $globalOption . ')*+\s++' . attackClassShellWord('stash') . '(?![\w-])/i';
+    $stashAlias = '/alias\.[\w.-]++(?:\s*+=\s*+|\s++)' . attackClassShellWord('stash') . '(?![\w-])/i';
+
+    return attackClassMatches($stashCommand, $joined) || attackClassMatches($stashAlias, $joined);
 }
 
 /**
@@ -186,26 +218,45 @@ test('Claude Code and Codex install the attack step and its handoff field (issue
 test('the git stash detector catches every spelling of the command (issue #608)', function (string $instruction): void {
     expect(attackClassNamesGitStash($instruction))->toBeTrue();
 })->with([
+    'alias in a quoted option' => ['git -c "alias.s=stash" s'],
+    'alias that points at the command' => ['git -c alias.s=stash s push'],
+    'alias with a quoted value' => ['git config alias.sv "stash push"'],
+    'alias with blanks around the equals sign' => ['alias.sv = stash'],
+    'alias written to the configuration' => ['git config --global alias.sv stash'],
     'another worktree' => ['git -C "$worktree" stash push'],
     'backslash continuation after a long option with a value' => ["git --git-dir /srv/repo \\\n  stash push"],
     'backslash continuation after a path option' => ["git -C \"my dir\" \\\n  stash pop"],
     'backslash continuation after a short option' => ["git -P \\\n  stash pop"],
     'backslash continuation after git' => ["git \\\nstash push"],
     'backslash continuation between global options' => ["git \\\n  --no-pager \\\n  -C a \\\n  stash pop"],
+    'backslash continuation inside git' => ["gi\\\nt stash push"],
+    'backslash continuation inside stash' => ["git sta\\\nsh push"],
+    'backslash continuation inside stash with carriage returns' => ["git sta\\\r\nsh push"],
     'backslash continuation with carriage returns' => ["git \\\r\n  stash push"],
-    'backslash continuation without a blank' => ["git\\\nstash push"],
     'bare command in a code span' => ['take the fix out with `git stash`'],
     'carriage returns after global options' => ["git -C a \\\r\n  -P \\\r\n  stash pop"],
     'continuation inside a fenced command' => ["```bash\ngit \\\n  stash push -- src/Fix.php\n```"],
+    'double-quoted command' => ['git "stash" push'],
     'double space' => ['git  stash push'],
+    'escaped blank in a path' => ['git -C my\\ dir stash'],
+    'escaped letter' => ['git st\\ash push'],
     'git dir with a blank' => ['git --git-dir /srv/repo stash push'],
     'line break after git' => ["git\nstash push"],
     'no pager' => ['git --no-pager stash pop'],
+    'partly quoted command' => ['git s"ta"sh push'],
     'pop' => ['then git stash pop'],
     'push of a path' => ['run `git stash push -- src/Fix.php` first'],
+    'quoted git' => ['"git" stash push'],
     'quoted path with a blank' => ['git -C "my dir" stash pop'],
+    'quoted upper case command' => ['GIT "STASH" push'],
     'short pager option' => ['git -P stash pop'],
+    'single-quoted command' => ['git \'stash\' push'],
     'single-quoted path with a blank' => ['git -C \'my dir\' stash pop'],
+    'tab between the words' => ["git\tstash push"],
+    'twenty-five options and the command on a later line' => ['git ' . str_repeat('--x ', 25) . "\nrun git \\\n  stash push"],
+    'twenty-five options before a continued command' => ['git ' . str_repeat('--x ', 25) . "\\\n  stash push"],
+    'twenty-five options before the command' => ['git ' . str_repeat('--x ', 25) . 'stash push'],
+    'twenty-five path options before the command' => ['git ' . str_repeat('-C a ', 25) . 'stash pop'],
     'two paths' => ['git -C a -C b stash pop'],
     'upper case' => ['GIT STASH APPLY'],
     'work tree with an equals sign' => ['git --work-tree=. stash push'],
@@ -216,14 +267,35 @@ test('the git stash detector ignores text that only mentions the word, on one li
 })->with([
     'a commit message' => ['git commit -m "never stash"'],
     'a commit message after a continuation' => ["git commit \\\n  -m stash"],
+    'a commit message in single quotes' => ['git commit -m \'never stash\''],
     'a different word with the same prefix' => ["git \\\n  stashed"],
     'a file name' => ['git add stash.txt'],
     'a file name after a continuation' => ["git add \\\n  stash.md"],
+    'a file name in quotes' => ['git add "stash.txt"'],
+    'a long list of path options with no command' => ['git ' . str_repeat('-C ', 25) . 'status'],
+    'a long option list with no command' => ['git ' . str_repeat('--x ', 25) . 'status'],
+    'an alias of another command' => ['git config alias.co checkout'],
+    'an alias of another command on the command line' => ['git -c alias.s=status s'],
     'another command before the word' => ["git status \\\n  stash"],
     'a path that contains the word' => ['git -C stash-dir status'],
-    'a prohibition' => ['Never stash, reset, or discard uncommitted changes.'],
+    'a word that continuation joins to git' => ["git\\\nstash push"],
     'the word on its own line' => ["git log\nstash"],
 ]);
+
+test('the git stash detector fails closed when the pattern cannot read the text (issue #623)', function (): void {
+    $limit = (string) ini_get('pcre.backtrack_limit');
+    $jit = (string) ini_get('pcre.jit');
+    ini_set('pcre.jit', '0');
+    ini_set('pcre.backtrack_limit', '10');
+
+    try {
+        expect(static fn (): bool => attackClassNamesGitStash(str_repeat('git commit -m message ', 50) . 'git stash push'))
+            ->toThrow(RuntimeException::class);
+    } finally {
+        ini_set('pcre.backtrack_limit', $limit);
+        ini_set('pcre.jit', $jit);
+    }
+});
 
 test('the git stash detector ignores a prohibition that names no git command (issue #608)', function (): void {
     expect(attackClassNamesGitStash('Never stash, reset, or discard uncommitted changes.'))->toBeFalse();
