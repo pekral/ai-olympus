@@ -1016,7 +1016,7 @@ function packageTextFiles(): array
     // analysed line back as a PHP string — so an absence guard that walks it matches its own
     // assertion and fails on a name the tree no longer carries (issue #231).
     $skipped = ['vendor', 'node_modules', '.git', '.claude', '.codex', '.agents', '.idea', 'build'];
-    $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml'];
+    $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml', 'toml'];
 
     $iterator = new RecursiveIteratorIterator(
         new RecursiveCallbackFilterIterator(
