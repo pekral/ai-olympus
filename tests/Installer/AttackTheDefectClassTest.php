@@ -225,14 +225,29 @@ function attackClassConfigRuns(string $key, string $value, int $depth): bool
 }
 
 /**
+ * `git config <key> <value>` takes the whole word as the key, and an alias subsection name may hold `=`, so the next word is the value too.
+ *
+ * @param list<string> $words
+ */
+function attackClassWordSetsRunningConfig(array $words, int $position, int $depth): bool
+{
+    $key = attackClassConfigKey($words[$position]);
+
+    if ($key === '') {
+        return false;
+    }
+
+    return attackClassConfigRuns($key, attackClassConfigValue($words, $position), $depth)
+        || str_starts_with($key, 'alias.') && attackClassAliasRuns($words[$position + 1] ?? '', $depth);
+}
+
+/**
  * @param list<string> $words
  */
 function attackClassWordsSetRunningConfig(array $words, int $depth): bool
 {
-    foreach ($words as $position => $word) {
-        $key = attackClassConfigKey($word);
-
-        if ($key !== '' && attackClassConfigRuns($key, attackClassConfigValue($words, $position), $depth)) {
+    foreach (array_keys($words) as $position) {
+        if (attackClassWordSetsRunningConfig($words, $position, $depth)) {
             return true;
         }
     }
@@ -575,6 +590,13 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias value with quotes inside' => ["[alias]\n\ts = st\"a\"sh"],
     'alias with a blank in a subsection name' => ['git -c \'alias.s s.command=stash\' \'s s\''],
     'alias with a colon in a subsection name' => ['git -c alias.s:s.command=stash s:s'],
+    'alias with an equals sign in an unquoted name' => ['git config alias.a=b.command stash'],
+    'alias with an equals sign in an unquoted subsection name' => ['git config --global alias.s=s.command stash'],
+    'alias with an equals sign in a quoted name set with the set subcommand' => ['git config set \'alias.a=b.command\' stash'],
+    'alias with an equals sign in a quoted name written to the configuration' => ['git config --global \'alias.a=b.command\' stash'],
+    'alias with an equals sign in a subsection name' => ['git config --global \'alias.s=s.command\' stash'],
+    'alias with an equals sign in a subsection name and a named file' => ['git config --file f \'alias.a=b.command\' stash'],
+    'alias with an equals sign in a subsection name set with the set subcommand' => ['git config set alias.s=s.command stash'],
     'alias with a non-ASCII subsection name' => ['git -c alias.é.command=stash é'],
     'alias with a quoted value' => ['git config alias.sv "stash push"'],
     'alias with a shell command' => ['git config alias.s \'!git stash\''],
@@ -694,6 +716,7 @@ test('the git stash detector ignores text that only mentions the word, on one li
     'a message with an apostrophe' => ['git commit -m "don\'t stash"'],
     'an alias of another command' => ['git config alias.co checkout'],
     'an alias of another command on the command line' => ['git -c alias.s=status s'],
+    'an alias with an equals sign in a name set on the command line' => ['git -c alias.a=b.command=version a=b'],
     'an and-list between the words' => ['git && stash push'],
     'another command before the word' => ["git status \\\n  stash"],
     'another help setting' => ['git config help.format web'],
