@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 72 skills this package ships, grouped by what you reach for them for. Each description is the
+All 73 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -11,7 +11,7 @@ link to read the skill itself.
 |---|---|
 | [Issue → PR workflow](#issue--pr-workflow) | 13 |
 | [Code review](#code-review) | 7 |
-| [Security](#security) | 6 |
+| [Security](#security) | 7 |
 | [Testing](#testing) | 10 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
@@ -62,6 +62,7 @@ link to read the skill itself.
 | [`security-bounty-hunter`](../skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
 | [`security-threat-analysis`](../skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
 | [`laravel-security`](../skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
+| [`laravel-public-files-audit`](../skills/laravel-public-files-audit/) | The user explicitly asks whether a Laravel project serves files that must never be public; the security view of a code review runs it on a diff that touches a public path |
 | [`machine-payments-protocol`](../skills/machine-payments-protocol/) | Implementing, designing, or reviewing the Machine Payments Protocol (MPP) HTTP 402 payment flow in a Laravel/PHP application |
 
 ## Testing
