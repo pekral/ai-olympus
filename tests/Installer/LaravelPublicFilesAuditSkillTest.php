@@ -38,7 +38,8 @@ test('the skill covers the seven checks of the issue with their severities (issu
         '| `dump-archive-backup` | SQL dumps, archives, and backups in `public/` | Critical |',
         '| `env-config-copy` | a public `.env` copy and configuration copies | Critical |',
         '| `log-debug` | logs and debug output | High |',
-        '| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, and every directory a `links` entry serves) | High |',
+        '| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, '
+            . 'and every directory a `links` entry serves) | High |',
         '| `symlink-permission` | public symlinks and wrong permissions | High |',
         '| `gitignore-deploy` | `.gitignore` coverage and deployment steps | Medium |',
         '| `http-reachable` | reachability of a file over HTTP | High |',
@@ -160,7 +161,7 @@ test('the review mode reads every links entry of the filesystems configuration i
             . '`Not verified: public files — …` line and an incomplete scan.')
         ->and($skill)->not->toContain('on the changed lines')
         ->and($script)->toContain('st_links_cases')
-        ->and($script)->toContain("'links: a dump added to a linked directory of an unchanged config is a critical finding, exit 5'")
+        ->and($script)->toContain('\'links: a dump added to a linked directory of an unchanged config is a critical finding, exit 5\'')
         ->and(publicFilesScanBody())->toContain('config_roots')
         ->and(publicFilesScanBody())->not->toMatch('/\b(printenv|getenv)\b|source\s/');
 });
