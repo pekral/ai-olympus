@@ -57,8 +57,6 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 2
 fi
 
-[[ -z "$DEST" ]] && DEST="$(att_default_dest)/github"
-
 # stderr suppressed: gh's own diagnostics are noise; the empty-token case is handled on the next line.
 TOKEN="$(gh auth token 2>/dev/null || true)"
 if [[ -z "$TOKEN" ]]; then

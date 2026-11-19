@@ -61,8 +61,6 @@ if [[ -z "$REF" ]]; then usage; exit 1; fi
 . "${SHARED_DIR}/attachments.sh"
 att_require_tools
 
-[[ -z "$DEST" ]] && DEST="$(att_default_dest)/jira"
-
 # --- resolve auth token + email without ever exposing them in argv/logs ---
 resolve_token() {
   if [[ -n "$TOKEN_FILE" ]]; then
