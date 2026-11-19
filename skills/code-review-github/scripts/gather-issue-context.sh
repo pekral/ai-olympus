@@ -210,6 +210,6 @@ fi
 echo
 echo "---"
 echo "## Notes for the agent"
-echo "- **Attachment / image content** is not in this document — \`load-issue.sh\` returns only URLs. Fetch it with your own tools."
+echo "- **Attachment / image content** is not in this document — \`load-issue.sh\` returns only URLs. Fetch it safely with \`skills/code-review-github/scripts/download-attachments.sh <URL>\` (TLS on, into quarantine) and open **only** the files the security gate (\`scan-attachments.sh\`) promoted into \`safe/\`."
 echo "- **External links** above: follow them with your own web tools; if they lead to further relevant sources, continue recursively to a sensible depth."
 echo "- Linked issues / PRs are loaded to depth ${DEPTH}; raise \`GITHUB_CONTEXT_DEPTH\` for deeper context."
