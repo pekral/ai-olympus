@@ -97,7 +97,7 @@ test('the installed reference replaces only a missing default-branch blob, and t
     expect($script)->toContain('#   verify-installed-copy.sh [--installed-reference] --root <untouched clone> --commit')
         ->and($script)->toContain('#   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships')
         ->and($script)->toContain(
-            '#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Two procedures',
+            '#            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Three procedures',
         )
         ->and($script)->toContain(
             '[[ "$reason" == \'no-default-branch-blob\' && "$installed_reference" == 1 && "$path" != skills/* ]] && reason=\'\'',

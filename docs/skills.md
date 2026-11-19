@@ -11,7 +11,7 @@ link to read the skill itself.
 |---|---|
 | [Issue → PR workflow](#issue--pr-workflow) | 13 |
 | [Code review](#code-review) | 7 |
-| [Security](#security) | 7 |
+| [Security](#security) | 8 |
 | [Testing](#testing) | 10 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
