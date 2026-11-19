@@ -38,7 +38,7 @@ test('the skill covers the seven checks of the issue with their severities (issu
         '| `dump-archive-backup` | SQL dumps, archives, and backups in `public/` | Critical |',
         '| `env-config-copy` | a public `.env` copy and configuration copies | Critical |',
         '| `log-debug` | logs and debug output | High |',
-        '| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`) | High |',
+        '| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, and every directory a `links` entry serves) | High |',
         '| `symlink-permission` | public symlinks and wrong permissions | High |',
         '| `gitignore-deploy` | `.gitignore` coverage and deployment steps | Medium |',
         '| `http-reachable` | reachability of a file over HTTP | High |',
@@ -148,4 +148,19 @@ test('the review mode reports the full static scan on every review of a Laravel 
         ->and(publicFilesScanBody())->not->toContain('in_scope')
         ->and(publicFilesScanBody())->toContain('git_ro diff --raw -z --no-renames --ignore-submodules=none "$base" HEAD --')
         ->and($script)->toContain('st_submodule_cases');
+});
+
+test('the review mode reads every links entry of the filesystems configuration in every round (issue #580)', function (): void {
+    $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+    $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+
+    expect($skill)->toContain('4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, '
+        . 'whether or not the diff touches that file')
+        ->and($skill)->toContain('An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a '
+            . '`Not verified: public files — …` line and an incomplete scan.')
+        ->and($skill)->not->toContain('on the changed lines')
+        ->and($script)->toContain('st_links_cases')
+        ->and($script)->toContain("'links: a dump added to a linked directory of an unchanged config is a critical finding, exit 5'")
+        ->and(publicFilesScanBody())->toContain('config_roots')
+        ->and(publicFilesScanBody())->not->toMatch('/\b(printenv|getenv)\b|source\s/');
 });
