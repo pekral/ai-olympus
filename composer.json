@@ -106,7 +106,7 @@
           "files": "\\.php$"
         },
         {
-          "command": "vendor/bin/phpcs",
+          "command": "vendor/bin/phpcs --standard=ruleset.xml",
           "files": "\\.php$"
         }
       ]
