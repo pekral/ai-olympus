@@ -109,6 +109,9 @@
           "command": "vendor/bin/phpcs --standard=ruleset.xml",
           "files": "\\.php$"
         }
+      ],
+      "pr-gate": [
+        "composer fix"
       ]
     },
     "class": "Pekral\\AiOlympus\\ComposerPlugin"
