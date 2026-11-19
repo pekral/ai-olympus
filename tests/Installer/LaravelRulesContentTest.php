@@ -247,6 +247,31 @@ test('architecture rules require request->DTO transformation in the FormRequest,
     expect($content)->toContain('do **not** call `SomeData::from($request)`');
 });
 
+test('architecture rules let a raw-body pass-through endpoint keep the generic Request (issue #653)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $content = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+    $exception = '*A raw-body pass-through endpoint may keep the generic `Illuminate\Http\Request`*';
+
+    expect($content)->toContain('- **A raw-body pass-through endpoint may keep the generic `Illuminate\Http\Request`.**');
+    expect($content)->toContain('1. it reads only the raw body (`$request->getContent()`) or the raw request as a whole, never an individual input field');
+    expect($content)->toContain('`$request->json(...)` included;');
+    expect($content)->toContain('2. it has no validation rules to declare;');
+    expect($content)->toContain('3. the authorization or verification of the caller runs elsewhere — in route middleware that is registered on that route');
+    expect($content)->toContain('or the endpoint is public by design and needs none;');
+    expect($content)->toContain('4. it hands the raw payload on unchanged (for example to a queued job) and does not parse or shape it.');
+
+    expect($content)->toContain('The exception moves no check away. The raw payload stays untrusted input');
+    expect($content)->toContain('the method passes the raw body string, never the `Request` object, to an Action');
+    expect($content)->toContain('needs a project-owned FormRequest, and the generic-`Request` finding stays for it.');
+
+    expect(substr_count($content, '4. it hands the raw payload on unchanged'))->toBe(1);
+    expect($content)->toContain('The one exception is ' . $exception . ' below.');
+    expect($content)->toContain('**Controllers and Other Entry Points** → ' . $exception . ' does not trigger it either; a method that reads one input field off a generic `Request` still does.');
+    expect($review)->toContain('except a raw-body pass-through method that meets every condition of the exception in `@rules/laravel/architecture.md` *Controllers and Other Entry Points* — a method that reads one input field off a generic `Request` is still a finding;');
+    expect($review)->not->toContain('it hands the raw payload on unchanged');
+});
+
 test('laravel-security skill carries the secure-defaults reference and checklist', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/laravel-security/SKILL.md');
