@@ -1,6 +1,6 @@
 ---
 name: interactive-testing
-description: "Use when verifying user-visible project changes against an assignment and the actual code diff. Requires the testing agent's own interactive browser, checks security risks, verifies suspected vulnerabilities, and reports confirmed threats, which it repairs and re-tests only when the caller explicitly asks for repairs."
+description: "Use when verifying user-visible project changes against an assignment and the actual code diff. Requires the testing agent's own interactive browser for a UI change and a safe HTTP client such as curl for a backend API change, checks security risks, verifies suspected vulnerabilities, and reports confirmed threats, which it repairs and re-tests only when the caller explicitly asks for repairs."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
@@ -11,6 +11,7 @@ metadata:
 - Apply `@rules/security/general.md` for the untrusted-content boundary.
 - The testing agent MUST use its own interactive browser session. Every interactive-testing run drives the web browser available to the session. In Claude Code, use Claude in Chrome (the `mcp__claude-in-chrome__*` tools). When Claude in Chrome is not connected, use the desktop app's built-in browser (the `mcp__Claude_Browser__*` tools). In Codex, use the provided `cua_repl` browser tools and their documented browser APIs. A delegated agent must operate the browser itself; another agent's screenshots or test summary do not fulfil this requirement.
 - Shell-driven Playwright, headless scripts, HTTP requests, unit tests, source inspection, and generated screenshots never replace this walkthrough. They may supply supplementary evidence only. If no interactive browser tool is available, return `Blocked` and name the remediation, for example *connect the Claude in Chrome extension*.
+- A change to a backend API is also exercised through a safe HTTP client, as *Backend API changes* states. That check is required in addition to the browser walkthrough, and it is the whole walkthrough for an API change that no page of the application reaches.
 - Use the project URL supplied by the user or recorded in the consuming project's instructions or memory. If neither identifies the target, ask for it. Do not silently switch hosts, environments, or checkouts.
 - Sign in as *Sign-in and test accounts* below states. A missing login never ends the UI check, and it never makes you wait for the user.
 - Test the running application without changing its implementation, configuration, permissions, credentials, or database directly. The exceptions are the local preparation that *Local readiness* allows, a local test account that *Sign-in and test accounts* allows, a local data change that *Missing test data* allows, and confirmed security fixes through *Check security and repair confirmed threats*. Other fixes, publishing to a tracker, deploying, or merging require a separate assignment.
@@ -22,6 +23,7 @@ metadata:
 - A new QA agent receives an assignment plus a branch, commit range, PR, or uncommitted diff.
 - Automated checks passed but the change still needs verification through real user interactions.
 - A change alters what a user can see or do in the application's UI. Tests and HTTP requests never replace the UI check for such a change.
+- A change alters a backend API: an HTTP route, a controller, request validation, a response shape, or a status code.
 
 ## Inputs
 
@@ -30,6 +32,25 @@ metadata:
 - Project URL, account/role, workspace, available test data, and authorized side effects.
 
 Infer routine choices from the current task. Ask only for missing information that blocks a concrete scenario, while continuing independent scenarios.
+
+## Backend API changes
+
+This section owns how a testing agent exercises a backend API change. Other skills and agents reference it and do not restate it.
+
+The diff changes a backend API when it adds, changes, or removes an HTTP route, a controller action, request validation, a response shape, or a status code. Exercise each changed endpoint directly with `curl` or the project's own HTTP client, against the running instance. A test-framework HTTP test, the source of the controller, and a browser click on the page behind the endpoint never replace this request.
+
+1. **Cover what a consumer depends on.** For each changed endpoint, send the successful request, an invalid input, and every authentication case the change touches: a missing credential, a wrong credential, and a credential of another owner. Check the status code, the response shape, and the error body.
+2. **Keep the browser check too.** When the API change also reaches a page, the browser walkthrough of *Execution* still runs. When no page of the application calls the endpoint, the HTTP requests are the walkthrough, and the report says that the UI channel was skipped and why.
+
+A request is safe only inside these limits:
+
+- **Local or test target only.** Send requests only to a target shown to be a local development or test instance, as `@rules/security/general.md` *Production is never touched* requires and *Sign-in and test accounts* below defines. Never send a request to a production, shared remote, or third-party host. A target that cannot be shown to be local or test is `Blocked`.
+- **No environment values.** Never read a `.env*` file or an environment value to build a request, and never print one, as `@rules/security/general.md` *Environment values are never read* requires.
+- **Test credentials only.** Take an account, a password, or a token only from the project's seed or example configuration (`.env.example`, a seeder, a test-account helper), or create it as *Sign-in and test accounts* below states. Never use a real user's credentials.
+- **Test data only.** A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) acts only on test data that *Missing test data* below allows, and its effects are cleaned up through *Scripted cleanup*. The side-effect limits of *Constraints* apply to it.
+- **TLS verification stays on.** Never pass `-k` or `--insecure` by default. Bypass verification only after a request failed on the certificate of the local instance, and report the bypass and the reason.
+
+**Record each request and response.** For every scenario, the report carries the exact request (method, URL, relevant headers, body sent) and the exact response (status code, relevant headers, body received). Replace the value of an `Authorization` header, a cookie, and a token with `<redacted>`. Shorten a long body to the part that decides the verdict, and say that it was shortened.
 
 ## Local readiness
 
@@ -171,6 +192,7 @@ Check and prepare the local environment as *Local readiness* states, before the 
 7. Read recent console errors through the browser tool. Reproduce suspicious behavior once with a stable, fully loaded page. Separate reproducible failures, transient observations, environment blockers, and unproven attribution to the diff.
 8. For side-effecting flows without authorization, or whose prerequisites *Missing test data* cannot produce, stop before the effect and mark that portion `Blocked`; do not mark the entire action passed because its button rendered.
 9. Walk every regression scenario of the affected parts in the browser, with the evidence rules of this step. A regression scenario counts toward the overall verdict of *Restore test data and report evidence*.
+10. When the diff changes a backend API, exercise each changed endpoint through a safe HTTP client, as *Backend API changes* states.
 
 ### 5. Check security and repair confirmed threats
 
@@ -199,7 +221,7 @@ The goal is to protect the application against compromise. Run this check on eve
 Return a concise report in the user's language:
 
 - **Scope:** assignment, tested base/head and working-tree changes, project URL, account role/workspace, browser tool, viewport sizes, and every preparation step *Local readiness* ran.
-- **Result:** one row per scenario with expected behavior, actual interactions and observation, evidence, and verdict.
+- **Result:** one row per scenario with expected behavior, actual interactions and observation, evidence, and verdict. An API scenario carries the exact request and response that *Backend API changes* requires.
 - **Findings:** reproducible failures, transient observations, and environment blockers kept distinct; never claim a regression without evidence linking it to the change.
 - **Affected parts:** one row per affected part with its source (`CR`, `blast radius`, or `own trace`), its regression scenario, and its verdict (`Passed`, `Failed`, `Blocked`, or `not testable through the UI`). A failure is linked to the change only with evidence, as *Findings* requires.
 - **Input probing:** one row for each input of the inventory, with the fields that `@skills/interactive-testing/references/input-probing.md` section 5 states, and a result of `protected`, `vulnerable`, or `not checked` with the evidence or the reason. Render a `vulnerable` input as `vulnerable — see Security` and keep its proof in the *Security* row only. A public tracker never receives that proof.
@@ -214,6 +236,7 @@ Report in the current task by default. Do not post messages to external trackers
 
 - Every *Local readiness* item was checked, and prepared when it was not ready, before the first scenario.
 - The agent itself operated the interactive browser and observed the results.
+- Every changed backend API endpoint was exercised through a safe HTTP client, with its request and response recorded, as *Backend API changes* states, or is `Blocked` with its prerequisite.
 - Every acceptance criterion has an honest verdict backed by executed interactions or a named blocker.
 - Save/reload checks, relevant visual states, and recent browser errors were considered.
 - Every affected part has a verdict, and every regression scenario was walked in the browser or is `Blocked` with its prerequisite.
