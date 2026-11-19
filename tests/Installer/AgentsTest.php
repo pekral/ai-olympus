@@ -1154,7 +1154,7 @@ test('raphael runs the project interactive-testing skill for its sandbox rules',
 
     // Every interactive-testing run drives the web browser available to the session; headless
     // shell automation is supplementary evidence only, and raphael holds the browser tools.
-    expect($interactiveTesting)->toContain('Every interactive-testing run drives the web browser available to the session.');
+    expect($interactiveTesting)->toContain('This applies to every change that reaches a page. Such a run drives the web browser available to the session.');
     expect($interactiveTesting)->toContain('In Claude Code, use Claude in Chrome (the `mcp__claude-in-chrome__*` tools).');
     expect($raphael)->toMatch('/^tools: Read, Glob, Grep, Bash, .*mcp__claude-in-chrome__navigate.*mcp__claude-in-chrome__computer/m');
     expect($raphael)->toContain('**Drive the UI in the interactive web browser available to this session**');
