@@ -591,7 +591,10 @@ test('an Enum may hold a dependency-free conversion and a method that needs a de
     expect($architecture)->toContain('The body is a `match` (or an equivalent `if` / `switch`) over the Enum\'s own cases');
     expect($architecture)->toContain('It needs no dependency of another class: no injected service, Repository, Model, container lookup');
     expect($architecture)->toContain(
-        'A call to a value-object constructor, a static factory (for example `Carbon::createFromTimestampUTC()`), or a PHP built-in is not a dependency only when the call does no I/O and reads no clock, randomness, environment, or other global state.',
+        'A call to a value-object constructor, a static factory (for example `Carbon::createFromTimestampUTC()`), or a PHP built-in',
+    );
+    expect($architecture)->toContain(
+        'is not a dependency only when the call does no I/O and reads no clock, randomness, environment, or other global state.',
     );
     expect($architecture)->toContain('`Carbon::now()`, `time()`, `random_int()`, `getenv()`, and `file_get_contents()` stay a dependency.');
     expect($architecture)->toContain('A method that fails any of the three conditions');
