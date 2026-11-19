@@ -186,7 +186,7 @@ test('a round after a small delta runs only the lenses the delta can affect (iss
             '| `delta-size-unknown` | No `--numstat` list was passed, or it is empty, holds a binary entry, a rename, or a line in another shape, '
                 . 'or names other paths than the changed files. |',
         )
-        ->toContain('| `past-the-cap` | The round comes after the cap round: a security round or a round the operator authorised. |')
+        ->toContain('| `past-the-cap` | The round comes after the cap round: a security round or a round the operator decided. |')
         ->toContain('| `open-security-finding` | A blocking security finding is open, so the next delta is a security fix. |');
 
     expect(fewerRoundsFile('skills/_shared/review-state.sh'))
