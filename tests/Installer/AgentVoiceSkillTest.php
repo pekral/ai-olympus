@@ -273,10 +273,9 @@ test('the voice skill owns the rule that a stopped review loop waits for the rea
         ->and($skill)->toContain('In Czech: "čeká na tvoje rozhodnutí".')
         ->and($skill)->toContain('Name the decision that is open')
         ->and($skill)->toContain('Say how to give the decision.')
-        ->and($skill)->toContain(
-            'Fill `<n>` with the next round number, the `iteration` of the review state plus one, because `review-state.sh` accepts only that number',
-        )
-        ->and($skill)->toContain('a line that is exactly `authorise round <n>`')
+        ->and($skill)->toContain('or answers in the chat of the session that one more review round may run')
+        ->and($skill)->toContain('Never ask the reader for a comment on the pull request or the tracker for it.')
+        ->and($skill)->not->toContain('authorise round')
         ->and($skill)->toContain('Never write "escalated", "escalation", "eskalováno", or a translation of them for this state.')
         ->and($skill)->toContain('The state keeps its identifier in scripts, state files, rules, and the handoff to another agent.')
         ->and($skill)->toContain('A text that reports a stopped review loop says the work waits for the reader\'s decision');
@@ -309,7 +308,7 @@ test('no human-facing wording says the review loop escalated and the state ident
     expect(agentVoiceSource('agents/krang.md'))->not->toContain('**stop and escalate** to the user')
         ->and(agentVoiceSource('agents/krang.md'))->toContain('**stop and tell the user the work waits for their decision**')
         ->and(agentVoiceSource('agents/krang.md'))->toContain(
-            '(a pull-request comment `authorise round <n>`, with `<n>` filled in as the rule below requires)',
+            '(a fix, a settled finding, or the operator\'s answer in the chat that allows one more review round)',
         )
         ->and(agentVoiceSource('skills/process-code-review/references/round-three-deferral.md'))->not->toContain('escalate to the user')
         ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->not->toContain('| Report the escalation.')
