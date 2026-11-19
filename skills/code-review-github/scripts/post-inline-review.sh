@@ -600,7 +600,8 @@ cmd_post() {
   jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
   # A walkthrough with `since` covers the changes since the previous published review: its areas are checked against
-  # the files the compare of that commit and the head changes, never against the whole pull request.
+  # the files the compare of that commit and the head changes, never against the whole pull request. A compare file that
+  # is no file of the pull request (a merge of the default branch brought it in) stays out of the scope.
   cp "$TMP_ROOT/files.json" "$TMP_ROOT/scope.json"
   local since="" compare_status=""
   since="$(jq -r 'if type == "object" then .since // empty | strings else empty end' "$walk_file" 2>/dev/null || true)"
@@ -611,7 +612,8 @@ cmd_post() {
     compare_status="$(jq -r '.status // empty' "$TMP_ROOT/compare.json" 2>/dev/null || true)"
     [[ "$compare_status" == "ahead" ]] \
       || die 1 "the walkthrough was refused, nothing was published: since ${since} is not an earlier commit of the head ${commit} (compare status: ${compare_status:-none}); leave since out and describe the whole pull request"
-    jq '.files // []' "$TMP_ROOT/compare.json" >"$TMP_ROOT/scope.json" 2>/dev/null \
+    jq --slurpfile pr "$TMP_ROOT/files.json" '($pr[0] | map(.filename, (.previous_filename // empty))) as $names
+      | [(.files // [])[] | select((.filename | IN($names[])) or (.previous_filename | IN($names[])))]' "$TMP_ROOT/compare.json" >"$TMP_ROOT/scope.json" 2>/dev/null \
       || die 3 "compare lookup of ${since}...${commit} on ${NWO} returned no file list, nothing was published"
   fi
   jq --arg test_re "$TEST_RE" --slurpfile files "$TMP_ROOT/scope.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
@@ -1371,6 +1373,10 @@ Outside the diff.
   check 'a walkthrough with since may not name a file the changes since that commit do not touch' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'reviewed changes do not touch' "$tmp/stderr" && echo yes || echo no)"
   GH_FILES_FILE="$tmp/files.with-test.json" GH_COMPARE_FILE="$tmp/compare.only-test" WALK_FILE="$tmp/walk-since-test.json" run_post "[]"
   check 'changes since the earlier commit that touch only tests may list their test files' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  printf '{"status":"ahead","files":[{"filename":"src/A.php"},{"filename":"src/Merged.php"}]}' >"$tmp/compare.merged-in"
+  jq -c --arg s "$since_sha" '.since = $s | .areas = [{layer: "Source", files: ["src/Merged.php"], summary: "s"}]' "$tmp/walk.json" >"$tmp/walk-since-merged.json"
+  GH_COMPARE_FILE="$tmp/compare.merged-in" WALK_FILE="$tmp/walk-since-merged.json" run_post "[]"
+  check 'a walkthrough with since may not name a file of the compare that is no file of the pull request' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'reviewed changes do not touch' "$tmp/stderr" && echo yes || echo no)"
   GH_COMPARE_FILE="$tmp/compare.diverged" WALK_FILE="$tmp/walk-since.json" run_post "[]"
   check 'a since that is not an earlier commit of the head is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'is not an earlier commit of the head' "$tmp/stderr" && echo yes || echo no)"
   WALK_FILE="$tmp/walk-since.json" run_post "[]" GH_COMPARE_FAILS=1
