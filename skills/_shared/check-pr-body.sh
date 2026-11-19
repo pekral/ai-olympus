@@ -1166,6 +1166,24 @@ check_html_above_merge_risk() {
   done
 }
 
+# check_line_endings — the body is on standard input. A bare CR (a CR that no LF follows) is a line ending in
+# CommonMark, while the check splits lines on LF only, so text after it stands on a line the check reads as one.
+# That hides a <details> opener or closer from every line rule of the check wherever the bare CR stands. The
+# class is closed here instead of in each rule: the body is refused at the first line that still holds a CR
+# after one CR at its end is taken off. A CRLF line ending, and one CR at the very end of the body, stay valid.
+# The problem names the line number and never the text.
+check_line_endings() {
+  local line number=0
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    number=$((number + 1))
+    if [[ "${line%$'\r'}" == *$'\r'* ]]; then
+      printf 'Line endings: line %s holds a carriage return that no line feed follows\n' "$number"
+      return 0
+    fi
+  done
+}
+
 # judge_body <template> — read the body on standard input and print one problem per line.
 # It is a function of its own, never an inline block inside a command substitution: bash 3.2
 # counts the `)` of a `case` pattern inside `$( )` and mis-parses the rest of the block.
@@ -1197,6 +1215,7 @@ judge_body() {
 
   check_sections "$template" ${observed[@]+"${observed[@]}"}
   check_folding "$template" "$scanned" <<<"$body_text"
+  check_line_endings <<<"$body_text"
 
   # The first Merge risk section the scan read, as a heading or as a folded block.
   local entry first=0
@@ -1784,6 +1803,14 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(render $'## Merge risk ⚪ not computed — x\r<details>\r\r## Merge risk 🟡 medium\r'"$cr_risk")" "$unverifiable"
   scenario 'a <?> and a <details> after bare CRs on the first Merge risk line are refused' 3 \
     "$(render $'## Merge risk ⚪ not computed — x\r<?\r<details>\r\r## Merge risk 🟡 medium\r'"$cr_risk")" "$unverifiable"
+  # A bare CR after the first Merge risk heading hides a <details> from every line rule the same way, so the
+  # body is refused at the first line that still holds a CR once the one CR at its end is taken off.
+  local cr_later=$'\r\r**Door:** two-way no rollback signal\r**Blast radius:** STANDARD (production-code-changed)\r\r</details>'
+  scenario 'a bare CR after the first Merge risk heading is refused' 3 \
+    "$(render $'<?\n\n## Merge risk ⚪ not computed — x\n?>\r<details>\r\r## Merge risk 🟡 medium'"$cr_later")" 'Line endings: line 6 holds a carriage return'
+  scenario 'a bare CR after the Merge risk heading, without a <?, is refused' 3 \
+    "$(render $'## Merge risk ⚪ not computed — x\n?>\r<details>\r\r## Merge risk 🟡 medium'"$cr_later")" 'Line endings: line 4 holds a carriage return'
+  scenario 'a CR before a CRLF line ending is refused' 3 "$(render | awk '{ printf "%s\r\r\n", $0 }')" 'Line endings: line 1 holds'
   # CRLF line endings, and one CR at the very end of the body, hold no token and stay valid.
   scenario 'a body with CRLF line endings is valid' 0 \
     "$(render | awk '{ printf "%s\r\n", $0 }')" '"valid": true'
