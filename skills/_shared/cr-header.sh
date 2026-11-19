@@ -90,15 +90,26 @@ CR_HEADER_CRITICAL_HEADINGS=0
 CR_FENCE_CHAR=''
 CR_FENCE_LEN=0
 CR_FENCE_BOUND=0
-CR_LIST_OFFSET=0
+CR_LIST_STACK=''
+CR_PREV_TEXT=0
 CR_HTML_END=''
+
+# The block starts that the line rule below and check-pr-body.sh both read. This file is the one owner of the patterns.
+THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
+QUOTE_START='^ {0,3}>'
+ATX_ANY='^ {0,3}#{1,6}([[:space:]]|$)'
+LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
+LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
+LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
+SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 
 # cr_header_fence_reset — start a new walk of the line rule below. Every reader calls it before its first line.
 cr_header_fence_reset() {
   CR_FENCE_CHAR=''
   CR_FENCE_LEN=0
   CR_FENCE_BOUND=0
-  CR_LIST_OFFSET=0
+  CR_LIST_STACK=''
+  CR_PREV_TEXT=0
   CR_HTML_END=''
 }
 
@@ -109,24 +120,34 @@ cr_header_fence_reset() {
 #   lines after it are skipped. The region closes:
 #     - on a line of 0–3 spaces, then the opening character at least as many times as it opened, then only spaces or
 #       tabs; that line is skipped too;
-#     - when the opening line stands in a list item (its indent is at least the content offset of the last list item
-#       line outside a skipped region): before the first non-blank line that starts with fewer spaces than that offset;
-#       that line is read;
+#     - when the opening line stands in a list item: before the first non-blank line that starts with fewer spaces than
+#       the content offset of the innermost open list item (see below); that line is read;
 #     - at the end of the body.
 #   Outside a list item the region stays open whatever the indent of its lines, so a line of less indent than the
 #   opening line is skipped too, and only the closing line ends the region.
+#   The open list items are a stack of content offsets (CR_LIST_STACK, the innermost last), kept by cr_header_list_step
+#   over the lines that stand outside a skipped region and outside an HTML region:
+#     - a line that LIST_ITEM matches and THEMATIC_BREAK does not is a list item. Directly after a line of paragraph
+#       text only an item with text that starts with `-`, `+`, `*`, or `1.` / `1)` is one (LIST_ITEM_WITH_TEXT), because
+#       any other item cannot interrupt a paragraph. Its content offset is its indent, its marker, and the spaces
+#       after the marker (one space for an empty item or for five or more spaces), pushed after the offsets above its
+#       indent are popped;
+#     - another non-blank line pops the offsets above its indent, unless it continues the paragraph of the line before:
+#       it is not a block start (a thematic break, a setext underline, an ATX heading, a quote, an HTML tag, a fence
+#       opener, a list item), and the line before was paragraph text. A lazy continuation keeps the stack.
 #   An HTML region opens on a line, outside a skipped region, of 0–3 spaces and `<`. Its lines are read, and no skipped
 #   region opens inside it. It ends after the line that holds `-->` when the opening line starts with `<!--`; `?>` for
 #   `<?`; `]]>` for `<![CDATA[`; `>` for `<!` and a letter; `</pre>`, `</script>`, `</style>`, or `</textarea>`, after
 #   lowercasing, when the opening line starts with `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, and
 #   then whitespace, `>`, or the end of the line; and at the next blank line after any other opening line. The end can
 #   be on the opening line.
-#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_BOUND (the skipped region), CR_LIST_OFFSET (the list item), CR_HTML_END
-#   (the HTML region).
+#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_BOUND (the skipped region), CR_LIST_STACK and CR_PREV_TEXT (the list
+#   items; 1 when the line before was paragraph text), CR_HTML_END (the HTML region).
 cr_header_fence_step() {
-  local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' list_re='^( {0,3})([-+*]|[0-9]{1,9}[.)])( +|$)' run lead=''
+  local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' run lead=''
   [[ ! "$1" =~ [^[:space:]] ]] || lead="${1%%[! ]*}"
   if [[ -n "$CR_FENCE_CHAR" ]]; then
+    CR_PREV_TEXT=0
     if [[ "$CR_FENCE_BOUND" -eq 0 || ! "$1" =~ [^[:space:]] || ${#lead} -ge $CR_FENCE_BOUND ]]; then
       if [[ "$1" =~ $close_re ]]; then
         run="${BASH_REMATCH[1]}"
@@ -143,15 +164,14 @@ cr_header_fence_step() {
     CR_FENCE_BOUND=0
   fi
   if [[ -n "$CR_HTML_END" ]]; then
+    CR_PREV_TEXT=0
     cr_header_html_end "$1"
     return 1
   fi
-  if [[ "$1" =~ $list_re ]]; then
-    run="${BASH_REMATCH[3]}"
-    [[ ${#run} -ge 1 && ${#run} -le 4 ]] || run=' '
-    CR_LIST_OFFSET=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#run}))
-  elif [[ "$1" =~ [^[:space:]] && ${#lead} -lt $CR_LIST_OFFSET ]]; then
-    CR_LIST_OFFSET=0
+  if [[ "$1" =~ [^[:space:]] ]]; then
+    cr_header_list_step "$1" "${#lead}"
+  else
+    CR_PREV_TEXT=0
   fi
   if [[ "$1" == *'<'* && "$1" =~ ^\ {0,3}\< ]]; then
     cr_header_html_open "$1"
@@ -162,10 +182,70 @@ cr_header_fence_step() {
   [[ "${run:0:1}" != '`' || "${BASH_REMATCH[3]}" != *'`'* ]] || return 1
   CR_FENCE_CHAR="${run:0:1}"
   CR_FENCE_LEN=${#run}
-  if [[ $CR_LIST_OFFSET -gt 0 && ${#BASH_REMATCH[1]} -ge $CR_LIST_OFFSET ]]; then
-    CR_FENCE_BOUND=$CR_LIST_OFFSET
-  fi
+  CR_FENCE_BOUND="${CR_LIST_STACK##* }"
+  CR_FENCE_BOUND=$((${CR_FENCE_BOUND:-0}))
+  CR_PREV_TEXT=0
   return 0
+}
+
+# cr_header_list_step <non-blank line> <its indent> — keep the stack of open list items (CR_LIST_STACK) and CR_PREV_TEXT
+# for the line rule above.
+cr_header_list_step() {
+  local top item=0 text=1 start=0 block_re='^ {0,3}(<|`{3,}|~{3,})' indent marker spaces rest
+  # A line of plain text, indented by less than four spaces, starts no block, so it needs no pattern.
+  if [[ "$2" -lt 4 && "${1:$2:1}" != [-*+0-9\>\<\`~=_#] ]]; then
+    if [[ "$CR_PREV_TEXT" -eq 0 && -n "$CR_LIST_STACK" ]]; then
+      while [[ -n "$CR_LIST_STACK" && "${CR_LIST_STACK##* }" -gt "$2" ]]; do
+        if [[ "$CR_LIST_STACK" == *' '* ]]; then
+          CR_LIST_STACK="${CR_LIST_STACK% *}"
+        else
+          CR_LIST_STACK=''
+        fi
+      done
+    fi
+    CR_PREV_TEXT=1
+    return 0
+  fi
+  if [[ "$1" =~ $LIST_ITEM && ! "$1" =~ $THEMATIC_BREAK ]]; then
+    if [[ "$CR_PREV_TEXT" -eq 0 || "$1" =~ $LIST_ITEM_WITH_TEXT ]]; then
+      item=1
+      start=1
+    fi
+  fi
+  if [[ "$item" -eq 0 ]]; then
+    if [[ "$1" =~ $QUOTE_START ]]; then
+      start=1
+    elif [[ "$1" =~ $THEMATIC_BREAK || "$1" =~ $ATX_ANY || "$1" =~ $block_re ||
+      ("$CR_PREV_TEXT" -eq 1 && "$1" =~ $SETEXT_UNDERLINE) ]]; then
+      start=1
+      text=0
+    elif [[ "$2" -ge 4 && "$CR_PREV_TEXT" -eq 0 ]]; then
+      text=0
+    fi
+  fi
+  if [[ "$start" -eq 1 || "$CR_PREV_TEXT" -eq 0 ]]; then
+    while [[ -n "$CR_LIST_STACK" ]]; do
+      top="${CR_LIST_STACK##* }"
+      [[ "$top" -gt "$2" ]] || break
+      if [[ "$CR_LIST_STACK" == *' '* ]]; then
+        CR_LIST_STACK="${CR_LIST_STACK% *}"
+      else
+        CR_LIST_STACK=''
+      fi
+    done
+  fi
+  if [[ "$item" -eq 1 ]]; then
+    [[ "$1" =~ $LIST_ITEM_PARSE ]]
+    indent=${#BASH_REMATCH[1]}
+    marker="${BASH_REMATCH[2]}"
+    spaces=${#BASH_REMATCH[3]}
+    rest="${BASH_REMATCH[4]}"
+    [[ -n "$rest" && "$spaces" -le 4 ]] || spaces=1
+    CR_LIST_STACK="${CR_LIST_STACK:+$CR_LIST_STACK }$((indent + ${#marker} + spaces))"
+    text=0
+    [[ -z "$rest" ]] || text=1
+  fi
+  CR_PREV_TEXT=$text
 }
 
 # cr_header_html_open <line> — the line opens an HTML region (cr_header_fence_step); set its end and test the line.
@@ -459,6 +539,18 @@ cr_header_self_test() {
     "$(printf -- '- item\n\n  %s\n  **In:** x\n**After:** y\n' "$fence")"
   expect 'fence: a line indented as the list item content stays inside its fence' $'After|1|1|y\n' \
     "$(printf -- '1. item\n\n   %s\n   **In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a thematic break is not a list item, so its fence has no bound' $'After|1|1|y\n' \
+    "$(printf -- '- - -\n\n  %s\n**In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a setext dash underline is not a list item, so its fence has no bound' $'After|1|1|y\n' \
+    "$(printf -- 'text\n-\n\n  %s\n**In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: an ordered marker above 1 after paragraph text is not a list item, so its fence has no bound' $'After|1|1|y\n' \
+    "$(printf -- 'text\n2. foo\n\n   %s\n**In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: a lazy continuation line keeps the list item of its fence' $'After|1|1|y\n' \
+    "$(printf -- '- item\nlazy\n  %s\ncode\n\n**After:** y\n' "$fence")"
+  expect 'fence: a nested bullet item leaves the outer item as the bound of a fence' $'After|1|1|y\n' \
+    "$(printf -- '- a\n  - b\n\n  %s\ncode\n\n**After:** y\n' "$fence")"
+  expect 'fence: a nested bullet item under an ordered item leaves the outer item as the bound of a fence' $'After|1|1|y\n' \
+    "$(printf -- '1. a\n   - b\n\n   %s\ncode\n\n**After:** y\n' "$fence")"
   expect 'fence: a blank line does not close an indented fence' $'After|1|1|y\n' \
     "$(printf '  %s\n\n  **In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: no fence opens inside an HTML comment' $'Late|1|1|y\n' \

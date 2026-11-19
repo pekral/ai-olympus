@@ -479,7 +479,7 @@ test('cr-header.sh defines the fence line rule and its cases, the body check cal
 
     expect($parser)
         ->toContain('cr_header_fence_step() {')
-        ->toContain('local open_re=\'^( {0,3})(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+)[[:blank:]]*$\' list_re=')
+        ->toContain('local open_re=\'^( {0,3})(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+)[[:blank:]]*$\' run lead=\'\'')
         ->toContain('expect \'fence: an opener indented by four spaces is not a fence\'')
         ->toContain('expect \'fence: a backtick info string that holds a backtick is not a fence\'')
         ->toContain('expect \'fence: a three-backtick line inside a four-backtick fence does not close it\'');

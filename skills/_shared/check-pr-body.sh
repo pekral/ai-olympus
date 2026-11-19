@@ -158,7 +158,6 @@ BLAST_SHAPE='^\*\*Blast radius:\*\* (FAST|STANDARD|CRITICAL) \(.*\)$'
 # A heading level 1 or 2 in the ATX form (0-3 leading spaces), a setext underline, and an HTML
 # <h1> or <h2> tag: every form GitHub renders as a section heading the template never carries.
 ATX_SHAPE='^ {0,3}#{1,2}([[:space:]]+(.*))?$'
-SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
 HTML_HEADING='^ {0,3}<[hH][12]([[:space:]>]|$)'
 DETAILS_OPEN='^[[:space:]]*<details([[:space:]][^>]*)?>[[:space:]]*$'
 DETAILS_END='^ {0,3}</details>[[:space:]]*$'
@@ -169,19 +168,15 @@ DETAILS_CLOSER='^</details[[:space:]]*>'
 # A line that starts with an HTML comment, 0-3 spaces in: the start of an HTML block.
 COMMENT_AT_START='^ {0,3}<!--'
 SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]*$'
+# THEMATIC_BREAK, QUOTE_START, ATX_ANY, LIST_ITEM, LIST_ITEM_PARSE, LIST_ITEM_WITH_TEXT, and SETEXT_UNDERLINE come from cr-header.sh,
+# the one owner, because the fence line rule reads the same block starts.
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
 # no container holds is a heading of the body. What the line starts with decides nothing:
 # `**Problem**`, `*Problem*`, and `<b>Problem</b>` are paragraph lines.
-THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
-QUOTE_START='^ {0,3}>'
 QUOTE_PARSE='^ {0,3}>(.*)$'
-ATX_ANY='^ {0,3}#{1,6}([[:space:]]|$)'
 FENCE_LINE='^( {0,3})(`{3,}|~{3,})(.*)$'
 FENCE_CLOSE='^ {0,3}(`+|~+)[[:blank:]]*$'
-LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
-LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
-LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
 INDENTED_CODE=$'^( {4}|\t)'
 HTML_RAW_START='^ {0,3}<(!--|\?|![a-z]|!\[cdata\[|(pre|script|style|textarea)([[:space:]>]|$))'
 HTML_BLOCK_START='^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([[:space:]>]|/>|$)'
@@ -1818,6 +1813,18 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(render '' "$(printf ' %s\ncode\n %s\n ## Foreign\ntext\n %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
   scenario 'a section heading after a tilde fence indented by three spaces is refused' 3 \
     "$(render '' "$(printf '   ~~~\ncode\n   ~~~\n   ## Foreign\ntext\n   ~~~\nafter')")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows a thematic break is refused' 3 \
+    "$(render '' "$(printf -- '- - -\n\n  %s\ncode\n  %s\n  ## Foreign\ntext\n  %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows a setext dash underline is refused' 3 \
+    "$(render '' "$(printf -- 'text\n-\n\n  %s\ncode\n  %s\n  ## Foreign\ntext\n  %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows an ordered marker above 1 after paragraph text is refused' 3 \
+    "$(render '' "$(printf -- 'text\n2. foo\n\n   %s\ncode\n   %s\n   ## Foreign\ntext\n   %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows a lazy continuation line of a list item is refused' 3 \
+    "$(render '' "$(printf -- '- item\nlazy\n  %s\ncode\n\n## Foreign\ntext\n  %s\nafter' "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows a nested bullet item is refused' 3 \
+    "$(render '' "$(printf -- '- a\n  - b\n\n  %s\ncode\n\n## Foreign\ntext\n  %s\nafter' "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after an indented fence that follows a nested bullet item under an ordered item is refused' 3 \
+    "$(render '' "$(printf -- '1. a\n   - b\n\n   %s\ncode\n\n## Foreign\ntext\n   %s\nafter' "$fence" "$fence")")" 'the heading on line'
   scenario 'a heading quoted unindented inside an indented fence is not read' 0 \
     "$(render '' "$(printf '  %smarkdown\n## Problem\n## Gate\n  %s' "$fence" "$fence")")" '"valid": true'
   scenario 'an indented fence with unindented content and its closer, then no heading, is valid' 0 \
