@@ -4,7 +4,7 @@
 >
 > **Five blocks, in this order, and nothing else.** A summary paragraph, a collapsed **Merge Risk**, a collapsed **Walkthrough**, a collapsed **Where to test**, and a collapsed **Actionable comments** block. The summary opens the body with no label and no heading before it. The review shows no pre-merge checks, no recent review information, no CI result, no button, no badge or image, and no share link. **Where to test** renders only when the change touches a page or a route, and **Actionable comments** renders only when at least one finding is published. Every `<details>` block is closed in the template.
 >
-> **A review carries no code.** No block of the visible body holds a fenced block, a suggestion block, or a replacement snippet. The problem and the fix are plain sentences. The one fence the body allows is the mermaid sequence diagram of the Walkthrough. The wrapper refuses a finding or a walkthrough that holds any other fence (`@rules/code-review/general.md` *A review carries no code*).
+> **Code in the body: the suggested code of a finding only.** The problem and the fix are plain sentences, and no other value of the body holds a fenced block, a suggestion block, or a replacement snippet. Two fences are allowed: the mermaid sequence diagram of the Walkthrough, and the suggested code of an Actionable comments entry, which the findings file sets in `suggestion`. The wrapper refuses a finding or a walkthrough that holds any other fence (`@rules/code-review/general.md` *A review carries no code*).
 >
 > **Where each value comes from.**
 > - **The summary, the description, the changed areas, the effort, the change type, the diagram, and the routes** come from the review run, which derives them from the diff, the assignment, and the changed files. It writes them as one JSON object in the walkthrough file, so the wrapper renders them the same way on every run (the keys are in the header of `post-inline-review.sh`). The wrapper checks that every file of a changed area is a changed file of the pull request.
@@ -19,7 +19,7 @@
 > **The summary holds at most 500 characters.** The wrapper counts code points of the normalised text (control characters removed, the text trimmed, and encoded as *Every value renders as text* states) and refuses a longer text with exit `1` and nothing posted. It never cuts a text. The author rewrites the summary shorter and publishes again. The summary is plain sentences: no line of it starts with `#`, `>`, `|`, or `<` once the control characters are removed.
 >
 > **Every value renders as text.** The wrapper encodes each value from the walkthrough, the record, and the findings once, before it renders it: `&`, `<`, `>`, `|`, and `\` become HTML entities, `![` loses its image markup, a backtick that closes no code span on its line becomes an entity, and a line loses its indent, a leading `#`, and a run of `-`, `=`, `*`, or `_`.
-> A closed code span on one line becomes a `<code>` element whose content encodes every character Markdown or a GitHub autolink reads as syntax as an entity, so the rendered review shows `$this->authorize()` and `Collection<int, Order>` as written. The output holds no literal backtick, so GitHub never pairs a code span differently, for example after a backtick inside a link target. No value renders as HTML, an image, a table cell break, a heading, or a code block. The mermaid diagram is the one value rendered as written, inside its fence.
+> A closed code span on one line becomes a `<code>` element whose content encodes every character Markdown or a GitHub autolink reads as syntax as an entity, so the rendered review shows `$this->authorize()` and `Collection<int, Order>` as written. The output holds no literal backtick, so GitHub never pairs a code span differently, for example after a backtick inside a link target. No value renders as HTML, an image, a table cell break, a heading, or a code block. The mermaid diagram and the suggested code of a finding are the values rendered as written, each inside its own fence.
 >
 > **Name no tooling of this package.** Every visible text follows `@rules/code-review/general.md` *Visible review text names none of the package's own tooling*. The wrapper checks the summary, the Merge Risk sentence, the Walkthrough, Where to test, and the Actionable comments.
 
@@ -91,6 +91,10 @@ sequenceDiagram
 **🔴 Critical 1 — {title}** · `{file:line}`
 {the problem, in one sentence}
 **Fix:** {what to change, in one sentence}
+**Suggested code** (replaces lines {start}–{end}):
+```{language of the file}
+{the corrected code of those lines, as written}
+```
 @{login}
 
 **🟠 Moderate 1 — {title}** · `{file:line}`
@@ -109,4 +113,5 @@ sequenceDiagram
 - **A finding with no line has no `· {file:line}` place.** A functional gap is one.
 - **An entry ends with the `@login` mention line only when the finding sets `author`** (a missing-test or DRY finding of a review-only run), on a changed line or not.
 - **A DRY finding's `Fix:` names the existing implementation** when the finding sets no `fix` of its own. A DRY / reuse finding is Moderate (`@rules/code-review/general.md` *Reuse Existing Logic*); a duplicated security control keeps its security severity.
+- **`**Suggested code**` and its fence render only when the finding sets `suggestion`.** The code is the corrected code of the finding's lines and renders as written. The note says `(replaces line {n})` for one line and is left out for a removed line or a finding with no line. The fence carries the language of the file, from its extension, and is one backtick longer than the longest backtick run of the code, three at least, so code that holds a fence never closes it. A finding with no code fix carries the `Fix:` sentence alone. When the code of every entry does not fit the body limit, the code of the last entries is left out and their `Fix:` sentences stay.
 - **The entries are numbered for each severity**, in the order of the findings file.

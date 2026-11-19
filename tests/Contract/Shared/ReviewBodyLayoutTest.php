@@ -325,7 +325,7 @@ test('without a diagram the visible body has no fenced block at all', function (
         ->and($review['visible'])->not->toContain('Sequence Diagram');
 });
 
-test('the Actionable comments and the review body hold no fence and no suggestion block', function (): void {
+test('findings with no suggested code leave the Actionable comments with no fence and no suggestion block', function (): void {
     $review = renderReview();
     $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
 
@@ -383,12 +383,26 @@ test('a finding that carries code or a suggestion is refused and nothing is post
     expect($review['exit'])->toBe(1)
         ->and($review['requests'])->toBe(0);
 })->with([
+    'a blank suggestion' => [['suggestion' => " \n "]],
     'a faulty example key' => [['faulty_example' => 'echo $v;']],
     'a fenced fix' => [['fix' => "Use\n```php\necho e(\$v);\n```"]],
     'a fenced problem' => [['problem' => "~~~\ncode\n~~~"]],
-    'a suggestion key' => [['suggestion' => 'echo e($v);']],
     'no fix' => [['fix' => null]],
 ]);
+
+test('a finding with a code fix shows the code under its Fix sentence, in the language of the file, with the lines it replaces', function (): void {
+    $findings = reviewLayoutFindings();
+    $findings[0] = [...$findings[0], 'start_line' => 21, 'suggestion' => "\$invitation->markUsed();\n// ```php fence inside\nreturn redirect('/');"];
+    $review = renderReview(findings: $findings);
+    $actionable = reviewLayoutBlock($review['visible'], 'Actionable comments');
+
+    expect($review['exit'])->toBe(0, $review['stderr'])
+        ->and($actionable)->toContain(
+            "\n**Suggested code** (replaces lines 21–22):\n````php\n\$invitation->markUsed();\n// ```php fence inside\nreturn redirect('/');\n````\n",
+        )
+        ->and(preg_match_all('/^\*\*Fix:\*\* \S.+\.$/m', $actionable))->toBe(3)
+        ->and(substr_count($actionable, '**Suggested code**'))->toBe(1);
+});
 
 test('the Merge Risk block reads its grade and its sentence from the record and names the short head', function (): void {
     $review = renderReview();

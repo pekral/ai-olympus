@@ -598,7 +598,8 @@ An agent never writes code into a published review output: the review body, or t
 - **The fix is a plain sentence.** `Suggested Fix` (and `Fix:`) says what to change and where, naming the existing identifier in an inline code span, never a replacement expression, block, query, or diff.
 - **The faulty example is a description.** A sentence states the triggering input, call, or state; the reproducer test is written from it, and an attack input is never a runnable payload.
 - **No fenced block and no `suggestion` block** in the visible body or a finding field; the wrapper refuses both.
-- **Allowed:** an inline code span naming an existing identifier, path, or command; the mermaid sequence diagram of the Walkthrough; the fenced `text` block of `## Prompt to fix all issues`; the advisory report of `casey`.
+- **The one exception is the suggested code of an Actionable comments entry.** A finding with a concrete code fix carries the corrected code of its lines in the `suggestion` field of the findings file, and the wrapper renders it as a fenced block under the `Fix:` sentence of its entry in the GitHub review body (`@skills/code-review-github/templates/review-body.md`). The `Fix:` sentence stays, the hidden record keeps the sentence only, and a finding with no code fix carries the sentence alone.
+- **Allowed:** an inline code span naming an existing identifier, path, or command; the mermaid sequence diagram of the Walkthrough; the suggested code of an Actionable comments entry; the fenced `text` block of `## Prompt to fix all issues`; the advisory report of `casey`.
 - **Code examples in rules and references stay** for the agents that generate code. A snippet for the fixing agent travels in the review handoff only, never in a published output.
 - **A review output template that asks for a snippet is a Moderate finding.**
 
