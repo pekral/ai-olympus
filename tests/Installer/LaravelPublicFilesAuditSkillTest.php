@@ -157,7 +157,7 @@ test('the review mode reads every links entry of the filesystems configuration i
 
     expect($skill)->toContain('4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, '
         . 'whether or not the diff touches that file')
-        ->and($skill)->toContain('An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a '
+        ->and($skill)->toContain('   - An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a '
             . '`Not verified: public files — …` line and an incomplete scan.')
         ->and($skill)->not->toContain('on the changed lines')
         ->and($script)->toContain('st_links_cases')
