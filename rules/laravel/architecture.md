@@ -236,7 +236,7 @@ The one alternative home, per the **Data Modification (DRY)** section, is a **DT
   **The one conversion that stays in the Enum is the dependency-free conversion.** A method that converts a value passed by its caller is allowed on the Enum when all of these hold:
   1. The body is a `match` (or an equivalent `if` / `switch`) over the Enum's own cases, and each case picks how the value is converted.
   2. It needs no dependency of another class: no injected service, Repository, Model, container lookup (`app()`, `resolve()`), `config()`, I/O (file, HTTP, database, cache, clock), and no mutable or `static` state.
-  3. A call to a value-object constructor or a static factory (for example `Carbon::createFromTimestampUTC()`) and a call to a PHP built-in are not a dependency.
+  3. A call to a value-object constructor, a static factory (for example `Carbon::createFromTimestampUTC()`), or a PHP built-in is not a dependency only when the call does no I/O and reads no clock, randomness, environment, or other global state. `Carbon::now()`, `time()`, `random_int()`, `getenv()`, and `file_get_contents()` stay a dependency.
 
   ```php
   enum WebhookTimestampUnit
