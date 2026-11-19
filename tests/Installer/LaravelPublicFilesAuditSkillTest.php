@@ -124,3 +124,13 @@ test('the review mode runs the scan and its classifier only as the verified copy
         ->and(packageSource('rules/compound-engineering/orchestration.md'))
         ->toContain('The review mode of `@skills/laravel-public-files-audit/SKILL.md` runs its scan from the same clone.');
 });
+
+test('the scan never reads outside the physical project root (issue #580)', function (): void {
+    $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+    $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+
+    expect($skill)->toContain('- **The scan stays inside the project.** The scan never reads, lists, or stats an entry outside the physical project root.')
+        ->and(publicFilesScanBody())->not->toContain('find -H')
+        ->and($script)->toContain('st_confine_cases')
+        ->and($script)->toContain('"confine $spec: no line carries metadata of a file outside the project"');
+});
