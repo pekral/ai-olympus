@@ -423,7 +423,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Moderate finding on a feature-specific Repository method gave way to a finding on composition outside it.
         // Re-baselined: *Before you create an Action* searches every Action for repeated steps, and CR Severity Rules hands a repeated fragment to *Reuse Existing Logic*.
         // Re-baselined: an Enum carries no data transformation, and a Data Builder method is never `static`.
-        'rules/laravel/architecture.md' => '9775a697efd423979118cae86e434907a322617f4c4ff954e8e6167007269ea0',
+        // Re-baselined: an Enum may hold a dependency-free conversion over its own cases (issue #652).
+        'rules/laravel/architecture.md' => '5f0170dc1d0734e7677b5ea2ea5e801b2b68d9a83f96cb6aa5122c09dc16d38d',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.

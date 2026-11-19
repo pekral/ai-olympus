@@ -232,7 +232,29 @@ The one alternative home, per the **Data Modification (DRY)** section, is a **DT
 - **When `pekral/arch-app-services` is installed:** the dedicated Data Builder class (`app/DataBuilders/{Domain}/`) `use`s the `Pekral\Arch\DataBuilder\DataBuilder` trait, whose `$this->build($data, [...])` method runs the data through general and field-specific pipes (Laravel Pipeline) for normalization. Use the trait rather than hand-rolling a mapping loop. The trait belongs to the dedicated Data Builder class that the Action injects and calls — do **not** `use` the trait directly on the Action, which would put the mapping back inside `__invoke()`.
 - Data Builders are **not** Action pattern classes — they do not use `__invoke()` and may expose multiple public methods.
 - **An Enum holds cases, not transformations.** An Enum declares its cases, their backing values, and simple case metadata such as `getLabel()`. A value derived from the cases alone stays in the Enum, for example `options()` or `values()` over `self::cases()`. A method that takes data from its caller and returns it rewritten, mapped, formatted, slugged, or parsed — a `preg_replace_callback()` over a passed string, a key rewrite, a value-to-slug conversion — is data transformation, and it belongs in a Data Builder.
-  This holds even when the method has one caller and only uses the Enum's own cases; `@rules/php/core-standards.md` *Do not create a class for simple logic that does not repeat* does not keep it inline. The Data Builder reads the case value it needs (`StatusEnum::CASE->value`), and the caller injects the Data Builder instead of calling the Enum.
+  This holds even when the method has one caller; `@rules/php/core-standards.md` *Do not create a class for simple logic that does not repeat* does not keep it inline. The Data Builder reads the case value it needs (`StatusEnum::CASE->value`), and the caller injects the Data Builder instead of calling the Enum.
+  **The one conversion that stays in the Enum is the dependency-free conversion.** A method that converts a value passed by its caller is allowed on the Enum when all of these hold:
+  1. The body is a `match` (or an equivalent `if` / `switch`) over the Enum's own cases, and each case picks how the value is converted.
+  2. It needs no dependency of another class: no injected service, Repository, Model, container lookup (`app()`, `resolve()`), `config()`, I/O (file, HTTP, database, cache, clock), and no mutable or `static` state.
+  3. A call to a value-object constructor or a static factory (for example `Carbon::createFromTimestampUTC()`) and a call to a PHP built-in are not a dependency.
+
+  ```php
+  enum WebhookTimestampUnit
+  {
+      case SECONDS;
+      case MILLISECONDS;
+
+      public function toSignedAt(string $timestamp): CarbonInterface
+      {
+          return match ($this) {
+              self::SECONDS => Carbon::createFromTimestampUTC((int) $timestamp),
+              self::MILLISECONDS => Carbon::createFromTimestampMsUTC((int) $timestamp),
+          };
+      }
+  }
+  ```
+
+  A method that fails any of the three conditions, such as the `preg_replace_callback()` string rewrite above (it is not a `match` over the cases) or a conversion that reads a service, a Model, or `config()`, still belongs in a Data Builder.
 - **Data Builder methods are instance methods, never `static`.** A `static` method cannot be injected or replaced in a test, so the caller couples to the concrete class exactly as it did to the Enum. Inject the Data Builder through the constructor and call `$this->exampleDataBuilder->rewriteKeys($content, $separator)`. A private helper the public method calls is an instance method too.
 - Each public method should accept input (array, request data, model, external API response, etc.) and return a typed DTO, or a single scalar such as a rewritten `string` (`@rules/php/core-standards.md` Structure exempts it from the DTO rule). Fall back to a normalized array only when the downstream consumer is a framework / vendor contract that requires an array — e.g. a mass-assignment write payload handed to a ModelManager — and cite that reason; for everything else the return type is a DTO, not an array.
 - Data Builders must never query the database or perform side effects.
@@ -362,7 +384,7 @@ Every expected failure mode must instead be surfaced as a clear, **actionable** 
   - an Action `__invoke()` that **accepts the HTTP request** — an `Illuminate\Http\Request` or `FormRequest` subclass parameter, or a reach for the request from inside the body (`request()`, the `Request` facade, `app('request')`). This is the input-side mirror of the HTTP-response finding below and carries its severity for the same reason: the controller owns client↔server communication in both directions. The request binds the use case to HTTP, hides what the Action actually consumes, and lets the Action read past `validated()` into the raw payload. 
 The controller converts it first — `$request->toDto()`, or `$request->validated()` mapped by a Data Builder — and passes the DTO (see **Action Rules** → *accept the HTTP request*). Concrete values pulled off the request (an `UploadedFile`, a route-bound Model, the authenticated user, a scalar) are not the request and never trigger this finding.
   - an Action that returns an HTTP response — `response()` / `response()->json()` / `redirect()` / `back()` / `view()` / `abort()` or a `Response` / `JsonResponse` / `RedirectResponse` return type inside `__invoke()`; the Action must return domain data and the controller must build the HTTP response (see **Action Rules** and **Architecture** → *Actions return plain domain data*)
-  - inline data mapping / transformation / reshaping inside an Action, Service, controller, job, command, listener, Livewire component, or Enum — on an Enum only a method that takes data from its caller and returns it transformed, never a value derived from the cases alone such as `options()` / `values()` (building a payload array, mapping a model/collection, renaming keys, default fallbacks, value formatting — e.g. a private `buildPayload()` in an Action) — must be extracted into a Data Builder (or, for model/request → DTO transformation, a DTO named constructor per **Data Modification (DRY)**) — see **Data Builders**
+  - inline data mapping / transformation / reshaping inside an Action, Service, controller, job, command, listener, Livewire component, or Enum — on an Enum only a method that takes data from its caller and returns it transformed outside the dependency-free conversion of **Data Builders**, never a value derived from the cases alone such as `options()` / `values()` (building a payload array, mapping a model/collection, renaming keys, default fallbacks, value formatting — e.g. a private `buildPayload()` in an Action) — must be extracted into a Data Builder (or, for model/request → DTO transformation, a DTO named constructor per **Data Modification (DRY)**) — see **Data Builders**
   - validation-style guard conditions left inline in an Action / Service / controller / job / command / listener / Livewire component — `instanceof` / null / range / amount checks that reject or skip input via `throw`, `return`, or `continue`, and `throw_if()` / `throw_unless()` calls — must be extracted into a Data Validator (see **Data Validators**)
   - a DTO declared as a `readonly class` while extending `Spatie\LaravelData\Data` — PHP refuses to load the class (`Readonly class … cannot extend non-readonly class Spatie\LaravelData\Data`), so the failure reaches production past every fixer, analyser, and review. Keep `final`, drop the class-level `readonly`, and mark each promoted constructor property `public readonly` (see **DTOs**)
   - a single class file mixing responsibilities from two or more of the seven business-logic layers (e.g. validation + persistence, mapping + orchestration)
