@@ -168,7 +168,7 @@ DETAILS_CLOSER='^</details[[:space:]]*>'
 # A line that starts with an HTML comment, 0-3 spaces in: the start of an HTML block.
 COMMENT_AT_START='^ {0,3}<!--'
 SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]*$'
-# THEMATIC_BREAK, QUOTE_START, ATX_ANY, LIST_ITEM_PARSE, LIST_ITEM_WITH_TEXT, and SETEXT_UNDERLINE come from cr-header.sh,
+# THEMATIC_BREAK, QUOTE_START, ATX_ANY, LIST_ITEM_PARSE, LIST_ITEM_WITH_TEXT, SETEXT_UNDERLINE, HTML_BLOCK_START, HTML_LONE_TAG, TAB, detab, and ci_match come from cr-header.sh,
 # the one owner, because the fence line rule reads the same block starts.
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
@@ -180,8 +180,6 @@ FENCE_CLOSE='^ {0,3}(`+|~+)[[:blank:]]*$'
 LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
 INDENTED_CODE=$'^( {4}|\t)'
 HTML_RAW_START='^ {0,3}<(!--|\?|![a-z]|!\[cdata\[|(pre|script|style|textarea)([[:space:]>]|$))'
-HTML_BLOCK_START='^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([[:space:]>]|/>|$)'
-HTML_LONE_TAG='^ {0,3}(<[a-z][a-z0-9-]*([[:space:]]+[^<>]*)?/?>|</[a-z][a-z0-9-]*[[:space:]]*>)[[:space:]]*$'
 
 # template_sections <name> — print the template's sections in order, one per line, as
 # `<always|optional>|<name>`. The name is the text of the `##` heading, or of the <summary> of the
@@ -243,19 +241,6 @@ count_chars() {
   LC_ALL=C tr -d '\200-\277' | LC_ALL=C wc -c | tr -d '[:space:]'
 }
 
-# ci_match <text> <regex> — succeed when <text> matches <regex> with the letters of both read in either case,
-# and leave the groups in BASH_REMATCH. HTML reads a tag name in either case. The match runs in the shell
-# under LC_ALL=C, so a letter is one of the 52 ASCII letters, byte by byte, and no process starts for a line.
-# nocasematch is set for this one match only: every other match of the check is case-sensitive.
-ci_match() {
-  local status=1
-
-  shopt -s nocasematch
-  [[ "$1" =~ $2 ]] && status=0
-  shopt -u nocasematch
-  return "$status"
-}
-
 # count_bytes — the number of bytes on standard input.
 count_bytes() {
   LC_ALL=C wc -c | tr -d '[:space:]'
@@ -291,18 +276,6 @@ FENCE_CHAR=''
 FENCE_LEN=0
 HTML_END=''
 HANDOVER_END=''
-TAB=$'\t'
-
-# detab <text> — set DETABBED to <text> with each tab in its leading whitespace read as four spaces.
-detab() {
-  local text="$1" lead
-
-  if [[ "$text" == *"$TAB"* ]]; then
-    lead="${text%%[! "$TAB"]*}"
-    text="${lead//$TAB/    }${text#"$lead"}"
-  fi
-  DETABBED="$text"
-}
 
 # match_containers <line> — strip the markers of the containers that <line> continues, from the
 # outermost: `>` and one space for a block quote, the content column of the item for a list item
