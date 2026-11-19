@@ -190,10 +190,14 @@ test(
             ->and($script)->toContain('\'s13: a namespace statement is a not-verified line on its line, exit 3\'')
             ->and($script)->toContain('\'s13: a use function alias of a global helper is a not-verified line, exit 3\'')
             ->and($script)->toContain('\'s13: a group use with a function member is a not-verified line, exit 3\'')
-            ->and($skill)->toContain('a file where PHP and the scan could end a token at another byte (a byte outside printable ASCII, '
-                . 'TAB, and LF, where only a CR before an LF stays readable; a `$`, a `{`, or a backslash inside a double-quoted '
-                . 'string, wherever it stands; an open tag that no blank follows; a `declare` directive other than '
-                . '`strict_types=0` or `strict_types=1`)')
+            ->and(
+                $skill,
+            )->toContain(
+                '**A file where PHP and the scan could end a token at another byte is not verified too** (a byte outside printable ASCII, '
+                    . 'TAB, and LF, where only a CR before an LF stays readable; a `$`, a `{`, or a backslash inside a double-quoted '
+                    . 'string, wherever it stands; an open tag that no blank follows; a `declare` directive other than '
+                    . '`strict_types=0` or `strict_types=1`)',
+            )
             ->and($script)->toContain('\'s14: a bare CR inside a // comment is a not-verified line, exit 3\'')
             ->and($script)->toContain('\'s14: a bare CR inside a # comment is a not-verified line, exit 3\'')
             ->and($script)->toContain('\'s14: a { $ } interpolation that holds a quote is a not-verified line, exit 3\'')
