@@ -479,7 +479,9 @@ test('cr-header.sh defines the fence line rule and its cases, the body check cal
 
     expect($parser)
         ->toContain('cr_header_fence_step() {')
-        ->toContain('local open_re=\'^( {0,3})(`{3,}|~{3,})(.*)$\' close_re=\'^ {0,3}(`+|~+)[[:blank:]]*$\' run lead=\'\'')
+        ->toContain('CR_OPEN_RE=\'^( {0,3})(`{3,}|~{3,})(.*)$\'')
+        ->toContain('CR_CLOSE_RE=\'^ {0,3}(`+|~+)[[:blank:]]*$\'')
+        ->toContain('cr_header_base_step() {')
         ->toContain('expect \'fence: an opener indented by four spaces is not a fence\'')
         ->toContain('expect \'fence: a backtick info string that holds a backtick is not a fence\'')
         ->toContain('expect \'fence: a three-backtick line inside a four-backtick fence does not close it\'');
@@ -507,7 +509,7 @@ test(
             ->toContain('cr_header_fence_reset() {')
             ->toContain('cr_header_html_open() {')
             ->toContain('expect \'fence: a closer followed by a tab closes the fence\'')
-            ->toContain('expect \'fence: a line indented less than the opener stays inside the fence\'')
+            ->toContain('expect \'fence: a line indented less than the opener is read as before the fix, and the header line after the fence too\'')
             ->toContain('expect \'fence: no fence opens inside an HTML comment\'')
             ->toContain('expect \'fence: no fence opens inside a pre block across a blank line\'');
         expect(substr_count($script, 'cr_header_fence_reset'))->toBe(1);
