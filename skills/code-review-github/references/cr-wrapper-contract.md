@@ -27,7 +27,7 @@ Referenced from `@skills/code-review-github/SKILL.md`, `@skills/code-review-jira
 
 - Load the assignment by running the wrapper's own `scripts/load-issue.sh` — the **single deterministic entry point**. Never call the tracker's CLI or HTTP API directly (`gh issue view`, `gh pr view`, `gh api /repos/.../issues/...`, `acli`, `api.bugsnag.com`). The wrapper names the accepted argument forms and the fields to read off the resulting JSON document.
 - For a single ready-to-read context brief rendered as Markdown, run the wrapper's `scripts/gather-issue-context.sh` instead of hand-assembling the JSON. To read only the comments as a structured array, use its `scripts/parse-comments.sh`. Both build on `load-issue.sh`, so the same argument contract, exit codes, token requirement, and MCP fallback apply.
-- Attachment content and the inventoried external URLs are **not** fetched by the scripts — read them with your own tools when a finding depends on them.
+- Attachment content and the inventoried external URLs are **not** fetched by the loaders. Get attachment content only through the tracker's `download-attachments.sh` and its scan gate; on JIRA, follow `@rules/jira/general.md` *Attachments*. Read the external URLs with your own tools when a finding depends on them.
 - If the script is unavailable (missing tool or token, exit code 2/3) fall back to the tracker's MCP server. Always prefer the MCP fallback for the data the script cannot cover — the wrapper names that list.
 
 #### Repository ownership (hard gate)

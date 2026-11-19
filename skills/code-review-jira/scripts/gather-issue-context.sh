@@ -20,7 +20,7 @@
 #
 # acli limits (handled by deferring to the agent, stated in the output):
 #   - acli cannot download attachment content (only list); the brief lists each
-#     attachment + its contentUrl so the agent fetches it with its own tools.
+#     attachment + its contentUrl; download-attachments.sh fetches the content.
 #   - external URLs are inventoried, not fetched; the agent follows them
 #     (recursively, if useful) via its web tools, honouring the project's
 #     outbound-request security rules.
