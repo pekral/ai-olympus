@@ -67,14 +67,17 @@ test('the review body template opens with the summary and no label, and every bl
         ->and($sample)->not->toMatch('/pre-merge|recent review|explain change|share|<button|<img|badge/i');
 });
 
-test('the review body template states the 500 character limit and the one fence it allows', function (): void {
+test('the review body template states the 500 character limit and the two fences it allows', function (): void {
     $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
     $sample = reviewBodyTemplateSample();
 
     expect($template)->toContain('The summary holds at most 500 characters')
-        ->and($template)->toContain('The one fence the body allows is the mermaid sequence diagram of the Walkthrough')
-        ->and(substr_count($sample, '```'))->toBe(2)
+        ->and($template)->toContain(
+            'Two fences are allowed: the mermaid sequence diagram of the Walkthrough, and the suggested code of an Actionable comments entry',
+        )
+        ->and(substr_count($sample, '```'))->toBe(4)
         ->and($sample)->toContain('```mermaid')
+        ->and($sample)->toContain("**Suggested code** (replaces lines {start}–{end}):\n```{language of the file}\n")
         ->and($template)->toContain('Route Access of Changed Routes');
 });
 
@@ -132,6 +135,10 @@ test('the code review rule has one section that bans code in a review and states
         ->and($section)->toContain('**Code examples in rules and references stay** for the agents that generate code.')
         ->and($section)->toContain('A snippet for the fixing agent travels in the review handoff only, never in a published output.')
         ->and($section)->toContain('A review output template that asks for a snippet is a Moderate finding.')
+        ->and($section)->toContain('**The one exception is the suggested code of an Actionable comments entry.**')
+        ->and($section)->toContain(
+            'The `Fix:` sentence stays, the hidden record keeps the sentence only, and a finding with no code fix carries the sentence alone.',
+        )
         ->and($section)->not->toContain('A rule that asks for a snippet');
 });
 
@@ -151,13 +158,19 @@ function publishedReviewOutputTemplates(): array
     ];
 }
 
-test('no published review output template asks for a code snippet as the fix or the faulty example', function (string $path): void {
+test('no published review output template but the review body asks for a code snippet as the fix or the faulty example', function (string $path): void {
     $banned = '/corrected (code )?snippet|minimal corrected|minimal code snippet|runnable snippet|corrected code'
         . '|carrying a concrete [A-Za-z \/-]*snippet|concrete (SQL|query)[^.\n]{0,60}(rewrite|snippet)'
         . '|index DDL, or batch-operation (snippet|replacement)|Add a code snippet only/i';
 
     expect(preg_match($banned, reviewLayoutRepoFile($path)))->toBe(0);
-})->with(publishedReviewOutputTemplates());
+})->with(array_values(array_diff(publishedReviewOutputTemplates(), ['skills/code-review-github/templates/review-body.md'])));
+
+test('the review body asks for the suggested code of a finding, as the corrected code of its lines', function (): void {
+    expect(reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md'))
+        ->toContain('{the corrected code of those lines, as written}')
+        ->toContain('The code is the corrected code of the finding\'s lines and renders as written.');
+});
 
 test('rules and lens skills keep their code examples for the agents that generate code', function (): void {
     $coreAnalysis = reviewLayoutRepoFile('rules/code-review/core-analysis.md');
@@ -193,14 +206,17 @@ test('every review output template says a faulty example and a suggested fix car
     'skills/security-review/templates/audit-report.md',
 ]);
 
-test('the review body template has the Fix line and no suggestion block, and the wrapper refuses code', function (): void {
+test('the review body template has the Fix line and the suggested code, and the wrapper refuses any other code', function (): void {
     $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
     $script = reviewLayoutRepoFile('skills/code-review-github/scripts/post-inline-review.sh');
 
     expect($template)->toContain('**Fix:** {what to change, in one sentence}')
-        ->and($template)->toContain('No block of the visible body holds a fenced block, a suggestion block, or a replacement snippet.')
-        ->and($script)->toContain('a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang')
-        ->and($script)->toContain('the visible review body holds a fenced block other than the sequence diagram');
+        ->and($template)->toContain('**Suggested code** (replaces lines {start}–{end}):')
+        ->and($template)->toContain(
+            'Two fences are allowed: the mermaid sequence diagram of the Walkthrough, and the suggested code of an Actionable comments entry',
+        )
+        ->and($script)->toContain('a review carries no faulty example code: leave out faulty_example and faulty_example_lang')
+        ->and($script)->toContain('the visible review body holds a fenced block other than the sequence diagram and the suggested code of a finding');
 });
 
 test('the wrapper contract names the walkthrough file, its sources, and the reused route inventory', function (): void {

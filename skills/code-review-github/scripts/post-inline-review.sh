@@ -4,8 +4,8 @@
 # TL;DR of at most 500 characters, a collapsed Merge Risk block, a collapsed Walkthrough block, a collapsed Where to test
 # block, and a collapsed Actionable comments block that lists every published finding) above the hidden machine record
 # of the round. It also resolves an agent inline thread that an earlier release posted, once a later round found its
-# finding fixed. A review never carries code: no fenced block and no suggestion block in the visible body; the one fence
-# allowed is the mermaid sequence diagram of the Walkthrough.
+# finding fixed. A review carries no other code than the suggested code of a finding: the visible body holds no suggestion
+# block and no fenced block but the mermaid sequence diagram of the Walkthrough and the suggested code of each entry.
 # The file name keeps the word "inline" because the installed copies, the audit lines, and the callers name it.
 #
 # Usage:
@@ -28,6 +28,10 @@
 #                    impact                required except on a `dry` finding, one sentence; never rendered
 #                    fix                   required except on a `dry` finding, one plain sentence that says what to change
 #                                          and never holds code: no fenced block
+#                    suggestion            optional, the code that fixes the finding: the corrected code of the lines from
+#                                          `start_line` (or `line`) to `line`, 1 to 4000 characters, with no agent marker.
+#                                          Rendered as written under the Fix line, in a fence of the file's language that no
+#                                          line of the code closes; left out for a fix that is no code change
 #                    kind                  optional, `dry`: a DRY / reuse finding, always Moderate
 #                    existing              required on a `dry` finding, `<path>:<line>` of the existing implementation
 #                    author                optional `@login` of the pull request author; rendered as the last line of the
@@ -38,8 +42,8 @@
 #                                          full finding lives in the hidden record
 #                    raised_by             optional, `splinter`, `leonardo`, or `both`; never rendered
 #                    level                 optional, `High`, `Medium`, or `Low`; a Moderate only; never rendered
-#                  A review carries no code, so `suggestion`, `faulty_example`, and `faulty_example_lang` are refused,
-#                  and so is a title, problem, impact, fix, or existing value that holds a fenced block.
+#                  A review carries no other code, so `faulty_example` and `faulty_example_lang` are refused, and so is
+#                  a title, problem, impact, fix, or existing value that holds a fenced block.
 #   --commit-id    The head SHA the round reviewed. The script refuses a head that is not the current one (exit 4).
 #   --meta-file    The hidden machine record of the round: the text templates/pr-comment-output.md renders, which
 #                  skills/_shared/check-cr-header.sh accepts. It lists every published finding in full and never a
@@ -105,7 +109,10 @@
 #      `cr_review_meta_wrap` (skills/_shared/cr-header.sh), the `<!-- cr-comment:lines=… -->` fingerprint that
 #      skills/_shared/carry-operator-lines.php writes, and `<!-- cr-comment:actor=<login> -->`.
 #   An Actionable comments entry is `**<icon> <severity> <n> — <title>** · <file:line>`, the problem, and `**Fix:** …`;
-#   a `dry` finding's Fix names the existing implementation when it sets no `fix`. The entry ends with the `@login`
+#   a `dry` finding's Fix names the existing implementation when it sets no `fix`. A finding with `suggestion` adds
+#   `**Suggested code** (replaces line(s) …):` and the code in a fence of the file's language, one backtick longer than
+#   the longest backtick run of the code. When the body would pass 65536 characters, the code of the last entries is left
+#   out (their Fix line stays, stderr names the count); the code never fails the publish. The entry ends with the `@login`
 #   mention line when `author` is set. The icon is 🔴 for Critical and 🟠 for Moderate.
 #   Every value the body renders goes through one encoder (`inert` in JQ_DEFS). A closed code span on one line becomes a
 #   `<code>` element whose content encodes every character Markdown or a GitHub autolink reads as syntax as an entity,
@@ -114,7 +121,8 @@
 #   `-`, `=`, `*`, or `_`. The output holds no literal backtick, so GitHub pairs no code span another way, a backtick in a
 #   link target included. No value renders as HTML, an image, a table cell break, a heading, or a code block. The checks
 #   of the walkthrough and the findings (line starts, fences, the diagram comment marker) read the text after the control
-#   characters are removed. The mermaid diagram is the one value rendered as written, inside its fence.
+#   characters are removed. The mermaid diagram and the suggested code are the values rendered as written, each inside
+#   its own fence.
 #   The body shows nothing but the layout of templates/review-body.md: the TL;DR, the Merge Risk block, the Walkthrough
 #   block, the Where to test block (only when `test_routes` is set), and (when a finding is published) the Actionable
 #   comments block, Critical first. It carries no CI result, no pre-merge checks, no recent review information, no
@@ -264,8 +272,8 @@ req(type == "array"; "the findings document must be a JSON array")
 | req(length <= 100; "at most 100 findings per review")
 | map(
     req(type == "object"; "every finding must be an object")
-    | req((has("suggestion") or has("faulty_example") or has("faulty_example_lang")) | not; "a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang")
-    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
+    | req((has("faulty_example") or has("faulty_example_lang")) | not; "a review carries no faulty example code: leave out faulty_example and faulty_example_lang")
+    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
     | req((.finding_id | type) == "string" and (.finding_id | test("^[rf]-[0-9a-f]{16}$")); "finding_id must be r- or f- and 16 hex digits")
     | req(.severity == "Critical" or .severity == "Moderate"; "severity must be Critical or Moderate")
     | req(.title | isstr(200); "title must be 1 to 200 characters")
@@ -282,6 +290,8 @@ req(type == "array"; "the findings document must be a JSON array")
     | req(.kind == "dry" or .existing == null; "existing belongs to a dry finding")
     | req(.kind == "dry" or (.fix | isstr(4000)); "fix must be 1 to 4000 characters: one plain sentence on what to change")
     | req(.kind != "dry" or (.fix | optstr); "fix must be 1 to 4000 characters when set")
+    | req(.suggestion == null or (.suggestion | isstr(4000) and (printable | test("\\S"))); "suggestion must be 1 to 4000 characters of code when set")
+    | req(.suggestion == null or (.suggestion | printable | test("<!--\\s*cr-") | not); "suggestion must not contain an agent marker")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
     | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
     | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null) | printable) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
@@ -302,6 +312,9 @@ req(type == "array"; "the findings document must be a JSON array")
         problem: (.problem | inert),
         impact: (.impact | if . == null then null else inert end),
         fix: (.fix | if . == null then null else inert end),
+        suggestion: (.suggestion | if . == null then null else printable | sub("^(\\s*\n)+"; "") | sub("\\s+$"; "") end),
+        lang: (.path | if . == null then "" else split("/") | last
+          | if test("\\.blade\\.php$"; "i") then "blade" else (capture("\\.(?<e>[A-Za-z0-9+_-]{1,15})$") | .e | ascii_downcase) // "" end end),
         withhold: (.do_not_file_publicly == true),
         author
       }
@@ -397,11 +410,25 @@ def oneline: gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
 def place: if .line == null then "" else " · " + ("`\(.path | gsub("`"; "")):\(.line)`" | inert) end;
 def fix_text: if .kind == "dry" then (.fix // "Use the existing implementation in \(.existing) instead of repeating the logic.") else .fix end;
 def mention: if .author == null then "" else "\n\(.author)" end;
-def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)\(mention)";
+# The suggested code of a finding: a fence one backtick longer than the longest backtick run of the code (three at
+# least), so no line of the code closes it, and the language of the finding's file. The code renders as written.
+def fence($s): ((([$s | match("`+"; "g") | .length] | max) // 0) as $m | [$m, 2] | max + 1) as $n | ("`" * $n);
+def code_block: fence(.suggestion) as $f | "\($f)\(.lang)\n\(.suggestion)\n\($f)";
+def replaces: if .line == null or .side == "LEFT" then "" elif .start_line != null then " (replaces lines \(.start_line)–\(.line))" else " (replaces line \(.line))" end;
+def code_part: if .suggestion == null then "" else "\n**Suggested code**\(replaces):\n\(code_block)" end;
+def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)\(if .show then code_part else "" end)\(mention)";
 def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<dl>\n<dd>\n<br>\n\n\($content)\n\n</dd>\n</dl>\n</details>";
 [.[] | select(.class == "listed") | .f] as $listed
-| ([$listed[] | select(.severity == "Critical")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $critical
-| ([$listed[] | select(.severity == "Moderate")] | to_entries | map(.key as $i | .value | entry($i + 1))) as $moderate
+# The suggested code fits the budget of the body: it is shown in entry order, Critical first, while the code parts
+# shown so far fit `$budget` characters; a code part past the budget is left out, and its entry keeps the Fix sentence.
+| ([$listed[] | select(.severity == "Critical")] + [$listed[] | select(.severity == "Moderate")]
+   | reduce .[] as $f ({used: 0, out: []};
+       ($f | code_part | length) as $c
+       | if $c > 0 and .used + $c <= $budget then .used += $c | .out += [$f + {show: true}] else .out += [$f + {show: false}] end)) as $coded
+| [$coded.out[] | select(.severity == "Critical")] as $critical_f
+| [$coded.out[] | select(.severity == "Moderate")] as $moderate_f
+| ($critical_f | to_entries | map(.key as $i | .value | entry($i + 1))) as $critical
+| ($moderate_f | to_entries | map(.key as $i | .value | entry($i + 1))) as $moderate
 | ($critical + $moderate) as $entries
 | $walk.tldr as $tldr_block
 | collapsed("<strong>Merge Risk:</strong> <strong>\($risk.icon) \($risk.grade | .[0:1] | ascii_upcase)\($risk.grade | .[1:])</strong> · up to <code>\($short)</code>"; $risk.sentence) as $risk_block
@@ -417,7 +444,10 @@ def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<
    else collapsed("<strong>Actionable comments (\($entries | length))</strong>"; $entries | join("\n\n")) end) as $actionable_block
 | {
     listed: ($entries | length),
-    diagram: ($walk.diagram != null),
+    code_used: $coded.used,
+    code_shown: ([$coded.out[] | select(.show)] | length),
+    code_omitted: ([$coded.out[] | select(.show | not) | select(.suggestion != null)] | length),
+    blocks: ((if $walk.diagram == null then [] else ["```mermaid\n\($walk.diagram)\n```"] end) + [$coded.out[] | select(.show) | code_block]),
     body: ([$tldr_block, $risk_block, $walk_block, $test_block, $actionable_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
     visible_text: ([$walk.tldr, $risk.sentence, $walk_content] + $walk.routes + $entries | join("\n\n"))
   }
@@ -434,8 +464,8 @@ def count($re): [match($re; "g")] | length;
      and ($body | count("<!--\\s*cr-review-meta")) == 1 and ($body | count("<!--\\s*cr-comment:lines=")) == 1
      and ($body | count("<!--\\s*cr-comment:actor=")) == 1 and ($body | count("<!--\\s*cr-comment:")) == 2
   then . else error("the review body does not hold exactly its own markers") end
-| if ($visible | count("```|~~~")) == (if .diagram then 2 else 0 end)
-  then . else error("the visible review body holds a fenced block other than the sequence diagram: a review carries no code") end
+| if (reduce .blocks[] as $b ($visible; split($b) | join("")) | count("```|~~~")) == 0
+  then . else error("the visible review body holds a fenced block other than the sequence diagram and the suggested code of a finding") end
 | if ($body | length) <= 65536 then $r else error("the review body is longer than the 65536 characters GitHub accepts") end
 JQ
 
@@ -510,6 +540,26 @@ read_head() {
   sha="$(printf '%s' "$resp" | jq -r '.head.sha // empty' 2>/dev/null || true)"
   [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die 3 "pull request ${NWO}#${NUMBER} returned no head SHA, nothing was published"
   HEAD_SHA="$sha"
+}
+
+# Renders the draft body for one code budget, checks its visible text for the package's own tooling, and adds the line
+# fingerprint: writes draft.json, visible.md, and body.md.
+render_review_body() {
+  local commit="$1" budget="$2"
+  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" \
+    --arg short "${commit:0:7}" --argjson budget "$budget" \
+    "$JQ_DEFS"$'\n''$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
+    || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
+  jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
+  local visible_rc=0
+  php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt" --diff-text "$TMP_ROOT/diff-text.txt" >"$TMP_ROOT/visible-check.json" 2>"$TMP_ROOT/visible.err" || visible_rc=$?
+  if [[ "$visible_rc" -eq 3 ]]; then
+    die 1 "the visible review text names the package tooling $(jq -r '.names | join(", ")' "$TMP_ROOT/visible-check.json" | head -c 300); describe the step in plain words (rules/code-review/general.md *Visible review text names none of the package's own tooling*), nothing was published"
+  fi
+  [[ "$visible_rc" -eq 0 ]] || die 1 "the check of the visible review text did not pass, nothing was published: $(head -c 300 "$TMP_ROOT/visible.err")"
+  jq -j '.body' "$TMP_ROOT/draft.json" >"$TMP_ROOT/body.draft"
+  php "$CARRY_LINES" markdown cr-comment "$TMP_ROOT/body.draft" >"$TMP_ROOT/body.md" 2>"$TMP_ROOT/carry.err" \
+    || die 1 "the line fingerprint of the review body failed, nothing was published: $(head -c 300 "$TMP_ROOT/carry.err")"
 }
 
 cmd_post() {
@@ -638,22 +688,26 @@ cmd_post() {
   [[ -z "$leaked" ]] || die 1 "the review record, the walkthrough, or a published finding names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of every public text on a public repository, nothing was published"
 
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
-  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" \
-    --arg short "${commit:0:7}" \
-    "$JQ_DEFS"$'\n''$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
-    || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
-  jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
-  local visible_rc=0
-  php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt" --diff-text "$TMP_ROOT/diff-text.txt" >"$TMP_ROOT/visible-check.json" 2>"$TMP_ROOT/visible.err" || visible_rc=$?
-  if [[ "$visible_rc" -eq 3 ]]; then
-    die 1 "the visible review text names the package tooling $(jq -r '.names | join(", ")' "$TMP_ROOT/visible-check.json" | head -c 300); describe the step in plain words (rules/code-review/general.md *Visible review text names none of the package's own tooling*), nothing was published"
-  fi
-  [[ "$visible_rc" -eq 0 ]] || die 1 "the check of the visible review text did not pass, nothing was published: $(head -c 300 "$TMP_ROOT/visible.err")"
-  jq -j '.body' "$TMP_ROOT/draft.json" >"$TMP_ROOT/body.draft"
-  php "$CARRY_LINES" markdown cr-comment "$TMP_ROOT/body.draft" >"$TMP_ROOT/body.md" 2>"$TMP_ROOT/carry.err" \
-    || die 1 "the line fingerprint of the review body failed, nothing was published: $(head -c 300 "$TMP_ROOT/carry.err")"
+  # The suggested code never fails the publish: when the body is longer than the 65536 characters GitHub accepts, the
+  # body is rendered again with a code budget smaller by the excess, so code parts are left out until it fits, and the
+  # last pass shows no code at all.
+  local budget=65536 pass body_len code_used
+  for pass in 1 2 3 4; do
+    [[ "$pass" -lt 4 ]] || budget=0
+    render_review_body "$commit" "$budget"
+    body_len="$(jq -R -s 'length' "$TMP_ROOT/body.md")"
+    code_used="$(jq '.code_used' "$TMP_ROOT/draft.json")"
+    if [[ "$body_len" -le 65536 || "$code_used" -eq 0 ]]; then
+      break
+    fi
+    budget=$((code_used - (body_len - 65536) - 256))
+    [[ "$budget" -gt 0 ]] || budget=0
+  done
   jq --arg commit "$commit" --rawfile body "$TMP_ROOT/body.md" "$JQ_REVIEW" "$TMP_ROOT/draft.json" >"$TMP_ROOT/payload.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
+  if [[ "$(jq '.code_omitted' "$TMP_ROOT/draft.json")" -gt 0 ]]; then
+    echo "$PROG: the suggested code of $(jq '.code_omitted' "$TMP_ROOT/draft.json") finding(s) was left out to keep the review body within 65536 characters" >&2
+  fi
 
   local listed
   listed="$(jq '.listed' "$TMP_ROOT/draft.json")"
@@ -1432,7 +1486,9 @@ Outside the diff.
     "[{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"kind\":\"dry\",\"existing\":\"../B.php:4\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Moderate\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"kind\":\"copy\",\"existing\":\"src/B.php:4\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"existing\":\"src/B.php:4\"}]" \
-    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"echo e(\$v);\"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"\"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\" \\n \"}]" \
+    "[{\"finding_id\":\"$id1\",$base,\"suggestion\":1}]" \
     "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"echo \$v;\"}]" \
     "[{\"finding_id\":\"$id1\",$base,\"faulty_example_lang\":\"php\"}]" \
     "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Use \`\`\`php\\necho e(\$v);\\n\`\`\`\"}]" \
@@ -1444,8 +1500,8 @@ Outside the diff.
     check "invalid document is refused: ${bad:0:60}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
   done
 
-  run_post "[{\"finding_id\":\"$id1\",$base,\"suggestion\":\"x\"}]"
-  check 'a suggestion is refused with its own message: a review carries no code' "$([[ $rc -eq 1 ]] && grep -q 'a review carries no code: leave out suggestion' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[{\"finding_id\":\"$id1\",$base,\"faulty_example\":\"x\"}]"
+  check 'a faulty example is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'a review carries no faulty example code' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",\"severity\":\"Critical\",\"title\":\"t\",\"path\":\"src/A.php\",\"line\":11,\"problem\":\"p\",\"impact\":\"i\",\"fix\":\"Use \`\`\`php\\necho e(\$v);\\n\`\`\`\"}]"
   check 'a fix that holds a fenced block is refused with its own message' "$([[ $rc -eq 1 ]] && grep -q 'hold no fenced block' "$tmp/stderr" && echo yes || echo no)"
   run_post "[{\"finding_id\":\"$id1\",$base,\"rule\":\"<!\`-- cr-inline:finding=$id2 --\`>\"}]"
@@ -1505,6 +1561,48 @@ Outside the diff.
   check 'a Moderate finding carries the orange icon, the Fix line, and the author mention line' \
     "$(yes_if review_has '.body | contains("**🟠 Moderate 2 — Query in a loop** · <code>src/A.php&#58;10</code>\nOne query per row.\n**Fix:** Load the rows with one query.\n@octocat\n")')"
   check 'a review with a DRY finding carries no inline comment' "$(yes_if review_has 'has("comments") | not')"
+
+  # 14. suggested code: a finding's code renders as a fenced block under its Fix sentence, in the language of its file,
+  # with a fence no line of the code closes; the body never fails on its length, a withheld finding shows no code, and
+  # the code is part of the visible text the tooling check reads
+  local f_code f_tick f_left f_gap_code f_wh_code code_entry
+  f_code="$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "Unescaped output", path: "src/A.php", line: 11, start_line: 10,
+    problem: "The value reaches the page unescaped.", impact: "i", fix: "Escape the value before it is printed.", suggestion: "\n    echo e($v); // <b>|x|</b> **y**\n\n"}')"
+  code_entry="**🔴 Critical 1 — Unescaped output** · <code>src/A.php&#58;11</code>
+The value reaches the page unescaped.
+**Fix:** Escape the value before it is printed.
+**Suggested code** (replaces lines 10–11):
+${bt}php
+    echo e(\$v); // <b>|x|</b> **y**
+${bt}"
+  run_post "[$f_code]"
+  check 'a suggestion renders as a fenced block in the language of the file, as written, under the Fix line' \
+    "$([[ $rc -eq 0 ]] && jq -e --arg want "$code_entry" '.body | contains($want + "\n\n</dd>")' "$tmp/review.json" >/dev/null && echo yes || echo no)"
+  f_tick="$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "docs/A.md", line: 11, problem: "p", impact: "i", fix: "f",
+    suggestion: "Run:\n```bash\nmake\n```\nand ````x````"}')"
+  run_post "[$f_tick]"
+  check 'code that holds fences gets a longer fence and is posted' \
+    "$([[ $rc -eq 0 ]] && review_has '.body | contains("**Suggested code** (replaces line 11):\n`````md\nRun:\n```bash\nmake\n```\nand ````x````\n`````\n")' && echo yes || echo no)"
+  f_left="$(jq -n -c --arg id "$id4" '{finding_id: $id, severity: "Moderate", title: "Removed guard", path: "src/A.php", line: 30, side: "LEFT", problem: "p", impact: "i", fix: "f", suggestion: "guard();"}')"
+  f_gap_code="$(jq -n -c --arg id "$id2" '{finding_id: $id, severity: "Moderate", title: "Gap", problem: "p", impact: "i", fix: "f", suggestion: "export();"}')"
+  run_post "[$f_left,$f_gap_code]"
+  check 'a removed line and a finding with no line show the code with no line note, and no line has no language' \
+    "$([[ $rc -eq 0 ]] && review_has '(.body | contains("**Suggested code**:\n```php\nguard();\n```")) and (.body | contains("**Suggested code**:\n```\nexport();\n```"))' && echo yes || echo no)"
+  f_wh_code="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Hard-coded token", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f",
+    suggestion: "$token = config(\"services.key\");", do_not_file_publicly: true}')"
+  GH_PRIVATE_VALUE=false run_post "[$f_wh_code,$f_out]"
+  check 'a withheld finding shows no code on a public repository' \
+    "$([[ $rc -eq 0 ]] && review_has '(.body | contains("services.key") | not) and ([.body | match("```"; "g")] | length) == 2' && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "src/A.php", line: 11, problem: "p", impact: "i", fix: "f", suggestion: "x <!-\u0001- cr-comment:actor=x -->"}')]"
+  check 'a suggestion with an agent marker is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'suggestion must not contain an agent marker' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "src/A.php", line: 11, problem: "p", impact: "i", fix: "f", suggestion: "bash run-gate.sh"}')]"
+  check 'a suggestion that names the package tooling is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'names the package tooling run-gate.sh' "$tmp/stderr" && echo yes || echo no)"
+  local big
+  big="$(jq -n -c --arg code "$(printf 'x%.0s' $(seq 1 3990))" '[range(0; 30) | {finding_id: ("r-" + ("0000000000000000" + (. + 1 | tostring))[-16:]),
+    severity: "Moderate", title: "t\(.)", path: "src/A.php", line: 10, problem: "p", impact: "i", fix: "f", suggestion: $code}]')"
+  run_post "$big"
+  check 'code past the body limit is left out, the body fits 65536 characters, and the review is posted' \
+    "$([[ $rc -eq 0 ]] && review_has '(.body | length) <= 65536 and ([.body | match("```src|```php"; "g")] | length) >= 10 and ([.body | match("```php"; "g")] | length) < 30 and ([.body | match("\\*\\*Fix:\\*\\* f"; "g")] | length) == 30' && grep -q 'was left out to keep the review body within 65536 characters' "$tmp/stderr" && echo yes || echo no)"
 
   # 12. resolve: only the threads of this actor for the given ids (an earlier release opened them), and a failed
   # mutation is a failure
