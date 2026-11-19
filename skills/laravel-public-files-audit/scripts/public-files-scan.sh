@@ -64,16 +64,21 @@
 #     - an entry that is not a helper call with one literal argument (a variable, an env() or config()
 #       call, a concatenation, an interpolated string or one with an escape), and a `links` or `disks`
 #       key whose value is not an array literal;
-#     - a config that is not `<?php`, then only `declare(...);` directives and class `use` statements,
-#       then `return [ ... ];` with string-literal keys, or that holds a heredoc, a nowdoc, a backtick,
-#       an end tag, an attribute, a NUL byte, a carriage return that no line feed follows, an
+#     - a config that is not `<?php` and a blank, then only `declare(strict_types=0);` or
+#       `declare(strict_types=1);` directives and class `use` statements, then `return [ ... ];` with
+#       string-literal keys, or that holds a heredoc, a nowdoc, a backtick, an end tag, an attribute, an
 #       unterminated string or comment, or text before the open tag;
+#     - a config where PHP and the scan could end a token at another byte: a byte outside printable ASCII,
+#       TAB, and LF anywhere (a CR stays readable only right before an LF, so a CRLF file is read; this
+#       covers a NUL, a stray CR, a byte order mark, and every multibyte encoding), and a `$`, a `{`, or a
+#       backslash inside a double-quoted string, wherever the string stands. A single-quoted string ends at
+#       the first quote that no backslash escapes; only `\\` and `\'` move its end, and the scan models both;
 #     - a statement before the return that changes how a name inside the array resolves: a `namespace`
 #       statement (PHP then calls a function of that namespace before the global helper), and a `use`
 #       statement that holds `function` or `const` anywhere (plain, aliased, or inside a group: it
 #       rebinds a helper name or a constant to a function or a constant that the scan does not read).
-#       A `declare` that is not `declare(<directive>);`, and a `use` that holds anything but names, are
-#       not read either. A plain or aliased class `use` changes no function or constant name, so it is read;
+#       A `declare` that is not `declare(strict_types=0);` or `declare(strict_types=1);`, and a `use` that
+#       holds anything but names, are not read either. A plain or aliased class `use` changes no function or constant name, so it is read;
 #     - a config that is a symlink, or whose directory is a symlink, is never opened, because a symlink
 #       can lead to a file the scan must never read (an .env file): a not-verified line and no read;
 #     - a config that is not readable or exceeds 1 MiB.
@@ -572,11 +577,16 @@ add_root() {
 # visibility, so each such directory or file is served whichever path the change touches. CONFIG_AWK
 # reads the file as data and never runs it. It models no more PHP than it needs, and every form it does
 # not model is a not-verified record, never a clean one: the file must be `<?php`, then only
-# `declare(...);` directives and class `use` statements, then `return [ ... ];` as its last statement,
+# `declare(strict_types=0|1);` directives and class `use` statements, then `return [ ... ];` as its last statement,
 # and the keys of that array must be string literals. A `namespace` statement and a `use` statement
 # that holds `function` or `const` rebind a name inside the array, so they are not modelled. A
-# heredoc, a nowdoc, a backtick, an end tag, an attribute, a carriage return that no line feed follows,
-# an unterminated string or comment, and text before the open tag are not modelled either. It prints one record per entry, fields separated by a tab:
+# heredoc, a nowdoc, a backtick, an end tag, an attribute, an unterminated string or comment, and text before
+# the open tag are not modelled either. PHP and the lexer must end every token at the same byte, so the
+# lexer accepts a positive set only: printable ASCII, TAB, and a CR right before an LF; in a double-quoted
+# string no `$`, `{`, or backslash; a `<?php` that a blank follows; and no `declare` but strict_types=0|1. A
+# byte of any other kind (a CR that no LF follows, a multibyte byte, a control byte) is a not-verified
+# record, so the scan never guesses where PHP ends a comment or a string. It prints one record per entry,
+# fields separated by a tab:
 #   <line> OK <tag> <path below the project root, "." for the root, ".." components kept> <lexical path>
 #   <line> NV <tag>               the entry is a form that the scan does not read
 # The tag is `links`, `disk`, or `file` (the whole file). The path keeps every `..` component, so
@@ -588,7 +598,10 @@ add_root() {
 CONFIG_AWK='
 function bad_at(lno) { if (!badl) badl = lno }
 function push(type, val, lno, esc) { n++; tt[n] = type; tv[n] = val; tl[n] = lno; te[n] = esc }
-function lex(s, lno,    i, c, d, len, w, nx) {
+function lex(s, lno,    i, c, d, len, w, nx, cr) {
+  cr = (substr(s, length(s)) == "\r")
+  if (cr) s = substr(s, 1, length(s) - 1)
+  if (s ~ "[^\t -~]") bad_at(lno)
   len = length(s); i = 1
   while (i <= len) {
     c = substr(s, i, 1); d = substr(s, i, 2)
@@ -596,24 +609,28 @@ function lex(s, lno,    i, c, d, len, w, nx) {
     if (instr) {
       if (c == "\\") {
         nx = substr(s, i + 1, 1)
-        if (!(q == sq && (nx == "\\" || nx == sq))) esc = 1
+        if (q != sq) bad_at(lno)
+        else if (nx != "\\" && nx != sq) esc = 1
         buf = buf nx; i += 2; continue
       }
-      if (c == q) { push(dyn ? "D" : "S", buf, sl, esc); instr = 0; i++; continue }
-      if (q == "\"" && c == "$") dyn = 1
+      if (c == q) { push("S", buf, sl, esc); instr = 0; i++; continue }
+      if (q != sq && (c == "$" || c == "{")) bad_at(lno)
       buf = buf c; i++; continue
     }
-    if (c == "\r") { if (i < len) bad_at(lno); i++; continue }
     if (c == " " || c == "\t") { i++; continue }
     if (!started) {
       started = 1
-      if (tolower(substr(s, i, 5)) == "<?php") { i += 5; continue }
+      if (tolower(substr(s, i, 5)) == "<?php") {
+        nx = substr(s, i + 5, 1)
+        if (nx != "" && nx != " " && nx != "\t") bad_at(lno)
+        i += 5; continue
+      }
       bad_at(lno)
     }
     if (d == "//" || (c == "#" && substr(s, i + 1, 1) != "[")) { if (index(substr(s, i), "?>")) bad_at(lno); return }
     if (d == "/*") { inblk = 1; i += 2; continue }
     if (d == "?>" || d == "<?" || substr(s, i, 3) == "<<<" || c == "`" || c == "#") { bad_at(lno); i++; continue }
-    if (c == sq || c == "\"") { instr = 1; q = c; buf = ""; dyn = 0; esc = 0; sl = lno; i++; continue }
+    if (c == sq || c == "\"") { instr = 1; q = c; buf = ""; esc = 0; sl = lno; i++; continue }
     if (d == "=>") { push("A", "=>", lno, 0); i += 2; continue }
     if (c ~ /[A-Za-z_\\]/) {
       w = ""
@@ -622,7 +639,7 @@ function lex(s, lno,    i, c, d, len, w, nx) {
     }
     push("P", c, lno, 0); i++
   }
-  if (instr) buf = buf "\n"
+  if (instr) buf = buf (cr ? "\r" : "") "\n"
 }
 function helper(name) {
   sub(/^\\/, "", name)
@@ -745,18 +762,14 @@ function disks_value(a, b, lno,    c, e, a2, b2, m) {
 }
 { lex($0, NR) }
 END {
-  if (instr || inblk) bad_at(NR)
+  if (instr || inblk || eofcr) bad_at(NR)
   if (badl) { print badl "\tNV\tfile"; exit }
   i = 1
   while (i <= n && !(tt[i] == "I" && tolower(tv[i]) == "return")) {
     w = (tt[i] == "I") ? tolower(tv[i]) : ""
     if (w == "declare") {
-      j = i + 1
-      if (!(tt[j] == "P" && tv[j] == "(")) { print tl[i] "\tNV\tfile"; exit }
-      for (j++; j <= n && !(tt[j] == "P" && tv[j] == ")"); j++)
-        if (isopen(j) || isclose(j)) { print tl[j] "\tNV\tfile"; exit }
-      if (!(j < n && tt[j + 1] == "P" && tv[j + 1] == ";")) { print tl[i] "\tNV\tfile"; exit }
-      i = j + 2
+      if (!(tt[i + 1] == "P" && tv[i + 1] == "(" && tt[i + 2] == "I" && tolower(tv[i + 2]) == "strict_types" && tt[i + 3] == "P" && tv[i + 3] == "=" && tt[i + 4] == "P" && tv[i + 4] ~ /^[01]$/ && tt[i + 5] == "P" && tv[i + 5] == ")" && tt[i + 6] == "P" && tv[i + 6] == ";")) { print tl[i] "\tNV\tfile"; exit }
+      i += 7
     } else if (w == "use") {
       for (j = i + 1; j <= n && !(tt[j] == "P" && tv[j] == ";"); j++) {
         if (tt[j] == "I" && (tolower(tv[j]) == "function" || tolower(tv[j]) == "const")) { print tl[j] "\tNV\tfile"; exit }
@@ -788,7 +801,7 @@ config_nv() {
   local line="$1" cfg=config/filesystems.php
   case "$2" in
   file)
-    not_verified "$cfg - line $line holds PHP that the scan does not read (code before the returned array, a namespace statement, a use function or use const statement, an unterminated string or comment, a heredoc, a backtick, an end tag, an attribute, a computed key, a spread, a NUL or stray carriage return byte, or text before the open tag), so it does not know which directories the file serves; write the file as one plain returned array or check the directories by hand, and run the scan again"
+    not_verified "$cfg - line $line holds PHP that the scan does not read (code before the returned array, a namespace statement, a use function or use const statement, an unterminated string or comment, a heredoc, a backtick, an end tag, an attribute, a computed key, a spread, a byte outside printable ASCII or a stray carriage return, a dollar sign, a brace, or a backslash inside a double-quoted string, a declare directive other than strict_types, or text before the open tag), so it does not know which directories the file serves; write the file as one plain returned array or check the directories by hand, and run the scan again"
     ;;
   disk)
     not_verified "$cfg - the disks entry at line $line is not a local disk whose serve, visibility, and root are literals, so the scan does not know whether it serves a directory; write the entry with literals or check the directory by hand, and run the scan again"
@@ -833,7 +846,11 @@ config_roots() {
     not_verified "$cfg - the file holds a NUL byte, so the scan does not read it; check the links and the disks of the project by hand and run the scan again"
     return 0
   fi
-  awk -v "sq='" "$CONFIG_AWK" "$file" >"$SCRATCH/config" 2>/dev/null ||
+  # A byte that is not printable ASCII is a not-verified line in the awk program, and so is a final CR that
+  # no LF follows: the awk program cannot see a missing line feed.
+  eofcr=0
+  if ((size > 0)) && [[ -n "$(dd if="$file" bs=1 skip="$((size - 1))" count=1 2>/dev/null | LC_ALL=C tr -d -c '\r')" ]]; then eofcr=1; fi
+  LC_ALL=C awk -v "sq='" -v "eofcr=$eofcr" "$CONFIG_AWK" "$file" >"$SCRATCH/config" 2>/dev/null ||
     { not_verified "$cfg - the links and disks entries could not be read; run the scan again"; return 0; }
   while IFS=$'\t' read -r line kind tag raw norm; do
     [[ "$line" =~ ^[0-9]+$ ]] || continue
@@ -2413,7 +2430,7 @@ st_links_cases() {
   local want
   # shellcheck disable=SC2016  # the entries are PHP text, never expanded
   for i in "env('DL_DIR')" "env('DL_DIR', storage_path('app/dl'))" '$dir' "config('app.dl')" "storage_path('app') . '/dl'" \
-    "storage_path(\$name)" "storage_path(\"app/\$name\")" "'storage/app/dl'" "base_path(env('DL_DIR'))"; do
+    "storage_path(\$name)" "'storage/app/dl'" "base_path(env('DL_DIR'))"; do
     st_links links-nv "        public_path('ok') => storage_path('app/ok'),
         public_path('dl') => $i,"
     mkdir -p "$r/storage/app/ok"
@@ -2426,6 +2443,13 @@ st_links_cases() {
     st_check_not "links: the entry $i is never echoed into the output" \
       test -n "$(grep -F -e DL_DIR -e '$name' -e '$dir' -e app.dl "$ST_TMP/out.links-nv")"
   done
+  # A double-quoted string that holds a dollar is no literal anywhere in the file: the whole file is a not-verified line.
+  st_links links-dqvar "        public_path('ok') => storage_path('app/ok'),
+        public_path('dl') => storage_path(\"app/\$name\"),"
+  st_commit "$r" base
+  st_run links-dqvar static --root "$r"
+  st_check 'links: an interpolated double-quoted path is a not-verified line of the file, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: config/filesystems.php - line 7 holds PHP' "$ST_TMP/out.links-dqvar")"
   st_clean links-var
   mkdir -p "$r/config"
   printf "<?php\nreturn ['links' => \$links];\n" >"$r/config/filesystems.php"
@@ -2516,6 +2540,23 @@ st_rebind() {
   printf "<?php\n%s\nreturn ['links' => [public_path('dl') => %s]];\n" "$2" "${3:-storage_path('app/dl')}" >"$r/config/filesystems.php"
   st_commit "$r" base
   st_run "$1" static --root "$r"
+}
+
+# st_hidden <name> <file content>: a project whose config/filesystems.php holds the content as written. The
+# content links public/dl to database/dumps, a directory that holds a dump and that no other file names, so
+# the scan reads the project clean unless it reads the links entry or reports the file.
+st_hidden() {
+  st_clean "$1"
+  mkdir -p "$r/config" "$r/database/dumps"
+  printf '%s\n' "$ST_MARKER" >"$r/database/dumps/db.sql"
+  printf '%s' "$2" >"$r/config/filesystems.php"
+  st_commit "$r" base
+  st_run "$1" static --root "$r"
+}
+
+# st_hidden_read <label> <run name>: the scan read the links entry and found the dump behind it (exit 5).
+st_hidden_read() {
+  st_check "$1" test "$ST_RC" = 5 -a -n "$(grep -F 'database/dumps/db.sql' "$ST_TMP/out.$2")"
 }
 
 # Round 7: the scan reads project-controlled input (the PHP of config/filesystems.php, the deployment
@@ -2729,6 +2770,119 @@ use Illuminate\Support\Str;
 use App\Support\Foo as storage_path;
 use App\Support\{Bar, Baz as Qux};'
   st_check 's13: declare and class use statements stay accepted, exit 0' test "$ST_RC" = 0
+
+  # S14: a tokenization differential. PHP and the hand-written lexer must end every token at the same
+  # byte, or a links entry that PHP returns stays unread and the scan exits 0 over a served directory.
+  # The lexer reads only printable ASCII, TAB, and a CR before an LF; a `$`, a `{`, or a backslash in a
+  # double-quoted string; and `declare(strict_types=0|1);`. Every other byte or form is a not-verified
+  # line. Each fixture links public/dl to database/dumps, a directory that holds a dump and that no
+  # other file names, so the scan reads the project clean unless it reads the entry or reports the file.
+  local NL CR SL DL B v bom x95
+  NL=$'\n'
+  CR=$'\r'
+  bom=$'\xef\xbb\xbf'
+  x95=$'\x95'
+  SL="'links' => [public_path('dl') => base_path('database/dumps')]"
+  DL='"links" => [public_path("dl") => base_path("database/dumps")]'
+  # The entry is read when the file is plain: the control of every row below.
+  st_hidden s14-ctl "<?php${NL}return ['disks' => [], // note${NL}    $DL,${NL}];${NL}"
+  st_hidden_read 's14: control, a double-quoted links entry after an LF-ended comment is read, exit 5' s14-ctl
+  # (a), (b): a bare CR ends a // or # comment in PHP, and not in the lexer.
+  st_hidden s14-a "<?php${NL}return ['disks' => [], // note${CR}$DL,${NL}];${NL}"
+  st_nv 's14: a bare CR inside a // comment is a not-verified line, exit 3' s14-a 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-b "<?php${NL}return ['disks' => [], # note${CR}$DL,${NL}];${NL}"
+  st_nv 's14: a bare CR inside a # comment is a not-verified line, exit 3' s14-b 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-blk "<?php${NL}return ['disks' => [], /* note${CR} */ $DL,${NL}];${NL}"
+  st_nv 's14: a bare CR inside a block comment is a not-verified line, exit 3' s14-blk 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-crsq "<?php${NL}return ['x' => 'a${CR}b', $SL,${NL}];${NL}"
+  st_nv 's14: a bare CR inside a single-quoted string is a not-verified line, exit 3' s14-crsq 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-crws "<?php${NL}return${CR}[$SL,${NL}];${NL}"
+  st_nv 's14: a bare CR between two tokens is a not-verified line, exit 3' s14-crws 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-creof "<?php${NL}return [$SL,${NL}];${CR}"
+  st_nv 's14: a CR at the end of the file with no LF after it is a not-verified line, exit 3' s14-creof 'config/filesystems.php - line 3 holds PHP'
+  st_hidden s14-crlf "<?php${CR}${NL}return ['disks' => [], // note${CR}${NL}    $DL,${CR}${NL}];${CR}${NL}"
+  st_hidden_read 's14: a CRLF file stays readable, exit 5' s14-crlf
+  # Every byte outside printable ASCII, TAB, and LF, in each state of the lexer.
+  B=0
+  for v in $'\xc3\xa9' $'\xef\xbb\xbf' $'\x95' $'\x0b' $'\x0c' $'\x7f' $'\x1b' $'\x01'; do
+    B=$((B + 1))
+    st_hidden "s14-by$B-c" "<?php${NL}// a${v}b${NL}return [$SL];${NL}"
+    st_nv "s14: a byte outside printable ASCII in a comment is a not-verified line, exit 3 (byte $B)" "s14-by$B-c" 'config/filesystems.php - line 2 holds PHP'
+    st_hidden "s14-by$B-s" "<?php${NL}return ['x' => 'a${v}b', $SL];${NL}"
+    st_nv "s14: a byte outside printable ASCII in a string is a not-verified line, exit 3 (byte $B)" "s14-by$B-s" 'config/filesystems.php - line 2 holds PHP'
+    st_hidden "s14-by$B-w" "<?php${NL}return ${v}[$SL];${NL}"
+    st_nv "s14: a byte outside printable ASCII between tokens is a not-verified line, exit 3 (byte $B)" "s14-by$B-w" 'config/filesystems.php - line 2 holds PHP'
+  done
+  st_hidden s14-bom "${bom}<?php${NL}return [$SL];${NL}"
+  st_nv 's14: a byte order mark before the open tag is a not-verified line, exit 3' s14-bom 'config/filesystems.php - line 1 holds PHP'
+  # (c): a {$ ... } interpolation holds a quote, so PHP reads one string and the lexer reads two.
+  st_hidden s14-c "<?php${NL}return [${NL}'x' => \"{\$path[strlen('\"')]}\", $DL, /* ' */ 'y' => 'z',${NL}];${NL}"
+  st_nv 's14: a { $ } interpolation that holds a quote is a not-verified line, exit 3' s14-c 'config/filesystems.php - line 3 holds PHP'
+  # Every $, {, or backslash inside a double-quoted string, wherever the string stands.
+  B=0
+  # shellcheck disable=SC2016,SC1003  # the forms are PHP text, never expanded
+  for v in 'a $b' 'a ${b}' 'a {$b}' 'a {b' 'a $' 'a \n' 'a \\' 'a \"b' 'a \$b'; do
+    B=$((B + 1))
+    st_hidden "s14-dq$B" "<?php${NL}return [${NL}'x' => \"${v}\", $DL,${NL}];${NL}"
+    st_nv "s14: a double-quoted string with a dollar, a brace, or a backslash is a not-verified line, exit 3 (form $B)" "s14-dq$B" 'config/filesystems.php - line 3 holds PHP'
+  done
+  # The forms of a double-quoted string that hold none of the three stay readable.
+  st_hidden s14-dqok "<?php${NL}return [${NL}'x' => \"it's a plain string; [1] (2) <3> 'q'\", $DL,${NL}];${NL}"
+  st_hidden_read 's14: a double-quoted string with no dollar, brace, or backslash stays readable, exit 5' s14-dqok
+  # A single-quoted string ends at the first quote that no backslash escapes, exactly as in PHP.
+  st_hidden s14-sq1 "<?php${NL}return ['x' => 'a\\\\', $SL,${NL}];${NL}"
+  st_hidden_read 's14: a single-quoted string that ends with an escaped backslash is read to its end, exit 5' s14-sq1
+  st_hidden s14-sq2 "<?php${NL}return ['x' => 'it\\'s', $SL,${NL}];${NL}"
+  st_hidden_read 's14: a single-quoted string with an escaped quote is read to its end, exit 5' s14-sq2
+  st_hidden s14-sq3 "<?php${NL}return ['x' => 'a\\b\\n', $SL,${NL}];${NL}"
+  st_hidden_read 's14: a single-quoted string with a backslash before another byte is read to its end, exit 5' s14-sq3
+  # (d), and every other declare directive: only strict_types=0 and strict_types=1 stay readable.
+  st_hidden s14-d "<?php${NL}declare(encoding='SJIS');${NL}return ['x' => '${x95}\\', $SL, /* ' */ 'y' => 'z'];${NL}"
+  st_nv 's14: declare(encoding) with a byte that moves a quote is a not-verified line, exit 3' s14-d 'config/filesystems.php - line 3 holds PHP'
+  B=0
+  for v in "encoding='SJIS'" 'encoding=SJIS' 'ticks=1' 'strict_types=2' 'strict_types=true' 'strict_types=01' 'strict_types=10' 'strict_types=1,ticks=1' 'strict_types=1.0' 'strict_types==1'; do
+    B=$((B + 1))
+    st_hidden "s14-dec$B" "<?php${NL}declare(${v});${NL}return [$SL];${NL}"
+    st_nv "s14: a declare directive other than strict_types=0 or 1 is a not-verified line, exit 3 (form $B)" "s14-dec$B" 'config/filesystems.php - line 2 holds PHP'
+  done
+  for v in 'strict_types=0' 'strict_types=1' ' STRICT_TYPES = 1 ' 'Strict_Types=0'; do
+    B=$((B + 1))
+    st_hidden "s14-decok$B" "<?php${NL}declare(${v});${NL}return [$SL];${NL}"
+    st_hidden_read "s14: declare(strict_types=0|1) stays readable, exit 5 (form $B)" "s14-decok$B"
+  done
+  # Comments: an end tag ends a // or # comment in PHP; it is no end of a block comment.
+  st_hidden s14-tag1 "<?php${NL}return ['x' => 1, // a ?> b${NL}$SL];${NL}"
+  st_nv 's14: an end tag inside a // comment is a not-verified line, exit 3' s14-tag1 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-tag2 "<?php${NL}return ['x' => 1, # a ?> b${NL}$SL];${NL}"
+  st_nv 's14: an end tag inside a # comment is a not-verified line, exit 3' s14-tag2 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-tag3 "<?php${NL}return ['x' => 1, /* a ?> b */ $SL];${NL}"
+  st_hidden_read 's14: an end tag inside a block comment is no end tag, exit 5' s14-tag3
+  st_hidden s14-slc "<?php${NL}return ['x' => 1, /*/ 'q' */ $SL];${NL}"
+  st_hidden_read 's14: a slash-star-slash does not close a block comment, exit 5' s14-slc
+  st_hidden s14-cmtq "<?php${NL}return ['x' => 1, // it's \"a\" /* b${NL}$SL];${NL}"
+  st_hidden_read 's14: quotes and a block-comment start inside a // comment are text, exit 5' s14-cmtq
+  # The open tag: PHP needs a blank after it, ends the file at __halt_compiler(), and reads a shebang
+  # line, a short echo tag, and alternative syntax in ways the lexer does not model.
+  st_hidden s14-tagn "<?phpreturn [$SL];${NL}"
+  st_nv 's14: an open tag that no blank follows is a not-verified line, exit 3' s14-tagn 'config/filesystems.php - line 1 holds PHP'
+  st_hidden s14-tagu "<?PHP${NL}return [$SL];${NL}"
+  st_hidden_read 's14: an upper-case open tag stays readable, exit 5' s14-tagu
+  st_hidden s14-shebang "#!/usr/bin/env php${NL}<?php${NL}return [$SL];${NL}"
+  st_nv 's14: a shebang line before the open tag is a not-verified line, exit 3' s14-shebang 'config/filesystems.php - line 1 holds PHP'
+  st_hidden s14-echo "<?= 1; ${NL}return [$SL];${NL}"
+  st_nv 's14: a short echo tag is a not-verified line, exit 3' s14-echo 'config/filesystems.php - line 1 holds PHP'
+  st_hidden s14-halt1 "<?php${NL}__halt_compiler();${NL}return [$SL];${NL}"
+  st_nv 's14: __halt_compiler before the return is a not-verified line, exit 3' s14-halt1 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-halt2 "<?php${NL}return [$SL];${NL}__halt_compiler();${NL}it's raw data${NL}"
+  st_nv 's14: __halt_compiler after the return is a not-verified line, exit 3' s14-halt2 'config/filesystems.php - '
+  st_hidden s14-alt "<?php${NL}if (true):${NL}return [$SL];${NL}endif;${NL}"
+  st_nv 's14: alternative syntax before the return is a not-verified line, exit 3' s14-alt 'config/filesystems.php - line 2 holds PHP'
+  st_hidden s14-cast1 "<?php${NL}return ['x' => (int) '1', 'y' => (string) 2, $SL,${NL}];${NL}"
+  st_hidden_read 's14: a cast inside an unrelated value changes no token end, exit 5' s14-cast1
+  st_hidden s14-cast2 "<?php${NL}return ['links' => [(string) public_path('dl') => base_path('database/dumps')]];${NL}"
+  st_hidden_read 's14: a cast before a links key changes no token end, exit 5' s14-cast2
+  st_hidden s14-cast3 "<?php${NL}return ['links' => [public_path('dl') => (string) base_path('database/dumps')]];${NL}"
+  st_nv 's14: a cast inside the target of a links entry is a not-verified line, exit 3' s14-cast3 'config/filesystems.php - the links entry at line'
 
   # M1: a .. component after a symlink component resolves at the physical target, as the kernel does.
   st_clean m1
