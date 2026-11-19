@@ -581,3 +581,24 @@ test('simple logic that does not repeat gets no new class and DRY is a moderate 
     expect($leonardo)->toContain('**DRY agenda (one of the most important checks):**');
     expect($donatello)->toContain('## Reuse before you write (DRY)');
 });
+
+test('an Enum may hold a dependency-free conversion and a method that needs a dependency still belongs in a Data Builder (issue #652)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $architecture = (string) file_get_contents($packageDir . '/rules/laravel/architecture.md');
+    $review = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
+
+    expect($architecture)->toContain('**The one conversion that stays in the Enum is the dependency-free conversion.**');
+    expect($architecture)->toContain('The body is a `match` (or an equivalent `if` / `switch`) over the Enum\'s own cases');
+    expect($architecture)->toContain('It needs no dependency of another class: no injected service, Repository, Model, container lookup');
+    expect($architecture)->toContain(
+        'A call to a value-object constructor or a static factory (for example `Carbon::createFromTimestampUTC()`) and a call to a PHP built-in are not a dependency.',
+    );
+    expect($architecture)->toContain('A method that fails any of the three conditions');
+    expect($architecture)->toContain('still belongs in a Data Builder.');
+    expect($architecture)->toContain('outside the dependency-free conversion of **Data Builders**');
+    expect($review)->toContain(
+        'neither is a dependency-free conversion that meets the three conditions of `@rules/laravel/architecture.md` *Data Builders* → *An Enum holds cases, not transformations*',
+    );
+    expect($review)->toContain('An Enum method that needs a dependency of another class stays this finding.');
+    expect(substr_count($review, 'no injected service'))->toBe(0);
+});
