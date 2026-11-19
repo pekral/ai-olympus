@@ -57,8 +57,9 @@
 #        - a line of 0–3 spaces, then three or more backticks or three or more tildes (after backticks, no further
 #          backtick on the line), opens a skipped region; that line and the lines after it are skipped;
 #        - the region closes on a line of 0–3 spaces, the opening character at least as many times as it opened, and
-#          then only spaces or tabs (that line is skipped too); before the first non-blank line that starts with fewer
-#          spaces than the opening line (that line is read); or at the end of the body;
+#          then only spaces or tabs (that line is skipped too); for an opening line inside a list item, before the first
+#          non-blank line that starts with fewer spaces than the content of that item (that line is read); or at the
+#          end of the body;
 #        - a line of 0–3 spaces and `<` opens an HTML region instead: its lines are read and no skipped region opens
 #          in it, until the line that holds `-->` (opened by `<!--`), `?>` (by `<?`), `]]>` (by `<![CDATA[`), `>` (by
 #          `<!` and a letter), or `</pre>`, `</script>`, `</style>`, or `</textarea>` after lowercasing (opened by
@@ -1234,6 +1235,10 @@ EOF
     '{ print } /^## TL;DR/ { print "```"; print "**Mode:** HOTFIX" }'
   shape_case 'fence: a closer followed by a tab does not hide a decision line' "$HI" \
     '{ print } /^## TL;DR/ { print "```"; print "x"; print "```\t"; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: the closer of an indented fence opens no fence, so a decision line after it runs the round' "$HI" \
+    '{ print } /^## TL;DR/ { print "  ```"; print "x"; print "  ```"; print "  **Mode:** HOTFIX"; print "  ```"; print "y"; print "  ```" }'
+  shape_case 'fence: a less indented line stays inside an indented fence outside a list item' "$CF" \
+    '{ print } /^## TL;DR/ { print "  ```"; print "**Mode:** HOTFIX"; print "  ```" }'
   shape_case 'fence: the end of a list item closes its fence' "$HI" \
     '{ print } /^## TL;DR/ { print "- item"; print ""; print "  ```"; print "  code"; print ""; print "**Mode:** HOTFIX" }'
   shape_case 'fence: three backticks inside an HTML comment open no fence' "$HI" \

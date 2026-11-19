@@ -89,14 +89,16 @@ CR_HEADER_CRITICAL_HEADINGS=0
 
 CR_FENCE_CHAR=''
 CR_FENCE_LEN=0
-CR_FENCE_INDENT=0
+CR_FENCE_BOUND=0
+CR_LIST_OFFSET=0
 CR_HTML_END=''
 
 # cr_header_fence_reset — start a new walk of the line rule below. Every reader calls it before its first line.
 cr_header_fence_reset() {
   CR_FENCE_CHAR=''
   CR_FENCE_LEN=0
-  CR_FENCE_INDENT=0
+  CR_FENCE_BOUND=0
+  CR_LIST_OFFSET=0
   CR_HTML_END=''
 }
 
@@ -107,37 +109,49 @@ cr_header_fence_reset() {
 #   lines after it are skipped. The region closes:
 #     - on a line of 0–3 spaces, then the opening character at least as many times as it opened, then only spaces or
 #       tabs; that line is skipped too;
-#     - before the first non-blank line that starts with fewer spaces than the opening line; that line is read;
+#     - when the opening line stands in a list item (its indent is at least the content offset of the last list item
+#       line outside a skipped region): before the first non-blank line that starts with fewer spaces than that offset;
+#       that line is read;
 #     - at the end of the body.
+#   Outside a list item the region stays open whatever the indent of its lines, so a line of less indent than the
+#   opening line is skipped too, and only the closing line ends the region.
 #   An HTML region opens on a line, outside a skipped region, of 0–3 spaces and `<`. Its lines are read, and no skipped
 #   region opens inside it. It ends after the line that holds `-->` when the opening line starts with `<!--`; `?>` for
 #   `<?`; `]]>` for `<![CDATA[`; `>` for `<!` and a letter; `</pre>`, `</script>`, `</style>`, or `</textarea>`, after
 #   lowercasing, when the opening line starts with `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, and
 #   then whitespace, `>`, or the end of the line; and at the next blank line after any other opening line. The end can
 #   be on the opening line.
-#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_INDENT (the skipped region), CR_HTML_END (the HTML region).
+#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_BOUND (the skipped region), CR_LIST_OFFSET (the list item), CR_HTML_END
+#   (the HTML region).
 cr_header_fence_step() {
-  local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' run lead
+  local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' list_re='^( {0,3})([-+*]|[0-9]{1,9}[.)])( +|$)' run lead=''
+  [[ ! "$1" =~ [^[:space:]] ]] || lead="${1%%[! ]*}"
   if [[ -n "$CR_FENCE_CHAR" ]]; then
-    lead="${1%%[! ]*}"
-    if [[ ! "$1" =~ [^[:space:]] || ${#lead} -ge $CR_FENCE_INDENT ]]; then
+    if [[ "$CR_FENCE_BOUND" -eq 0 || ! "$1" =~ [^[:space:]] || ${#lead} -ge $CR_FENCE_BOUND ]]; then
       if [[ "$1" =~ $close_re ]]; then
         run="${BASH_REMATCH[1]}"
         if [[ "${run:0:1}" == "$CR_FENCE_CHAR" && ${#run} -ge $CR_FENCE_LEN ]]; then
           CR_FENCE_CHAR=''
           CR_FENCE_LEN=0
-          CR_FENCE_INDENT=0
+          CR_FENCE_BOUND=0
         fi
       fi
       return 0
     fi
     CR_FENCE_CHAR=''
     CR_FENCE_LEN=0
-    CR_FENCE_INDENT=0
+    CR_FENCE_BOUND=0
   fi
   if [[ -n "$CR_HTML_END" ]]; then
     cr_header_html_end "$1"
     return 1
+  fi
+  if [[ "$1" =~ $list_re ]]; then
+    run="${BASH_REMATCH[3]}"
+    [[ ${#run} -ge 1 && ${#run} -le 4 ]] || run=' '
+    CR_LIST_OFFSET=$((${#BASH_REMATCH[1]} + ${#BASH_REMATCH[2]} + ${#run}))
+  elif [[ "$1" =~ [^[:space:]] && ${#lead} -lt $CR_LIST_OFFSET ]]; then
+    CR_LIST_OFFSET=0
   fi
   if [[ "$1" == *'<'* && "$1" =~ ^\ {0,3}\< ]]; then
     cr_header_html_open "$1"
@@ -148,7 +162,9 @@ cr_header_fence_step() {
   [[ "${run:0:1}" != '`' || "${BASH_REMATCH[3]}" != *'`'* ]] || return 1
   CR_FENCE_CHAR="${run:0:1}"
   CR_FENCE_LEN=${#run}
-  CR_FENCE_INDENT=${#BASH_REMATCH[1]}
+  if [[ $CR_LIST_OFFSET -gt 0 && ${#BASH_REMATCH[1]} -ge $CR_LIST_OFFSET ]]; then
+    CR_FENCE_BOUND=$CR_LIST_OFFSET
+  fi
   return 0
 }
 
@@ -433,8 +449,16 @@ cr_header_self_test() {
     "$(printf '%s\n**In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: a closer followed by a tab closes the fence' $'After|1|1|y\n' \
     "$(printf '%s\n**In:** x\n%s\t\n**After:** y\n' "$fence" "$fence")"
-  expect 'fence: a line indented less than the opener closes the fence and is read' $'After|1|1|y\n' \
-    "$(printf '  %s\n  **In:** x\n\n**After:** y\n' "$fence")"
+  expect 'fence: a line indented less than the opener stays inside the fence' $'After|1|1|y\n' \
+    "$(printf '  %s\n**In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: an unindented line inside an indented fence is quoted, and the closer ends the fence' $'After|1|1|y\n' \
+    "$(printf ' %s\n  **In:** x\n**Mid:** x\n %s\n**After:** y\n' "$fence" "$fence")"
+  expect 'fence: an indented closer opens no fence, so a header line after it is read' $'After|1|1|y\n' \
+    "$(printf '  %s\nx\n  %s\n**After:** y\n  %s\n' "$fence" "$fence" "$fence")"
+  expect 'fence: the end of a list item closes the fence of that item' $'After|1|1|y\n' \
+    "$(printf -- '- item\n\n  %s\n  **In:** x\n**After:** y\n' "$fence")"
+  expect 'fence: a line indented as the list item content stays inside its fence' $'After|1|1|y\n' \
+    "$(printf -- '1. item\n\n   %s\n   **In:** x\n   %s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: a blank line does not close an indented fence' $'After|1|1|y\n' \
     "$(printf '  %s\n\n  **In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: no fence opens inside an HTML comment' $'Late|1|1|y\n' \
