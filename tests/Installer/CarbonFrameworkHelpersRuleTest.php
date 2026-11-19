@@ -51,13 +51,16 @@ test('code reuses a class the framework already ships and follows the reuse orde
 
     expect($section)->toContain('**Reuse a class or a service the framework already ships.**')
         ->and($section)->toContain('`Cache::remember()` instead of a get-then-put pair')
-        ->and($section)->toContain('Extend the native class (a macro, a custom cast, a custom rule, a channel) instead of writing a parallel one.')
+        ->and($section)->toContain('**Extend the native class instead of writing a parallel one.**')
+        ->and($section)->toContain('`cursorPaginate()` instead of a hand-written offset, per `@rules/sql/optimalize.md`')
+        ->and($section)->not->toContain('`Fluent`')
+        ->and($section)->toContain('A line that another rule already owns is raised once, by that owner')
         ->and($section)->toContain('**Choose in this order, and stop at the first option that fits.**')
         ->and($section)->toContain('1. The project already implements the behaviour: reuse it.')
         ->and($section)->toContain('2. The framework ships a helper or a class for it')
         ->and($section)->toContain('3. Neither exists: write new code in the layer that owns it')
         ->and($section)->toContain('hand-written equivalent of an existing framework helper or framework class')
-        ->and($laravel)->toContain('*Carbon and Framework Helpers* below owns the order');
+        ->and($laravel)->toContain('in the order *Carbon and Framework Helpers* below owns');
 });
 
 test('the section owns neither the timezone rule, the emptiness rule, nor the project DRY rule, and points to each owner', function (): void {
@@ -100,9 +103,10 @@ test('the code review walk points to the section and carries the same severity w
     $entry = substr($review, (int) $start, $end - (int) $start);
 
     expect($entry)->toContain('verify it goes through Carbon or the helper or class the framework already ships')
-        ->and($entry)->toContain('a hand-written equivalent of a framework class or service')
+        ->and($entry)->toContain('a hand-written equivalent of a framework class or service from the list in that section')
+        ->and($entry)->not->toContain('`RateLimiter`')
         ->and($entry)->toContain(
-            'The **Not findings** and the gating against *Time*, *String Emptiness Checks*, and *Reuse Existing Logic* are the ones that section states.',
+            'The **Not findings** and the gating against *Time*, *String Emptiness Checks*, *Reuse Existing Logic*, and the other owners are the ones that section states.',
         )
         ->and($entry)->toContain('Severity: **Moderate**.')
         ->and($entry)->not->toContain('`strtotime()`');
