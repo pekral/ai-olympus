@@ -23,19 +23,25 @@
 #   public-files-scan.sh --self-test
 #
 # static (default mode of the skill)
-#   Scans public/ and storage/app/public/ of the project root on disk. It does not descend into a
-#   symlinked directory and does not descend into a .git entry. With --changed-from it prints only the
-#   findings on a path that `git diff --name-only <base> HEAD` lists (a .gitignore finding when any
-#   changed path is a .gitignore file); this is the review mode of a code review.
+#   Scans public/ and storage/app/public/ of the project root on disk. A scan root that is a symlink is
+#   scanned at its target (find -H); a scan root link that does not resolve to a directory is a
+#   not-verified line. Below a scan root it does not descend into a symlinked directory and does not
+#   descend into a .git entry. An entry find cannot read is a not-verified line. With --changed-from it
+#   prints only the findings on a path that `git diff --name-only -z <base> HEAD` lists, matched byte
+#   for byte (a .gitignore finding when any changed path is a .gitignore file); this is the review mode
+#   of a code review.
 #
 # runtime (explicit request only)
-#   Runs the name checks of the static mode on public/ and storage/app/public/ and sends one HEAD
-#   request per finding path, plus /.env, to the base URL. It accepts only a base URL whose host is
-#   localhost, a name under .localhost or .test, an address in 127.0.0.0/8, or [::1], with no user
-#   information, path, query, or fragment; any other target is refused with exit 4 before a request.
-#   Each request is `curl -q --head` with no redirect, no proxy, no credential, no cookie, and a time
-#   limit. It downloads no body. A public/storage symlink that resolves to storage/app/public maps a
-#   file of the public disk to /storage/<path>.
+#   Runs the name checks and the symlink check of the static mode on public/ and storage/app/public/
+#   and sends one HEAD request per finding path, plus /.env, to the base URL. It accepts only a base
+#   URL whose host is localhost, a name under .localhost or .test, an address in 127.0.0.0/8, or [::1],
+#   with no user information, path, query, or fragment; any other target is refused with exit 4 before
+#   a request. Every accepted name is pinned to the loopback address: curl gets
+#   `--resolve <host>:<port>:127.0.0.1` (port 80 or 443 when the URL names none), so the system
+#   resolver never decides where a request goes. A literal 127.0.0.0/8 address and [::1] connect as
+#   given. Each request is `curl -q --head` with no redirect, no proxy, no credential, no cookie, and a
+#   time limit. It downloads no body. A public/storage symlink that resolves to storage/app/public maps
+#   a file of the public disk to /storage/<path>.
 #
 # Checks (the one owner of the patterns; the skill lists only the check table)
 #   The name checks match the file name in any letter case, first match wins, one finding per path.
@@ -51,7 +57,8 @@
 #                                    *.phar, *.phps, *.shtml, *.sh, *.cgi, *.pl, *.py, .htaccess,
 #                                    .user.ini, and a regular file with an execute bit
 #   symlink-permission     high      a symlink whose target resolves outside public/ and
-#                                    storage/app/public/; an entry that is world-writable
+#                                    storage/app/public/, or does not resolve; an entry that is
+#                                    world-writable
 #   gitignore-deploy       medium    a probe path the project's .gitignore files do not ignore
 #                                    (GITIGNORE_PROBES); a public/ path in a deployment file
 #                                    (DEPLOY_FILES) whose name a name check above matches
@@ -62,7 +69,7 @@
 #
 # Evidence (metadata only)
 #   size=<bytes> mtime=<UTC> mode=<octal> git=<tracked|ignored|untracked|none>; target=<raw link>
-#   resolves=<outside-project|path>; probe=<path> ignored=no; line=<n> ref=<public/ token>
+#   resolves=<outside-project|unresolved|path>; probe=<path> ignored=no; line=<n> ref=<public/ token>
 #   class=<check>; status=<http status> type=<content-type> length=<content-length>.
 #   Every printed path is printable ASCII; any other byte and the backslash print as \xHH.
 #
@@ -174,9 +181,9 @@ esc() {
 
 FINDINGS=0
 INCOMPLETE=0
-CHANGED=''
 SCOPE=tree
-declare -a PATHS=() KINDS=() SHARED=() CLASS=()
+SCRATCH=''
+declare -a PATHS=() KINDS=() SHARED=() CLASS=() CHANGED=() LINK_IDX=() LINK_EV=()
 
 emit() {
   # emit <check> <severity> <path> <evidence>
@@ -190,13 +197,17 @@ not_verified() {
   INCOMPLETE=1
 }
 
+# A changed path matches byte for byte; git printed the list with -z, so no name is quoted.
 in_scope() {
-  local check="$1" path="$2"
-  if [[ "$check" == gitignore-deploy && "$path" == .gitignore ]]; then
-    [[ "$CHANGED" == *$'\n.gitignore\n'* || "$CHANGED" == *'/.gitignore'$'\n'* ]]
-    return
-  fi
-  [[ "$CHANGED" == *$'\n'"$path"$'\n'* ]]
+  local check="$1" path="$2" changed
+  for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
+    if [[ "$check" == gitignore-deploy && "$path" == .gitignore ]]; then
+      [[ "$changed" == .gitignore || "$changed" == */.gitignore ]] && return 0
+    elif [[ "$changed" == "$path" ]]; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 # --- metadata ----------------------------------------------------------------------------------------
@@ -264,10 +275,12 @@ classify_shared() {
   SHARED=()
   for ((i = 0; i < ${#PATHS[@]}; i++)); do SHARED[i]=''; done
   ((${#PATHS[@]})) || return 0
-  local line rule
+  local line rule out
+  out="$(for ((i = 0; i < ${#PATHS[@]}; i++)); do printf '%s\n' "${PATHS[i]//$'\n'/?}"; done | bash "$CLASSIFIER" classify)" ||
+    not_verified 'the shared sensitive-name table - the classifier failed, so only the patterns of this script applied; run the scan again'
   while IFS=$'\t' read -r line rule; do
     [[ "$line" =~ ^[0-9]+$ ]] && SHARED[line - 1]="$rule"
-  done < <(for ((i = 0; i < ${#PATHS[@]}; i++)); do printf '%s\n' "${PATHS[i]//$'\n'/?}"; done | bash "$CLASSIFIER" classify)
+  done <<<"$out"
 }
 
 # name_check <relative path> <kind f|d|l> <shared rule> <in public disk 0|1> sets NAME_CHECK to the
@@ -320,19 +333,32 @@ severity_of() {
   esac
 }
 
-# Collect every entry below the scan roots into PATHS (relative to the root) and KINDS.
+# A find run that printed an error read only part of the tree: a not-verified line, never a clean one.
+find_errors() {
+  local n
+  [[ -s "$SCRATCH/find.err" ]] || return 0
+  n="$(awk 'END { print NR }' "$SCRATCH/find.err")"
+  not_verified "$1/ - find could not read $n entries of the $2; give the scan read access to every entry and run the scan again"
+}
+
+# Collect every entry below the scan roots into PATHS (relative to the root) and KINDS. A scan root
+# that is a symlink is scanned at its target (find -H follows a starting point only).
 collect() {
   local dir rel p kind
   PATHS=()
   KINDS=()
   for dir in public storage/app/public; do
-    [[ -d "$ROOT/$dir" && ! -L "$ROOT/$dir" ]] || continue
+    if [[ ! -d "$ROOT/$dir" ]]; then
+      [[ -L "$ROOT/$dir" ]] && not_verified "$dir/ - the symlink does not resolve to a directory; restore its target and run the scan again"
+      continue
+    fi
     while IFS= read -r -d '' p; do
       rel="${p#"$ROOT"/}"
       if [[ -L "$p" ]]; then kind=l; elif [[ -d "$p" ]]; then kind=d; else kind=f; fi
       PATHS+=("$rel")
       KINDS+=("$kind")
-    done < <(find "$ROOT/$dir" -mindepth 1 \( -name .git -print0 -prune \) -o -print0 2>/dev/null)
+    done < <(find -H "$ROOT/$dir" -mindepth 1 \( -name .git -print0 -prune \) -o -print0 2>"$SCRATCH/find.err")
+    find_errors "$dir" 'name checks'
   done
 }
 
@@ -354,37 +380,54 @@ run_name_checks() {
 
 # --- static mode -------------------------------------------------------------------------------------
 
+# The symlinks below the scan roots whose target leaves public/ and storage/app/public/, or does not
+# resolve: LINK_IDX holds the index into PATHS, LINK_EV the evidence. The static mode reports them and
+# the runtime mode probes them.
+link_checks() {
+  local i abs resolved shown pub disk
+  LINK_IDX=()
+  LINK_EV=()
+  pub="$(cd -P -- "$ROOT/public" 2>/dev/null && pwd -P)" || pub=''
+  disk="$(cd -P -- "$ROOT/storage/app/public" 2>/dev/null && pwd -P)" || disk=''
+  for ((i = 0; i < ${#PATHS[@]}; i++)); do
+    [[ "${KINDS[i]}" == l ]] || continue
+    abs="$ROOT/${PATHS[i]}"
+    if resolved="$(resolve_link "$abs")"; then
+      if [[ -n "$pub" && ("$resolved" == "$pub" || "$resolved" == "$pub"/*) ]]; then continue; fi
+      if [[ -n "$disk" && ("$resolved" == "$disk" || "$resolved" == "$disk"/*) ]]; then continue; fi
+      if [[ "$resolved" == "$ROOT_P"/* ]]; then shown="$(esc "${resolved#"$ROOT_P"/}")"; else shown=outside-project; fi
+    else
+      shown=unresolved
+    fi
+    LINK_IDX+=("$i")
+    LINK_EV+=("target=$(esc "$(readlink -- "$abs")") resolves=$shown")
+  done
+}
+
 static_checks() {
-  local i n=0 rel abs resolved shown pub disk probe
+  local i n rel abs ww probe
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
     [[ -n "${CLASS[i]}" ]] || continue
     emit "${CLASS[i]}" "$(severity_of "${CLASS[i]}")" "${PATHS[i]}" "$(meta "${PATHS[i]}")"
   done
 
-  pub="$(cd -P -- "$ROOT/public" 2>/dev/null && pwd -P)"
-  disk="$(cd -P -- "$ROOT/storage/app/public" 2>/dev/null && pwd -P)" || disk=''
-  for ((i = 0; i < ${#PATHS[@]}; i++)); do
-    [[ "${KINDS[i]}" == l ]] || continue
-    abs="$ROOT/${PATHS[i]}"
-    resolved="$(resolve_link "$abs")" || continue
-    if [[ "$resolved" == "$pub" || "$resolved" == "$pub"/* ]]; then continue; fi
-    if [[ -n "$disk" && ("$resolved" == "$disk" || "$resolved" == "$disk"/*) ]]; then continue; fi
-    if [[ "$resolved" == "$ROOT_P"/* ]]; then shown="${resolved#"$ROOT_P"/}"; else shown=outside-project; fi
-    n=$((n + 1))
-    if ((n > FINDING_CAP)); then continue; fi
-    emit symlink-permission high "${PATHS[i]}" "target=$(esc "$(readlink -- "$abs")") resolves=$(esc "$shown")"
+  link_checks
+  n=${#LINK_IDX[@]}
+  for ((i = 0; i < n && i < FINDING_CAP; i++)); do
+    emit symlink-permission high "${PATHS[LINK_IDX[i]]}" "${LINK_EV[i]}"
   done
 
   local writable=0
-  while IFS= read -r -d '' abs; do
-    writable=$((writable + 1))
-    ((writable > FINDING_CAP)) && continue
-    rel="${abs#"$ROOT"/}"
-    emit symlink-permission high "$rel" "world-writable $(meta "$rel")"
-  done < <(for rel in public storage/app/public; do
-    [[ -d "$ROOT/$rel" && ! -L "$ROOT/$rel" ]] || continue
-    find "$ROOT/$rel" \( -name .git -prune \) -o \( -perm -0002 ! -type l -print0 \) 2>/dev/null
-  done)
+  for rel in public storage/app/public; do
+    [[ -d "$ROOT/$rel" ]] || continue
+    while IFS= read -r -d '' abs; do
+      writable=$((writable + 1))
+      ((writable > FINDING_CAP)) && continue
+      ww="${abs#"$ROOT"/}"
+      emit symlink-permission high "$ww" "world-writable $(meta "$ww")"
+    done < <(find -H "$ROOT/$rel" \( -name .git -prune \) -o \( -perm -0002 ! -type l -print0 \) 2>"$SCRATCH/find.err")
+    find_errors "$rel" 'world-writable check'
+  done
   if ((n > FINDING_CAP || writable > FINDING_CAP)); then
     not_verified "symlink-permission - more than $FINDING_CAP findings of one kind; the first $FINDING_CAP are printed; fix them and run the scan again"
   fi
@@ -418,6 +461,10 @@ deploy_checks() {
   local file line token check i
   local -a files=() lines=() tokens=()
   while IFS= read -r -d '' file; do
+    if [[ ! -r "$ROOT/$file" ]]; then
+      not_verified "$(esc "$file") - the deployment file is not readable; give the scan read access and run the scan again"
+      continue
+    fi
     while IFS=: read -r line token; do
       [[ "$line" =~ ^[0-9]+$ ]] || continue
       files+=("$file")
@@ -426,7 +473,7 @@ deploy_checks() {
     done < <(grep -I -n -o -E 'public/[A-Za-z0-9._~*/-]+' -- "$ROOT/$file" 2>/dev/null)
   done < <(deploy_files)
   ((${#tokens[@]})) || return 0
-  local -a saved_paths=("${PATHS[@]}")
+  local -a saved_paths=(${PATHS[@]+"${PATHS[@]}"})
   PATHS=("${tokens[@]}")
   classify_shared
   for ((i = 0; i < ${#tokens[@]}; i++)); do
@@ -435,7 +482,7 @@ deploy_checks() {
     [[ -n "$check" ]] || continue
     emit gitignore-deploy medium "${files[i]}" "line=${lines[i]} ref=$(esc "${tokens[i]}") class=$check"
   done
-  PATHS=("${saved_paths[@]}")
+  PATHS=(${saved_paths[@]+"${saved_paths[@]}"})
 }
 
 # --- runtime mode ------------------------------------------------------------------------------------
@@ -472,17 +519,31 @@ urlenc() {
 }
 
 runtime_checks() {
-  local base="${1%/}" host link disk i rel path url hdr code ctype clen reach=0 sent=0
+  local base="${1%/}" host port link disk i rel path url hdr code ctype clen reach=0 sent=0
   host="${base#*://}"
   host="${host%%:*}"
   [[ "$host" == '['* ]] && host='[::1]'
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  # A name is pinned to the loopback address, so the system resolver never decides the target.
+  local -a pin=()
+  if [[ "$host" != '[::1]' && ! "$host" =~ ^127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+    if [[ "$base" =~ :([0-9]{1,5})$ ]]; then port="$((10#${BASH_REMATCH[1]}))"; elif [[ "$base" == https:* ]]; then port=443; else port=80; fi
+    pin=(--resolve "$host:$port:127.0.0.1")
+  fi
   link=0
   disk="$(cd -P -- "$ROOT/storage/app/public" 2>/dev/null && pwd -P)" || disk=''
   if [[ -L "$ROOT/public/storage" && -n "$disk" && "$(resolve_link "$ROOT/public/storage")" == "$disk" ]]; then link=1; fi
 
-  local -a urls=(/.env)
+  # The candidates: every name-check finding, then every symlink the static symlink check flags.
+  local -a cand=() urls=(/.env)
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
-    [[ -n "${CLASS[i]}" ]] || continue
+    [[ -n "${CLASS[i]}" ]] && cand+=("$i")
+  done
+  link_checks
+  for i in ${LINK_IDX[@]+"${LINK_IDX[@]}"}; do
+    [[ -n "${CLASS[i]}" ]] || cand+=("$i")
+  done
+  for i in ${cand[@]+"${cand[@]}"}; do
     rel="${PATHS[i]}"
     case "$rel" in
     public/*) path="/${rel#public/}" ;;
@@ -493,8 +554,7 @@ runtime_checks() {
     [[ "$path" == /.env ]] || urls+=("$path")
   done
 
-  hdr="$(mktemp)" || die 2 'cannot create a temporary file'
-  trap 'rm -f "$hdr"' EXIT
+  hdr="$SCRATCH/headers"
   for path in "${urls[@]}"; do
     if ((sent >= PROBE_CAP)); then
       not_verified "http-reachable - more than $PROBE_CAP paths; the first $PROBE_CAP were checked; fix the static findings and run the scan again"
@@ -503,7 +563,7 @@ runtime_checks() {
     sent=$((sent + 1))
     url="$base$(urlenc "$path")"
     : >"$hdr"
-    code="$(curl -q --silent --globoff --head --max-redirs 0 --proto '=http,https' --noproxy '*' \
+    code="$(curl -q --silent --globoff --head --max-redirs 0 --proto '=http,https' --noproxy '*' ${pin[@]+"${pin[@]}"} \
       --connect-timeout 5 --max-time 10 --user-agent public-files-scan -o /dev/null -D "$hdr" \
       -w '%{http_code}' -- "$url" 2>/dev/null)" || code="${code:-000}"
     [[ "$code" =~ ^[0-9]{3}$ ]] || code=000
@@ -519,8 +579,6 @@ runtime_checks() {
     *) not_verified "$(esc "$path") - status $code; the request failed or the answer is unknown; start the local instance and run the scan again" ;;
     esac
   done
-  rm -f "$hdr"
-  trap - EXIT
   printf 'outbound-request: %s HEAD %s paths\n' "$host" "$sent"
 }
 
@@ -562,6 +620,8 @@ main() {
   fi
   ROOT_P="$(cd -P -- "$root" 2>/dev/null && pwd -P)" || die 1 "the root is not a directory: $root"
   ROOT="$ROOT_P"
+  SCRATCH="$(mktemp -d)" || die 2 'cannot create a temporary directory'
+  trap 'rm -rf -- "$SCRATCH"' EXIT
   HAS_GIT=0
   if command -v git >/dev/null 2>&1 && [[ "$(git_ro rev-parse --is-inside-work-tree 2>/dev/null)" == true ]]; then HAS_GIT=1; fi
   pick_stat
@@ -569,8 +629,8 @@ main() {
   if [[ -n "$base" ]]; then
     ((HAS_GIT)) || die 1 '--changed-from needs a git work tree'
     local changed
-    changed="$(git_ro diff --name-only --no-renames "$base" HEAD -- 2>/dev/null)" || die 3 'the base commit is not in this checkout'
-    CHANGED=$'\n'"$changed"$'\n'
+    git_ro diff --name-only -z --no-renames "$base" HEAD -- >"$SCRATCH/changed" 2>/dev/null || die 3 'the base commit is not in this checkout'
+    while IFS= read -r -d '' changed; do CHANGED+=("$changed"); done <"$SCRATCH/changed"
     SCOPE='diff'
   fi
 
@@ -663,6 +723,8 @@ st_fixture() {
   chmod 777 "$p/public/uploads"
   ln -s ../storage/app/public "$p/public/storage"
   ln -s ../.env "$p/public/leak"
+  ln -s ../../shared/storage/backup.sql "$p/public/latest"
+  ln -s loop "$p/public/loop"
   printf '/public/storage\n.env.backup\n.env.production\n/storage/*.key\nauth.json\n' >"$p/.gitignore"
   printf '*\n!.gitignore\n' >"$p/storage/logs/.gitignore"
   printf 'cp public/build/app.js /tmp/x\nmysqldump app > public/dump.sql\n' >"$p/deploy.sh"
@@ -687,6 +749,9 @@ st_static_cases() {
   st_check 'static: a PHP file in the public disk is a public-storage-script finding' st_line $'finding\tpublic-storage-script\thigh\tstorage/app/public/shell.php'
   st_check 'static: an .htaccess in the public disk is a public-storage-script finding' st_line $'public-storage-script\thigh\tstorage/app/public/.htaccess'
   st_check 'static: a symlink that leaves the public paths is a symlink-permission finding' st_line $'finding\tsymlink-permission\thigh\tpublic/leak\ttarget=../.env resolves=.env'
+  st_check 'static: a symlink that does not resolve is a symlink-permission finding' \
+    st_line $'finding\tsymlink-permission\thigh\tpublic/latest\ttarget=../../shared/storage/backup.sql resolves=unresolved'
+  st_check 'static: a symlink loop is a symlink-permission finding' st_line $'symlink-permission\thigh\tpublic/loop\ttarget=loop resolves=unresolved'
   st_check 'static: a world-writable directory is a symlink-permission finding' st_line $'symlink-permission\thigh\tpublic/uploads\tworld-writable'
   st_check 'static: a probe the .gitignore does not ignore is a medium gitignore-deploy finding' st_line $'finding\tgitignore-deploy\tmedium\t.gitignore\tprobe=.env ignored=no'
   st_check_not 'static: a probe the .gitignore ignores is no finding' st_line 'probe=.env.backup'
@@ -707,14 +772,68 @@ st_static_cases() {
   local base
   base="$(cd "$p" && git rev-parse HEAD)"
   printf 'x\n' >"$p/public/new-dump.sql"
+  local quoted=$'z\xc3\xa1.sql'
+  printf 'x\n' >"$p/public/$quoted"
+  printf 'x\n' >"$p/public/q\"x\\y.zip"
+  printf 'x\n' >"$p/public/t"$'\t'"b.sql"
   printf 'cp db.sql public/fresh.sql\n' >>"$p/deploy.sh"
-  (cd "$p" && git add public/new-dump.sql deploy.sh && st_git commit -q -m change) >/dev/null 2>&1
+  (cd "$p" && git add -- public/new-dump.sql "public/$quoted" 'public/q"x\y.zip' "public/t"$'\t'"b.sql" deploy.sh &&
+    st_git commit -q -m change) >/dev/null 2>&1
   st_run diff static --root "$p" --changed-from "$base"
   st_check 'diff: a dump the diff adds is reported' st_line $'dump-archive-backup\tcritical\tpublic/new-dump.sql\t' 'git=tracked'
+  st_check 'diff: a non-ASCII name that git quotes is reported' st_line $'dump-archive-backup\tcritical\tpublic/z\\xc3\\xa1.sql\t'
+  st_check 'diff: a name with a quote and a backslash is reported' st_line $'dump-archive-backup\tcritical\tpublic/q"x\\x5cy.zip\t'
+  st_check 'diff: a name with a tab is reported' st_line $'dump-archive-backup\tcritical\tpublic/t\\x09b.sql\t'
   st_check 'diff: a changed deployment file is reported' st_line $'deploy.sh\tline=3 ref=public/fresh.sql'
   st_check_not 'diff: a dump the diff does not touch is not reported' st_line 'public/backup.sql'
   st_check_not 'diff: a .gitignore finding is not reported when no .gitignore changed' st_line 'probe=.env'
   st_check 'diff: the header names the diff scope' st_line 'mode=static scope=diff'
+  st_run nodiff static --root "$p" --changed-from "$(cd "$p" && git rev-parse HEAD)"
+  st_check 'diff: an empty diff completes clean, exit 0' test "$ST_RC" = 0
+
+  # An empty public/ and a deployment file that writes a dump there: the scan completes under bash 3.2.
+  mkdir -p "$ST_TMP/empty/public"
+  printf 'mysqldump app > public/dump.sql\n' >"$ST_TMP/empty/deploy.sh"
+  (cd "$ST_TMP/empty" && git init -q) >/dev/null 2>&1
+  st_run empty static --root "$ST_TMP/empty"
+  st_check 'static: an empty public/ completes with the deployment finding, exit 5' test "$ST_RC" = 5
+  st_check 'static: an empty public/ still reports the deployment step' st_line $'gitignore-deploy\tmedium\tdeploy.sh\tline=1 ref=public/dump.sql'
+  st_check 'static: an empty public/ prints the summary line' st_line 'summary: findings=' 'status=findings'
+  st_curl_stub
+  st_run empty-runtime runtime --root "$ST_TMP/empty" --base-url http://localhost
+  st_check 'runtime: an empty public/ probes /.env only and completes clean, exit 0' test "$ST_RC" = 0 -a "$(grep -c '^argv' "$ST_TMP/curl.log")" = 1
+  : >"$ST_TMP/curl.log"
+
+  # public/ is a symlink to the real web root; the public disk is a symlink that does not resolve.
+  local l="$ST_TMP/linked"
+  mkdir -p "$l/web/private" "$l/storage/app"
+  printf '%s\n' "$ST_MARKER" >"$l/web/backup.sql"
+  printf 'SECRET=%s\n' "$ST_MARKER" >"$l/web/.env"
+  ln -s web "$l/public"
+  ln -s ../../missing "$l/storage/app/public"
+  printf 'cp x public/a.sql\n' >"$l/deploy.sh"
+  (cd "$l" && git init -q) >/dev/null 2>&1
+  chmod 000 "$l/web/private" "$l/deploy.sh"
+  st_run linked static --root "$l"
+  st_check 'static: a dump below a symlinked public/ is reported' st_line $'finding\tdump-archive-backup\tcritical\tpublic/backup.sql\t'
+  st_check 'static: an .env copy below a symlinked public/ is reported' st_line $'finding\tenv-config-copy\tcritical\tpublic/.env\t'
+  st_check 'static: a scan root link that does not resolve is a not-verified line' st_line 'not-verified: storage/app/public/ - the symlink does not resolve'
+  st_check 'static: a scan with a not-verified line exits 3' test "$ST_RC" = 3
+  if [[ "$(id -u)" != 0 ]]; then
+    st_check 'static: an entry find cannot read is a not-verified line' st_line 'not-verified: public/ - find could not read'
+    st_check 'static: a deployment file the scan cannot read is a not-verified line' st_line 'not-verified: deploy.sh - the deployment file is not readable'
+  fi
+  st_check_not 'static: the content below a symlinked public/ is never printed' st_line "$ST_MARKER"
+  chmod 700 "$l/web/private" "$l/deploy.sh"
+
+  # storage/app/public is a symlink to a shared directory that holds a script.
+  local d="$ST_TMP/linkeddisk"
+  mkdir -p "$d/public" "$d/shared/disk" "$d/storage/app"
+  printf '<?php\n' >"$d/shared/disk/shell.php"
+  ln -s ../../shared/disk "$d/storage/app/public"
+  (cd "$d" && git init -q) >/dev/null 2>&1
+  st_run linkeddisk static --root "$d"
+  st_check 'static: a script below a symlinked public disk is reported' st_line $'finding\tpublic-storage-script\thigh\tstorage/app/public/shell.php\t'
 
   mkdir -p "$ST_TMP/nogit/public"
   st_run nogit static --root "$ST_TMP/nogit"
@@ -774,6 +893,10 @@ st_runtime_cases() {
   st_check 'runtime: a 404 answer is a probe line, not a finding' st_line $'probe\t/.env\tstatus=404'
   st_check 'runtime: a redirect is not followed and is a not-verified line' st_line 'not-verified: /laravel.log - status 302'
   st_check 'runtime: a file of the public disk maps to /storage/' st_line $'/storage/shell.php\tstatus=404'
+  st_check 'runtime: a symlink the static check flags is probed' st_line $'probe\t/leak\tstatus=404'
+  st_check 'runtime: a symlink that does not resolve is probed' st_line $'probe\t/latest\tstatus=404'
+  st_check 'runtime: every request to a name is pinned to 127.0.0.1 on the URL port' \
+    test -z "$(printf '%s\n' "$argv" | grep -v -F '[--resolve] [app.test:8080:127.0.0.1]')"
   st_check 'runtime: a name with a non-URL byte is percent-encoded' test -n "$(grep -F '/tab%09name.zip' "$ST_TMP/curl.log")"
   st_check 'runtime: every request is a curl -q HEAD with no redirect, no proxy, and no credential' \
     test -z "$(printf '%s\n' "$argv" | grep -v '^argv \[-q\] .*\[--head\] \[--max-redirs\] \[0\] .*\[--noproxy\] \[\*\]')"
@@ -785,6 +908,31 @@ st_runtime_cases() {
   : >"$ST_TMP/curl.log"
   st_run loopback runtime --root "$p" --base-url 'http://[::1]'
   st_check 'runtime: [::1] is accepted' test -s "$ST_TMP/curl.log"
+  st_check_not 'runtime: [::1] connects as given, with no pin' grep -q -F -- '--resolve' "$ST_TMP/curl.log"
+
+  : >"$ST_TMP/curl.log"
+  st_run literal runtime --root "$p" --base-url http://127.0.0.2:8000
+  st_check_not 'runtime: a 127.0.0.0/8 address connects as given, with no pin' grep -q -F -- '--resolve' "$ST_TMP/curl.log"
+
+  : >"$ST_TMP/curl.log"
+  st_run default-https runtime --root "$p" --base-url https://App.localhost
+  st_check 'runtime: a name with no port is pinned to 127.0.0.1 on the scheme port' \
+    test -z "$(grep -v -F '[--resolve] [app.localhost:443:127.0.0.1]' "$ST_TMP/curl.log")"
+
+  # Another letter case, a port with a leading zero, and a name that starts like a literal address.
+  local url want
+  for url in 'http://APP.TEST:8080|app.test:8080' 'http://app.test:08080|app.test:8080' 'http://127.0.0.1.test|127.0.0.1.test:80'; do
+    want="${url#*|}"
+    : >"$ST_TMP/curl.log"
+    st_run pin runtime --root "$p" --base-url "${url%%|*}"
+    st_check "runtime: ${url%%|*} is pinned as $want:127.0.0.1" \
+      test -s "$ST_TMP/curl.log" -a -z "$(grep -v -F "[--resolve] [$want:127.0.0.1]" "$ST_TMP/curl.log")"
+  done
+
+  : >"$ST_TMP/curl.log"
+  st_run default-http runtime --root "$p" --base-url http://localhost
+  st_check 'runtime: localhost is pinned to 127.0.0.1 on port 80' \
+    test -z "$(grep -v -F '[--resolve] [localhost:80:127.0.0.1]' "$ST_TMP/curl.log")"
 }
 
 self_test() {

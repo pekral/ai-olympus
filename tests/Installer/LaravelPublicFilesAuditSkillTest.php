@@ -21,11 +21,14 @@ function publicFilesScanBody(): string
 
 test('laravel-public-files-audit ships as a skill with its catalog row (issue #580)', function (): void {
     $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+    $catalog = packageSource('docs/skills.md');
+    $security = explode("\n## ", explode("\n## Security\n", $catalog)[1] ?? '')[0];
 
     expect($skill)->toContain("name: laravel-public-files-audit\n")
         ->and($skill)->toContain("license: MIT\n")
         ->and($skill)->toContain('author: "Petr Král (pekral.cz)"')
-        ->and(packageSource('docs/skills.md'))->toContain('| [`laravel-public-files-audit`](../skills/laravel-public-files-audit/) |');
+        ->and($catalog)->toContain('| [`laravel-public-files-audit`](../skills/laravel-public-files-audit/) |')
+        ->and($catalog)->toContain('| [Security](#security) | ' . preg_match_all('/^\| \[`/m', $security) . ' |');
 });
 
 test('the skill covers the seven checks of the issue with their severities (issue #580)', function (): void {
@@ -59,10 +62,10 @@ test('the skill is read-only, never opens a reported file, and never publishes t
 test('the scan script changes no file and reads no reported content (issue #580)', function (): void {
     $body = publicFilesScanBody();
 
-    // The two matches are the usage text and the removal of the script's own temporary header file.
-    expect(preg_match_all('/(^|[\s|;&(])(rm|mv|chmod|chown|cp|ln|cat|head|tail|less|strings|unzip|tar)\s[^\n]*/m', $body, $calls))->toBe(2)
+    // The one match is the usage text. The only removal is the exit trap of the script's own scratch directory.
+    expect(preg_match_all('/(^|[\s|;&(])(rm|mv|chmod|chown|cp|ln|cat|head|tail|less|strings|unzip|tar)\s[^\n]*/m', $body, $calls))->toBe(1)
         ->and($calls[0][0])->toContain('cat >&2 <<\'EOF\'')
-        ->and($calls[0][1])->toContain('rm -f "$hdr"')
+        ->and($body)->toContain('trap \'rm -rf -- "$SCRATCH"\' EXIT')
         ->and($body)->not->toContain('printenv')
         ->and($body)->not->toContain('source ')
         ->and($body)->toContain('bash "$CLASSIFIER" classify');
@@ -76,6 +79,12 @@ test('the runtime mode sends only HEAD requests to a local or reserved test host
         ->and($calls[0][0])->toContain('--head --max-redirs 0 --proto \'=http,https\' --noproxy \'*\'')
         ->and($body)->not->toMatch('/curl[^\n]*(\s-L\b|--location|\s-u\b|--user|--netrc|--cookie)/')
         ->and($body)->toContain('[[ "$host" =~ ^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+(localhost|test)$ ]]')
+        ->and($body)->toContain('pin=(--resolve "$host:$port:127.0.0.1")')
+        ->and($calls[0][0])->toContain('--noproxy \'*\' ${pin[@]+"${pin[@]}"}')
+        ->and(packageSource('skills/laravel-public-files-audit/SKILL.md'))
+        ->toContain(
+            '- **No request leaves the machine.** The script pins every accepted name to `127.0.0.1` with curl `--resolve <host>:<port>:127.0.0.1`',
+        )
         ->and($script)->toContain('"runtime: $target is refused with exit 4 before any request"')
         ->and($script)->toContain('http://127.0.0.1.example.com http://example.test.evil.com');
 });
@@ -92,11 +101,26 @@ test('the scan shares the sensitive-file table of git-history-exposure-audit (is
 
 test('splinter runs the review mode and the code review classifies the other modes as not run (issue #580)', function (): void {
     $section = explode('## Skills deliberately not run', packageSource('skills/code-review/references/specialized-reviews.md'))[1] ?? '';
+    $splinter = packageSource('agents/splinter.md');
 
-    expect(packageSource('agents/splinter.md'))
+    expect($splinter)
         ->toContain('   - `@skills/laravel-public-files-audit/SKILL.md` in its *Review mode*, only when the reviewed project is a Laravel project')
+        ->and($splinter)->toContain(
+            'and the `laravel-public-files-audit/scripts/public-files-scan.sh` of that clone in its `static` mode with `--changed-from` only',
+        )
         ->and(deliberatelyNotRunGroups($section)[3] ?? [])->toContain('laravel-public-files-audit')
-        ->and(packageSource('skills/laravel-public-files-audit/SKILL.md'))
-        ->toContain('Run the copy the session loaded the skill from')
         ->and(packageSource('composer.json'))->toContain('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+});
+
+test('the review mode runs the scan and its classifier only as the verified copy of the untouched clone (issue #580)', function (): void {
+    $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+
+    expect($skill)->toContain('2. **The trusted copy of the script.** Run the copy of the untouched clone of '
+        . '`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6')
+        ->and($skill)->toContain('Use the procedure of `@skills/git-history-exposure-audit/SKILL.md` *Review mode* step 2 unchanged')
+        ->and($skill)->toContain('The paths are `skills/laravel-public-files-audit/scripts/public-files-scan.sh '
+            . 'skills/git-history-exposure-audit/scripts/history-scan.sh`.')
+        ->and($skill)->not->toContain('Run the copy the session loaded the skill from')
+        ->and(packageSource('rules/compound-engineering/orchestration.md'))
+        ->toContain('The review mode of `@skills/laravel-public-files-audit/SKILL.md` runs its scan from the same clone.');
 });
