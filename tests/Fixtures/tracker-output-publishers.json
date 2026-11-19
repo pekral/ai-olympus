@@ -84,6 +84,9 @@
     "skills/github-release-roadmap/references/github-cli-workflow.md": [
         "skills/create-issues-from-text/templates/issue-structure.md"
     ],
+    "skills/publish-github-release/SKILL.md": [
+        "skills/resolve-issue/templates/pull-request-body.md"
+    ],
     "skills/pr-summary/SKILL.md": [
         "skills/pr-summary/templates/pr-summary-github.md",
         "skills/pr-summary/templates/pr-summary-jira.md",
