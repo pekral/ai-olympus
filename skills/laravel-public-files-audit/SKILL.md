@@ -25,7 +25,7 @@ metadata:
 | | Static (default) | Runtime | Review |
 |---|---|---|---|
 | Starts | on an explicit user request | on an explicit user request for it | in the security view of `splinter`, when the diff touches a trigger path |
-| Reads | `public/`, `storage/app/public/`, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the static checks, kept to the findings that a changed path serves: the finding path, a symlink of its chain, or the target it resolves to |
+| Reads | `public/`, `storage/app/public/`, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the static checks, kept to the findings with a changed serving path: the finding path, a symlink of its chain, its target, or a path below that target |
 | Command | `public-files-scan.sh static --root <project>` | `public-files-scan.sh runtime --root <project> --base-url <url>` | `public-files-scan.sh static --root <review worktree> --changed-from <base sha>` |
 | Result goes to | this run's output only | this run's output only | the security view of the round |
 
