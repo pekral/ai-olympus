@@ -99,7 +99,6 @@
     }
   },
   "extra": {
-    "class": "Pekral\\AiOlympus\\ComposerPlugin",
     "ai-olympus": {
       "fast-checks": [
         {
@@ -111,7 +110,8 @@
           "files": "\\.php$"
         }
       ]
-    }
+    },
+    "class": "Pekral\\AiOlympus\\ComposerPlugin"
   },
   "scripts": {
     "analyse": [
