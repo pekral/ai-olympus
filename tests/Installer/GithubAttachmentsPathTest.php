@@ -7,9 +7,8 @@ test('the GitHub issue loaders point to the download script and its scan gate fo
     $resolveIssue = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
     $gatherer = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/gather-issue-context.sh');
 
-    expect($resolveIssue)->toContain(
-        'Get attachment content only through `skills/code-review-github/scripts/download-attachments.sh <URL>` and open only the files its security gate (`scan-attachments.sh`) promoted into `safe/`',
-    )
+    expect($resolveIssue)->toContain('Fetch attachments only through `skills/code-review-github/scripts/download-attachments.sh`')
+        ->and($resolveIssue)->toContain('open only scan-promoted `safe/` files')
         ->and($resolveIssue)->not->toContain('Read attachment content and the inventoried URLs with your own tools')
         ->and($gatherer)->toContain('Fetch it safely with \`skills/code-review-github/scripts/download-attachments.sh <URL>\`')
         ->and($gatherer)->toContain('promoted into \`safe/\`')
