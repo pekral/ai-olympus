@@ -19,6 +19,7 @@
 #   history-scan.sh range --base <sha> --head <sha>
 #   history-scan.sh text  < <load-issue.sh JSON of a pull request>
 #   history-scan.sh full  --repo <owner>/<repo> [--terms-file <file>] [--run-root <dir>]
+#   history-scan.sh classify < <paths, one per line>
 #   history-scan.sh --self-test
 #
 # range (review mode, git surfaces)
@@ -46,6 +47,12 @@
 #   the tags that carry it. The run directory is removed on exit.
 #   --run-root is `.claude/run/history-exposure` (default) or `.codex/run/history-exposure`.
 #   --terms-file names a file with one user-supplied term per line (named-term class).
+#
+# classify (the shared path classifier)
+#   Reads paths on standard input, one per line, and prints `<line number><TAB><rule>` for each line
+#   whose path SENSITIVE_TABLE classifies. It reads no file content, no git object, and no network,
+#   and it exits 0. skills/laravel-public-files-audit/scripts/public-files-scan.sh calls it, so the
+#   two scans classify a sensitive path by one table.
 #
 # Detection classes and rules (the one owner; the skill lists only the class table)
 #   credential       private-key-block, aws-access-key-id, github-token, gitlab-token, slack-token,
@@ -177,6 +184,7 @@ usage() {
 usage: history-scan.sh range --base <sha> --head <sha>
        history-scan.sh text  < <load-issue.sh JSON of a pull request>
        history-scan.sh full  --repo <owner>/<repo> [--terms-file <file>] [--run-root <dir>]
+       history-scan.sh classify < <paths, one per line>
        history-scan.sh --self-test
 EOF
   exit 1
@@ -1294,12 +1302,22 @@ mode_full() {
   exit "${status[2]}"
 }
 
+# The shared path classifier: the line number and the rule of each stdin path SENSITIVE_TABLE matches.
+mode_classify() {
+  [[ $# -eq 0 ]] || usage
+  need_tools awk
+  build_sensitive
+  # shellcheck disable=SC2016  # an awk program: its $ belongs to the program, not to the shell
+  awk -v sens="$SENS_ERE" "$AWK_LIB"'BEGIN { init_lib() } { r = sens_rule($0); if (r != "") print NR "\t" r }'
+}
+
 main() {
   [[ $# -ge 1 ]] || usage
   case "$1" in
   range) shift; mode_range "$@" ;;
   text) shift; mode_text "$@" ;;
   full) shift; mode_full "$@" ;;
+  classify) shift; mode_classify "$@" ;;
   --self-test) shift; self_test "$@" ;;
   *) usage ;;
   esac
@@ -2037,6 +2055,16 @@ st_package_case() {
   st_ok "$st_res" 'package: the tracked tree of this package gives no finding'
 }
 
+# The shared path classifier: a rule per matching line, by line number, and nothing for any other line.
+st_classify_cases() {
+  local paths="$ST_TMP/classify.txt"
+  printf '%s\n' public/app.js .env.example 'public/Backup.SQL.gz' 'storage/.env' 'public/laravel.log' >"$paths"
+  st_scan classify "$ST_TMP" "$paths" classify
+  st_res=0
+  [[ $ST_RC == 0 && "$ST_OUT" == $'3\tdatabase-dump\n4\tenv-file\n5\tlog-file' ]] || st_res=1
+  st_ok "$st_res" 'classify: each sensitive path prints its line number and rule, any other path prints nothing'
+}
+
 self_test() {
   local tmp
   tmp="$(mktemp -d)" || exit 1
@@ -2052,6 +2080,7 @@ self_test() {
   st_range_cases
   st_text_cases
   st_full_cases
+  st_classify_cases
   st_package_case
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
