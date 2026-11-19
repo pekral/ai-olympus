@@ -9,6 +9,7 @@ test('the interactive-testing skill exercises a backend API change through a saf
         ->toContain('The diff changes a backend API when it adds, changes, or removes an HTTP route, a controller action, request validation, a response shape, or a status code.')
         ->toContain('with the cases and the request and response record that `agents/raphael.md` step 4 *API surface → a real HTTP client against the running instance* defines')
         ->toContain('When no page calls the endpoint, the HTTP requests are the whole walkthrough')
+        ->toContain('If no interactive browser tool is available, a scenario that reaches a page is `Blocked`; name the remediation')
         ->toContain('The one exception to the browser walkthrough is a backend API change that no page of the application reaches.')
         ->toContain('- For every change that reaches a page, the agent itself operated the interactive browser and observed the results.')
         ->toContain('- **Local or test target only.**')
