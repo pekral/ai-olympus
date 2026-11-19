@@ -622,26 +622,37 @@ test('attachment ids are strings, the same type as the attachmentId of the media
     expect(decodedJsonField($output, 'subtasks.0.descriptionMediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'subtasks.0.attachments.0.id'));
 });
 
+/**
+ * A missing field reads as `missing`, so the null case proves the field is present and null.
+ *
+ * @param array{bin: string, calls: string, directory: string} $fixture
+ * @param array<string, string> $environment
+ */
+function jiraLoaderAttachmentsFetch(array $fixture, string $argument, array $environment): mixed
+{
+    $document = json_decode(runJiraLoader($fixture, $argument, $environment)->getOutput(), associative: true);
+
+    return is_array($document) && array_key_exists('attachmentsFetch', $document) ? $document['attachmentsFetch'] : 'missing';
+}
+
 test('attachmentsFetch names the fetch of the resolved key only when the issue or a subtask has an attachment', function (): void {
     $fixture = createJiraLoaderFixture();
     $withSubtask = json_decode(jiraLoaderViewJson(), associative: true);
     assert(is_array($withSubtask) && is_array($withSubtask['fields']));
     $withSubtask['fields']['subtasks'] = [jiraLoaderSubtaskReference()];
     $subtaskAttachment = ['fields' => ['attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')]]];
-    // A missing field reads as `missing`, so the null case proves the field is present and null.
-    $loadedFetch = static function (string $argument, array $environment) use ($fixture): mixed {
-        $document = json_decode(runJiraLoader($fixture, $argument, $environment)->getOutput(), associative: true);
-
-        return is_array($document) && array_key_exists('attachmentsFetch', $document) ? $document['attachmentsFetch'] : 'missing';
-    };
 
     $fetches = [
-        $loadedFetch('https://acme.atlassian.net/browse/ACME-1234', ['FAKE_ACLI_VIEW_JSON' => (string) json_encode(jiraLoaderPastedFileView())]),
-        $loadedFetch('ACME-1234', [
+        jiraLoaderAttachmentsFetch(
+            $fixture,
+            'https://acme.atlassian.net/browse/ACME-1234',
+            ['FAKE_ACLI_VIEW_JSON' => (string) json_encode(jiraLoaderPastedFileView())],
+        ),
+        jiraLoaderAttachmentsFetch($fixture, 'ACME-1234', [
             'FAKE_ACLI_VIEW_JSON' => (string) json_encode($withSubtask),
             'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtaskAttachment),
         ]),
-        $loadedFetch('ACME-1234', []),
+        jiraLoaderAttachmentsFetch($fixture, 'ACME-1234', []),
     ];
     removeJiraLoaderFixture($fixture);
 
@@ -754,7 +765,8 @@ test('a download without --dest writes into a new private folder, never into one
         runJiraLoader($fixture, 'ACME-1234', $environment, 'download-attachments.sh')->getExitCode(),
         runJiraLoader($fixture, 'ACME-1234', $environment, 'download-attachments.sh')->getExitCode(),
     ];
-    $folders = glob($scratch . '/attachments.*') ?: [];
+    $globbed = glob($scratch . '/attachments.*');
+    $folders = $globbed === false ? [] : $globbed;
     $modes = array_map(static fn (string $folder): int => fileperms($folder) & 0o777, $folders);
     $manifests = array_map(static fn (string $folder): bool => is_file($folder . '/jira/attachments-manifest.json'), $folders);
     $sharedManifest = is_file($scratch . '/attachments/jira/attachments-manifest.json');
