@@ -53,7 +53,7 @@ Run both checks now and again in step 6, right before the tag. Work can join the
 3. Replace each install pin of the last version with the new version in `README.md` and `docs/**`, for example `composer require <package>:<version>`. Never change a historical reference to an older version.
 4. Compare each count that `README.md` and `docs/**` state with the tree, for example the number of skills or rule files, and correct a count that differs.
 5. Update a test that reads the `Unreleased` section by name so that it reads the new section.
-6. Commit `chore(release): prepare the <version> release`, push it, and open the pull request per `@rules/git/pull-requests.md`, with the version milestone. The body lists every changed file and states that the tag and the GitHub release are not part of the pull request.
+6. Commit `chore(release): prepare the <version> release`, push it, and open the pull request per `@rules/git/pull-requests.md`, with the version milestone. Render the body from `skills/resolve-issue/templates/pull-request-body.md` and check it with `skills/_shared/check-pr-body.sh` before the publish. The body lists every changed file and states that the tag and the GitHub release are not part of the pull request.
 7. Merge it through `@skills/merge-github-pr/SKILL.md`, with every gate of that skill: the converged code review, green CI, and the pre-merge quality gate.
 
 ### 5. Draft the release notes
