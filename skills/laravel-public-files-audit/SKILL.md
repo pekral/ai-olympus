@@ -13,6 +13,7 @@ metadata:
 - Apply `@rules/general/general.md` *Verified statements only*. A finding states what the scan printed. A point the scan could not settle is listed as not verified, with the step that settles it.
 - Apply `@skills/agent-voice/SKILL.md` to the prose of the report, which the user reads in the run output. Write it in the language of the user's request. Check ids, paths, and command names stay verbatim.
 - **The scan stays inside the project.** The scan never reads, lists, or stats an entry outside the physical project root. A scan root, a deployment directory, or a symlink below a scan root whose symlink leaves the project is one `symlink-permission` finding on that path, and the scan does not follow it. The finding names the raw link target and never says whether the outside target exists. In the review mode a symlink in the branch under review therefore never makes the reviewer's scan read the reviewer's machine.
+- **Unknown is not clean.** The scan reads project-controlled input: the PHP of `config/filesystems.php`, the deployment files, and the files that set a framework path. A form it cannot read with certainty is a `not-verified` line and exit `3`, never a clean result. The script header lists the forms.
 - **One scan script does the work.** `scripts/public-files-scan.sh` scans, classifies, and redacts. Its header owns the patterns of each check, the evidence, the output, and the exit codes. This file never restates them.
 
 ## How this differs from its neighbours
@@ -25,7 +26,7 @@ metadata:
 | | Static (default) | Runtime | Review |
 |---|---|---|---|
 | Starts | on an explicit user request | on an explicit user request for it | in the security view of `splinter`, on every code review of a Laravel project |
-| Reads | `public/`, `storage/app/public/`, the directories that the `links` of `config/filesystems.php` serve, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the full static scan, never narrowed to the diff, and the git submodules the change touches |
+| Reads | `public/`, `storage/app/public/`, the directories and files that `config/filesystems.php` serves (`links` entries and served disks), `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the full static scan, never narrowed to the diff, and the git submodules the change touches |
 | Command | `public-files-scan.sh static --root <project>` | `public-files-scan.sh runtime --root <project> --base-url <url>` | `public-files-scan.sh static --root <review worktree> --changed-from <base sha>` |
 | Result goes to | this run's output only | this run's output only | the security view of the round |
 
@@ -36,7 +37,7 @@ metadata:
 | `dump-archive-backup` | SQL dumps, archives, and backups in `public/` | Critical |
 | `env-config-copy` | a public `.env` copy and configuration copies | Critical |
 | `log-debug` | logs and debug output | High |
-| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, and every directory a `links` entry serves) | High |
+| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, and every directory or file a `links` entry or a served disk serves) | High |
 | `symlink-permission` | public symlinks and wrong permissions | High |
 | `gitignore-deploy` | `.gitignore` coverage and deployment steps | Medium |
 | `http-reachable` | reachability of a file over HTTP | High |
@@ -69,11 +70,14 @@ The patterns of each check are listed in the header of `scripts/public-files-sca
    - **The review reports every finding of the full static scan.** It never narrows the findings to the diff. A finding that already exists in the project therefore blocks the pull request too. This is the fail-safe: no rule about which paths serve a file can decide that a finding is out of scope.
    - **A git submodule is not verified.** The scan does not read a submodule. A submodule the change touches, and a submodule that is not checked out where the scan reads, is a not-verified line with its path, so the scan exits `3`, never `0`. The script header owns the exact rule. The `--changed-from` base serves only this check.
    - The scan reads each symlink target byte for byte and stats only the physical entry inside the project.
-4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, whether or not the diff touches that file, because `php artisan storage:link` serves each target after the deployment.
-   - It scans each target it can read statically as it scans `storage/app/public`, with the same checks.
+4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, whether or not the diff touches that file, and every served disk, because `php artisan storage:link` serves each `links` target after the deployment and the framework serves each local disk that sets `serve` to `true` and a `public` visibility.
+   - It reads the file as data and runs no PHP. It never opens the file through a symlink: a symlinked file or directory is a `Not verified: public files — …` line, because a symlink can lead to a file the scan must never read.
+   - It scans each target it can read statically as it scans `storage/app/public`, with the same checks: a directory by its files, a regular file by its name. A `..` in a path resolves at the physical target of a symlink on the way.
+   - A deployment step that names a path below a served path is checked as a step that names `public/` is.
    - An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a `Not verified: public files — …` line and an incomplete scan.
+   - **Every other form the scan cannot read with certainty is not verified too, never clean:** a disk whose `serve`, `visibility`, `driver`, or `root` is not a literal, a file that is not one plain returned array (code before the `return`, a heredoc, a backtick, an end tag, an escape in a path, a computed key), and a deployment path that goes on with a variable or a brace list after a served path.
    - A target that is the project root or leaves it is a `symlink-permission` finding on the line of the entry.
-   - A file that sets the public path (`usePublicPath`) or the `filesystems.links` configuration is a not-verified line, because the scan cannot read what that serves.
+   - A file that moves a framework path (`usePublicPath`, `useStoragePath`, a `path.public` or another `path.*` binding, or `filesystems.links`) is a not-verified line, because the scan cannot read what that serves.
    - The script header owns the exact rules. The scan reads no `.env*` file and no environment value.
 5. **No patch of a reported path.** Exclude every reported path from each later patch read with a `:(exclude)<path>` pathspec.
 

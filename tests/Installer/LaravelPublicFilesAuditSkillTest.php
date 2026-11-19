@@ -39,7 +39,7 @@ test('the skill covers the seven checks of the issue with their severities (issu
         '| `env-config-copy` | a public `.env` copy and configuration copies | Critical |',
         '| `log-debug` | logs and debug output | High |',
         '| `public-storage-script` | risky files in the public disk (`storage/app/public/`, served as `public/storage`, '
-            . 'and every directory a `links` entry serves) | High |',
+            . 'and every directory or file a `links` entry or a served disk serves) | High |',
         '| `symlink-permission` | public symlinks and wrong permissions | High |',
         '| `gitignore-deploy` | `.gitignore` coverage and deployment steps | Medium |',
         '| `http-reachable` | reachability of a file over HTTP | High |',
@@ -165,3 +165,26 @@ test('the review mode reads every links entry of the filesystems configuration i
         ->and(publicFilesScanBody())->toContain('config_roots')
         ->and(publicFilesScanBody())->not->toMatch('/\b(printenv|getenv)\b|source\s/');
 });
+
+test(
+    'a form of project-controlled input that the scan cannot read is a not-verified line, and no symlinked config is opened (issue #580)',
+    function (): void {
+        $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+        $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+        $body = publicFilesScanBody();
+
+        expect($skill)->toContain('- **Unknown is not clean.** The scan reads project-controlled input')
+            ->and($skill)->toContain('It never opens the file through a symlink: a symlinked file or directory is a '
+                . '`Not verified: public files — …` line')
+            ->and($skill)->toContain('- A deployment step that names a path below a served path is checked as a step that names '
+                . '`public/` is.')
+            ->and($body)->toContain('if [[ -L "$file" ]]; then')
+            ->and($body)->toContain('the file is a symlink, so the scan reads nothing from it')
+            ->and($body)->toContain('OVERRIDE_PATH=')
+            ->and($script)->toContain('st_failclosed_cases')
+            ->and($script)->toContain('\'s8: a config symlink to .env is a not-verified line, exit 3\'')
+            ->and($script)->toContain('\'s9: a heredoc is a not-verified line\'')
+            ->and($script)->toContain('\'m3: a deployment step that writes a dump into a linked directory '
+                . 'is a gitignore-deploy finding, exit 5\'');
+    },
+);
