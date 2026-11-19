@@ -103,11 +103,11 @@ test('the code review walk points to the section and carries the same severity w
     $entry = substr($review, (int) $start, $end - (int) $start);
 
     expect($entry)->toContain('verify it goes through Carbon or the helper or class the framework already ships')
-        ->and($entry)->toContain('a hand-written equivalent of a framework class or service from the list in that section')
+        ->and($entry)->toContain('a hand-written equivalent of a framework class or service')
+        ->and($entry)->toContain('from the list in that section that the installed Laravel version provides')
         ->and($entry)->not->toContain('`RateLimiter`')
-        ->and($entry)->toContain(
-            'The **Not findings** and the gating against *Time*, *String Emptiness Checks*, *Reuse Existing Logic*, and the other owners are the ones that section states.',
-        )
+        ->and($entry)->toContain('The **Not findings** and the gating against *Time*, *String Emptiness Checks*, *Reuse Existing Logic*,')
+        ->and($entry)->toContain('and the other owners are the ones that section states.')
         ->and($entry)->toContain('Severity: **Moderate**.')
         ->and($entry)->not->toContain('`strtotime()`');
 });
