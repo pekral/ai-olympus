@@ -69,6 +69,12 @@
 #                no code span and no backslash escape, and a </details> on a list-item or block-quote line is
 #                not counted, so a body with one is refused. Text between a </details> and the next section is refused, and the problem names
 #                its line number only. A section is judged only when its name equals a name of the template.
+#   HTML above   fail closed: a `<details` or `</details` token, a `<!--`, or a `-->` on any line above the first
+#   Merge risk   `## Merge risk` section is refused, in any case and wherever it stands (in an attribute, an
+#                autolink, a link destination, a code span, or a table cell). Matching how GitHub renders such
+#                hand-written HTML form by form did not converge (issue #591), so the check refuses what it
+#                cannot verify. A template and an agent-written body carry no such token there. The problem
+#                names the line number only. The rule for the sections below Merge risk is the folding rule.
 #   Depth        a block quote or a list item nests at most 16 levels deep (MAX_DEPTH). No real body
 #                nests beyond a handful, and the cap bounds the work for each line. A deeper body is
 #                refused with a problem that names the line number and never the text.
@@ -1134,6 +1140,31 @@ check_merge_risk() {
   [[ "$blasts" -eq 1 ]] || printf 'Merge risk: the Blast radius line appears %s times, not once\n' "$blasts"
 }
 
+# check_html_above_merge_risk <line number> — the body is on standard input and <line number> is the line of
+# the first `## Merge risk` section the scan read. Fail closed: when the lines above that section hold any
+# hand-written HTML that could open or close a <details> block or an HTML comment, the check cannot prove that
+# GitHub renders `## Merge risk` outside every <details> block, and it prints one problem. Matching the
+# HTML handling of GitHub form by form did not converge (a backtick in an attribute, an autolink, or a link
+# destination, a table row, a comment that a later one ends, a comment that holds `--` or `-->` in an
+# attribute), so no part of that handling is modelled here. A `<details` or `</details` token, a `<!--`, or a
+# `-->` on any line above the section is refused, wherever it stands: in an attribute, a code span, an
+# autolink, a link destination, or a table cell. A template and an agent-written body open with the Merge risk
+# section, so they carry no such token above it. The rule for the sections after Merge risk is unchanged.
+# The problem names the line number and never the text.
+check_html_above_merge_risk() {
+  local first="$1" line number=0 lowered
+
+  [[ "$first" -gt 1 ]] || return 0
+  while IFS= read -r line && [[ "$number" -lt $((first - 1)) ]]; do
+    number=$((number + 1))
+    lowered="$(printf '%s' "$line" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
+    if [[ "$lowered" == *'<details'* || "$lowered" == *'</details'* || "$lowered" == *'<!--'* || "$lowered" == *'-->'* ]]; then
+      printf 'HTML: line %s holds hand-written HTML above the Merge risk section that cannot be verified; remove it\n' "$number"
+      return 0
+    fi
+  done
+}
+
 # judge_body <template> — read the body on standard input and print one problem per line.
 # It is a function of its own, never an inline block inside a command substitution: bash 3.2
 # counts the `)` of a `case` pattern inside `$( )` and mis-parses the rest of the block.
@@ -1165,6 +1196,18 @@ judge_body() {
 
   check_sections "$template" ${observed[@]+"${observed[@]}"}
   check_folding "$template" "$scanned" <<<"$body_text"
+
+  # The first Merge risk section the scan read, as a heading or as a folded block.
+  local entry first=0
+  for entry in ${observed[@]+"${observed[@]}"}; do
+    if [[ "${entry#*|}" == *':Merge risk' ]]; then
+      first="${entry%%|*}"
+      break
+    fi
+  done
+  if [[ "$first" -gt 0 ]]; then
+    check_html_above_merge_risk "$first" <<<"$body_text"
+  fi
 
   [[ -n "$heading" ]] || return 0
   check_merge_risk "$heading" "$doors" "$blasts"
@@ -1646,8 +1689,10 @@ x')"
     "$(WALKTHROUGH="$(printf '<details>\n\n## Walkthrough\n\nrow\n\n</details>')" render)" 'the folded section \"Walkthrough\" has 3 characters'
   scenario 'a long section under a bare <details> is valid folded' 0 \
     "$(WALKTHROUGH="$(printf '<details>\n\n## Walkthrough\n\n%s\n\n</details>' "$f601")" render)" '"valid": true'
-  scenario 'a Merge risk heading after a closed <details> is an open section' 0 \
-    "$(printf 'Closes #42\n\n<details>\n<summary>Intro</summary>\n\nx\n\n</details>\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nok\n\n## Audit\n\nnone\n' "$risk_ok")" '"valid": true'
+  # A <details> block above the Merge risk heading is hand-written HTML the check cannot verify: it is refused
+  # even when the block is closed, because no part of the HTML handling of GitHub is modelled for that region.
+  scenario 'a closed <details> above the Merge risk heading is refused as unverifiable' 3 \
+    "$(printf 'Closes #42\n\n<details>\n<summary>Intro</summary>\n\nx\n\n</details>\n\n%s\n\n## Summary\n\n* a\n\n## Walkthrough\n\nrow\n\n## ✅ Testing\n\nok\n\n## Audit\n\nnone\n' "$risk_ok")" 'cannot be verified; remove it'
 
   # Only a tag that renders opens a block: the text of a list item that names `<details>` and an inline code span do not.
   # shellcheck disable=SC2016
@@ -1675,8 +1720,8 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
   # The depth counter reads a tag only where GitHub renders one (checked with `gh api markdown -f mode=gfm`).
   # Each body below puts a <details> or </details> in a place that renders as text or as another block, above
   # the Merge risk heading, and closes with a </details> that would hide the open block from a counter that
-  # read it as a tag.
-  local never_folded='the Merge risk section is never folded' risk_in_open_block
+  # read it as a tag. Every such body is refused as unverifiable HTML above the Merge risk heading (issue #591).
+  local never_folded='the Merge risk section is never folded' unverifiable='cannot be verified; remove it' risk_in_open_block
   # tag_scenario <label> <exit> <text above the Merge risk heading> — a body that ends in a </details>.
   tag_scenario() {
     risk_in_open_block="$(render "$(printf '%s\n\n%s' "$3" "$risk_ok")")
@@ -1690,18 +1735,18 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
   tag_scenario 'a </details> behind a backslash closes no block' 3 $'<details>\n\n\\</details>' "$never_folded"
   tag_scenario 'a </details> with an attribute inside a paragraph closes no block' 3 $'<details>\n\nx </details y>' "$never_folded"
   tag_scenario 'a </details> in a fenced code block closes no block' 3 $'<details>\n\n```\n</details>\n```' "$never_folded"
-  tag_scenario 'a </details> in a paragraph closes the block' 0 $'<details>\n\nx </details>' '"valid": true'
-  tag_scenario 'a <details> in a one-line comment opens no block' 0 '<!-- <details> -->' '"valid": true'
-  tag_scenario 'a <details> in a comment of three lines opens no block' 0 $'<!--\n<details>\n-->' '"valid": true'
-  tag_scenario 'a <details> in a comment inside a paragraph opens no block' 0 $'text <!-- <details> --> text' '"valid": true'
+  tag_scenario 'a </details> in a paragraph above Merge risk is refused' 3 $'<details>\n\nx </details>' "$unverifiable"
+  tag_scenario 'a <details> in a one-line comment above Merge risk is refused' 3 '<!-- <details> -->' "$unverifiable"
+  tag_scenario 'a <details> in a comment of three lines above Merge risk is refused' 3 $'<!--\n<details>\n-->' "$unverifiable"
+  tag_scenario 'a <details> in a comment inside a paragraph above Merge risk is refused' 3 $'text <!-- <details> --> text' "$unverifiable"
   tag_scenario 'a comment with no end hides nothing inside a paragraph' 3 $'text <!-- no end\n\n<details>' "$never_folded"
   # shellcheck disable=SC2016
-  tag_scenario 'a <details> in a code span of two backticks opens no block' 0 '``<details>``' '"valid": true'
+  tag_scenario 'a <details> in a code span of two backticks above Merge risk is refused' 3 '``<details>``' "$unverifiable"
   # shellcheck disable=SC2016
-  tag_scenario 'a <details> in a code span of three backticks opens no block' 0 '```<details>```' '"valid": true'
-  tag_scenario 'a <details> in a code span that runs over two lines opens no block' 0 $'Closes `x\nfoo <details> y` z' '"valid": true'
-  tag_scenario 'a <details> behind a backslash opens no block' 0 '\<details>' '"valid": true'
-  tag_scenario 'an indented <details> after a blank line is code and opens no block' 0 '    <details>' '"valid": true'
+  tag_scenario 'a <details> in a code span of three backticks above Merge risk is refused' 3 '```<details>```' "$unverifiable"
+  tag_scenario 'a <details> in a code span over two lines above Merge risk is refused' 3 $'Closes `x\nfoo <details> y` z' "$unverifiable"
+  tag_scenario 'a <details> behind a backslash above Merge risk is refused' 3 '\<details>' "$unverifiable"
+  tag_scenario 'an indented <details> after a blank line above Merge risk is refused' 3 '    <details>' "$unverifiable"
   # A run of backticks closes a span only at a run of the same length, and an escaped backtick opens none.
   # shellcheck disable=SC2016
   tag_scenario 'one backtick and a closing run of two leave the <details> a tag' 3 'Closes #42 `<details>``' "$never_folded"
@@ -1714,6 +1759,32 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
   # A line of an HTML block holds no code span: the tag in it is a tag.
   # shellcheck disable=SC2016
   tag_scenario 'backticks around a <details> in an HTML block line leave a tag' 3 '<div>`<details>`' "$never_folded"
+  # The eight hand-written forms above the Merge risk heading that made GitHub fold the section while an earlier
+  # version of this check read the body as valid (issue #591). Each was rendered with `gh api markdown -f
+  # mode=gfm`: GitHub puts the Merge risk section inside a collapsed <details> block. The check does not model
+  # that rendering. It refuses any `<details`, `</details`, `<!--`, or `-->` above the section.
+  # shellcheck disable=SC2016
+  {
+    tag_scenario 'form a: a backtick in an HTML attribute above Merge risk is refused' 3 '<a title="`"> <details> <b title="`">' "$unverifiable"
+    tag_scenario 'form b: an autolink with a backtick and a <details> is refused' 3 '<https://x.test/`> <details>' "$unverifiable"
+    tag_scenario 'form c: a link destination with a backtick and a <details> is refused' 3 '[x](https://x.test/`) <details>' "$unverifiable"
+    tag_scenario 'form d: a table row with a </details> under an open <details> is refused' 3 $'<details>\n\n| a |\n|---|\n| </details> |' "$unverifiable"
+    tag_scenario 'form e: a comment that a later inline comment ends is refused' 3 $'<div><!-- comment\n\nx <!-- x --> <details>' "$unverifiable"
+    tag_scenario 'form f: a comment ended by --> inside an attribute is refused' 3 $'<div><!-- comment\n\n<p title="-->"> <details>' "$unverifiable"
+    tag_scenario 'form g: a comment that ends in a dash before --> is refused' 3 'x <!-- a - <details> --->' "$unverifiable"
+    tag_scenario 'form h: <!-- inside an attribute value is refused' 3 '<p title="<!--"></p><details>' "$unverifiable"
+    tag_scenario 'an upper-case </DETAILS> token above Merge risk is refused' 3 'x </DETAILS>' "$unverifiable"
+    tag_scenario 'a --> token alone above Merge risk is refused' 3 'x -->' "$unverifiable"
+  }
+  # Control: HTML below the Merge risk section keeps the folding rule it had. A long section folded under its
+  # own <details> block, a comment, and a <details> named in a code span are valid, and so is a plain body.
+  scenario 'HTML below the Merge risk section is still read by the folding rule' 0 \
+    "$(WALKTHROUGH="$(printf '<details>\n<summary><strong>Walkthrough</strong></summary>\n\n<!-- note -->\n%s\n\n</details>' "$f601")" render)" '"valid": true'
+  # shellcheck disable=SC2016
+  scenario 'a <details> in a code span below the Merge risk section is valid' 0 \
+    "$(SUMMARY='## Summary
+
+Fold a section into a `<details>` block when it is long. <!-- note -->' render)" '"valid": true'
   # The indented <details> under the Merge risk block is code and does not fold the section after it.
   scenario 'an indented <details> under the Merge risk block folds no later section' 0 \
     "$(render "$(printf '%s\n\n    <details>' "$risk_ok")")" '"valid": true'
