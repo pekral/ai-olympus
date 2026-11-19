@@ -61,6 +61,7 @@ dataset('wrapper self-test scenarios', [
     'failed tree lookup' => ['a failed repository tree lookup publishes nothing'],
     'failed visibility check is public' => ['a failed visibility check counts as public'],
     'failed write leaves a note line' => ['a failed review request leaves a note line'],
+    'faulty example is refused' => ['a faulty example is refused with its own message'],
     'fenced fix is refused' => ['a fix that holds a fenced block is refused with its own message'],
     'file name markup is text' => ['the file name shows its markup as text in a code element, each pipe encoded'],
     'finding on a changed line is an entry' => ['a finding on a changed line is an entry of the Actionable comments block, byte for byte'],
@@ -137,7 +138,11 @@ dataset('wrapper self-test scenarios', [
     'resolve only the fixed thread of this actor' => ['resolve closes only the open thread of this actor for a fixed id'],
     'stale head is refused' => ['a stale commit id exits 4'],
     'stderr names the listed count' => ['the review stderr names the listed count and no inline count'],
-    'suggestion is refused' => ['a suggestion is refused with its own message: a review carries no code'],
+    'suggested code of a withheld finding' => ['a withheld finding shows no code on a public repository'],
+    'suggested code past the limit is left out' => ['code past the body limit is left out, the body fits 65536 characters, and the review is posted'],
+    'suggested code renders under the Fix line' => ['a suggestion renders as a fenced block in the language of the file, as written, under the Fix line'],
+    'suggested code stops at the first left out' => ['from the first code left out on, no later code is shown, a short one included'],
+    'suggested code with a bidi character' => ['a suggestion with a bidirectional control character is refused and nothing is posted'],
     'summary is plain sentences' => ['a TL;DR with a heading, a quote, a table, or a tag line is refused: it holds plain sentences'],
     'summary limit counts characters' => ['the TL;DR limit counts characters, not bytes: 500 two-byte characters pass'],
     'summary limit counts the neutralised text' => [
@@ -210,7 +215,8 @@ test('the contract section states that every finding is an Actionable comments e
             'refuses the summary, the Merge Risk sentence, the Walkthrough, the Where to test block, or an Actionable comments entry',
         )
         ->and($section)->toContain('`kind: "dry"` with `existing`, the `<path>:<line>` of the existing implementation')
-        ->and($section)->toContain('the script refuses `suggestion`, `faulty_example`, `faulty_example_lang`')
+        ->and($section)->toContain('The script refuses `faulty_example`, `faulty_example_lang`')
+        ->and($section)->toContain('`suggestion`, the code that fixes the finding')
         ->and($section)->toContain('The request carries no `comments` key.')
         ->and($section)->not->toContain('already_open')
         ->and($section)->not->toContain('outside_diff')
@@ -500,7 +506,7 @@ test(
         expect($script)->toContain('req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule '
             . 'must not contain an agent marker")')
             ->and($script)->toContain('| req([.problem, .impact, .fix, .existing] | all(marker_free); "a text field must not contain an agent marker")')
-            ->and($script)->not->toContain('"suggestion must not contain an agent marker"')
+            ->and($script)->toContain('"suggestion must not contain an agent marker"')
             ->and($script)->toContain('if ($body | count("<!--\\\\s*cr-inline:")) == 0')
             ->and($script)->toContain('the rendered review was refused, nothing was published')
             ->and($script)->toContain('error("the review body does not hold exactly its own markers")')
@@ -537,7 +543,7 @@ test('the wrapper accepts the finding fields for the hidden record and renders n
         // `existing` is normalised to its own closed code span, so the Fix of a DRY entry renders it as `<path>:<line>`.
         ->and($payload)->toContain('Use the existing implementation in \(.existing) instead of repeating the logic.')
         ->and($script)->toContain('existing: (.existing | if . == null then null else "`" + codespan + "`" | inert end),')
-        ->and($script)->toContain('a review carries no code: leave out suggestion, faulty_example, and faulty_example_lang');
+        ->and($script)->toContain('a review carries no faulty example code: leave out faulty_example and faulty_example_lang');
 });
 
 test('the inline comment template is gone and the review body template owns the entry', function (): void {
@@ -545,7 +551,7 @@ test('the inline comment template is gone and the review body template owns the 
 
     expect(file_exists(dirname(__DIR__, 2) . '/skills/code-review-github/templates/inline-review-comment.md'))->toBeFalse()
         ->and($template)->toContain(
-            "**🔴 Critical 1 — {title}** · `{file:line}`\n{the problem, in one sentence}\n**Fix:** {what to change, in one sentence}\n@{login}",
+            "**🔴 Critical 1 — {title}** · `{file:line}`\n{the problem, in one sentence}\n**Fix:** {what to change, in one sentence}\n**Suggested code**",
         )
         ->and($template)->toContain('The review carries no inline comment, so this block is the one place a person reads a finding.')
         ->and($template)->toContain('**An entry ends with the `@login` mention line only when the finding sets `author`**')
