@@ -29,7 +29,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: download-attachments.sh <URL|ORG_SLUG/PROJECT_SLUG/ERROR_ID> [--dest DIR]
 
-  --dest   quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
+  --dest   quarantine root (default: a new private folder under $CLAUDE_SCRATCHPAD_DIR)
 
 Auth: export BUGSNAG_TOKEN (Data Access API token) to read the error.
 EOF

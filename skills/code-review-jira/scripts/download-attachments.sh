@@ -33,7 +33,7 @@ usage() {
 Usage: download-attachments.sh <KEY|URL> [--dest DIR]
 
   KEY|URL   JIRA issue key (e.g. ACME-1234) or a /browse/<KEY> URL
-  --dest    quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
+  --dest    quarantine root (default: a new private folder under $CLAUDE_SCRATCHPAD_DIR)
 
 Auth:
   JIRA_API_EMAIL   account email for HTTP Basic auth
