@@ -35,11 +35,15 @@
 #   A deployment directory is decided the same way. Below a scan root it does not descend into a
 #   symlinked directory and does not descend into a .git entry. An entry find cannot read is a
 #   not-verified line. With --changed-from it prints only the findings in the diff scope, the review
-#   mode of a code review. A finding is in that scope when `git diff --name-only -z <base> HEAD` lists
-#   its path byte for byte, when its physical entry is the physical entry of a changed path, or when
-#   the resolution of its directory follows a changed symlink (a .gitignore finding when any changed
-#   path is a .gitignore file). A changed path below the target of a directory symlink under a scan
-#   root is checked under the name it is served by. A changed path outside the project matches nothing.
+#   mode of a code review. A finding is in that scope when a path that serves it is a path that
+#   `git diff --name-only -z <base> HEAD` lists: its own path byte for byte; its physical entry; any
+#   symlink of the full resolution of its path, which covers each directory symlink on the way and the
+#   whole chain of its last component; the end of that resolution or a path below it, and for a path
+#   that does not resolve the first missing entry; or a changed path that a chain of directory
+#   symlinks below a scan root serves below it. A .gitignore finding is in scope when any changed path
+#   is a .gitignore file. A changed path that the directory symlinks under a scan root serve is checked
+#   under the name it is served by. That walk follows at most 40 directory targets per symlink; a
+#   longer walk is a not-verified line. A changed path outside the project matches nothing.
 #
 # runtime (explicit request only)
 #   Runs the name checks and the symlink check of the static mode on public/ and storage/app/public/
@@ -92,7 +96,10 @@
 #   protocol. A path reaches ls-files as a :(literal) pathspec, so no name acts as a glob. The script never deletes, moves, renames, or changes the mode of a
 #   file. Untrusted file names reach no eval, no sh -c, and no awk program text. A symlink of the
 #   branch under review never steers a read outside the project root (static above), so the output
-#   names no file, size, time, mode, existence, or line outside it.
+#   names no file, size, time, mode, existence, or line outside it. read_link reads a symlink target
+#   byte for byte, a trailing newline included, so the scan follows the entry the kernel follows, and
+#   every stat reads the physical entry that the scan resolved inside the project, never a path that
+#   passes a symlink.
 #
 # Output (stdout, one record per line)
 #   public-files-scan: mode=<static|runtime> scope=<tree|diff>
@@ -202,10 +209,16 @@ SCRATCH=''
 ROOT_P=''
 ROOT_L=''
 RESOLVED=''
+RESOLVE_MISS=''
+LINK_TARGET=''
 PHYS_ENTRY=''
-declare -a PATHS=() KINDS=() SHARED=() CLASS=() CHANGED=() CHANGED_P=() LINK_IDX=() LINK_EV=()
+PROJ_REL=''
+PUB_P=''
+DISK_P=''
+Q_FULL=0
+declare -a PATHS=() PATHS_P=() KINDS=() SHARED=() CLASS=() CHANGED=() CHANGED_P=() LINK_IDX=() LINK_EV=()
 declare -a LINK_TRAIL=() LINK_TRAIL_RAW=() SCAN_ROOTS=() SCAN_PHYS=() ROOT_FIND=() ROOT_FEV=()
-declare -a DEPLOY_REL=() DEPLOY_ABS=()
+declare -a DEPLOY_REL=() DEPLOY_ABS=() SERVED=() Q_NAME=() Q_DIR=()
 
 emit() {
   # emit <check> <severity> <path> <evidence>
@@ -219,12 +232,18 @@ not_verified() {
   INCOMPLETE=1
 }
 
-# A finding is in scope when its path is a changed path byte for byte (git printed the list with -z,
-# so no name is quoted), when its physical entry is the physical entry of a changed path, or when the
-# resolution of its directory follows a changed symlink. CHANGED_P holds only paths inside the
-# project, so the scope never reaches a path outside it.
+# A finding is in scope when any path that serves it changed:
+#   - its path is a changed path byte for byte (git printed the list with -z, so no name is quoted);
+#   - its physical entry is the physical entry of a changed path;
+#   - the full resolution of its path, the last component followed, passes a changed symlink: a
+#     directory symlink on the way, the symlink of the path itself, or any symlink of its chain;
+#   - the end of that resolution is a changed path, or a changed path lies below it; for a path that
+#     does not resolve, the first missing entry inside the project stands in for the end;
+#   - collect_changed_below_links served a changed path below it (SERVED).
+# CHANGED_P holds only paths inside the project, and resolve_link reads only inside it, so the scope
+# never reaches a path outside the project.
 in_scope() {
-  local check="$1" path="$2" changed i link
+  local check="$1" path="$2" changed i link entry
   if [[ "$check" == gitignore-deploy && "$path" == .gitignore ]]; then
     for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
       [[ "$changed" == .gitignore || "$changed" == */.gitignore ]] && return 0
@@ -234,11 +253,18 @@ in_scope() {
   for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
     [[ "$changed" == "$path" ]] && return 0
   done
+  for changed in ${SERVED[@]+"${SERVED[@]}"}; do
+    [[ "$changed" == "$path" || "$changed" == "$path"/* ]] && return 0
+  done
   phys_entry "$path"
+  entry="$PHYS_ENTRY"
+  resolve_link "$ROOT_P/$path"
   for ((i = 0; i < ${#CHANGED_P[@]}; i++)); do
     changed="${CHANGED_P[i]}"
     [[ -n "$changed" ]] || continue
-    [[ -n "$PHYS_ENTRY" && "$changed" == "$PHYS_ENTRY" ]] && return 0
+    [[ -n "$entry" && "$changed" == "$entry" ]] && return 0
+    [[ -n "$RESOLVED" && ("$changed" == "$RESOLVED" || "$changed" == "$RESOLVED"/*) ]] && return 0
+    [[ -n "$RESOLVE_MISS" && ("$changed" == "$RESOLVE_MISS" || "$changed" == "$RESOLVE_MISS"/*) ]] && return 0
     for link in ${LINK_TRAIL[@]+"${LINK_TRAIL[@]}"}; do
       [[ "$changed" == "$link" ]] && return 0
     done
@@ -253,14 +279,17 @@ pick_stat() {
   if stat -c '%s' / >/dev/null 2>&1; then STAT_GNU=1; fi
 }
 
-# meta <relative path>: size=… mtime=… mode=… git=…. The git status is taken for the physical entry
-# relative to the root, so a file served through a symlink reads with the status of its git path.
+# meta <physical path>: size=… mtime=… mode=… git=…. The path is the physical entry inside the
+# project that the scan already resolved (find below a resolved root, or a resolved changed path), so
+# stat follows no symlink of the branch under review. The git status is taken for that entry relative
+# to the root, so a file served through a symlink reads with the status of its git path.
 meta() {
-  local rel="$1" raw size mtime mode when state grel="$1"
+  local phys="$1" raw size mtime mode when state grel
+  grel="${phys#"$ROOT_P"/}"
   if ((STAT_GNU)); then
-    raw="$(stat -c '%s %Y %a' -- "$ROOT/$rel" 2>/dev/null)" || raw=''
+    raw="$(stat -c '%s %Y %a' -- "$phys" 2>/dev/null)" || raw=''
   else
-    raw="$(stat -f '%z %m %Lp' -- "$ROOT/$rel" 2>/dev/null)" || raw=''
+    raw="$(stat -f '%z %m %Lp' -- "$phys" 2>/dev/null)" || raw=''
   fi
   read -r size mtime mode <<<"$raw"
   if ((STAT_GNU)); then
@@ -270,7 +299,6 @@ meta() {
   fi
   state=none
   if ((HAS_GIT)); then
-    phys_entry "$rel" && [[ "$PHYS_ENTRY" == "$ROOT_P"/* ]] && grel="${PHYS_ENTRY#"$ROOT_P"/}"
     if git_ro ls-files --error-unmatch -- ":(literal)$grel" >/dev/null 2>&1; then
       state=tracked
     elif git_ro check-ignore -q -- "$grel" >/dev/null 2>&1; then
@@ -282,8 +310,18 @@ meta() {
   printf 'size=%s mtime=%s mode=%s git=%s' "${size:--}" "$when" "${mode:--}" "$state"
 }
 
+# mode_bits <physical path>: the permission bits of an entry the scan already resolved.
 mode_bits() {
   if ((STAT_GNU)); then stat -c '%a' -- "$1" 2>/dev/null; else stat -f '%Lp' -- "$1" 2>/dev/null; fi
+}
+
+# read_link <path>: sets LINK_TARGET to the raw target of a symlink, byte for byte, so the scan
+# follows the same entry the kernel follows. readlink -n prints no delimiter of its own (the macOS
+# readlink adds none after a target that already ends in a newline), and a command substitution drops
+# every trailing newline, so the x keeps them.
+read_link() {
+  LINK_TARGET="$(readlink -n -- "$1" && printf x)" || return 1
+  LINK_TARGET="${LINK_TARGET%x}"
 }
 
 # resolve_link <absolute path>: the one resolver of the scan. It follows the path one component at a
@@ -292,12 +330,15 @@ mode_bits() {
 # ROOT_P is a real directory, because ROOT_P is physical, and is not read. An absolute link target
 # written with the logical root (ROOT_L) is read as ROOT_P. It sets RESOLVED to the physical path, and
 # records every symlink it follows in LINK_TRAIL (the physical path of the link entry) and
-# LINK_TRAIL_RAW (its raw target). Returns 0 when the path resolves inside the project, 1 when it does
-# not resolve (a missing entry, a file used as a directory, or more than 40 links), and 2 when it
-# leaves the project; a target outside the project is never checked for existence.
+# LINK_TRAIL_RAW (its raw target, read byte for byte by read_link). Returns 0 when the path resolves
+# inside the project, 1 when it does not resolve (a missing entry, a file used as a directory, or more
+# than 40 links), and 2 when it leaves the project; a target outside the project is never checked for
+# existence. On a missing entry or a file used as a directory, RESOLVE_MISS names that entry, which
+# lies inside the project.
 resolve_link() {
   local rest="${1#/}" cur='' comp next target hops=0
   RESOLVED=''
+  RESOLVE_MISS=''
   LINK_TRAIL=()
   LINK_TRAIL_RAW=()
   while [[ -n "$rest" ]]; do
@@ -316,7 +357,8 @@ resolve_link() {
     if [[ "$next" == "$ROOT_P" || "$next" == "$ROOT_P"/* ]]; then
       if [[ -L "$next" ]]; then
         ((hops++ < 40)) || return 1
-        target="$(readlink -- "$next")" || return 1
+        read_link "$next" || return 1
+        target="$LINK_TARGET"
         LINK_TRAIL+=("$next")
         LINK_TRAIL_RAW+=("$target")
         if [[ "$target" == /* ]]; then
@@ -326,7 +368,10 @@ resolve_link() {
         rest="${target#/}${rest:+/$rest}"
         continue
       fi
-      [[ -z "$rest" || -d "$next" ]] || return 1
+      [[ -z "$rest" || -d "$next" ]] || {
+        RESOLVE_MISS="$next"
+        return 1
+      }
       cur="$next"
     elif [[ "$ROOT_P" == "$next"/* ]]; then
       cur="$next"
@@ -335,7 +380,10 @@ resolve_link() {
     fi
   done
   [[ "$cur" == "$ROOT_P" || "$cur" == "$ROOT_P"/* ]] || return 2
-  [[ -e "$cur" ]] || return 1
+  [[ -e "$cur" ]] || {
+    RESOLVE_MISS="$cur"
+    return 1
+  }
   RESOLVED="$cur"
 }
 
@@ -349,16 +397,20 @@ phys_entry() {
   PHYS_ENTRY="$RESOLVED/${rel##*/}"
 }
 
-# A physical path relative to the project root, "." for the root itself.
+# proj_rel <physical path> sets PROJ_REL to the path relative to the project root, "." for the root
+# itself. It sets a variable, because a command substitution would drop a trailing newline of a name.
 proj_rel() {
-  if [[ "$1" == "$ROOT_P" ]]; then printf '.'; else printf '%s' "${1#"$ROOT_P"/}"; fi
+  if [[ "$1" == "$ROOT_P" ]]; then PROJ_REL=.; else PROJ_REL="${1#"$ROOT_P"/}"; fi
 }
 
 # The evidence of the last symlink resolve_link followed: its raw target and where the path ends.
 # trail_ev <resolve_link code>; call it only when LINK_TRAIL is not empty.
 trail_ev() {
   local n=${#LINK_TRAIL_RAW[@]} shown=outside-project
-  [[ "$1" == 0 ]] && shown="$(proj_rel "$RESOLVED")"
+  if [[ "$1" == 0 ]]; then
+    proj_rel "$RESOLVED"
+    shown="$PROJ_REL"
+  fi
   printf 'target=%s resolves=%s' "$(esc "${LINK_TRAIL_RAW[n - 1]}")" "$(esc "$shown")"
 }
 
@@ -378,10 +430,11 @@ classify_shared() {
   done <<<"$out"
 }
 
-# name_check <relative path> <kind f|d|l> <shared rule> <in public disk 0|1> sets NAME_CHECK to the
-# check id, or to nothing. It sets a variable instead of printing, so no subshell runs per path.
+# name_check <relative path> <kind f|d|l> <shared rule> <in public disk 0|1> <physical path> sets
+# NAME_CHECK to the check id, or to nothing. It sets a variable instead of printing, so no subshell
+# runs per path. Only the execute-bit check reads the physical path, for a path in the public disk.
 name_check() {
-  local rel="$1" kind="$2" shared="$3" disk="$4" base="${1##*/}" bits
+  local kind="$2" shared="$3" disk="$4" phys="$5" base="${1##*/}" bits
   shopt -s nocasematch
   local result=''
   if [[ "$base" == .git ]]; then
@@ -409,7 +462,7 @@ name_check() {
         result=public-storage-script ;;
       *)
         if [[ "$kind" == f ]]; then
-          bits="$(mode_bits "$ROOT/$rel")"
+          bits="$(mode_bits "$phys")"
           [[ "$bits" =~ ^[0-7]{3,4}$ ]] && ((8#${bits: -3} & 0111)) && result=public-storage-script
         fi
         ;;
@@ -440,21 +493,21 @@ find_errors() {
 # symlink resolves to a directory of the project is scanned at that physical directory; it is a
 # finding unless the directory lies in public/ or storage/app/public/. A root whose symlink leaves the
 # project, or resolves to the project root or to a file, is a finding and is never read. SCAN_ROOTS
-# and SCAN_PHYS hold the roots to scan; ROOT_FIND and ROOT_FEV hold the root findings.
+# and SCAN_PHYS hold the roots to scan; ROOT_FIND and ROOT_FEV hold the root findings. PUB_P and
+# DISK_P hold the physical directory of public/ and storage/app/public/ when they are scanned.
 root_checks() {
   local dir rc
   SCAN_ROOTS=()
   SCAN_PHYS=()
   ROOT_FIND=()
   ROOT_FEV=()
+  PUB_P=''
+  DISK_P=''
   for dir in public storage/app/public; do
     resolve_link "$ROOT_P/$dir"
     rc=$?
     if ((${#LINK_TRAIL[@]} == 0)); then
-      if ((rc == 0)) && [[ -d "$RESOLVED" ]]; then
-        SCAN_ROOTS+=("$dir")
-        SCAN_PHYS+=("$RESOLVED")
-      fi
+      ((rc == 0)) && [[ -d "$RESOLVED" ]] && add_root "$dir"
       continue
     fi
     if ((rc == 1)); then
@@ -462,14 +515,20 @@ root_checks() {
       continue
     fi
     if ((rc == 0)) && [[ -d "$RESOLVED" && "$RESOLVED" != "$ROOT_P" ]]; then
-      SCAN_ROOTS+=("$dir")
-      SCAN_PHYS+=("$RESOLVED")
+      add_root "$dir"
       [[ "$RESOLVED" == "$ROOT_P/public" || "$RESOLVED" == "$ROOT_P"/public/* ||
         "$RESOLVED" == "$ROOT_P/storage/app/public" || "$RESOLVED" == "$ROOT_P"/storage/app/public/* ]] && continue
     fi
     ROOT_FIND+=("$dir")
     ROOT_FEV+=("$(trail_ev "$rc")")
   done
+}
+
+# add_root <root path>: scan the root at RESOLVED, its physical directory.
+add_root() {
+  SCAN_ROOTS+=("$1")
+  SCAN_PHYS+=("$RESOLVED")
+  if [[ "$1" == public ]]; then PUB_P="$RESOLVED"; else DISK_P="$RESOLVED"; fi
 }
 
 # A physical path at or below a scanned root.
@@ -481,11 +540,13 @@ in_scan_roots() {
   return 1
 }
 
-# add_path <relative path> <physical path>: one entry of PATHS and KINDS.
+# add_path <relative path> <physical path>: one entry of PATHS, PATHS_P, and KINDS. The physical path
+# is the entry inside the project that every later stat reads; its last component is not followed.
 add_path() {
   local kind=f
   if [[ -L "$2" ]]; then kind=l; elif [[ -d "$2" ]]; then kind=d; fi
   PATHS+=("$1")
+  PATHS_P+=("$2")
   KINDS+=("$kind")
 }
 
@@ -494,6 +555,7 @@ add_path() {
 collect() {
   local i dir phys p
   PATHS=()
+  PATHS_P=()
   KINDS=()
   for ((i = 0; i < ${#SCAN_ROOTS[@]}; i++)); do
     dir="${SCAN_ROOTS[i]}"
@@ -507,30 +569,66 @@ collect() {
   return 0
 }
 
-# Diff scope: a changed path whose physical entry lies below the target of a directory symlink under
-# a scan root is served through that symlink, so it joins PATHS under the served name. The target is
-# inside the project, because resolve_link returned 0, and outside the scanned roots, which find
-# already walked.
+# Diff scope: a changed path that a directory symlink under a scan root serves joins PATHS under the
+# served name, and SERVED records that name for in_scope. The walk starts at each symlink below a scan
+# root and follows the directory symlinks it finds below each target, so a chain of directory links
+# serves the changed path under one name. Each target is a physical directory inside the project,
+# because resolve_link returned 0, and outside the scanned roots, which find already walked. The walk
+# visits each target once per start and at most 40 targets per start; a longer walk is a not-verified
+# line.
 collect_changed_below_links() {
-  local i j n="${#PATHS[@]}" target chg
+  local i j k n="${#PATHS[@]}" name dir chg p
+  SERVED=()
   for ((i = 0; i < n; i++)); do
     [[ "${KINDS[i]}" == l ]] || continue
-    resolve_link "$ROOT_P/${PATHS[i]}" || continue
-    target="$RESOLVED"
-    [[ -d "$target" ]] || continue
-    in_scan_roots "$target" && continue
-    for ((j = 0; j < ${#CHANGED_P[@]}; j++)); do
-      chg="${CHANGED_P[j]}"
-      [[ "$chg" == "$target"/* ]] || continue
-      [[ -L "$chg" || -e "$chg" ]] || continue
-      add_path "${PATHS[i]}/${chg#"$target"/}" "$chg"
+    Q_NAME=()
+    Q_DIR=()
+    Q_FULL=0
+    enqueue_served "${PATHS[i]}" "${PATHS_P[i]}"
+    for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
+      name="${Q_NAME[k]}"
+      dir="${Q_DIR[k]}"
+      for ((j = 0; j < ${#CHANGED_P[@]}; j++)); do
+        chg="${CHANGED_P[j]}"
+        [[ "$chg" == "$dir"/* ]] || continue
+        [[ -L "$chg" || -e "$chg" ]] || continue
+        add_path "$name/${chg#"$dir"/}" "$chg"
+        SERVED+=("$name/${chg#"$dir"/}")
+      done
+      while IFS= read -r -d '' p; do
+        enqueue_served "$name/${p#"$dir"/}" "$p"
+      done < <(find "$dir" -mindepth 1 \( -name .git -prune \) -o \( -type l -print0 \) 2>"$SCRATCH/find.err")
+      find_errors "$(esc "$name")" 'served symlinks'
     done
+    ((Q_FULL)) &&
+      not_verified "$(esc "${PATHS[i]}")/ - more than 40 directory symlinks serve paths below it; remove the symlink chain and run the scan again"
   done
+  return 0
 }
 
+# enqueue_served <served name> <physical symlink path>: queue the target of the symlink when it is a
+# directory inside the project, outside the scanned roots, and not yet queued for this start.
+enqueue_served() {
+  local k
+  resolve_link "$2" || return 0
+  [[ -d "$RESOLVED" ]] || return 0
+  in_scan_roots "$RESOLVED" && return 0
+  for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
+    [[ "${Q_DIR[k]}" == "$RESOLVED" ]] && return 0
+  done
+  if ((${#Q_DIR[@]} >= 40)); then
+    Q_FULL=1
+    return 0
+  fi
+  Q_NAME+=("$1")
+  Q_DIR+=("$RESOLVED")
+}
+
+# A path of the public disk: below storage/app/public/, or below a public/storage that is a real
+# directory of the physical public/ root.
 in_disk() {
   [[ "$1" == storage/app/public/* ]] && return 0
-  [[ "$1" == public/storage/* && ! -L "$ROOT/public/storage" ]]
+  [[ "$1" == public/storage/* && -n "$PUB_P" && ! -L "$PUB_P/storage" ]]
 }
 
 run_name_checks() {
@@ -539,7 +637,7 @@ run_name_checks() {
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
     disk=0
     in_disk "${PATHS[i]}" && disk=1
-    name_check "${PATHS[i]}" "${KINDS[i]}" "${SHARED[i]}" "$disk"
+    name_check "${PATHS[i]}" "${KINDS[i]}" "${SHARED[i]}" "$disk" "${PATHS_P[i]}"
     CLASS[i]="$NAME_CHECK"
   done
 }
@@ -555,18 +653,20 @@ link_checks() {
   LINK_EV=()
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
     [[ "${KINDS[i]}" == l ]] || continue
-    resolve_link "$ROOT_P/${PATHS[i]}"
+    # The physical entry is the first symlink of its own resolution, so LINK_TRAIL_RAW[0] is its target.
+    resolve_link "${PATHS_P[i]}"
     rc=$?
     if ((rc == 0)); then
       in_scan_roots "$RESOLVED" && continue
-      shown="$(esc "$(proj_rel "$RESOLVED")")"
+      proj_rel "$RESOLVED"
+      shown="$(esc "$PROJ_REL")"
     elif ((rc == 2)); then
       shown=outside-project
     else
       shown=unresolved
     fi
     LINK_IDX+=("$i")
-    LINK_EV+=("target=$(esc "$(readlink -- "$ROOT_P/${PATHS[i]}")") resolves=$shown")
+    LINK_EV+=("target=$(esc "${LINK_TRAIL_RAW[0]-}") resolves=$shown")
   done
 }
 
@@ -577,7 +677,7 @@ static_checks() {
   done
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
     [[ -n "${CLASS[i]}" ]] || continue
-    emit "${CLASS[i]}" "$(severity_of "${CLASS[i]}")" "${PATHS[i]}" "$(meta "${PATHS[i]}")"
+    emit "${CLASS[i]}" "$(severity_of "${CLASS[i]}")" "${PATHS[i]}" "$(meta "${PATHS_P[i]}")"
   done
 
   link_checks
@@ -594,7 +694,7 @@ static_checks() {
       writable=$((writable + 1))
       ((writable > FINDING_CAP)) && continue
       ww="$rel${abs#"$phys"}"
-      emit symlink-permission high "$ww" "world-writable $(meta "$ww")"
+      emit symlink-permission high "$ww" "world-writable $(meta "$abs")"
     done < <(find "$phys" \( -name .git -prune \) -o \( -perm -0002 ! -type l -print0 \) 2>"$SCRATCH/find.err")
     find_errors "$rel" 'world-writable check'
   done
@@ -677,7 +777,7 @@ deploy_checks() {
   PATHS=("${tokens[@]}")
   classify_shared
   for ((i = 0; i < ${#tokens[@]}; i++)); do
-    name_check "${tokens[i]%/}" f "${SHARED[i]}" 0
+    name_check "${tokens[i]%/}" f "${SHARED[i]}" 0 ''
     check="$NAME_CHECK"
     [[ -n "$check" ]] || continue
     emit gitignore-deploy medium "${files[i]}" "line=${lines[i]} ref=$(esc "${tokens[i]}") class=$check"
@@ -731,12 +831,8 @@ runtime_checks() {
     pin=(--resolve "$host:$port:127.0.0.1")
   fi
   # A scan root that root_checks did not scan has no candidates: the runtime result is incomplete.
-  local pub=''
-  disk=''
-  for ((i = 0; i < ${#SCAN_ROOTS[@]}; i++)); do
-    [[ "${SCAN_ROOTS[i]}" == public ]] && pub="${SCAN_PHYS[i]}"
-    [[ "${SCAN_ROOTS[i]}" == storage/app/public ]] && disk="${SCAN_PHYS[i]}"
-  done
+  local pub="$PUB_P"
+  disk="$DISK_P"
   for ((i = 0; i < ${#ROOT_FIND[@]}; i++)); do
     [[ "${ROOT_FIND[i]}" == public && -n "$pub" ]] && continue
     [[ "${ROOT_FIND[i]}" == storage/app/public && -n "$disk" ]] && continue
@@ -1105,7 +1201,8 @@ st_confine_cases() {
   st_check 'confine: a dump added behind a symlinked public/ is in the diff scope, exit 5' test "$ST_RC" = 5
   st_check 'confine: that dump carries the git status of its git path' st_line $'dump-archive-backup\tcritical\tpublic/backup.sql\t' 'git=tracked'
   st_check 'confine: an .env copy added behind a symlinked public/ is in the diff scope' st_line $'env-config-copy\tcritical\tpublic/.env\t'
-  st_check_not 'confine: the unchanged root link is not in the diff scope' st_line $'\tpublic\ttarget='
+  st_check 'confine: an unchanged root link that serves a changed file is in the diff scope' \
+    st_line $'symlink-permission\thigh\tpublic\ttarget=web resolves=web'
   st_run n1a-tree static --root "$r"
   st_check 'confine: the tree mode names the git status of the tracked target' st_line $'\tpublic/backup.sql\t' 'git=tracked'
   st_check 'confine: a root link to a project directory is a symlink-permission finding' \
@@ -1257,6 +1354,237 @@ st_confine_cases() {
   st_check_not 'confine: a public disk link into public/ is no finding' st_line $'\tstorage/app/public\ttarget='
 }
 
+# st_diff_case <name> <label> <needle>: run the diff scope from ST_BASE and expect the finding, exit 5.
+st_diff_case() {
+  st_run "$1" static --root "$ST_TMP/$1" --changed-from "$ST_BASE"
+  st_check "chain: $2, exit 5" test "$ST_RC" = 5 -a -n "$(grep -F -- "$3" "$ST_TMP/out.$1")"
+}
+
+# st_base <dir>: commit the base of a chain case and keep its object id in ST_BASE.
+st_base() {
+  st_commit "$1" base
+  ST_BASE="$(git -C "$1" rev-parse HEAD)"
+}
+
+# The review mode keeps a tree-mode finding when any path that serves it changed: a link of its chain,
+# the end of its resolution or a path below it, or a path a chain of directory links serves below it.
+# A symlink target that ends in a newline is read byte for byte, and every stat reads the physical entry.
+st_chain_cases() {
+  local r o2 i out1
+
+  # public -> hop -> realpub; the change re-points the middle link hop at the project root, then at config.
+  for i in .:. config:config; do
+    r="$ST_TMP/chain-${i##*:}"
+    mkdir -p "$r/realpub" "$r/config"
+    printf '<?php\n' >"$r/realpub/index.php"
+    printf '<?php\n' >"$r/config/app.php"
+    ln -s hop "$r/public"
+    ln -s realpub "$r/hop"
+    st_base "$r"
+    rm "$r/hop"
+    ln -s "${i%%:*}" "$r/hop"
+    st_commit "$r" change
+    st_diff_case "chain-${i##*:}" "a changed middle link hop -> ${i%%:*} keeps the root finding" \
+      $'symlink-permission\thigh\tpublic\ttarget='"${i%%:*} resolves=${i##*:}"
+  done
+
+  # public/a -> ../hop2 -> web; the change re-points hop2 out of the project.
+  r="$ST_TMP/chain-hop2"
+  mkdir -p "$r/public" "$r/web"
+  printf '<?php\n' >"$r/public/index.php"
+  printf 'x\n' >"$r/web/a.txt"
+  ln -s ../hop2 "$r/public/a"
+  ln -s web "$r/hop2"
+  st_base "$r"
+  rm "$r/hop2"
+  ln -s ../out "$r/hop2"
+  st_commit "$r" change
+  st_diff_case chain-hop2 'a changed second link of a link below public/ keeps the link finding' \
+    $'symlink-permission\thigh\tpublic/a\ttarget=../hop2 resolves=outside-project'
+
+  # public/latest -> ../database/backup.sql does not resolve; the change adds its target.
+  r="$ST_TMP/chain-target"
+  mkdir -p "$r/public" "$r/database"
+  printf 'x\n' >"$r/database/keep.txt"
+  ln -s ../database/backup.sql "$r/public/latest"
+  st_base "$r"
+  printf 'x\n' >"$r/database/backup.sql"
+  st_commit "$r" change
+  st_diff_case chain-target 'a file link whose target the change adds is in scope' \
+    $'symlink-permission\thigh\tpublic/latest\ttarget=../database/backup.sql resolves=database/backup.sql'
+
+  # The same link resolves in the base; the change deletes its target.
+  r="$ST_TMP/chain-gone"
+  mkdir -p "$r/public" "$r/database"
+  printf 'x\n' >"$r/database/keep.txt"
+  printf 'x\n' >"$r/database/backup.sql"
+  ln -s ../database/backup.sql "$r/public/latest"
+  st_base "$r"
+  rm "$r/database/backup.sql"
+  st_commit "$r" change
+  st_diff_case chain-gone 'a file link whose target the change deletes is in scope' \
+    $'symlink-permission\thigh\tpublic/latest\ttarget=../database/backup.sql resolves=unresolved'
+
+  # public/a -> ../web, web/b -> ../other; the change adds other/dump.sql, served as public/a/b/dump.sql.
+  r="$ST_TMP/chain-two"
+  mkdir -p "$r/public" "$r/web" "$r/other"
+  printf 'x\n' >"$r/other/keep.txt"
+  ln -s ../web "$r/public/a"
+  ln -s ../other "$r/web/b"
+  ln -s . "$r/web/self"
+  st_base "$r"
+  printf 'x\n' >"$r/other/dump.sql"
+  st_commit "$r" change
+  st_diff_case chain-two 'a dump served through two directory links is in scope' \
+    $'dump-archive-backup\tcritical\tpublic/a/b/dump.sql\tsize=2 '
+  st_check 'chain: the link that serves it through a second link is in scope' st_line $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
+  st_check_not 'chain: a directory link loop below a served target ends the walk' st_line 'not-verified:'
+
+  # public -> dist/public; the change replaces dist/public with a link to the project root.
+  r="$ST_TMP/chain-dist"
+  mkdir -p "$r/dist/public"
+  printf '<?php\n' >"$r/dist/public/index.php"
+  ln -s dist/public "$r/public"
+  st_base "$r"
+  rm -rf "$r/dist/public"
+  ln -s .. "$r/dist/public"
+  printf 'x\n' >"$r/backup.sql"
+  st_commit "$r" change
+  st_diff_case chain-dist 'a root link whose target the change replaces with a link is in scope' \
+    $'symlink-permission\thigh\tpublic\ttarget=.. resolves=.'
+
+  # public/media -> ../media; the change replaces media with a link out of the project.
+  r="$ST_TMP/chain-media"
+  mkdir -p "$r/public" "$r/media"
+  printf 'png\n' >"$r/media/a.png"
+  ln -s ../media "$r/public/media"
+  st_base "$r"
+  rm -rf "${r:?}/media"
+  ln -s .. "$r/media"
+  st_commit "$r" change
+  st_diff_case chain-media 'a link whose target directory the change replaces with a link is in scope' \
+    $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=outside-project'
+
+  # .github/workflows -> ../hop -> ci; the change re-points hop out of the project.
+  r="$ST_TMP/chain-deploy"
+  mkdir -p "$r/public" "$r/.github" "$r/ci"
+  printf '<?php\n' >"$r/public/index.php"
+  printf 'steps: []\n' >"$r/ci/deploy.yml"
+  ln -s ../hop "$r/.github/workflows"
+  ln -s ci "$r/hop"
+  st_base "$r"
+  rm "$r/hop"
+  ln -s ../out "$r/hop"
+  st_commit "$r" change
+  st_diff_case chain-deploy 'a changed link in the chain of a deployment directory keeps its finding' \
+    $'symlink-permission\thigh\t.github/workflows\ttarget=../out resolves=outside-project'
+
+  # public/x.sql -> ../hopf -> notes.txt; the change re-points hopf at a dump.
+  r="$ST_TMP/chain-file"
+  mkdir -p "$r/public"
+  printf 'x\n' >"$r/notes.txt"
+  printf 'x\n' >"$r/db.sql"
+  ln -s ../hopf "$r/public/x.sql"
+  ln -s notes.txt "$r/hopf"
+  st_base "$r"
+  rm "$r/hopf"
+  ln -s db.sql "$r/hopf"
+  st_commit "$r" change
+  st_diff_case chain-file 'a changed link in the chain of a file link keeps its name finding' $'dump-archive-backup\tcritical\tpublic/x.sql\t'
+  st_check 'chain: the same change keeps the link finding of that file link' st_line $'symlink-permission\thigh\tpublic/x.sql\ttarget=../hopf resolves=db.sql'
+
+  # Guard: the change touches no path that serves the unchanged root link public -> web.
+  r="$ST_TMP/chain-quiet"
+  mkdir -p "$r/web" "$r/docs"
+  printf '<?php\n' >"$r/web/index.php"
+  ln -s web "$r/public"
+  st_base "$r"
+  printf 'x\n' >"$r/docs/notes.txt"
+  st_commit "$r" change
+  st_run chain-quiet static --root "$r" --changed-from "$ST_BASE"
+  st_check 'chain: a change outside every path that serves a finding completes clean, exit 0' test "$ST_RC" = 0
+
+  # Guard: more than 40 directory links below a served target is a not-verified line.
+  r="$ST_TMP/chain-many"
+  mkdir -p "$r/public" "$r/web"
+  ln -s ../web "$r/public/a"
+  for ((i = 1; i <= 41; i++)); do
+    mkdir -p "$r/web/d$i"
+    ln -s "d$i" "$r/web/l$i"
+  done
+  st_base "$r"
+  printf 'x\n' >"$r/web/d1/new.txt"
+  st_commit "$r" change
+  st_run chain-many static --root "$r" --changed-from "$ST_BASE"
+  st_check 'chain: more than 40 directory links below a served target is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: public/a/ - more than 40 directory symlinks' "$ST_TMP/out.chain-many")"
+
+  # A link target that ends in a newline: web<LF> and dir<LF> lead out of the project.
+  o2="$ST_TMP/outside-nl"
+  mkdir -p "$o2"
+  printf '%12346s\n' x >"$o2/id_rsa"
+  printf 'x\n' >"$o2/present.sql"
+  r="$ST_TMP/nl-root"
+  mkdir -p "$r/web"
+  printf '<?php\n' >"$r/web/index.php"
+  st_base "$r"
+  printf 'k\n' >"$r/web/id_rsa"
+  printf 'x\n' >"$r/web/present.sql"
+  printf 'x\n' >"$r/web/absent.sql"
+  ln -s "$o2" "$r/web"$'\n'
+  ln -s web$'\n' "$r/public"
+  st_commit "$r" change
+  for i in diff tree; do
+    if [[ "$i" == diff ]]; then st_run nl-root static --root "$r" --changed-from "$ST_BASE"; else st_run nl-root static --root "$r"; fi
+    st_check "newline $i: public -> web<LF> -> outside is one outside-project finding, exit 5" \
+      test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tpublic\ttarget='"$o2"' resolves=outside-project' "$ST_TMP/out.nl-root")"
+    st_check_not "newline $i: no line carries metadata of a file outside the project" st_line 'size=12347'
+    st_check_not "newline $i: no file below the outside root is listed" st_line $'\tpublic/'
+  done
+
+  # A project directory web<LF> and no web: the evidence names the entry the kernel follows.
+  r="$ST_TMP/nl-inside"
+  mkdir -p "$r/web"$'\n'
+  printf 'x\n' >"$r/web"$'\n'/dump.sql
+  ln -s web$'\n' "$r/public"
+  st_commit "$r" base
+  st_run nl-inside static --root "$r"
+  st_check 'newline: public -> web<LF> inside the project names the raw target and its end, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tpublic\ttarget=web\\x0a resolves=web\\x0a' "$ST_TMP/out.nl-inside")"
+  st_check 'newline: the dump below web<LF> is reported under public/' st_line $'dump-archive-backup\tcritical\tpublic/dump.sql\t' 'git=tracked'
+
+  r="$ST_TMP/nl-deploy"
+  mkdir -p "$r/public" "$r/.github" "$r/ci"
+  printf '<?php\n' >"$r/public/index.php"
+  printf 'run: cp x public/a.sql\n' >"$r/ci/deploy.yml"
+  ln -s "$o2" "$r/ci"$'\n'
+  ln -s ../ci$'\n' "$r/.github/workflows"
+  st_commit "$r" base
+  st_run nl-deploy static --root "$r"
+  st_check 'newline: a deployment directory -> ../ci<LF> -> outside is an outside-project finding' \
+    st_line $'symlink-permission\thigh\t.github/workflows\ttarget='"$o2"' resolves=outside-project'
+  st_check_not 'newline: the deployment file of the look-alike directory is not read' st_line 'ref=public/a.sql'
+
+  r="$ST_TMP/nl-link"
+  mkdir -p "$r/public" "$r/dir"
+  printf '<?php\n' >"$r/public/index.php"
+  st_base "$r"
+  printf 'k\n' >"$r/dir/id_rsa"
+  printf 'x\n' >"$r/dir/present.sql"
+  ln -s "$o2" "$r/dir"$'\n'
+  ln -s ../dir$'\n' "$r/public/lnk"
+  st_commit "$r" change
+  st_run nl-link static --root "$r" --changed-from "$ST_BASE"
+  out1="$ST_OUT"
+  st_check 'newline: public/lnk -> ../dir<LF> -> outside is an outside-project finding with the raw target, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tpublic/lnk\ttarget=../dir\\x0a resolves=outside-project' "$ST_TMP/out.nl-link")"
+  st_check_not 'newline: no line carries metadata of a file outside the project' st_line 'size=12347'
+  st_check_not 'newline: no file served through the outside link is listed' st_line $'\tpublic/lnk/'
+  rm "$o2/present.sql"
+  st_run nl-link static --root "$r" --changed-from "$ST_BASE"
+  st_check 'newline: the output is the same whether the outside file exists or not' test "$out1" = "$ST_OUT"
+}
+
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
 st_curl_stub() {
   mkdir -p "$ST_TMP/bin"
@@ -1357,6 +1685,7 @@ self_test() {
   st_static_cases
   st_runtime_cases
   st_confine_cases
+  st_chain_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
