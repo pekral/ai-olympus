@@ -181,7 +181,7 @@ Applies only when the project installs `laravel/pao`. The package detects an age
 - An `Image` instance cannot be serialized and throws `ImageException` when passed into a queued job. Store the processed result first (`store()` / `storeAs()` / `storePublicly()`) and dispatch the resulting path, consistent with the existing **Queue and Jobs** rule against dispatching heavyweight objects to queued jobs.
 
 ## General Laravel Practices
-- Prefer Laravel conventions and built-in features first.
+- Prefer Laravel conventions and built-in features first. *Carbon and Framework Helpers* below owns the order: an existing project concept, then a framework helper or class, then new code.
 - Prefer dependency injection over manual resolution.
 - Prefer named routes and `route()` for URL generation.
 - Follow the Laravel 11/12 application structure when the project uses it:
@@ -235,17 +235,22 @@ A Laravel project already ships a date API and a set of helpers. Hand-written co
 - **The native functions and classes this replaces:** `date()`, `gmdate()`, `strtotime()`, `mktime()`, `gmmktime()`, `time()`, `strftime()`, `date_create()`, `date_diff()`, `checkdate()`, `new DateTime(...)`, `new DateTimeImmutable(...)`, `DateTime::createFromFormat()`, and `new DateInterval(...)` used for interval arithmetic. `Carbon::setTestNow()` / `travelTo()` freezes a Carbon clock, and a native call ignores it.
 - **The *Time* rule applies unchanged to every Carbon call.** The explicit timezone, the single zone, and the ban on SQL `NOW()` are owned by *Time* above. This section never restates them.
 - **Reuse a helper the framework already ships.** Before you write a loop, a regular expression, or a string, array, number, or nested-key manipulation, check what `Str` / `Stringable`, `Arr`, `Collection`, `Number`, `data_get()` / `data_set()`, `tap()`, `value()`, and `when()` already do. Write `Str::slug($title)` instead of a hand-written `preg_replace` chain, `data_get($payload, 'user.address.city')` instead of a nest of `isset()` checks, and `Number::currency($amount)` instead of a hand-written `number_format()` wrapper. `filled()` / `blank()` are owned by *String Emptiness Checks* above.
-- **Use only a helper the installed Laravel version ships.** The version in `composer.json` decides (`@rules/general/general.md` *Project Context*).
+- **Reuse a class or a service the framework already ships.** Before you write a new class, a wrapper, or a hand-written mechanism, check whether Laravel already provides it. Examples: the `Http` client with `retry()` instead of a hand-written cURL or retry loop, `Cache::remember()` instead of a get-then-put pair, `Cache::lock()` instead of a hand-written mutex, `RateLimiter` instead of a counter in the cache, `Pipeline` instead of a hand-written chain of steps, `Process` instead of `exec()` / `shell_exec()`, a Notification or a Mailable instead of a hand-built message, an Event and a Listener instead of a hand-written observer list, `paginate()` / `cursorPaginate()` instead of a hand-written offset, a Policy or a Gate instead of an ad-hoc permission check, a validation rule instead of a hand-written check, `retry()` and `once()` instead of a hand-written loop or a static memo, and `Uri` / `Fluent` instead of a hand-built URL or attribute bag. Extend the native class (a macro, a custom cast, a custom rule, a channel) instead of writing a parallel one.
+- **Choose in this order, and stop at the first option that fits.**
+  1. The project already implements the behaviour: reuse it. `@rules/code-review/general.md` *Reuse Existing Logic* owns this step.
+  2. The framework ships a helper or a class for it: use that helper or class, as the two bullets above state.
+  3. Neither exists: write new code in the layer that owns it (`@rules/laravel/architecture.md`).
+- **Use only a helper or a class the installed Laravel version ships.** The version in `composer.json` decides (`@rules/general/general.md` *Project Context*).
 - **Two owners, no overlap.** This section owns logic the *framework* already provides. `@rules/code-review/general.md` *Reuse Existing Logic* owns logic the *project* already implements, and this section never restates it.
 
-Severity in code review: **Moderate** for a native date function or class from the list above, or a hand-written equivalent of an existing framework helper, that the diff adds. The scope is the changed lines. Existing native calls elsewhere are not a finding, and this rule is never a licence to open a migration pull request for them.
+Severity in code review: **Moderate** for a native date function or class from the list above, or a hand-written equivalent of an existing framework helper or framework class, that the diff adds. The scope is the changed lines. Existing native calls elsewhere are not a finding, and this rule is never a licence to open a migration pull request for them.
 
 **Not findings:**
 - A vendor or framework contract that requires or returns a native type: a vendor SDK method that takes a `DateTimeImmutable`, a PHP interface signature, or a `DateTimeInterface` type hint, which Carbon satisfies.
 - Elapsed-time measurement with `hrtime()` or `microtime(true)`, because it is not date work.
 - A date that an Eloquent cast already yields as Carbon.
 - Code outside the Laravel application that does not depend on `illuminate/*`, such as a framework-agnostic package in the same repository.
-- A hand-written block whose semantics differ from the helper in a way the PR description states, and a helper that the project's Laravel version does not ship.
+- A hand-written block whose semantics differ from the helper or the class in a way the PR description states, and a helper or a class that the project's Laravel version does not ship.
 - A real-clock call in a test file, which belongs to the *Date tests stay correct across a daylight saving transition* walk of `@rules/code-review/core-analysis.md`.
 
 **Gating — one finding per line.** A native date call that carries no timezone is raised once, here: its Carbon replacement is where *Time* applies. A Carbon call with no timezone belongs to *Time*, and this section never raises it.

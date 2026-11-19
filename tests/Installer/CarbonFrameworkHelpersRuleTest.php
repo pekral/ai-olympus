@@ -42,7 +42,22 @@ test('code reuses a helper the framework already ships instead of a hand-written
     expect($section)->toContain('**Reuse a helper the framework already ships.**')
         ->and($section)->toContain('`Str` / `Stringable`, `Arr`, `Collection`, `Number`, `data_get()` / `data_set()`')
         ->and($section)->toContain('`Str::slug($title)`')
-        ->and($section)->toContain('**Use only a helper the installed Laravel version ships.**');
+        ->and($section)->toContain('**Use only a helper or a class the installed Laravel version ships.**');
+});
+
+test('code reuses a class the framework already ships and follows the reuse order', function (): void {
+    $laravel = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/laravel/laravel.md');
+    $section = installerDocsSection($laravel, '## Carbon and Framework Helpers');
+
+    expect($section)->toContain('**Reuse a class or a service the framework already ships.**')
+        ->and($section)->toContain('`Cache::remember()` instead of a get-then-put pair')
+        ->and($section)->toContain('Extend the native class (a macro, a custom cast, a custom rule, a channel) instead of writing a parallel one.')
+        ->and($section)->toContain('**Choose in this order, and stop at the first option that fits.**')
+        ->and($section)->toContain('1. The project already implements the behaviour: reuse it.')
+        ->and($section)->toContain('2. The framework ships a helper or a class for it')
+        ->and($section)->toContain('3. Neither exists: write new code in the layer that owns it')
+        ->and($section)->toContain('hand-written equivalent of an existing framework helper or framework class')
+        ->and($laravel)->toContain('*Carbon and Framework Helpers* below owns the order');
 });
 
 test('the section owns neither the timezone rule, the emptiness rule, nor the project DRY rule, and points to each owner', function (): void {
@@ -84,7 +99,8 @@ test('the code review walk points to the section and carries the same severity w
     $end = (int) strpos($review, "\n- **`''` is not the only empty case", (int) $start);
     $entry = substr($review, (int) $start, $end - (int) $start);
 
-    expect($entry)->toContain('verify it goes through Carbon or the helper the framework already ships')
+    expect($entry)->toContain('verify it goes through Carbon or the helper or class the framework already ships')
+        ->and($entry)->toContain('a hand-written equivalent of a framework class or service')
         ->and($entry)->toContain(
             'The **Not findings** and the gating against *Time*, *String Emptiness Checks*, and *Reuse Existing Logic* are the ones that section states.',
         )
