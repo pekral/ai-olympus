@@ -622,10 +622,13 @@ test('attachment ids are strings, the same type as the attachmentId of the media
     expect(decodedJsonField($output, 'subtasks.0.descriptionMediaRefs.0.attachmentId'))->toBe(decodedJsonField($output, 'subtasks.0.attachments.0.id'));
 });
 
-test('the download manifest names the description, comment, or subtask description that references each file', function (): void {
-    $fixture = createJiraLoaderFixture();
-    $scratch = sys_get_temp_dir() . '/ai-olympus-jira-scratch-' . bin2hex(random_bytes(6));
-    // The download is the one network call; a fake curl writes the file instead of fetching it.
+/**
+ * The download is the one network call; a fake curl writes the file instead of fetching it.
+ *
+ * @param array{bin: string, calls: string, directory: string} $fixture
+ */
+function installJiraLoaderFakeCurl(array $fixture): void
+{
     file_put_contents($fixture['bin'] . '/curl', <<<'BASH'
         #!/usr/bin/env bash
         while [[ $# -gt 0 ]]; do
@@ -634,6 +637,22 @@ test('the download manifest names the description, comment, or subtask descripti
         done
         BASH);
     chmod($fixture['bin'] . '/curl', 0o700);
+}
+
+/**
+ * The manifest of the one download into `$scratch` that ran without `--dest`.
+ */
+function jiraLoaderDefaultDestManifest(string $scratch): string
+{
+    $manifests = glob($scratch . '/attachments.*/jira/attachments-manifest.json');
+
+    return is_array($manifests) && count($manifests) === 1 ? (string) file_get_contents($manifests[0]) : '';
+}
+
+test('the download manifest names the description, comment, or subtask description that references each file', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $scratch = sys_get_temp_dir() . '/ai-olympus-jira-scratch-' . bin2hex(random_bytes(6));
+    installJiraLoaderFakeCurl($fixture);
 
     $view = json_decode(jiraLoaderViewJson(), associative: true);
     assert(is_array($view) && is_array($view['fields']));
@@ -660,7 +679,7 @@ test('the download manifest names the description, comment, or subtask descripti
         'JIRA_SITE' => 'acme.atlassian.net',
     ], 'download-attachments.sh');
 
-    $manifest = (string) file_get_contents($scratch . '/attachments/jira/attachments-manifest.json');
+    $manifest = jiraLoaderDefaultDestManifest($scratch);
     (new Process(['rm', '-rf', $scratch]))->run();
     unlink($fixture['bin'] . '/curl');
     removeJiraLoaderFixture($fixture);
@@ -681,6 +700,42 @@ test('the download manifest names the description, comment, or subtask descripti
         ['other.txt', []],
         ['sub-notes.txt', ['ACME-2:description']],
     ]);
+});
+
+test('a download without --dest writes into a new private folder, never into one that already exists', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $scratch = sys_get_temp_dir() . '/ai-olympus-jira-scratch-' . bin2hex(random_bytes(6));
+    mkdir($scratch . '/attachments/jira/safe', 0o700, recursive: true);
+    file_put_contents($scratch . '/attachments/jira/safe/000__notes.txt', 'left behind');
+    installJiraLoaderFakeCurl($fixture);
+
+    $view = json_decode(jiraLoaderViewJson(), associative: true);
+    assert(is_array($view) && is_array($view['fields']));
+    $view['fields']['attachment'] = [jiraLoaderAttachment(10_500, 'notes.txt')];
+    $environment = [
+        'CLAUDE_SCRATCHPAD_DIR' => $scratch,
+        'FAKE_ACLI_VIEW_JSON' => (string) json_encode($view),
+        'JIRA_API_EMAIL' => 'bot@acme.test',
+        'JIRA_API_TOKEN' => 'secret',
+        'JIRA_SITE' => 'acme.atlassian.net',
+    ];
+
+    $exitCodes = [
+        runJiraLoader($fixture, 'ACME-1234', $environment, 'download-attachments.sh')->getExitCode(),
+        runJiraLoader($fixture, 'ACME-1234', $environment, 'download-attachments.sh')->getExitCode(),
+    ];
+    $folders = glob($scratch . '/attachments.*') ?: [];
+    $modes = array_map(static fn (string $folder): int => fileperms($folder) & 0o777, $folders);
+    $manifests = array_map(static fn (string $folder): bool => is_file($folder . '/jira/attachments-manifest.json'), $folders);
+    $sharedManifest = is_file($scratch . '/attachments/jira/attachments-manifest.json');
+    (new Process(['rm', '-rf', $scratch]))->run();
+    unlink($fixture['bin'] . '/curl');
+    removeJiraLoaderFixture($fixture);
+
+    expect($exitCodes)->toBe([0, 0])
+        ->and($modes)->toBe([0o700, 0o700])
+        ->and($manifests)->toBe([true, true])
+        ->and($sharedManifest)->toBeFalse();
 });
 
 /**

@@ -45,9 +45,12 @@ att_require_tools() {
 }
 
 # att_default_dest — default quarantine root under the session scratchpad (never the repo).
+# Each call creates a new private (0700) folder with `mktemp -d`, so a download never writes into
+# a folder that already exists or that an earlier run left behind. The scan prints its path.
 att_default_dest() {
   local base="${CLAUDE_SCRATCHPAD_DIR:-${TMPDIR:-/tmp}}"
-  printf '%s/attachments' "${base%/}"
+  mkdir -p "${base%/}"
+  mktemp -d "${base%/}/attachments.XXXXXXXX"
 }
 
 # att_file_size <path> — byte count, portably (no GNU/BSD stat divergence).

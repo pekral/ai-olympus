@@ -30,7 +30,7 @@ usage() {
 Usage: download-attachments.sh <URL> [--dest DIR]
 
   URL     full GitHub issue / PR URL (bare issue/PR numbers are rejected)
-  --dest  quarantine root (default: $CLAUDE_SCRATCHPAD_DIR/attachments)
+  --dest  quarantine root (default: a new private folder under $CLAUDE_SCRATCHPAD_DIR)
 
 Auth: uses `gh auth token` (run `gh auth login` first).
 EOF
