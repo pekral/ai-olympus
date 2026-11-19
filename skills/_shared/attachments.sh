@@ -12,7 +12,9 @@
 #      "blockReason": an item that carries one is blocked with that reason and never requested
 #   4. writes a curl auth config file (chmod 600) carrying ONLY the auth header
 #      (empty string when the source needs no auth)
-#   5. calls att_run "<inventory_json>" "<auth_config_file>" "<dest_dir>" "<tracker>" "<ref>"
+#   5. calls att_run "<inventory_json>" "<auth_config_file>" "<dest_dir>" "<tracker>" "<ref>",
+#      with an empty <dest_dir> when the caller got no --dest: att_run then creates the default
+#      folder itself, so a run that stops before the download leaves no folder behind
 #
 # Security contract (rules/security/backend.md + frontend.md):
 #   - TLS validation is ALWAYS on. No -k / --insecure / --no-check-certificate, no
@@ -129,6 +131,7 @@ att_download() {
 # attachments-manifest.json, then runs the mandatory security scan.
 att_run() {
   local inventory="$1" cfg="$2" dest="$3" tracker="$4" ref="$5"
+  [[ -n "$dest" ]] || dest="$(att_default_dest)/${tracker}"
 
   local quarantine="${dest%/}/_quarantine"
   local safe="${dest%/}/safe"
