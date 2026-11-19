@@ -270,7 +270,7 @@ Severity in code review: **Moderate** for a native date function or class from t
 **Gating — one finding per line.** A native date call that carries no timezone is raised once, here: its Carbon replacement is where *Time* applies. A Carbon call with no timezone belongs to *Time*, and this section never raises it. A line that another rule already owns is raised once, by that owner, and this section raises nothing on it:
 - a shell call (`exec()`, `shell_exec()`, `Process::run()`): `@rules/security/backend.md`, which also requires the inline reason on a `Process` call;
 - an ad-hoc permission check: the authorization security lens (`@skills/laravel-authorization-review/SKILL.md`);
-- a hand-written lock or rate-limit counter in the cache: the *Object caching* walk of `@rules/code-review/core-analysis.md`;
+- a hand-written lock or rate-limit counter in the cache: the cache lens, `@skills/redis-patterns/SKILL.md` with `MODE=cr`; when that lens does not run, this section raises the line;
 - a hand-written validation check: *Validation* above and `@rules/laravel/architecture.md`;
 - a new ad-hoc wrapper class: `@rules/laravel/architecture.md` *Code Review Enforcement*.
 
