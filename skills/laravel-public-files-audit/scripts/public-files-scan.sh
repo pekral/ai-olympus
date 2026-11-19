@@ -34,16 +34,20 @@
 #     - the symlink does not resolve: a not-verified line.
 #   A deployment directory is decided the same way. Below a scan root it does not descend into a
 #   symlinked directory and does not descend into a .git entry. An entry find cannot read is a
-#   not-verified line. With --changed-from it prints only the findings in the diff scope, the review
-#   mode of a code review. A finding is in that scope when a path that serves it is a path that
-#   `git diff --name-only -z <base> HEAD` lists: its own path byte for byte; its physical entry; any
-#   symlink of the full resolution of its path, which covers each directory symlink on the way and the
-#   whole chain of its last component; the end of that resolution or a path below it, and for a path
-#   that does not resolve the first missing entry; or a changed path that a chain of directory
-#   symlinks below a scan root serves below it. A .gitignore finding is in scope when any changed path
-#   is a .gitignore file. A changed path that the directory symlinks under a scan root serve is checked
-#   under the name it is served by. That walk follows at most 40 directory targets per symlink; a
-#   longer walk is a not-verified line. A changed path outside the project matches nothing.
+#   not-verified line. --changed-from <base> is the review mode of a code review. It reads the
+#   changed entries with `git diff --raw -z --no-renames <base> HEAD`. A change to any symlink (mode
+#   120000 on either side: a symlink added, removed, re-pointed, or turned into or from a file or a
+#   directory) makes the review report every finding of the static scan, and the header prints
+#   scope=tree. Otherwise it prints only the findings in the diff scope (scope=diff). A finding is in
+#   that scope when a path that serves it is a changed path: its own path byte for byte; its physical
+#   entry; any symlink of the full resolution of its path; the end of that resolution or a path below
+#   it, and for a path that does not resolve the first missing entry; or a changed path that a chain
+#   of directory symlinks below a scan root serves below it. The walk of that chain resolves every
+#   symlink it lists below a served directory, file targets included, and a symlink whose resolution
+#   is matched the same way joins the scan under the name it is served by, as does a changed path
+#   below a served directory. That walk follows at most 40 directory targets per symlink; a longer
+#   walk is a not-verified line. A .gitignore finding is in scope when any changed path is a
+#   .gitignore file. A changed path outside the project matches nothing.
 #
 # runtime (explicit request only)
 #   Runs the name checks and the symlink check of the static mode on public/ and storage/app/public/
@@ -239,11 +243,12 @@ not_verified() {
 #     directory symlink on the way, the symlink of the path itself, or any symlink of its chain;
 #   - the end of that resolution is a changed path, or a changed path lies below it; for a path that
 #     does not resolve, the first missing entry inside the project stands in for the end;
-#   - collect_changed_below_links served a changed path below it (SERVED).
-# CHANGED_P holds only paths inside the project, and resolve_link reads only inside it, so the scope
+#   - collect_changed_below_links served a changed path below it, or a symlink below it whose own
+#     resolution serves a changed path (SERVED).
+# The diff scope applies only to a change that touches no symlink (main). CHANGED_P holds only paths inside the project, and resolve_link reads only inside it, so the scope
 # never reaches a path outside the project.
 in_scope() {
-  local check="$1" path="$2" changed i link entry
+  local check="$1" path="$2" changed entry
   if [[ "$check" == gitignore-deploy && "$path" == .gitignore ]]; then
     for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
       [[ "$changed" == .gitignore || "$changed" == */.gitignore ]] && return 0
@@ -259,6 +264,14 @@ in_scope() {
   phys_entry "$path"
   entry="$PHYS_ENTRY"
   resolve_link "$ROOT_P/$path"
+  serves_changed "$entry"
+}
+
+# serves_changed <physical entry>: 0 when a changed path serves the entry that the last resolve_link
+# call resolved: the physical entry itself, any symlink of LINK_TRAIL, RESOLVED or a path below it,
+# or RESOLVE_MISS or a path below it. in_scope and the served walk share this one match.
+serves_changed() {
+  local entry="$1" changed link i
   for ((i = 0; i < ${#CHANGED_P[@]}; i++)); do
     changed="${CHANGED_P[i]}"
     [[ -n "$changed" ]] || continue
@@ -573,18 +586,21 @@ collect() {
 # served name, and SERVED records that name for in_scope. The walk starts at each symlink below a scan
 # root and follows the directory symlinks it finds below each target, so a chain of directory links
 # serves the changed path under one name. Each target is a physical directory inside the project,
-# because resolve_link returned 0, and outside the scanned roots, which find already walked. The walk
-# visits each target once per start and at most 40 targets per start; a longer walk is a not-verified
-# line.
+# because resolve_link returned 0, and outside the scanned roots, which find already walked. Every
+# symlink the walk lists below a target, a file link included, is resolved with resolve_link; when
+# serves_changed matches its resolution, it joins PATHS and SERVED under its served name, so the name
+# checks and link_checks read it. The walk visits each target once per start and at most 40 targets
+# per start; a longer walk is a not-verified line.
 collect_changed_below_links() {
-  local i j k n="${#PATHS[@]}" name dir chg p
+  local i j k n="${#PATHS[@]}" name dir chg p served
   SERVED=()
   for ((i = 0; i < n; i++)); do
     [[ "${KINDS[i]}" == l ]] || continue
     Q_NAME=()
     Q_DIR=()
     Q_FULL=0
-    enqueue_served "${PATHS[i]}" "${PATHS_P[i]}"
+    resolve_link "${PATHS_P[i]}"
+    enqueue_served "${PATHS[i]}" $?
     for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
       name="${Q_NAME[k]}"
       dir="${Q_DIR[k]}"
@@ -596,7 +612,13 @@ collect_changed_below_links() {
         SERVED+=("$name/${chg#"$dir"/}")
       done
       while IFS= read -r -d '' p; do
-        enqueue_served "$name/${p#"$dir"/}" "$p"
+        served="$name/${p#"$dir"/}"
+        resolve_link "$p"
+        enqueue_served "$served" $?
+        if serves_changed "$p"; then
+          add_path "$served" "$p"
+          SERVED+=("$served")
+        fi
       done < <(find "$dir" -mindepth 1 \( -name .git -prune \) -o \( -type l -print0 \) 2>"$SCRATCH/find.err")
       find_errors "$(esc "$name")" 'served symlinks'
     done
@@ -606,11 +628,12 @@ collect_changed_below_links() {
   return 0
 }
 
-# enqueue_served <served name> <physical symlink path>: queue the target of the symlink when it is a
-# directory inside the project, outside the scanned roots, and not yet queued for this start.
+# enqueue_served <served name> <resolve_link code>: queue RESOLVED, the end of the last resolve_link
+# call on a symlink, when it is a directory inside the project, outside the scanned roots, and not
+# yet queued for this start. It keeps LINK_TRAIL, RESOLVED, and RESOLVE_MISS as they are.
 enqueue_served() {
   local k
-  resolve_link "$2" || return 0
+  [[ "$2" == 0 ]] || return 0
   [[ -d "$RESOLVED" ]] || return 0
   in_scan_roots "$RESOLVED" && return 0
   for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
@@ -936,13 +959,16 @@ main() {
 
   if [[ -n "$base" ]]; then
     ((HAS_GIT)) || die 1 '--changed-from needs a git work tree'
-    local changed
-    git_ro diff --name-only -z --no-renames "$base" HEAD -- >"$SCRATCH/changed" 2>/dev/null || die 3 'the base commit is not in this checkout'
-    # The physical entry of each changed path. A path whose directory is gone (a deletion) keeps its
-    # name below ROOT_P; a path whose directory passes a symlink that leaves the project or does not
-    # resolve is empty, so it matches nothing and the scope never reaches outside the project.
-    local rc
-    while IFS= read -r -d '' changed; do
+    local changed hdr rc link_changed=0
+    git_ro diff --raw -z --no-renames "$base" HEAD -- >"$SCRATCH/changed" 2>/dev/null || die 3 'the base commit is not in this checkout'
+    # Each record is ":<old mode> <new mode> <old id> <new id> <status>", NUL, the path, NUL. A mode
+    # 120000 on either side is a symlink the change adds, removes, re-points, or turns into or from a
+    # file or a directory. The physical entry of each changed path: a path whose directory is gone (a
+    # deletion) keeps its name below ROOT_P; a path whose directory passes a symlink that leaves the
+    # project or does not resolve is empty, so it matches nothing and the scope never reaches outside
+    # the project.
+    while IFS= read -r -d '' hdr && IFS= read -r -d '' changed; do
+      [[ "${hdr:1:6}" == 120000 || "${hdr:8:6}" == 120000 ]] && link_changed=1
       CHANGED+=("$changed")
       phys_entry "$changed"
       rc=$?
@@ -954,7 +980,9 @@ main() {
         CHANGED_P+=('')
       fi
     done <"$SCRATCH/changed"
-    SCOPE='diff'
+    # A changed symlink can re-point any chain that serves a path, so the review reports every finding
+    # of the static scan: the scope stays tree.
+    ((link_changed)) || SCOPE='diff'
   fi
 
   printf 'public-files-scan: mode=%s scope=%s\n' "$mode" "$SCOPE"
@@ -1585,6 +1613,141 @@ st_chain_cases() {
   st_check 'newline: the output is the same whether the outside file exists or not' test "$out1" = "$ST_OUT"
 }
 
+# st_served <name> <start link> <target dir>: a project whose unchanged scan-root link public/<start
+# link> -> ../<target dir> serves a project directory; the case builds the rest and calls st_base.
+st_served() {
+  r="$ST_TMP/$1"
+  mkdir -p "$r/public" "$r/$3"
+  printf '<?php\n' >"$r/public/index.php"
+  ln -s "../$3" "$r/public/$2"
+}
+
+# A link below a served directory: a change to any symlink makes the review report every finding of the
+# static scan (scope=tree); a change to a regular file that such a link serves keeps the link in scope.
+st_served_cases() {
+  local r i link target chg name
+
+  # public/a -> ../web, web/b -> ../hop, hop -> data; the change re-points hop to config, then out.
+  for i in config:p1 ../out:p3; do
+    st_served "served-${i##*:}" a web
+    mkdir -p "$r/data" "$r/config"
+    printf 'x\n' >"$r/data/a.txt"
+    printf '<?php\n' >"$r/config/app.php"
+    ln -s ../hop "$r/web/b"
+    ln -s data "$r/hop"
+    st_base "$r"
+    rm "$r/hop"
+    ln -s "${i%%:*}" "$r/hop"
+    st_commit "$r" change
+    st_diff_case "served-${i##*:}" "a changed middle link hop -> ${i%%:*} of a nested link reports the scan" \
+      $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
+    st_check "served: a changed symlink prints the tree scope (hop -> ${i%%:*})" st_line 'mode=static scope=tree'
+  done
+
+  # P5: web/f.txt -> ../hopf -> notes.txt; the change re-points hopf at a dump.
+  st_served served-p5 a web
+  printf 'x\n' >"$r/notes.txt"
+  printf 'x\n' >"$r/db.sql"
+  ln -s ../hopf "$r/web/f.txt"
+  ln -s notes.txt "$r/hopf"
+  st_base "$r"
+  rm "$r/hopf"
+  ln -s db.sql "$r/hopf"
+  st_commit "$r" change
+  st_diff_case served-p5 'a re-pointed link of a nested file-link chain reports the scan' \
+    $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
+
+  # (a) and (c): media/robots.txt -> ../hopf -> db/seed; the change re-points hopf at .env, then outside.
+  for i in .env:a "$ST_TMP/outside-served/seed":c; do
+    st_served "served-${i##*:}" media media
+    mkdir -p "$r/db"
+    printf 'x\n' >"$r/db/seed"
+    ln -s ../hopf "$r/media/robots.txt"
+    ln -s db/seed "$r/hopf"
+    st_base "$r"
+    rm "$r/hopf"
+    ln -s "${i%%:*}" "$r/hopf"
+    st_commit "$r" change
+    st_diff_case "served-${i##*:}" "a nested robots.txt link re-pointed through hopf (${i##*:}) reports the scan" \
+      $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
+  done
+
+  # (b): media/sub -> ../hopd -> d1; the change re-points hopd at d2, which already holds a dump.
+  st_served served-b media media
+  mkdir -p "$r/d1" "$r/d2"
+  printf 'x\n' >"$r/d1/a.txt"
+  printf 'x\n' >"$r/d2/dump.sql"
+  ln -s ../hopd "$r/media/sub"
+  ln -s d1 "$r/hopd"
+  st_base "$r"
+  rm "$r/hopd"
+  ln -s d2 "$r/hopd"
+  st_commit "$r" change
+  st_diff_case served-b 'a nested directory link re-pointed at a directory with a dump reports the scan' \
+    $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
+
+  # P4 and (d): a dangling nested file link whose target the change adds; (e): its target changes.
+  for i in other/real.sql:p4 db/dump:d db/seed:e; do
+    st_served "served-${i##*:}" media media
+    mkdir -p "$r/other" "$r/db"
+    printf 'x\n' >"$r/other/keep.txt"
+    printf 'x\n' >"$r/db/keep.txt"
+    [[ "${i##*:}" == e ]] && printf 'x\n' >"$r/${i%%:*}"
+    ln -s "../${i%%:*}" "$r/media/x.sql"
+    st_base "$r"
+    printf 'y\n' >"$r/${i%%:*}"
+    st_commit "$r" change
+    st_diff_case "served-${i##*:}" "a nested file link whose target ${i%%:*} the change adds or edits is in scope" \
+      $'dump-archive-backup\tcritical\tpublic/media/x.sql\t'
+    st_check "served: the same change keeps the nested link finding (${i##*:})" \
+      st_line $'symlink-permission\thigh\tpublic/media/x.sql\ttarget=../'"${i%%:*} resolves=${i%%:*}"
+    st_check "served: the same change keeps the scan-root link in scope (${i##*:})" \
+      st_line $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
+    st_check "served: a change to a regular file keeps the diff scope (${i##*:})" st_line 'mode=static scope=diff'
+  done
+
+  # Attacks: a two-link nested file chain whose end the change edits; a nested link whose missing
+  # directory the change adds; a link three directories below the served target.
+  for i in x.sql:../hopf:db/seed:two media/x.sql:../newdir/f.sql:newdir/f.sql:miss \
+    deep/er/x.sql:../../../db/dump:db/dump:deep; do
+    IFS=: read -r link target chg name <<<"$i"
+    st_served "served-$name" media media
+    mkdir -p "$r/db" "$r/media/deep/er"
+    printf 'x\n' >"$r/db/seed"
+    ln -s db/seed "$r/hopf"
+    ln -s "$target" "$r/media/${link#media/}"
+    st_base "$r"
+    mkdir -p "$r/${chg%/*}"
+    printf 'y\n' >"$r/$chg"
+    st_commit "$r" change
+    st_diff_case "served-$name" "a nested file link served through ${target} is in scope when ${chg} changes" \
+      $'dump-archive-backup\tcritical\tpublic/media/'"${link#media/}"$'\t'
+  done
+
+  # Attack: the change adds a symlink whose name ends in a newline; the raw diff record still reads it.
+  st_served served-nl media media
+  mkdir -p "$r/docs"
+  printf 'x\n' >"$r/docs/notes.txt"
+  st_base "$r"
+  ln -s notes.txt "$r/docs/l"$'\n'
+  st_commit "$r" change
+  st_diff_case served-nl 'an added symlink whose name ends in a newline reports the scan' \
+    $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
+  st_check 'served: that change prints the tree scope' st_line 'mode=static scope=tree'
+
+  # Guard: the change touches no symlink and no path that serves the nested link.
+  st_served served-quiet media media
+  mkdir -p "$r/db" "$r/docs"
+  printf 'x\n' >"$r/db/seed"
+  ln -s ../db/seed "$r/media/x.sql"
+  st_base "$r"
+  printf 'x\n' >"$r/docs/notes.txt"
+  st_commit "$r" change
+  st_run served-quiet static --root "$r" --changed-from "$ST_BASE"
+  st_check 'served: a change to no symlink and no serving path completes clean, exit 0' test "$ST_RC" = 0
+  st_check 'served: that change keeps the diff scope' st_line 'mode=static scope=diff'
+}
+
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
 st_curl_stub() {
   mkdir -p "$ST_TMP/bin"
@@ -1686,6 +1849,7 @@ self_test() {
   st_runtime_cases
   st_confine_cases
   st_chain_cases
+  st_served_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
