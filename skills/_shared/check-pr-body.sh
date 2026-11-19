@@ -371,7 +371,7 @@ html_step() {
 
   if [[ "$1" == open ]]; then
     CR_HTML_END=''
-    cr_header_html_open "$2"
+    cr_header_html_open "$2" || :
   else
     CR_HTML_END="$HTML_END"
     cr_header_html_end "$2"
@@ -1799,6 +1799,13 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(render '' "$(printf -- '- a\n  - b\n\n  %s\ncode\n\n## Foreign\ntext\n  %s\nafter' "$fence" "$fence")")" 'the heading on line'
   scenario 'a section heading after an indented fence that follows a nested bullet item under an ordered item is refused' 3 \
     "$(render '' "$(printf -- '1. a\n   - b\n\n   %s\ncode\n\n## Foreign\ntext\n   %s\nafter' "$fence" "$fence")")" 'the heading on line'
+  # An inline tag line that continues a paragraph starts no HTML block, and a fence after it keeps its closing rule.
+  scenario 'a foreign section after an inline tag line, an indented fence, and its closer is refused' 3 \
+    "$(render '' "$(printf -- 'para\n<span>x</span>\n\n  %s\ncode\n  %s\n  ## Foreign\ntext' "$fence" "$fence")")" 'the heading on line'
+  scenario 'a foreign section after an inline tag with text, an indented fence, and its closer is refused' 3 \
+    "$(render '' "$(printf -- 'para\n<b>x</b> more\n\n  %s\ncode\n  %s\n  ## Foreign\ntext' "$fence" "$fence")")" 'the heading on line'
+  scenario 'a second Merge risk block after an inline tag line, an indented fence, and its closer is refused' 3 \
+    "$(render '' "$(printf -- 'para\n<span>x</span>\n\n  %s\ncode\n  %s\n  ## Merge risk 🟢 low\n\n**Door:** two-way no rollback signal\n**Blast radius:** FAST (docs-only)' "$fence" "$fence")")" 'Merge risk'
   scenario 'a heading quoted unindented inside an indented fence is not read' 0 \
     "$(render '' "$(printf '  %smarkdown\n## Problem\n## Gate\n  %s' "$fence" "$fence")")" '"valid": true'
   scenario 'an indented fence with unindented content and its closer, then no heading, is valid' 0 \

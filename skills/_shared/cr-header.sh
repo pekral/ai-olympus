@@ -92,7 +92,8 @@ CR_FENCE_LEN=0
 CR_FENCE_BOUND=0
 CR_LIST_OFFSET=0
 CR_PREV_TEXT=0
-CR_FENCE_TAINT=0
+CR_TAINT_BACKTICK=0
+CR_TAINT_TILDE=0
 CR_HTML_END=''
 TAB=$'\t'
 
@@ -113,7 +114,8 @@ cr_header_fence_reset() {
   CR_FENCE_BOUND=0
   CR_LIST_OFFSET=0
   CR_PREV_TEXT=0
-  CR_FENCE_TAINT=0
+  CR_TAINT_BACKTICK=0
+  CR_TAINT_TILDE=0
   CR_HTML_END=''
 }
 
@@ -152,13 +154,14 @@ detab() {
 #       starts with fewer spaces than the opening line; that line is read;
 #     - at the end of the body.
 #   When no list item is open at the opening line the region stays open whatever the indent of its lines, so a line of
-#   less indent than the opening line is skipped too, and only the closing line ends the region. The one exception is a
-#   body in which an earlier region already ended on a line of less indent (CR_FENCE_TAINT): a line that ended a region
-#   shows that the rule misjudged where a list item ends, and its closing line may open a region that GitHub never
-#   sees. Every later region of that body closes on a line of less indent, as the rule did before the closing-fence
-#   fix, so the rule never skips there a line that the earlier rule read.
+#   less indent than the opening line is skipped too, and only the closing line ends the region. After a region that
+#   ended on a line of less indent that still stands at the content of the open list item (so GitHub may hold the region
+#   open), a bare line of the same character and at least the same length (CR_TAINT_BACKTICK, CR_TAINT_TILDE hold the
+#   shortest such length) opens no region and is read: it may be the closing line of that region, which must not open
+#   another that hides what follows it. A region that ended on a line less indented than every open item ended on GitHub
+#   too, and leaves no such mark.
 #   A list item may be open from the line of a list item until a line that GitHub cannot keep in it (CR_LIST_OFFSET is
-#   the smallest content offset of the open items, 0 when none is open). The rule is built to err toward "open", because
+#   the content offset of the outermost open item, 0 when none is open). The rule is built to err toward "open", because
 #   an open item gives the closing rule above, which reads more lines, and a wrong "closed" would skip lines that
 #   GitHub renders:
 #     - a line is a list item when LIST_ITEM_PARSE matches, a space or the end of the line follows the marker, and
@@ -169,13 +172,14 @@ detab() {
 #       and cannot be a lazy continuation: a fence opener, an ATX heading, a thematic break, a quote, or any line
 #       when the line before was not paragraph text (a blank line, a fence, an ATX heading, an empty item). A plain
 #       line, a setext underline, an HTML tag line, and a backtick line that opens no fence never end an item.
-#   An HTML region opens on a line, outside a skipped region, of 0–3 spaces and `<`. Its lines are read, and no skipped
-#   region opens inside it. It ends after the line that holds `-->` when the opening line starts with `<!--`; `?>` for
+#   An HTML region opens on a line, outside a skipped region, of 0–3 spaces and `<`, unless GitHub starts no HTML block
+#   there (cr_header_html_open): a tag that is no block tag and not alone on its line, or alone on a line that continues
+#   a paragraph, is paragraph text. Its lines are read, and no skipped region opens inside it. It ends after the line that holds `-->` when the opening line starts with `<!--`; `?>` for
 #   `<?`; `]]>` for `<![CDATA[`; `>` for `<!` and a letter; `</pre>`, `</script>`, `</style>`, or `</textarea>`, after
 #   lowercasing, when the opening line starts with `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, and
 #   then whitespace, `>`, or the end of the line; and at the next blank line after any other opening line. The end can
 #   be on the opening line.
-#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_BOUND (the skipped region), CR_FENCE_TAINT, CR_LIST_OFFSET and CR_PREV_TEXT (the open
+#   State: CR_FENCE_CHAR, CR_FENCE_LEN, CR_FENCE_BOUND (the skipped region), CR_TAINT_BACKTICK, CR_TAINT_TILDE, CR_LIST_OFFSET and CR_PREV_TEXT (the open
 #   list items; CR_PREV_TEXT is 0 only when the line before was certainly not paragraph text, and 2 in the paragraph of a quote), CR_HTML_END (the HTML region).
 cr_header_fence_step() {
   local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' run lead='' indent=0 opener=0 prev=$CR_PREV_TEXT
@@ -193,10 +197,18 @@ cr_header_fence_step() {
       fi
       return 0
     fi
+    detab "$1"
+    lead="${DETABBED%%[! ]*}"
+    if [[ ${#lead} -ge "$CR_LIST_OFFSET" ]]; then
+      if [[ "$CR_FENCE_CHAR" == '`' ]]; then
+        [[ "$CR_TAINT_BACKTICK" -gt 0 && "$CR_TAINT_BACKTICK" -le "$CR_FENCE_LEN" ]] || CR_TAINT_BACKTICK=$CR_FENCE_LEN
+      else
+        [[ "$CR_TAINT_TILDE" -gt 0 && "$CR_TAINT_TILDE" -le "$CR_FENCE_LEN" ]] || CR_TAINT_TILDE=$CR_FENCE_LEN
+      fi
+    fi
     CR_FENCE_CHAR=''
     CR_FENCE_LEN=0
     CR_FENCE_BOUND=0
-    CR_FENCE_TAINT=1
   fi
   if [[ -n "$CR_HTML_END" ]]; then
     CR_PREV_TEXT=0
@@ -207,6 +219,15 @@ cr_header_fence_step() {
     run="${BASH_REMATCH[2]}"
     indent=${#BASH_REMATCH[1]}
     [[ "${run:0:1}" != '`' || "${BASH_REMATCH[3]}" != *'`'* ]] || run=''
+    # A bare line of the character and the length of a region that ended on a line of less indent may be the closing line
+    # of that region as GitHub reads it, so it opens no region.
+    if [[ -n "$run" && -z "${BASH_REMATCH[3]//[[:blank:]]/}" ]]; then
+      if [[ "${run:0:1}" == '`' ]]; then
+        [[ "$CR_TAINT_BACKTICK" -eq 0 || ${#run} -lt "$CR_TAINT_BACKTICK" ]] || run=''
+      else
+        [[ "$CR_TAINT_TILDE" -eq 0 || ${#run} -lt "$CR_TAINT_TILDE" ]] || run=''
+      fi
+    fi
     [[ -z "$run" ]] || opener=1
   fi
   case "$1" in
@@ -214,9 +235,7 @@ cr_header_fence_step() {
   # A bullet with text at indent 0 is a list item of content offset 2, unless it is a thematic break (`- - -`).
   '- '[!\ ]* | '* '[!\ ]* | '+ '[!\ ]*)
     if [[ "${1:2}" == *[!"${1:0:1} "]* ]]; then
-      if [[ "$CR_LIST_OFFSET" -eq 0 || "$CR_LIST_OFFSET" -gt 2 ]]; then
-        CR_LIST_OFFSET=2
-      fi
+      CR_LIST_OFFSET=2
       CR_PREV_TEXT=1
     else
       cr_header_list_step "$1" 0 "$opener"
@@ -241,14 +260,14 @@ cr_header_fence_step() {
   esac
   if [[ "$opener" -eq 0 ]]; then
     if [[ "$1" == *'<'* && "$1" =~ ^\ {0,3}\< ]]; then
-      cr_header_html_open "$1" "$prev"
+      cr_header_html_open "$1" "$prev" || :
     fi
     return 1
   fi
   CR_FENCE_CHAR="${run:0:1}"
   CR_FENCE_LEN=${#run}
   CR_FENCE_BOUND=0
-  [[ "$CR_LIST_OFFSET" -eq 0 && "$CR_FENCE_TAINT" -eq 0 ]] || CR_FENCE_BOUND=$indent
+  [[ "$CR_LIST_OFFSET" -eq 0 ]] || CR_FENCE_BOUND=$indent
   CR_PREV_TEXT=0
   return 0
 }
@@ -258,10 +277,6 @@ cr_header_fence_step() {
 # a line whose first character can start a block.
 cr_header_list_step() {
   local item=0 text=1 shape=0 first="${1:$2:1}" indent marker spaces rest offset
-  if [[ "$first" == '<' && "$2" -lt 4 ]]; then
-    CR_PREV_TEXT=0
-    return 0
-  fi
   if [[ "$first" == [-*+0-9] && "$2" -lt 4 && "$1" =~ $LIST_ITEM_PARSE && ( ${#BASH_REMATCH[3]} -gt 0 || -z "${BASH_REMATCH[4]}" ) ]]; then
     indent=${#BASH_REMATCH[1]}
     marker="${BASH_REMATCH[2]}"
@@ -276,16 +291,23 @@ cr_header_list_step() {
     fi
   fi
   if [[ "$item" -eq 1 ]]; then
-    [[ -n "$rest" && "$spaces" -le 4 ]] || spaces=1
+    text=1
+    if [[ -z "$rest" || "$spaces" -gt 4 ]]; then
+      # An item that starts with an empty line, or with five spaces (an indented code block), holds no paragraph yet.
+      text=0
+      spaces=1
+    fi
     offset=$((indent + ${#marker} + spaces))
-    if [[ "$CR_LIST_OFFSET" -eq 0 || "$offset" -lt "$CR_LIST_OFFSET" ]]; then
+    if [[ "$CR_LIST_OFFSET" -eq 0 || "$indent" -lt "$CR_LIST_OFFSET" ]]; then
       CR_LIST_OFFSET=$offset
     fi
-    [[ -z "$rest" ]] && CR_PREV_TEXT=0 || CR_PREV_TEXT=1
+    CR_PREV_TEXT=$text
     return 0
   fi
   if [[ "$3" -eq 1 || "$first" == 'thematic' ]]; then
     shape=1
+  elif [[ "$first" == '<' && "$2" -lt 4 ]]; then
+    ! cr_header_html_starts "$1" "$CR_PREV_TEXT" || shape=1
   elif [[ "$2" -lt 4 ]]; then
     case "$first" in
     '>' | '#' | '_' | '-' | '*')
@@ -299,13 +321,19 @@ cr_header_list_step() {
     CR_LIST_OFFSET=0
   fi
   if [[ "$2" -lt 4 && "$1" =~ $QUOTE_START ]]; then
-    # The paragraph of a quote is no paragraph that a list item interrupts: GitHub starts any item after it.
+    # The paragraph of a quote is no paragraph that a list item interrupts: GitHub starts any item after it. A quote whose
+    # line is empty or holds a fence, a heading, or a thematic break has no paragraph that a later line continues.
+    rest="${1#*>}"
+    rest="${rest# }"
     text=2
+    if [[ "$rest" != *[![:space:]]* || "$rest" == '```'* || "$rest" == '~~~'* || "$rest" == '#'* || "$rest" == '>'* ]] || [[ "$rest" =~ $THEMATIC_BREAK ]]; then
+      text=0
+    fi
+  elif [[ "$shape" -eq 1 ]]; then
+    text=0
   elif [[ "$CR_LIST_OFFSET" -gt 0 ]]; then
     # Inside an open item every other line is text, so a line after it is a lazy continuation.
     text=1
-  elif [[ "$shape" -eq 1 ]]; then
-    text=0
   elif [[ "$CR_PREV_TEXT" -eq 1 && "$2" -lt 4 && "$1" =~ $SETEXT_UNDERLINE ]]; then
     text=0
   elif [[ "$2" -ge 4 && "$CR_PREV_TEXT" -eq 0 ]]; then
@@ -315,10 +343,27 @@ cr_header_list_step() {
   CR_PREV_TEXT=$text
 }
 
+# cr_header_html_starts <line> <1 when the line before was paragraph text> — succeed when GitHub starts an HTML block at
+# <line>, which starts with 0–3 spaces and `<`: a comment, an instruction, a CDATA section, a declaration, a raw tag
+# (`pre`, `script`, `style`, `textarea`), a block tag, or a tag alone on a line that does not continue a paragraph.
+# Any other line that starts with a tag is paragraph text.
+cr_header_html_starts() {
+  local tag="${1#"${1%%[! ]*}"}"
+  case "$tag" in
+  '<!--'* | '<?'* | '<![CDATA['* | '<!'[A-Za-z]*) return 0 ;;
+  esac
+  [[ "$tag" =~ ^\<([Pp][Rr][Ee]|[Ss][Cc][Rr][Ii][Pp][Tt]|[Ss][Tt][Yy][Ll][Ee]|[Tt][Ee][Xx][Tt][Aa][Rr][Ee][Aa])([[:space:]>]|$) ]] && return 0
+  ci_match "$1" "$HTML_BLOCK_START" && return 0
+  [[ "${2:-0}" -ne 1 ]] && ci_match "$1" "$HTML_LONE_TAG" && return 0
+  return 1
+}
+
 # cr_header_html_open <line> <1 when the line before was paragraph text> — the line opens an HTML region
-# (cr_header_fence_step); set its end and test the line.
+# (cr_header_fence_step); set its end and test the line. It fails, and opens no region, for a line at which GitHub starts
+# no HTML block (cr_header_html_starts).
 cr_header_html_open() {
   local tag="${1#"${1%%[! ]*}"}"
+  cr_header_html_starts "$1" "${2:-0}" || return 1
   case "$tag" in
   '<!--'*) CR_HTML_END='-->' ;;
   '<?'*) CR_HTML_END='?>' ;;
@@ -329,10 +374,6 @@ cr_header_html_open() {
       CR_HTML_END='raw'
     else
       CR_HTML_END='blank'
-      # GitHub starts this region only for a block tag, or for a tag alone on a line that does not continue a paragraph.
-      if ! ci_match "$1" "$HTML_BLOCK_START" && { [[ "${2:-0}" -eq 1 ]] || ! ci_match "$1" "$HTML_LONE_TAG"; }; then
-        CR_FENCE_TAINT=1
-      fi
       return 0
     fi
     ;;
@@ -660,8 +701,20 @@ cr_header_self_test() {
     "$(printf -- '- a\n\n    b\nc\n  %s\ncode\n## X' "$fence")"
   reads 'fence: an item after the paragraph of a quote is a list item' \
     "$(printf -- '> q\nlazy\n*\n   %s\n\n  code\nx\n## X' "$fence")"
-  reads 'fence: a tag that continues a paragraph opens an HTML region the rule does not trust, so a later fence closes on less indent' \
+  reads 'fence: a tag that continues a paragraph opens no HTML region' \
     "$(printf -- '<span>x</span>\n* x\n   %s\n\n  %s\n## X' "$fence" "$fence")"
+  # A line that GitHub keeps as paragraph text never makes the rule read a fence as it did before the closing-fence fix,
+  # and a region that ended early leaves no closing line that opens a region of its own.
+  reads 'fence: an inline tag line then an indented fence, its closer, and a heading read the heading' \
+    "$(printf -- 'para\n<span>x</span>\n\n  %s\ncode\n  %s\n  ## SENT' "$fence" "$fence")"
+  reads 'fence: an inline tag with text after it, an indented fence, its closer, and a heading read the heading' \
+    "$(printf -- 'para\n<b>x</b> more\n\n  %s\ncode\n  %s\n  ## SENT' "$fence" "$fence")"
+  reads 'fence: a fence indented more than its list item, its closer, and a heading read the heading' \
+    "$(printf -- '- a\n\n   %s\n  x\n   %s\n   ## SENT' "$fence" "$fence")"
+  reads 'fence: an unindented fence after an inline tag line, its closer, and a heading read the heading' \
+    "$(printf -- 'para\n<b>x</b> more\n%s\ncode\n%s\n  ## SENT' "$fence" "$fence")"
+  reads 'fence: a list item that ends a fence on less indent leaves a later bare fence an opener' \
+    "$(printf -- '* x\n  ~~~\ntext\n\n~~~\ncode\n~~~\n  ## SENT')"
   expect 'fence: a blank line does not close an indented fence' $'After|1|1|y\n' \
     "$(printf '  %s\n\n  **In:** x\n  %s\n**After:** y\n' "$fence" "$fence")"
   expect 'fence: no fence opens inside an HTML comment' $'Late|1|1|y\n' \

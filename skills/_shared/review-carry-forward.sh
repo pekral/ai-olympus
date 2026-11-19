@@ -61,8 +61,10 @@
 #          before the first non-blank line that starts with fewer spaces than the opening line (that line is read;
 #          cr-header.sh states which lines open or keep a list item); or at the end of the body. Without an open list
 #          item a line of less indent than the opening line is skipped too;
-#        - a line of 0–3 spaces and `<` opens an HTML region instead: its lines are read and no skipped region opens
-#          in it, until the line that holds `-->` (opened by `<!--`), `?>` (by `<?`), `]]>` (by `<![CDATA[`), `>` (by
+#        - a line of 0–3 spaces and `<` at which GitHub starts an HTML block (cr-header.sh: a comment, an instruction, a
+#          declaration, a raw tag, a block tag, or a tag alone on a line that does not continue a paragraph) opens an
+#          HTML region instead; any other line that starts with a tag is paragraph text. The lines of the region are
+#          read and no skipped region opens in it, until the line that holds `-->` (opened by `<!--`), `?>` (by `<?`), `]]>` (by `<![CDATA[`), `>` (by
 #          `<!` and a letter), or `</pre>`, `</script>`, `</style>`, or `</textarea>` after lowercasing (opened by
 #          `<pre`, `<script`, `<style`, or `<textarea`, after lowercasing, then whitespace, `>`, or the end of the
 #          line); after any other opening line, until the next blank line. The end can be on the opening line.
@@ -1274,6 +1276,12 @@ EOF
     '{ print } /^## TL;DR/ { print "- a"; print ""; print "    b"; print "c"; print "  ```"; print "x"; print ""; print "**Mode:** HOTFIX" }'
   shape_case 'fence: an item after the paragraph of a quote keeps the list item of its fence, so a decision line after it runs the round' "$HI" \
     '{ print } /^## TL;DR/ { print "> q"; print "lazy"; print "*"; print "   ```"; print ""; print "  code"; print "x"; print ""; print "**Mode:** HOTFIX" }'
+  shape_case 'fence: an inline tag line before an indented fence, then its closer, never hides a decision line, so the round runs' "$HI" \
+    '{ print } /^## TL;DR/ { print "para"; print "<span>x</span>"; print ""; print "  ```"; print "code"; print "  ```"; print "  **Mode:** HOTFIX" }'
+  shape_case 'fence: an inline tag with text after it before an indented fence, then its closer, never hides a decision line, so the round runs' "$HI" \
+    '{ print } /^## TL;DR/ { print "para"; print "<b>x</b> more"; print ""; print "  ```"; print "code"; print "  ```"; print "  **Mode:** HOTFIX" }'
+  shape_case 'fence: a fence indented more than its list item, then its closer, never hides a decision line, so the round runs' "$HI" \
+    '{ print } /^## TL;DR/ { print "- a"; print ""; print "   ```"; print "  x"; print "   ```"; print "   **Mode:** HOTFIX" }'
   shape_case 'fence: the end of a list item closes its fence' "$HI" \
     '{ print } /^## TL;DR/ { print "- item"; print ""; print "  ```"; print "  code"; print ""; print "**Mode:** HOTFIX" }'
   shape_case 'fence: three backticks inside an HTML comment open no fence' "$HI" \
