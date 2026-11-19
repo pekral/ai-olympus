@@ -98,10 +98,10 @@ CR_HTML_END=''
 THEMATIC_BREAK='^ {0,3}(\*([[:space:]]*\*){2,}|-([[:space:]]*-){2,}|_([[:space:]]*_){2,})[[:space:]]*$'
 QUOTE_START='^ {0,3}>'
 ATX_ANY='^ {0,3}#{1,6}([[:space:]]|$)'
-LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
 LIST_ITEM_PARSE='^( {0,3})([-*+]|[0-9]{1,9}[.)])([[:space:]]*)(.*)$'
 LIST_ITEM_WITH_TEXT='^ {0,3}([-*+]|1[.)])[[:space:]]+[^[:space:]]'
 SETEXT_UNDERLINE='^ {0,3}(=+|-+)[[:space:]]*$'
+CR_BLOCK_START='^ {0,3}(<|`{3,}|~{3,})'
 
 # cr_header_fence_reset — start a new walk of the line rule below. Every reader calls it before its first line.
 cr_header_fence_reset() {
@@ -145,10 +145,10 @@ cr_header_fence_reset() {
 #   items; 1 when the line before was paragraph text), CR_HTML_END (the HTML region).
 cr_header_fence_step() {
   local open_re='^( {0,3})(`{3,}|~{3,})(.*)$' close_re='^ {0,3}(`+|~+)[[:blank:]]*$' run lead=''
-  [[ ! "$1" =~ [^[:space:]] ]] || lead="${1%%[! ]*}"
   if [[ -n "$CR_FENCE_CHAR" ]]; then
     CR_PREV_TEXT=0
-    if [[ "$CR_FENCE_BOUND" -eq 0 || ! "$1" =~ [^[:space:]] || ${#lead} -ge $CR_FENCE_BOUND ]]; then
+    [[ "$1" != *[![:space:]]* ]] || lead="${1%%[! ]*}"
+    if [[ "$CR_FENCE_BOUND" -eq 0 || "$1" != *[![:space:]]* || ${#lead} -ge $CR_FENCE_BOUND ]]; then
       if [[ "$1" =~ $close_re ]]; then
         run="${BASH_REMATCH[1]}"
         if [[ "${run:0:1}" == "$CR_FENCE_CHAR" && ${#run} -ge $CR_FENCE_LEN ]]; then
@@ -168,11 +168,38 @@ cr_header_fence_step() {
     cr_header_html_end "$1"
     return 1
   fi
-  if [[ "$1" =~ [^[:space:]] ]]; then
-    cr_header_list_step "$1" "${#lead}"
-  else
-    CR_PREV_TEXT=0
-  fi
+  case "$1" in
+  '') CR_PREV_TEXT=0 ;;
+  # A bullet with text at indent 0 is a list item of content offset 2, unless it is a thematic break (`- - -`).
+  '- '[!\ ]* | '* '[!\ ]* | '+ '[!\ ]*)
+    if [[ "${1:2}" == *[!"${1:0:1} "]* ]]; then
+      CR_LIST_STACK=2
+      CR_PREV_TEXT=1
+    else
+      cr_header_list_step "$1" 0
+    fi
+    ;;
+  [-*+0-9\>\<\`~=_#]*) cr_header_list_step "$1" 0 ;;
+  [!\ $'\t']*)
+    if [[ -z "$CR_LIST_STACK" ]]; then
+      CR_PREV_TEXT=1
+    else
+      cr_header_list_step "$1" 0
+    fi
+    ;;
+  *)
+    if [[ "$1" != *[![:space:]]* ]]; then
+      CR_PREV_TEXT=0
+    else
+      lead="${1%%[! ]*}"
+      if [[ -z "$CR_LIST_STACK" && ${#lead} -lt 4 && "${1:${#lead}:1}" != [-*+0-9\>\<\`~=_#] ]]; then
+        CR_PREV_TEXT=1
+      else
+        cr_header_list_step "$1" "${#lead}"
+      fi
+    fi
+    ;;
+  esac
   if [[ "$1" == *'<'* && "$1" =~ ^\ {0,3}\< ]]; then
     cr_header_html_open "$1"
     return 1
@@ -189,13 +216,47 @@ cr_header_fence_step() {
 }
 
 # cr_header_list_step <non-blank line> <its indent> — keep the stack of open list items (CR_LIST_STACK) and CR_PREV_TEXT
-# for the line rule above.
+# for the line rule above. The patterns run only on a line whose first character can start a block.
 cr_header_list_step() {
-  local top item=0 text=1 start=0 block_re='^ {0,3}(<|`{3,}|~{3,})' indent marker spaces rest
-  # A line of plain text, indented by less than four spaces, starts no block, so it needs no pattern.
-  if [[ "$2" -lt 4 && "${1:$2:1}" != [-*+0-9\>\<\`~=_#] ]]; then
-    if [[ "$CR_PREV_TEXT" -eq 0 && -n "$CR_LIST_STACK" ]]; then
-      while [[ -n "$CR_LIST_STACK" && "${CR_LIST_STACK##* }" -gt "$2" ]]; do
+  local top item=0 text=1 start=0 indent marker spaces rest
+  case "${1:$2:1}" in
+  [-*+0-9])
+    if [[ "$2" -lt 4 && "$1" =~ $LIST_ITEM_PARSE && ( ${#BASH_REMATCH[3]} -gt 0 || -z "${BASH_REMATCH[4]}" ) ]]; then
+      indent=${#BASH_REMATCH[1]}
+      marker="${BASH_REMATCH[2]}"
+      spaces=${#BASH_REMATCH[3]}
+      rest="${BASH_REMATCH[4]}"
+      item=1
+      if [[ "$marker" != [0-9]* && -n "$rest" && -z "${rest//[$marker$'\t ']/}" && "$1" =~ $THEMATIC_BREAK ]]; then
+        item=0
+      elif [[ "$CR_PREV_TEXT" -eq 1 && ! "$1" =~ $LIST_ITEM_WITH_TEXT ]]; then
+        item=0
+      fi
+    fi
+    ;;
+  esac
+  if [[ "$item" -eq 1 ]]; then
+    start=1
+  else
+    case "${1:$2:1}" in
+    [-*+0-9\>\<\`~=_#])
+      if [[ "$1" =~ $QUOTE_START ]]; then
+        start=1
+      elif [[ "$1" =~ $THEMATIC_BREAK || "$1" =~ $ATX_ANY || "$1" =~ $CR_BLOCK_START || ("$CR_PREV_TEXT" -eq 1 && "$1" =~ $SETEXT_UNDERLINE) ]]; then
+        start=1
+        text=0
+      fi
+      ;;
+    esac
+    [[ "$start" -eq 1 || "$2" -lt 4 || "$CR_PREV_TEXT" -eq 1 ]] || text=0
+  fi
+  if [[ "$start" -eq 1 || "$CR_PREV_TEXT" -eq 0 ]]; then
+    if [[ "$2" -eq 0 ]]; then
+      CR_LIST_STACK=''
+    else
+      while [[ -n "$CR_LIST_STACK" ]]; do
+        top="${CR_LIST_STACK##* }"
+        [[ "$top" -gt "$2" ]] || break
         if [[ "$CR_LIST_STACK" == *' '* ]]; then
           CR_LIST_STACK="${CR_LIST_STACK% *}"
         else
@@ -203,43 +264,8 @@ cr_header_list_step() {
         fi
       done
     fi
-    CR_PREV_TEXT=1
-    return 0
-  fi
-  if [[ "$1" =~ $LIST_ITEM && ! "$1" =~ $THEMATIC_BREAK ]]; then
-    if [[ "$CR_PREV_TEXT" -eq 0 || "$1" =~ $LIST_ITEM_WITH_TEXT ]]; then
-      item=1
-      start=1
-    fi
-  fi
-  if [[ "$item" -eq 0 ]]; then
-    if [[ "$1" =~ $QUOTE_START ]]; then
-      start=1
-    elif [[ "$1" =~ $THEMATIC_BREAK || "$1" =~ $ATX_ANY || "$1" =~ $block_re ||
-      ("$CR_PREV_TEXT" -eq 1 && "$1" =~ $SETEXT_UNDERLINE) ]]; then
-      start=1
-      text=0
-    elif [[ "$2" -ge 4 && "$CR_PREV_TEXT" -eq 0 ]]; then
-      text=0
-    fi
-  fi
-  if [[ "$start" -eq 1 || "$CR_PREV_TEXT" -eq 0 ]]; then
-    while [[ -n "$CR_LIST_STACK" ]]; do
-      top="${CR_LIST_STACK##* }"
-      [[ "$top" -gt "$2" ]] || break
-      if [[ "$CR_LIST_STACK" == *' '* ]]; then
-        CR_LIST_STACK="${CR_LIST_STACK% *}"
-      else
-        CR_LIST_STACK=''
-      fi
-    done
   fi
   if [[ "$item" -eq 1 ]]; then
-    [[ "$1" =~ $LIST_ITEM_PARSE ]]
-    indent=${#BASH_REMATCH[1]}
-    marker="${BASH_REMATCH[2]}"
-    spaces=${#BASH_REMATCH[3]}
-    rest="${BASH_REMATCH[4]}"
     [[ -n "$rest" && "$spaces" -le 4 ]] || spaces=1
     CR_LIST_STACK="${CR_LIST_STACK:+$CR_LIST_STACK }$((indent + ${#marker} + spaces))"
     text=0

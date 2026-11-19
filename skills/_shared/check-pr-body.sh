@@ -168,7 +168,7 @@ DETAILS_CLOSER='^</details[[:space:]]*>'
 # A line that starts with an HTML comment, 0-3 spaces in: the start of an HTML block.
 COMMENT_AT_START='^ {0,3}<!--'
 SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]*$'
-# THEMATIC_BREAK, QUOTE_START, ATX_ANY, LIST_ITEM, LIST_ITEM_PARSE, LIST_ITEM_WITH_TEXT, and SETEXT_UNDERLINE come from cr-header.sh,
+# THEMATIC_BREAK, QUOTE_START, ATX_ANY, LIST_ITEM_PARSE, LIST_ITEM_WITH_TEXT, and SETEXT_UNDERLINE come from cr-header.sh,
 # the one owner, because the fence line rule reads the same block starts.
 # The block a line belongs to decides whether a `---` or `===` line under it is a heading (the
 # CommonMark rules GitHub renders): only a paragraph line is underlined, and only a paragraph that
@@ -177,6 +177,7 @@ SUMMARY_STRONG='^[[:space:]]*<summary><strong>(.+)</strong></summary>[[:space:]]
 QUOTE_PARSE='^ {0,3}>(.*)$'
 FENCE_LINE='^( {0,3})(`{3,}|~{3,})(.*)$'
 FENCE_CLOSE='^ {0,3}(`+|~+)[[:blank:]]*$'
+LIST_ITEM='^ {0,3}([-*+]|[0-9]{1,9}[.)])([[:space:]]|$)'
 INDENTED_CODE=$'^( {4}|\t)'
 HTML_RAW_START='^ {0,3}<(!--|\?|![a-z]|!\[cdata\[|(pre|script|style|textarea)([[:space:]>]|$))'
 HTML_BLOCK_START='^ {0,3}</?(address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h[1-6]|head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul)([[:space:]>]|/>|$)'
