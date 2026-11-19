@@ -66,6 +66,13 @@ The step is done when one voice name from *Voices* is chosen.
 
 The step is done when the structure of the text is the same as in the other voice and only the prose differs.
 
+### 3. Run `unslop` before a tracker comment is published
+1. When the text is a comment for the second surface of *Scope*, run `@skills/unslop/SKILL.md` over it as the last edit before the publish. The pass is mandatory in every voice and every language.
+2. The pass rewrites the prose only, and keeps the voice this skill selected. Every required structure listed in *Scope* stays, and the finding format of a code review report stays.
+3. A chat reply, a commit message, a pull request title and description, a handoff, and a text a script parses skip this step.
+
+The step is done when `@skills/unslop/SKILL.md` reports its *Done when* met for the text that is published.
+
 ## Voices
 
 ### `relaxed` (default)
@@ -97,6 +104,7 @@ Prose in the selected voice. The skill produces no file of its own.
 ## Done when
 - The voice was selected through step 1, and the prose uses that voice only.
 - Every required structure of every published text is unchanged.
+- Every tracker comment for people to read went through `@skills/unslop/SKILL.md` before the publish.
 - Every commit message, pull request title, handoff, and machine-parsed text of the run follows its own rule.
 - Every fact in the prose is verified, or listed as not verified.
 - A text that reports a stopped review loop says the work waits for the reader's decision, names the decision, and says how to give it.

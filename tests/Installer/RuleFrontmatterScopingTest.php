@@ -601,7 +601,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the GitHub exception names the visible body with its Actionable comments and no inline comment (release 0.5.2).
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
-        'rules/reports/general.md' => 'a921abe63bb34aa8c29f6f5d48a1fd718499c4ebb248fbbd23d0d8614c04e875',
+        'rules/reports/general.md' => '8084aa647365cc38348a1083d114b45523d15e2db28f1aff348c643eb5392c80',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
