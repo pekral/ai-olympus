@@ -99,7 +99,19 @@
     }
   },
   "extra": {
-    "class": "Pekral\\AiOlympus\\ComposerPlugin"
+    "class": "Pekral\\AiOlympus\\ComposerPlugin",
+    "ai-olympus": {
+      "fast-checks": [
+        {
+          "command": "vendor/bin/phpstan analyse --no-progress",
+          "files": "\\.php$"
+        },
+        {
+          "command": "vendor/bin/phpcs",
+          "files": "\\.php$"
+        }
+      ]
+    }
   },
   "scripts": {
     "analyse": [
