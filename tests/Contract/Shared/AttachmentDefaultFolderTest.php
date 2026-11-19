@@ -5,8 +5,6 @@ declare(strict_types = 1);
 use Symfony\Component\Process\Process;
 
 /**
- * A fake `curl` and `gh` that always fail, so no download script reaches the network.
- *
  * @return array{bin: string, directory: string, scratch: string}
  */
 function createAttachmentFolderFixture(): array
@@ -33,8 +31,6 @@ function createAttachmentFolderFixture(): array
 }
 
 /**
- * Runs one tracker's download script without `--dest` and returns its exit code and the folders it left behind.
- *
  * @param array{bin: string, directory: string, scratch: string} $fixture
  * @param array<string, string> $environment
  * @return array{exit: int|null, folders: list<string>}
@@ -53,22 +49,19 @@ function runFailedDownloadWithoutDest(array $fixture, string $tracker, string $r
     $process->run();
     $globbed = glob($fixture['scratch'] . '/attachments*');
 
-    return ['exit' => $process->getExitCode(), 'folders' => $globbed === false ? [] : array_values($globbed)];
+    return ['exit' => $process->getExitCode(), 'folders' => $globbed === false ? [] : $globbed];
 }
 
 test('a download that stops before it fetches anything leaves no default folder behind, for every tracker', function (): void {
     $fixture = createAttachmentFolderFixture();
 
     $results = [
-        // No `acli`, so the inventory never loads.
         'jira' => runFailedDownloadWithoutDest($fixture, 'jira', 'ACME-1234', [
             'JIRA_API_EMAIL' => 'bot@acme.test',
             'JIRA_API_TOKEN' => 'secret',
             'JIRA_SITE' => 'acme.atlassian.net',
         ]),
-        // `gh auth token` prints nothing.
         'github' => runFailedDownloadWithoutDest($fixture, 'github', 'https://github.com/acme/app/issues/1', []),
-        // `curl` fails, so the error never loads.
         'bugsnag' => runFailedDownloadWithoutDest($fixture, 'bugsnag', 'acme/app/0123456789abcdef01234567', [
             'BUGSNAG_TOKEN' => 'stub-token',
         ]),
