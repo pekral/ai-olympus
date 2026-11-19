@@ -31,26 +31,37 @@ test('only an explicit user invocation starts the release, on both platforms', f
     }
 });
 
-test('an open issue or an open pull request of the release stops the run, checked again before the tag', function (): void {
+test('a missing milestone, an open issue, or an open pull request of the release stops the run before the tag', function (): void {
     $skill = publishReleaseSource('skills/publish-github-release/SKILL.md');
 
-    expect($skill)->toContain('gh issue list --milestone "<version>" --state open')
-        ->and($skill)->toContain('a pull request whose closing reference names an issue of that milestone')
-        ->and($skill)->toContain('A non-zero count stops the run.')
-        ->and($skill)->toContain('2. Run both checks of step 2 again. A non-zero count stops the run before the tag.');
+    expect($skill)->toContain('No milestone stops the run: report both checks as not run')
+        ->and($skill)->toContain('gh issue list --milestone "<version>" --state open --limit 1000')
+        ->and($skill)->toContain('when its closing reference names an issue of that milestone')
+        ->and($skill)->toContain('A list that returns as many items as its `--limit` stops the run')
+        ->and($skill)->toContain('The run never removes an issue or a pull request from the milestone to pass a check.')
+        ->and($skill)->toContain('3. Run both checks of step 2 again. A non-zero count stops the run before the tag.');
 });
 
-test('a security finding at any severity in the diff since the last tag stops the release', function (): void {
+test('a security finding stops the release and is reported in the chat only', function (): void {
     $skill = publishReleaseSource('skills/publish-github-release/SKILL.md');
 
-    expect($skill)->toContain('git diff <last tag>..origin/<default branch>')
-        ->and($skill)->toContain('A finding at any severity stops the run.');
+    expect($skill)->toContain('git diff <last tag>..<audited commit>')
+        ->and($skill)->toContain('A finding at any severity stops the run. Report it to the user in the chat only');
 });
 
-test('the release is published only through the audit trail wrapper after the release pull request merged', function (): void {
+test('the tag goes on the merged release commit and the release adds no unaudited commit', function (): void {
     $skill = publishReleaseSource('skills/publish-github-release/SKILL.md');
 
-    expect($skill)->toContain('skills/_shared/audit-trail.sh run -- gh release create <version> --verify-tag')
-        ->and($skill)->toContain('git merge-base --is-ancestor <release commit> HEAD')
+    expect($skill)->toContain('gh pr view <release PR> --json mergeCommit --jq .mergeCommit.oid')
+        ->and($skill)->toContain('git rev-list --count <audited commit>..<release commit>')
+        ->and($skill)->toContain('git tag -a <version> <release commit>')
         ->and($skill)->toContain('Never move, delete, or reuse a tag.');
+});
+
+test('every write of the release goes through the audit trail wrapper', function (): void {
+    $skill = publishReleaseSource('skills/publish-github-release/SKILL.md');
+
+    expect($skill)->toContain('AUDIT_TRAIL_FILE=<top>/.claude/run/release-<version>.audit')
+        ->and($skill)->toContain('skills/_shared/audit-trail.sh run -- git push origin <version>')
+        ->and($skill)->toContain('skills/_shared/audit-trail.sh run -- gh release create <version> --verify-tag');
 });
