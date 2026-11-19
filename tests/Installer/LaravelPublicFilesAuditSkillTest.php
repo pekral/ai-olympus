@@ -104,7 +104,8 @@ test('splinter runs the review mode and the code review classifies the other mod
     $splinter = packageSource('agents/splinter.md');
 
     expect($splinter)
-        ->toContain('   - `@skills/laravel-public-files-audit/SKILL.md` in its *Review mode*, only when the reviewed project is a Laravel project')
+        ->toContain('   - `@skills/laravel-public-files-audit/SKILL.md` in its *Review mode*, in every round of a Laravel project, '
+            . 'whatever paths the diff touches;')
         ->and($splinter)->toContain(
             'and the `laravel-public-files-audit/scripts/public-files-scan.sh` of that clone in its `static` mode with `--changed-from` only',
         )
@@ -133,4 +134,18 @@ test('the scan never reads outside the physical project root (issue #580)', func
         ->and(publicFilesScanBody())->not->toContain('find -H')
         ->and($script)->toContain('st_confine_cases')
         ->and($script)->toContain('"confine $spec: no line carries metadata of a file outside the project"');
+});
+
+test('the review mode reports the full static scan on every review of a Laravel project (issue #580)', function (): void {
+    $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+    $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+
+    expect($skill)->toContain('1. **When it runs.** On every code review of a Laravel project')
+        ->and($skill)->toContain('   - **The review reports every finding of the full static scan.** It never narrows the findings')
+        ->and($skill)->toContain('   - **A git submodule is not verified.**')
+        ->and($skill)->not->toContain('trigger path')
+        ->and($skill)->not->toContain('scope=diff')
+        ->and(publicFilesScanBody())->not->toContain('in_scope')
+        ->and(publicFilesScanBody())->toContain('git_ro diff --raw -z --no-renames --ignore-submodules=none "$base" HEAD --')
+        ->and($script)->toContain('st_submodule_cases');
 });

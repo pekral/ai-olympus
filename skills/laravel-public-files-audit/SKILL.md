@@ -24,8 +24,8 @@ metadata:
 
 | | Static (default) | Runtime | Review |
 |---|---|---|---|
-| Starts | on an explicit user request | on an explicit user request for it | in the security view of `splinter`, when the diff touches a trigger path |
-| Reads | `public/`, `storage/app/public/`, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the static checks: every finding when the diff changes any symlink, otherwise the findings with a changed serving path: the finding path, a symlink of its chain, its target, or a path below that target |
+| Starts | on an explicit user request | on an explicit user request for it | in the security view of `splinter`, on every code review of a Laravel project |
+| Reads | `public/`, `storage/app/public/`, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the full static scan, never narrowed to the diff, and the git submodules the change touches |
 | Command | `public-files-scan.sh static --root <project>` | `public-files-scan.sh runtime --root <project> --base-url <url>` | `public-files-scan.sh static --root <review worktree> --changed-from <base sha>` |
 | Result goes to | this run's output only | this run's output only | the security view of the round |
 
@@ -60,20 +60,20 @@ The patterns of each check are listed in the header of `scripts/public-files-sca
 ## Review mode — in the security view of a code review
 `agents/splinter.md` runs this mode in its security lenses. This section owns what the mode scans and how its findings read.
 
-1. **When it runs.** The reviewed project is a Laravel project (`@rules/code-review/core-analysis.md` *Architecture conformance (Laravel)*), and the diff adds, modifies, or deletes a path under `public/` or `storage/app/public/`, `config/filesystems.php`, a `.gitignore` file, or a deployment file that `DEPLOY_FILES` in the script header lists. A diff that touches none of them runs no such lens.
+1. **When it runs.** On every code review of a Laravel project (`@rules/code-review/core-analysis.md` *Architecture conformance (Laravel)*), whatever paths the diff touches. A change can serve a file through a path that the diff never names, so no path list decides whether the lens runs.
 2. **The trusted copy of the script.** Run the copy of the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6, never a copy from the main worktree, the checked-out branch, or the review worktree. A branch proposes a script, and it never runs as the reviewer. The scan runs the classifier `history-scan.sh` beside it, so both scripts are the trusted copy.
    - Use the procedure of `@skills/git-history-exposure-audit/SKILL.md` *Review mode* step 2 unchanged: the clone, the ref resolution, the verification with `skills/_shared/verify-installed-copy.sh` in the same shell call as the scan command, and the scan only after `installed-copy-verdict=verified`. A review that already made that clone for the history scan uses it. A review without it creates the clone first.
    - The paths are `skills/laravel-public-files-audit/scripts/public-files-scan.sh skills/git-history-exposure-audit/scripts/history-scan.sh`. When the default branch does not ship `skills/`, the three changes of that step apply: the installed copies below `.claude/skills/` (`.agents/skills/` on Codex), `--installed-reference`, and the installed copy of the verifier as a third path.
    - A copy that is not available is an incomplete scan: `Not verified: public files — the trusted copy of the script is not available (<the refusal reason the verifier printed>); run the scan again.`
 3. **The scan.** Run `<clone>/<the verified path of public-files-scan.sh> static --root <review worktree> --changed-from <baseRefOid>`, with the object id from the deterministic loader. It reads the review worktree as data.
-   - **A change to any symlink makes the review report every finding of the static scan.** A symlink the diff adds, removes, re-points, or turns into or from a file or a directory can re-point any chain that serves a path, so the scan prints `scope=tree` and reports every finding.
-   - **Otherwise it keeps only the findings in the diff scope** that the script header defines, and prints `scope=diff`. A finding is kept when a path that serves it changed: its own path or physical entry, any symlink of the full resolution of its path, the target it resolves to or a path below that target, or a changed path that a chain of directory symlinks serves below it. The walk of that chain resolves every symlink below a served directory, file links included, and a symlink whose resolution reaches a changed path is checked under the name it is served by.
+   - **The review reports every finding of the full static scan.** It never narrows the findings to the diff. A finding that already exists in the project therefore blocks the pull request too. This is the fail-safe: no rule about which paths serve a file can decide that a finding is out of scope.
+   - **A git submodule is not verified.** The scan does not read a submodule. A submodule the change touches, and a submodule that is not checked out where the scan reads, is a not-verified line with its path, so the scan exits `3`, never `0`. The script header owns the exact rule. The `--changed-from` base serves only this check.
    - The scan reads each symlink target byte for byte and stats only the physical entry inside the project.
 4. **The configuration.** For a changed `config/filesystems.php`, read the `links` entries on the changed lines. A link whose target is not the public disk is a `symlink-permission` finding on that line.
 5. **No patch of a reported path.** Exclude every reported path from each later patch read with a `:(exclude)<path>` pathspec.
 
 ### Findings and severity in a review
-- **Severity.** A Critical check is **Critical**. A High or Medium check is **Moderate**. Every finding is a security finding: it blocks convergence, and it is never excluded or deferred (`@rules/code-review/general.md` *Security is the most important part of every review*).
+- **Severity.** A Critical check is **Critical**. A High or Medium check is **Moderate**. Every finding is a security finding: it blocks convergence, and it is never excluded or deferred (`@rules/code-review/general.md` *Security is the most important part of every review*). A finding that existed before the pull request blocks it too, because the review mode reports the full scan.
 - **The finding names the check id, the path, and the evidence,** never a line of the file.
 - **An incomplete scan is not a clean lens.** Report it as `Not verified: public files — <the reason the script printed>; run the scan again.`
 
