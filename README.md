@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 70 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 71 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 70 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 71 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -65,7 +65,7 @@ Automatic installation on `composer install` and `composer update` is off by def
 
 The manifest key `parallel.max-units` (1 to 3) caps how many units of a batch run at the same time; without it the planner uses 2 and the batch cap is 3 (see *Project manifest* in [`rules/general/general.md`](rules/general/general.md)).
 
-Agents talk to you in a relaxed, straight-to-the-point voice, in the chat and in the tracker comments people read. The `voice` key of the project manifest switches it to `technical`, and your own instruction in the session overrides it; commit messages, handoffs, and machine-parsed text stay technical either way (see the [`agent-voice`](skills/agent-voice/SKILL.md) skill).
+Agents talk to you in a relaxed, straight-to-the-point voice, in the chat and in the tracker comments people read. The `voice` key of the project manifest switches it to `technical`, and your own instruction in the session overrides it; commit messages, handoffs, and machine-parsed text stay technical either way (see the [`agent-voice`](skills/agent-voice/SKILL.md) skill). Before a tracker comment is published, the [`unslop`](skills/unslop/SKILL.md) skill cuts AI writing patterns from its prose.
 
 Installation leaves global Claude settings unchanged by default. The opt-in switches, such as `--disable-co-author-attribution`, `--allow-subagent-writes`, and `--deny-network-bash`, configure Claude Code only and grant Codex no permissions; see the [trust model](SECURITY.md).
 
@@ -172,7 +172,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
-- [`docs/skills.md`](docs/skills.md) — the catalog of all 70 skills
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 71 skills
 - [`docs/rules.md`](docs/rules.md) — the 39 rule files, grouped by scope
 
 ## Testing
