@@ -3,7 +3,7 @@ name: unslop
 description: "Use when a text is about to be published to an issue tracker for people to read, or when the user asks to cut AI tells from a text. Edits the prose to remove AI writing patterns, keeps the meaning, the facts, the language, and every required part of the text."
 license: MIT
 metadata:
-  author: "Lauren Tan; adapted by Petr Král (pekral.cz)"
+  author: "Petr Král (pekral.cz)"
 ---
 
 ## Constraints

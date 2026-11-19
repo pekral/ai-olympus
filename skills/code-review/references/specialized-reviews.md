@@ -202,6 +202,7 @@ Criterion: the skill's unit of work is the whole repository, a document, a track
 - `smartest-project-addition` — proposes the next addition to this package.
 - `github-issue-triage`, `github-release-roadmap`, `create-issue`, `create-issues-from-text` — produce tracker artifacts. The review calls none of them, because a code review proposes and files no follow-up issue (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
 - `laravel-horizon-audit` — audits the queue, supervisor, and process configuration of the whole repository, so a review would report on files the pull request never touched. Its default mode is static and read-only.
+- `unslop` — rewrites the prose of a text before it is published. Its output is an edited text, not a finding on a changed line, and it writes no file.
 - `cleanup-local-branches` — deletes local branch refs. It writes no file, which is what keeps it here while `git-workflow` sits in group 1.
 
 ### Group 4 — moves the run's own artifact forward
