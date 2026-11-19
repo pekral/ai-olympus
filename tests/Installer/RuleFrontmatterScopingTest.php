@@ -482,8 +482,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a walkthrough that could not run for want of an environment is not reported, a JIRA comment
         // leaves out the criteria section when the assignment states none, and the review summary holds 500 characters.
         // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
-        // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines (issue #589).
-        'rules/code-review/general.md' => '77ba8a760d20bdff813015cfe19881e80e39632779e54df13c0a002870571ea2',
+        // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines, and a fence in a list item is bound by a stack of item offsets (issue #589).
+        'rules/code-review/general.md' => '75a4ef244e79d1324bba9ec7868c22d6da091491e89571f8f5376fc721d109f3',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
