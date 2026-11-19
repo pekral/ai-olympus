@@ -133,7 +133,10 @@ test('the code review rule has one section that bans code in a review and states
         ->and($section)->toContain('No fenced block and no `suggestion` block')
         ->and($section)->toContain('the mermaid sequence diagram of the Walkthrough')
         ->and($section)->toContain('**Code examples in rules and references stay** for the agents that generate code.')
-        ->and($section)->toContain('A snippet for the fixing agent travels in the review handoff only, never in a published output.')
+        ->and($section)->toContain(
+            'A snippet for the fixing agent travels in the review handoff only, never in a published output, except the corrected code of a finding\'s lines',
+        )
+        ->and($section)->toContain('The suggested code of an Actionable comments entry below is the one exception.')
         ->and($section)->toContain('A review output template that asks for a snippet is a Moderate finding.')
         ->and($section)->toContain('**The one exception is the suggested code of an Actionable comments entry.**')
         ->and($section)->toContain(

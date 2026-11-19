@@ -292,6 +292,7 @@ req(type == "array"; "the findings document must be a JSON array")
     | req(.kind != "dry" or (.fix | optstr); "fix must be 1 to 4000 characters when set")
     | req(.suggestion == null or (.suggestion | isstr(4000) and (printable | test("\\S"))); "suggestion must be 1 to 4000 characters of code when set")
     | req(.suggestion == null or (.suggestion | printable | test("<!--\\s*cr-") | not); "suggestion must not contain an agent marker")
+    | req(.suggestion == null or (.suggestion | test("[\\x{061C}\\x{200E}\\x{200F}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]") | not); "suggestion must not hold a bidirectional control character")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
     | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
     | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null) | printable) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
@@ -312,9 +313,9 @@ req(type == "array"; "the findings document must be a JSON array")
         problem: (.problem | inert),
         impact: (.impact | if . == null then null else inert end),
         fix: (.fix | if . == null then null else inert end),
-        suggestion: (.suggestion | if . == null then null else printable | sub("^(\\s*\n)+"; "") | sub("\\s+$"; "") end),
+        suggestion: (.suggestion | if . == null then null else printable | split("\n") | map(sub("[ \t]+$"; "")) | join("\n") | sub("^\n+"; "") | sub("\\s+$"; "") end),
         lang: (.path | if . == null then "" else split("/") | last
-          | if test("\\.blade\\.php$"; "i") then "blade" else (capture("\\.(?<e>[A-Za-z0-9+_-]{1,15})$") | .e | ascii_downcase) // "" end end),
+          | if test("\\.blade\\.php$"; "i") then "blade" else (capture("\\.(?<e>[A-Za-z0-9+_-]{1,15})$") | .e | ascii_downcase) // "" end | if . == "suggestion" then "" else . end end),
         withhold: (.do_not_file_publicly == true),
         author
       }
@@ -420,11 +421,13 @@ def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)
 def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<dl>\n<dd>\n<br>\n\n\($content)\n\n</dd>\n</dl>\n</details>";
 [.[] | select(.class == "listed") | .f] as $listed
 # The suggested code fits the budget of the body: it is shown in entry order, Critical first, while the code parts
-# shown so far fit `$budget` characters; a code part past the budget is left out, and its entry keeps the Fix sentence.
+# shown so far fit `$budget` characters; from the first code part past the budget on, every code part is left out, and
+# each entry keeps its Fix sentence.
 | ([$listed[] | select(.severity == "Critical")] + [$listed[] | select(.severity == "Moderate")]
-   | reduce .[] as $f ({used: 0, out: []};
+   | reduce .[] as $f ({used: 0, full: false, out: []};
        ($f | code_part | length) as $c
-       | if $c > 0 and .used + $c <= $budget then .used += $c | .out += [$f + {show: true}] else .out += [$f + {show: false}] end)) as $coded
+       | if $c > 0 and (.full | not) and .used + $c <= $budget then .used += $c | .out += [$f + {show: true}]
+         else (if $c > 0 then .full = true else . end) | .out += [$f + {show: false}] end)) as $coded
 | [$coded.out[] | select(.severity == "Critical")] as $critical_f
 | [$coded.out[] | select(.severity == "Moderate")] as $moderate_f
 | ($critical_f | to_entries | map(.key as $i | .value | entry($i + 1))) as $critical
@@ -464,7 +467,9 @@ def count($re): [match($re; "g")] | length;
      and ($body | count("<!--\\s*cr-review-meta")) == 1 and ($body | count("<!--\\s*cr-comment:lines=")) == 1
      and ($body | count("<!--\\s*cr-comment:actor=")) == 1 and ($body | count("<!--\\s*cr-comment:")) == 2
   then . else error("the review body does not hold exactly its own markers") end
-| if (reduce .blocks[] as $b ($visible; split($b) | join("")) | count("```|~~~")) == 0
+# The body lines lose their trailing blanks on the way (the line fingerprint trims them), so each allowed block is
+# trimmed the same way, and the longest block is removed first, so a block that holds another one is removed whole.
+| if (reduce (.blocks | map(split("\n") | map(sub("[ \t]+$"; "")) | join("\n")) | sort_by(-length) | .[]) as $b ($visible; split($b) | join("")) | count("```|~~~")) == 0
   then . else error("the visible review body holds a fenced block other than the sequence diagram and the suggested code of a finding") end
 | if ($body | length) <= 65536 then $r else error("the review body is longer than the 65536 characters GitHub accepts") end
 JQ
@@ -1603,6 +1608,25 @@ ${bt}"
   run_post "$big"
   check 'code past the body limit is left out, the body fits 65536 characters, and the review is posted' \
     "$([[ $rc -eq 0 ]] && review_has '(.body | length) <= 65536 and ([.body | match("```src|```php"; "g")] | length) >= 10 and ([.body | match("```php"; "g")] | length) < 30 and ([.body | match("\\*\\*Fix:\\*\\* f"; "g")] | length) == 30' && grep -q 'was left out to keep the review body within 65536 characters' "$tmp/stderr" && echo yes || echo no)"
+  local tail_last
+  tail_last="$(printf '%s' "$big" | jq -c '.[29].suggestion = "short();"')"
+  run_post "$tail_last"
+  check 'from the first code left out on, no later code is shown, a short one included' \
+    "$([[ $rc -eq 0 ]] && review_has '(.body | contains("short();") | not)' && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "src/A.php", line: 11, problem: "p", impact: "i", fix: "f", suggestion: "if (x) {\n    \n    y();  \n}"}')]"
+  check 'code with blank-indented and trailing-blank lines is posted with those blanks trimmed' \
+    "$([[ $rc -eq 0 ]] && review_has '.body | contains("```php\nif (x) {\n\n    y();\n}\n```")' && echo yes || echo no)"
+  jq -c '.diagram = "sequenceDiagram\n  participant Owner \n  Owner->>Owner: hi"' "$tmp/walk.json" >"$tmp/walk-trail.json"
+  WALK_FILE="$tmp/walk-trail.json" run_post "[$f_in]"
+  check 'a diagram line with a trailing blank is posted' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" --arg d "$(jq -r .diagram "$tmp/walk.json")" '{finding_id: $id, severity: "Critical", title: "t", path: "docs/A.md", line: 11, problem: "p", impact: "i", fix: "f", suggestion: ("```mermaid\n" + $d + "\n```")}')]"
+  check 'code that holds the Walkthrough diagram block word for word is posted' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "src/A.php", line: 11, problem: "p", impact: "i", fix: "f", suggestion: "if ($a ‮) {}"}')]"
+  check 'a suggestion with a bidirectional control character is refused and nothing is posted' \
+    "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'bidirectional control character' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[$(jq -n -c --arg id "$id1" '{finding_id: $id, severity: "Critical", title: "t", path: "src/A.suggestion", line: 11, problem: "p", impact: "i", fix: "f", suggestion: "x"}')]"
+  check 'a file named .suggestion gives the fence no suggestion language' \
+    "$([[ $rc -eq 0 ]] && review_has '(.body | test("```suggestion") | not) and (.body | contains("```\nx\n```"))' && echo yes || echo no)"
 
   # 12. resolve: only the threads of this actor for the given ids (an earlier release opened them), and a failed
   # mutation is a failure
