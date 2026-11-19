@@ -62,7 +62,7 @@ link to read the skill itself.
 | [`security-bounty-hunter`](../skills/security-bounty-hunter/) | Hunting for exploitable, remotely reachable vulnerabilities in a PHP/Laravel codebase for responsible disclosure or a bounty submission, not a general best-practices review |
 | [`security-threat-analysis`](../skills/security-threat-analysis/) | Analyzing a specific security threat from a referenced source (CVE, GHSA, security advisory, blog post, or write-up) |
 | [`laravel-security`](../skills/laravel-security/) | Building, configuring, or hardening security-sensitive Laravel features |
-| [`laravel-public-files-audit`](../skills/laravel-public-files-audit/) | The user explicitly asks whether a Laravel project serves files that must never be public; the security view of a code review runs it on a diff that touches a public path |
+| [`laravel-public-files-audit`](../skills/laravel-public-files-audit/) | The user explicitly asks whether a Laravel project serves files that must never be public; the security view of every code review of a Laravel project runs its full static scan |
 | [`machine-payments-protocol`](../skills/machine-payments-protocol/) | Implementing, designing, or reviewing the Machine Payments Protocol (MPP) HTTP 402 payment flow in a Laravel/PHP application |
 
 ## Testing

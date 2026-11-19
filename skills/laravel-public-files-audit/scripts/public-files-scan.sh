@@ -13,7 +13,7 @@
 #
 # Requirements
 #   bash, find, stat, awk, grep, and the standard shell tools; git for the git status, the .gitignore
-#   check, and --changed-from; curl for the runtime mode. The shared path classifier
+#   check, and the submodule check; curl for the runtime mode. The shared path classifier
 #   ../../git-history-exposure-audit/scripts/history-scan.sh (its classify mode) must sit beside this
 #   skill, as the installer places every skill.
 #
@@ -34,20 +34,16 @@
 #     - the symlink does not resolve: a not-verified line.
 #   A deployment directory is decided the same way. Below a scan root it does not descend into a
 #   symlinked directory and does not descend into a .git entry. An entry find cannot read is a
-#   not-verified line. --changed-from <base> is the review mode of a code review. It reads the
-#   changed entries with `git diff --raw -z --no-renames <base> HEAD`. A change to any symlink (mode
-#   120000 on either side: a symlink added, removed, re-pointed, or turned into or from a file or a
-#   directory) makes the review report every finding of the static scan, and the header prints
-#   scope=tree. Otherwise it prints only the findings in the diff scope (scope=diff). A finding is in
-#   that scope when a path that serves it is a changed path: its own path byte for byte; its physical
-#   entry; any symlink of the full resolution of its path; the end of that resolution or a path below
-#   it, and for a path that does not resolve the first missing entry; or a changed path that a chain
-#   of directory symlinks below a scan root serves below it. The walk of that chain resolves every
-#   symlink it lists below a served directory, file targets included, and a symlink whose resolution
-#   is matched the same way joins the scan under the name it is served by, as does a changed path
-#   below a served directory. That walk follows at most 40 directory targets per symlink; a longer
-#   walk is a not-verified line. A .gitignore finding is in scope when any changed path is a
-#   .gitignore file. A changed path outside the project matches nothing.
+#   not-verified line.
+#   --changed-from <base> is the review mode of a code review. The review reports every finding of the
+#   full static scan, never only the findings of the diff, so a finding that already exists in the
+#   project blocks the pull request too: a fail-safe. The base serves only the submodule check below.
+#   A git submodule (a gitlink, mode 160000) is a not-verified line that names its path, so the scan
+#   never exits 0 over one: every submodule the change adds, removes, or updates, read with
+#   `git diff --raw -z --no-renames --ignore-submodules=none <base> HEAD`, a comparison of two trees
+#   that never runs git inside a submodule checkout and that no submodule.<name>.ignore setting
+#   changes; and, in every mode, a submodule of the index that is not checked out and lies
+#   at or below a scan root, or at or above public/, storage/app/public/, or a deployment directory.
 #
 # runtime (explicit request only)
 #   Runs the name checks and the symlink check of the static mode on public/ and storage/app/public/
@@ -106,7 +102,7 @@
 #   passes a symlink.
 #
 # Output (stdout, one record per line)
-#   public-files-scan: mode=<static|runtime> scope=<tree|diff>
+#   public-files-scan: mode=<static|runtime>
 #   finding<TAB>check<TAB>severity<TAB>path<TAB>evidence
 #   probe<TAB>url-path<TAB>status=<code>                  (runtime: a path that is not reachable)
 #   outbound-request: <host> HEAD <n> paths                (runtime)
@@ -208,25 +204,21 @@ esc() {
 
 FINDINGS=0
 INCOMPLETE=0
-SCOPE=tree
 SCRATCH=''
 ROOT_P=''
 ROOT_L=''
 RESOLVED=''
-RESOLVE_MISS=''
 LINK_TARGET=''
 PHYS_ENTRY=''
 PROJ_REL=''
 PUB_P=''
 DISK_P=''
-Q_FULL=0
-declare -a PATHS=() PATHS_P=() KINDS=() SHARED=() CLASS=() CHANGED=() CHANGED_P=() LINK_IDX=() LINK_EV=()
+declare -a PATHS=() PATHS_P=() KINDS=() SHARED=() CLASS=() LINK_IDX=() LINK_EV=()
 declare -a LINK_TRAIL=() LINK_TRAIL_RAW=() SCAN_ROOTS=() SCAN_PHYS=() ROOT_FIND=() ROOT_FEV=()
-declare -a DEPLOY_REL=() DEPLOY_ABS=() SERVED=() Q_NAME=() Q_DIR=()
+declare -a DEPLOY_REL=() DEPLOY_ABS=()
 
 emit() {
   # emit <check> <severity> <path> <evidence>
-  if [[ "$SCOPE" == diff ]] && ! in_scope "$1" "$3"; then return; fi
   printf 'finding\t%s\t%s\t%s\t%s\n' "$1" "$2" "$(esc "$3")" "$4"
   FINDINGS=$((FINDINGS + 1))
 }
@@ -234,55 +226,6 @@ emit() {
 not_verified() {
   printf 'not-verified: %s\n' "$1"
   INCOMPLETE=1
-}
-
-# A finding is in scope when any path that serves it changed:
-#   - its path is a changed path byte for byte (git printed the list with -z, so no name is quoted);
-#   - its physical entry is the physical entry of a changed path;
-#   - the full resolution of its path, the last component followed, passes a changed symlink: a
-#     directory symlink on the way, the symlink of the path itself, or any symlink of its chain;
-#   - the end of that resolution is a changed path, or a changed path lies below it; for a path that
-#     does not resolve, the first missing entry inside the project stands in for the end;
-#   - collect_changed_below_links served a changed path below it, or a symlink below it whose own
-#     resolution serves a changed path (SERVED).
-# The diff scope applies only to a change that touches no symlink (main). CHANGED_P holds only paths inside the project, and resolve_link reads only inside it, so the scope
-# never reaches a path outside the project.
-in_scope() {
-  local check="$1" path="$2" changed entry
-  if [[ "$check" == gitignore-deploy && "$path" == .gitignore ]]; then
-    for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
-      [[ "$changed" == .gitignore || "$changed" == */.gitignore ]] && return 0
-    done
-    return 1
-  fi
-  for changed in ${CHANGED[@]+"${CHANGED[@]}"}; do
-    [[ "$changed" == "$path" ]] && return 0
-  done
-  for changed in ${SERVED[@]+"${SERVED[@]}"}; do
-    [[ "$changed" == "$path" || "$changed" == "$path"/* ]] && return 0
-  done
-  phys_entry "$path"
-  entry="$PHYS_ENTRY"
-  resolve_link "$ROOT_P/$path"
-  serves_changed "$entry"
-}
-
-# serves_changed <physical entry>: 0 when a changed path serves the entry that the last resolve_link
-# call resolved: the physical entry itself, any symlink of LINK_TRAIL, RESOLVED or a path below it,
-# or RESOLVE_MISS or a path below it. in_scope and the served walk share this one match.
-serves_changed() {
-  local entry="$1" changed link i
-  for ((i = 0; i < ${#CHANGED_P[@]}; i++)); do
-    changed="${CHANGED_P[i]}"
-    [[ -n "$changed" ]] || continue
-    [[ -n "$entry" && "$changed" == "$entry" ]] && return 0
-    [[ -n "$RESOLVED" && ("$changed" == "$RESOLVED" || "$changed" == "$RESOLVED"/*) ]] && return 0
-    [[ -n "$RESOLVE_MISS" && ("$changed" == "$RESOLVE_MISS" || "$changed" == "$RESOLVE_MISS"/*) ]] && return 0
-    for link in ${LINK_TRAIL[@]+"${LINK_TRAIL[@]}"}; do
-      [[ "$changed" == "$link" ]] && return 0
-    done
-  done
-  return 1
 }
 
 # --- metadata ----------------------------------------------------------------------------------------
@@ -293,9 +236,9 @@ pick_stat() {
 }
 
 # meta <physical path>: size=… mtime=… mode=… git=…. The path is the physical entry inside the
-# project that the scan already resolved (find below a resolved root, or a resolved changed path), so
-# stat follows no symlink of the branch under review. The git status is taken for that entry relative
-# to the root, so a file served through a symlink reads with the status of its git path.
+# project that the scan already resolved (find below a resolved root), so stat follows no symlink of
+# the branch under review. The git status is taken for that entry relative to the root, so a file
+# served through a symlink reads with the status of its git path.
 meta() {
   local phys="$1" raw size mtime mode when state grel
   grel="${phys#"$ROOT_P"/}"
@@ -346,12 +289,10 @@ read_link() {
 # LINK_TRAIL_RAW (its raw target, read byte for byte by read_link). Returns 0 when the path resolves
 # inside the project, 1 when it does not resolve (a missing entry, a file used as a directory, or more
 # than 40 links), and 2 when it leaves the project; a target outside the project is never checked for
-# existence. On a missing entry or a file used as a directory, RESOLVE_MISS names that entry, which
-# lies inside the project.
+# existence.
 resolve_link() {
   local rest="${1#/}" cur='' comp next target hops=0
   RESOLVED=''
-  RESOLVE_MISS=''
   LINK_TRAIL=()
   LINK_TRAIL_RAW=()
   while [[ -n "$rest" ]]; do
@@ -381,10 +322,7 @@ resolve_link() {
         rest="${target#/}${rest:+/$rest}"
         continue
       fi
-      [[ -z "$rest" || -d "$next" ]] || {
-        RESOLVE_MISS="$next"
-        return 1
-      }
+      [[ -z "$rest" || -d "$next" ]] || return 1
       cur="$next"
     elif [[ "$ROOT_P" == "$next"/* ]]; then
       cur="$next"
@@ -393,10 +331,7 @@ resolve_link() {
     fi
   done
   [[ "$cur" == "$ROOT_P" || "$cur" == "$ROOT_P"/* ]] || return 2
-  [[ -e "$cur" ]] || {
-    RESOLVE_MISS="$cur"
-    return 1
-  }
+  [[ -e "$cur" ]] || return 1
   RESOLVED="$cur"
 }
 
@@ -578,73 +513,7 @@ collect() {
     done < <(find "$phys" -mindepth 1 \( -name .git -print0 -prune \) -o -print0 2>"$SCRATCH/find.err")
     find_errors "$dir" 'name checks'
   done
-  [[ "$SCOPE" == diff ]] && collect_changed_below_links
   return 0
-}
-
-# Diff scope: a changed path that a directory symlink under a scan root serves joins PATHS under the
-# served name, and SERVED records that name for in_scope. The walk starts at each symlink below a scan
-# root and follows the directory symlinks it finds below each target, so a chain of directory links
-# serves the changed path under one name. Each target is a physical directory inside the project,
-# because resolve_link returned 0, and outside the scanned roots, which find already walked. Every
-# symlink the walk lists below a target, a file link included, is resolved with resolve_link; when
-# serves_changed matches its resolution, it joins PATHS and SERVED under its served name, so the name
-# checks and link_checks read it. The walk visits each target once per start and at most 40 targets
-# per start; a longer walk is a not-verified line.
-collect_changed_below_links() {
-  local i j k n="${#PATHS[@]}" name dir chg p served
-  SERVED=()
-  for ((i = 0; i < n; i++)); do
-    [[ "${KINDS[i]}" == l ]] || continue
-    Q_NAME=()
-    Q_DIR=()
-    Q_FULL=0
-    resolve_link "${PATHS_P[i]}"
-    enqueue_served "${PATHS[i]}" $?
-    for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
-      name="${Q_NAME[k]}"
-      dir="${Q_DIR[k]}"
-      for ((j = 0; j < ${#CHANGED_P[@]}; j++)); do
-        chg="${CHANGED_P[j]}"
-        [[ "$chg" == "$dir"/* ]] || continue
-        [[ -L "$chg" || -e "$chg" ]] || continue
-        add_path "$name/${chg#"$dir"/}" "$chg"
-        SERVED+=("$name/${chg#"$dir"/}")
-      done
-      while IFS= read -r -d '' p; do
-        served="$name/${p#"$dir"/}"
-        resolve_link "$p"
-        enqueue_served "$served" $?
-        if serves_changed "$p"; then
-          add_path "$served" "$p"
-          SERVED+=("$served")
-        fi
-      done < <(find "$dir" -mindepth 1 \( -name .git -prune \) -o \( -type l -print0 \) 2>"$SCRATCH/find.err")
-      find_errors "$(esc "$name")" 'served symlinks'
-    done
-    ((Q_FULL)) &&
-      not_verified "$(esc "${PATHS[i]}")/ - more than 40 directory symlinks serve paths below it; remove the symlink chain and run the scan again"
-  done
-  return 0
-}
-
-# enqueue_served <served name> <resolve_link code>: queue RESOLVED, the end of the last resolve_link
-# call on a symlink, when it is a directory inside the project, outside the scanned roots, and not
-# yet queued for this start. It keeps LINK_TRAIL, RESOLVED, and RESOLVE_MISS as they are.
-enqueue_served() {
-  local k
-  [[ "$2" == 0 ]] || return 0
-  [[ -d "$RESOLVED" ]] || return 0
-  in_scan_roots "$RESOLVED" && return 0
-  for ((k = 0; k < ${#Q_DIR[@]}; k++)); do
-    [[ "${Q_DIR[k]}" == "$RESOLVED" ]] && return 0
-  done
-  if ((${#Q_DIR[@]} >= 40)); then
-    Q_FULL=1
-    return 0
-  fi
-  Q_NAME+=("$1")
-  Q_DIR+=("$RESOLVED")
 }
 
 # A path of the public disk: below storage/app/public/, or below a public/storage that is a real
@@ -663,6 +532,60 @@ run_name_checks() {
     name_check "${PATHS[i]}" "${KINDS[i]}" "${SHARED[i]}" "$disk" "${PATHS_P[i]}"
     CLASS[i]="$NAME_CHECK"
   done
+}
+
+# --- submodules --------------------------------------------------------------------------------------
+
+# A git submodule is a gitlink entry (mode 160000). git keeps its content in another repository, and a
+# review worktree never checks it out, so the scan cannot read what a submodule serves. Each case below
+# is a not-verified line that names the path, so the scan never exits 0 over a submodule:
+#   - with --changed-from <base>, every gitlink the change adds, removes, or moves to another commit,
+#     read with --ignore-submodules=none, so a submodule.<name>.ignore setting never hides one;
+#   - every other gitlink of the index that gitlink_hidden reports.
+submodule_checks() {
+  local base="$1" hdr path known
+  local -a reported=()
+  ((HAS_GIT)) || return 0
+  if [[ -n "$base" ]]; then
+    while IFS= read -r -d '' hdr && IFS= read -r -d '' path; do
+      [[ "${hdr:1:6}" == 160000 || "${hdr:8:6}" == 160000 ]] || continue
+      reported+=("$path")
+      not_verified "$(esc "$path") - the change adds, removes, or updates a git submodule, which the scan does not read; review the files of the submodule commit and run the scan again"
+    done <"$SCRATCH/changed"
+  fi
+  if ! git_ro ls-files -s -z >"$SCRATCH/index" 2>/dev/null; then
+    not_verified 'git submodules - git ls-files failed; run the scan in a readable checkout of the project'
+    return 0
+  fi
+  # Each record is "<mode> <object id> <stage>", a tab, the path, NUL.
+  while IFS= read -r -d '' hdr; do
+    [[ "$hdr" == 160000\ * ]] || continue
+    path="${hdr#*$'\t'}"
+    for known in ${reported[@]+"${reported[@]}"}; do
+      [[ "$known" == "$path" ]] && continue 2
+    done
+    gitlink_hidden "$path" || continue
+    not_verified "$(esc "$path") - a git submodule that is not checked out, so the scan cannot read the files it serves; check out the submodule and run the scan again"
+  done <"$SCRATCH/index"
+}
+
+# gitlink_hidden <relative path>: 0 when the gitlink holds no checkout (no .git entry) and the scan
+# needs what it holds: its physical entry lies at or below a scan root, or the path is public,
+# storage/app/public, a deployment directory, or a directory above one of them. A symlink at the path
+# is read by the symlink check instead.
+gitlink_hidden() {
+  local path="$1" dir pattern dirs=$'public\nstorage/app/public'
+  if phys_entry "$path"; then
+    [[ -L "$PHYS_ENTRY" || -L "$PHYS_ENTRY/.git" || -e "$PHYS_ENTRY/.git" ]] && return 1
+    in_scan_roots "$PHYS_ENTRY" && return 0
+  fi
+  while IFS= read -r pattern; do
+    [[ "$pattern" == */* ]] && dirs+=$'\n'"${pattern%/*}"
+  done <<<"$DEPLOY_FILES"
+  while IFS= read -r dir; do
+    [[ "$path" == "$dir" || "$path" == "$dir"/* || "$dir" == "$path"/* ]] && return 0
+  done <<<"$dirs"
+  return 1
 }
 
 # --- static mode -------------------------------------------------------------------------------------
@@ -959,38 +882,17 @@ main() {
 
   if [[ -n "$base" ]]; then
     ((HAS_GIT)) || die 1 '--changed-from needs a git work tree'
-    local changed hdr rc link_changed=0
-    git_ro diff --raw -z --no-renames "$base" HEAD -- >"$SCRATCH/changed" 2>/dev/null || die 3 'the base commit is not in this checkout'
-    # Each record is ":<old mode> <new mode> <old id> <new id> <status>", NUL, the path, NUL. A mode
-    # 120000 on either side is a symlink the change adds, removes, re-points, or turns into or from a
-    # file or a directory. The physical entry of each changed path: a path whose directory is gone (a
-    # deletion) keeps its name below ROOT_P; a path whose directory passes a symlink that leaves the
-    # project or does not resolve is empty, so it matches nothing and the scope never reaches outside
-    # the project.
-    while IFS= read -r -d '' hdr && IFS= read -r -d '' changed; do
-      [[ "${hdr:1:6}" == 120000 || "${hdr:8:6}" == 120000 ]] && link_changed=1
-      CHANGED+=("$changed")
-      phys_entry "$changed"
-      rc=$?
-      if ((rc == 0)); then
-        CHANGED_P+=("$PHYS_ENTRY")
-      elif ((rc == 1 && ${#LINK_TRAIL[@]} == 0)); then
-        CHANGED_P+=("$ROOT_P/$changed")
-      else
-        CHANGED_P+=('')
-      fi
-    done <"$SCRATCH/changed"
-    # A changed symlink can re-point any chain that serves a path, so the review reports every finding
-    # of the static scan: the scope stays tree.
-    ((link_changed)) || SCOPE='diff'
+    git_ro diff --raw -z --no-renames --ignore-submodules=none "$base" HEAD -- >"$SCRATCH/changed" 2>/dev/null ||
+      die 3 'the base commit is not in this checkout'
   fi
 
-  printf 'public-files-scan: mode=%s scope=%s\n' "$mode" "$SCOPE"
+  printf 'public-files-scan: mode=%s\n' "$mode"
   if [[ ! -L "$ROOT/public" && ! -d "$ROOT/public" ]]; then
     not_verified 'public/ - the root has no public/ directory; run the scan on the root of a Laravel project'
     finish
   fi
   root_checks
+  submodule_checks "$base"
   collect
   classify_shared
   run_name_checks
@@ -1132,16 +1034,17 @@ st_static_cases() {
   (cd "$p" && git add -- public/new-dump.sql "public/$quoted" 'public/q"x\y.zip' "public/t"$'\t'"b.sql" deploy.sh &&
     st_git commit -q -m change) >/dev/null 2>&1
   st_run diff static --root "$p" --changed-from "$base"
-  st_check 'diff: a dump the diff adds is reported' st_line $'dump-archive-backup\tcritical\tpublic/new-dump.sql\t' 'git=tracked'
-  st_check 'diff: a non-ASCII name that git quotes is reported' st_line $'dump-archive-backup\tcritical\tpublic/z\\xc3\\xa1.sql\t'
-  st_check 'diff: a name with a quote and a backslash is reported' st_line $'dump-archive-backup\tcritical\tpublic/q"x\\x5cy.zip\t'
-  st_check 'diff: a name with a tab is reported' st_line $'dump-archive-backup\tcritical\tpublic/t\\x09b.sql\t'
-  st_check 'diff: a changed deployment file is reported' st_line $'deploy.sh\tline=3 ref=public/fresh.sql'
-  st_check_not 'diff: a dump the diff does not touch is not reported' st_line 'public/backup.sql'
-  st_check_not 'diff: a .gitignore finding is not reported when no .gitignore changed' st_line 'probe=.env'
-  st_check 'diff: the header names the diff scope' st_line 'mode=static scope=diff'
+  st_check 'review: a dump the diff adds is reported' st_line $'dump-archive-backup\tcritical\tpublic/new-dump.sql\t' 'git=tracked'
+  st_check 'review: a non-ASCII name that git quotes is reported' st_line $'dump-archive-backup\tcritical\tpublic/z\\xc3\\xa1.sql\t'
+  st_check 'review: a name with a quote and a backslash is reported' st_line $'dump-archive-backup\tcritical\tpublic/q"x\\x5cy.zip\t'
+  st_check 'review: a name with a tab is reported' st_line $'dump-archive-backup\tcritical\tpublic/t\\x09b.sql\t'
+  st_check 'review: a changed deployment file is reported' st_line $'deploy.sh\tline=3 ref=public/fresh.sql'
+  st_check 'review: a dump the diff does not touch is reported too' st_line $'dump-archive-backup\tcritical\tpublic/backup.sql\t'
+  st_check 'review: a .gitignore finding is reported when no .gitignore changed' st_line $'gitignore-deploy\tmedium\t.gitignore\tprobe=.env ignored=no'
+  st_check 'review: the header names the mode and no diff scope' test "$(head -n 1 "$ST_TMP/out.diff")" = 'public-files-scan: mode=static'
   st_run nodiff static --root "$p" --changed-from "$(cd "$p" && git rev-parse HEAD)"
-  st_check 'diff: an empty diff completes clean, exit 0' test "$ST_RC" = 0
+  st_check 'review: an empty diff reports every finding of the scan, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'dump-archive-backup\tcritical\tpublic/backup.sql\t' "$ST_TMP/out.nodiff")"
 
   # An empty public/ and a deployment file that writes a dump there: the scan completes under bash 3.2.
   mkdir -p "$ST_TMP/empty/public"
@@ -1206,7 +1109,7 @@ st_commit() {
 
 # The scan stays inside the physical project root: a symlink of a scan root, of a directory below
 # it, or of a deployment directory never makes it read, list, or stat an entry outside the project,
-# and the diff scope compares physical paths with the git paths.
+# and the review mode reports what the full scan finds behind a symlink.
 st_confine_cases() {
   local o="$ST_TMP/outside" r base spec raw want n=0
   mkdir -p "$o/victim" "$o/workflows" "$o/app/public"
@@ -1226,10 +1129,10 @@ st_confine_cases() {
   printf 'x\n' >"$r/web/.env"
   st_commit "$r" change
   st_run n1a static --root "$r" --changed-from "$base"
-  st_check 'confine: a dump added behind a symlinked public/ is in the diff scope, exit 5' test "$ST_RC" = 5
+  st_check 'confine: a dump added behind a symlinked public/ is reported, exit 5' test "$ST_RC" = 5
   st_check 'confine: that dump carries the git status of its git path' st_line $'dump-archive-backup\tcritical\tpublic/backup.sql\t' 'git=tracked'
-  st_check 'confine: an .env copy added behind a symlinked public/ is in the diff scope' st_line $'env-config-copy\tcritical\tpublic/.env\t'
-  st_check 'confine: an unchanged root link that serves a changed file is in the diff scope' \
+  st_check 'confine: an .env copy added behind a symlinked public/ is reported' st_line $'env-config-copy\tcritical\tpublic/.env\t'
+  st_check 'confine: an unchanged root link that serves a changed file is reported' \
     st_line $'symlink-permission\thigh\tpublic\ttarget=web resolves=web'
   st_run n1a-tree static --root "$r"
   st_check 'confine: the tree mode names the git status of the tracked target' st_line $'\tpublic/backup.sql\t' 'git=tracked'
@@ -1263,8 +1166,8 @@ st_confine_cases() {
   printf 'x\n' >"$r/web/files/dump.sql"
   st_commit "$r" change
   st_run n1c static --root "$r" --changed-from "$base"
-  st_check 'confine: a dump added behind a directory symlink below public/ is reported, exit 5' \
-    test "$ST_RC" = 5 -a -n "$(grep -F $'dump-archive-backup\tcritical\tpublic/files/dump.sql\t' "$ST_TMP/out.n1c" | grep -F 'git=tracked')"
+  st_check 'confine: the directory symlink below public/ that serves an added dump is reported, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tpublic/files\ttarget=../web/files resolves=web/files' "$ST_TMP/out.n1c")"
 
   # The change points public, storage, and .github at a directory outside the project.
   r="$ST_TMP/s5"
@@ -1352,7 +1255,7 @@ st_confine_cases() {
   st_run s4a static --root "$r" --changed-from "$base"
   st_check 'confine: storage/app/public -> ../../database in the diff is a finding on the root, exit 5' \
     test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tstorage/app/public\ttarget=../../database resolves=database' "$ST_TMP/out.s4a")"
-  st_check 'confine: the dump the re-pointed public disk serves is in the diff scope' st_line $'dump-archive-backup\tcritical\tstorage/app/public/backup.sql\t'
+  st_check 'confine: the dump the re-pointed public disk serves is reported' st_line $'dump-archive-backup\tcritical\tstorage/app/public/backup.sql\t'
   r="$ST_TMP/s4b"
   mkdir -p "$r/public"
   printf '<?php\n' >"$r/public/index.php"
@@ -1382,7 +1285,7 @@ st_confine_cases() {
   st_check_not 'confine: a public disk link into public/ is no finding' st_line $'\tstorage/app/public\ttarget='
 }
 
-# st_diff_case <name> <label> <needle>: run the diff scope from ST_BASE and expect the finding, exit 5.
+# st_diff_case <name> <label> <needle>: run the review mode from ST_BASE and expect the finding, exit 5.
 st_diff_case() {
   st_run "$1" static --root "$ST_TMP/$1" --changed-from "$ST_BASE"
   st_check "chain: $2, exit 5" test "$ST_RC" = 5 -a -n "$(grep -F -- "$3" "$ST_TMP/out.$1")"
@@ -1394,9 +1297,9 @@ st_base() {
   ST_BASE="$(git -C "$1" rev-parse HEAD)"
 }
 
-# The review mode keeps a tree-mode finding when any path that serves it changed: a link of its chain,
-# the end of its resolution or a path below it, or a path a chain of directory links serves below it.
-# A symlink target that ends in a newline is read byte for byte, and every stat reads the physical entry.
+# The review mode reports every finding of the full static scan, whatever path the change touches: a
+# link of a chain, the end of a resolution, or a path a chain of directory links serves. A symlink
+# target that ends in a newline is read byte for byte, and every stat reads the physical entry.
 st_chain_cases() {
   local r o2 i out1
 
@@ -1438,7 +1341,7 @@ st_chain_cases() {
   st_base "$r"
   printf 'x\n' >"$r/database/backup.sql"
   st_commit "$r" change
-  st_diff_case chain-target 'a file link whose target the change adds is in scope' \
+  st_diff_case chain-target 'a file link whose target the change adds is reported' \
     $'symlink-permission\thigh\tpublic/latest\ttarget=../database/backup.sql resolves=database/backup.sql'
 
   # The same link resolves in the base; the change deletes its target.
@@ -1450,7 +1353,7 @@ st_chain_cases() {
   st_base "$r"
   rm "$r/database/backup.sql"
   st_commit "$r" change
-  st_diff_case chain-gone 'a file link whose target the change deletes is in scope' \
+  st_diff_case chain-gone 'a file link whose target the change deletes is reported' \
     $'symlink-permission\thigh\tpublic/latest\ttarget=../database/backup.sql resolves=unresolved'
 
   # public/a -> ../web, web/b -> ../other; the change adds other/dump.sql, served as public/a/b/dump.sql.
@@ -1459,14 +1362,11 @@ st_chain_cases() {
   printf 'x\n' >"$r/other/keep.txt"
   ln -s ../web "$r/public/a"
   ln -s ../other "$r/web/b"
-  ln -s . "$r/web/self"
   st_base "$r"
   printf 'x\n' >"$r/other/dump.sql"
   st_commit "$r" change
-  st_diff_case chain-two 'a dump served through two directory links is in scope' \
-    $'dump-archive-backup\tcritical\tpublic/a/b/dump.sql\tsize=2 '
-  st_check 'chain: the link that serves it through a second link is in scope' st_line $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
-  st_check_not 'chain: a directory link loop below a served target ends the walk' st_line 'not-verified:'
+  st_diff_case chain-two 'the link that serves a dump through a second directory link is reported' \
+    $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
 
   # public -> dist/public; the change replaces dist/public with a link to the project root.
   r="$ST_TMP/chain-dist"
@@ -1478,7 +1378,7 @@ st_chain_cases() {
   ln -s .. "$r/dist/public"
   printf 'x\n' >"$r/backup.sql"
   st_commit "$r" change
-  st_diff_case chain-dist 'a root link whose target the change replaces with a link is in scope' \
+  st_diff_case chain-dist 'a root link whose target the change replaces with a link is reported' \
     $'symlink-permission\thigh\tpublic\ttarget=.. resolves=.'
 
   # public/media -> ../media; the change replaces media with a link out of the project.
@@ -1490,7 +1390,7 @@ st_chain_cases() {
   rm -rf "${r:?}/media"
   ln -s .. "$r/media"
   st_commit "$r" change
-  st_diff_case chain-media 'a link whose target directory the change replaces with a link is in scope' \
+  st_diff_case chain-media 'a link whose target directory the change replaces with a link is reported' \
     $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=outside-project'
 
   # .github/workflows -> ../hop -> ci; the change re-points hop out of the project.
@@ -1521,7 +1421,7 @@ st_chain_cases() {
   st_diff_case chain-file 'a changed link in the chain of a file link keeps its name finding' $'dump-archive-backup\tcritical\tpublic/x.sql\t'
   st_check 'chain: the same change keeps the link finding of that file link' st_line $'symlink-permission\thigh\tpublic/x.sql\ttarget=../hopf resolves=db.sql'
 
-  # Guard: the change touches no path that serves the unchanged root link public -> web.
+  # M2: the change touches no public path and no path that serves the unchanged root link public -> web.
   r="$ST_TMP/chain-quiet"
   mkdir -p "$r/web" "$r/docs"
   printf '<?php\n' >"$r/web/index.php"
@@ -1529,23 +1429,39 @@ st_chain_cases() {
   st_base "$r"
   printf 'x\n' >"$r/docs/notes.txt"
   st_commit "$r" change
-  st_run chain-quiet static --root "$r" --changed-from "$ST_BASE"
-  st_check 'chain: a change outside every path that serves a finding completes clean, exit 0' test "$ST_RC" = 0
+  st_diff_case chain-quiet 'a change outside every public path still reports the existing root link' \
+    $'symlink-permission\thigh\tpublic\ttarget=web resolves=web'
 
-  # Guard: more than 40 directory links below a served target is a not-verified line.
-  r="$ST_TMP/chain-many"
-  mkdir -p "$r/public" "$r/web"
-  ln -s ../web "$r/public/a"
-  for ((i = 1; i <= 41; i++)); do
-    mkdir -p "$r/web/d$i"
-    ln -s "d$i" "$r/web/l$i"
+  # M1 Q1 to Q4: a link through d1/.. resolves only once d1 is a directory; the change adds d1/keep.txt
+  # (Q2: turns the file d1 into a directory) and changes no symlink.
+  for i in q1 q2 q3 q4; do
+    r="$ST_TMP/chain-$i"
+    mkdir -p "$r/public" "$r/web" "$r/secrets"
+    printf '<?php\n' >"$r/public/index.php"
+    printf 'x\n' >"$r/db.sql"
+    printf 'x\n' >"$r/secrets/dump.sql"
+    printf 'x\n' >"$r/web/readme.txt"
+    case "$i" in
+    q1 | q2) ln -s ../d1/../db.sql "$r/public/x.sql" ;;
+    q3) ln -s ../web "$r/public/a" && ln -s ../d1/../db.sql "$r/web/f.sql" ;;
+    q4) ln -s ../d1/../secrets "$r/public/a" ;;
+    esac
+    [[ "$i" == q2 ]] && printf 'f\n' >"$r/d1"
+    st_base "$r"
+    rm -f "$r/d1"
+    mkdir -p "$r/d1"
+    printf 'k\n' >"$r/d1/keep.txt"
+    st_commit "$r" change
+    case "$i" in
+    q1 | q2) st_diff_case "chain-$i" "M1 ${i}: a dump link made live through d1/.. is reported" $'dump-archive-backup\tcritical\tpublic/x.sql\t'
+      st_check "chain: M1 ${i}: the same link is a symlink-permission finding" \
+        st_line $'symlink-permission\thigh\tpublic/x.sql\ttarget=../d1/../db.sql resolves=db.sql' ;;
+    q3) st_diff_case "chain-$i" 'M1 q3: the start link of a nested link made live through d1/.. is reported' \
+      $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web' ;;
+    q4) st_diff_case "chain-$i" 'M1 q4: a directory link made live through d1/.. is reported' \
+      $'symlink-permission\thigh\tpublic/a\ttarget=../d1/../secrets resolves=secrets' ;;
+    esac
   done
-  st_base "$r"
-  printf 'x\n' >"$r/web/d1/new.txt"
-  st_commit "$r" change
-  st_run chain-many static --root "$r" --changed-from "$ST_BASE"
-  st_check 'chain: more than 40 directory links below a served target is a not-verified line, exit 3' \
-    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: public/a/ - more than 40 directory symlinks' "$ST_TMP/out.chain-many")"
 
   # A link target that ends in a newline: web<LF> and dir<LF> lead out of the project.
   o2="$ST_TMP/outside-nl"
@@ -1622,13 +1538,14 @@ st_served() {
   ln -s "../$3" "$r/public/$2"
 }
 
-# A link below a served directory: a change to any symlink makes the review report every finding of the
-# static scan (scope=tree); a change to a regular file that such a link serves keeps the link in scope.
+# A link below a served directory: whatever the change re-points, adds, or edits below it, the review
+# reports the scan-root link that serves the directory (leonardo P1 to P6, splinter a to e).
 st_served_cases() {
   local r i link target chg name
 
-  # public/a -> ../web, web/b -> ../hop, hop -> data; the change re-points hop to config, then out.
-  for i in config:p1 ../out:p3; do
+  # public/a -> ../web, web/b -> ../hop, hop -> data; the change re-points hop to config, the project
+  # root, then out.
+  for i in config:p1 .:p2 ../out:p3; do
     st_served "served-${i##*:}" a web
     mkdir -p "$r/data" "$r/config"
     printf 'x\n' >"$r/data/a.txt"
@@ -1641,7 +1558,6 @@ st_served_cases() {
     st_commit "$r" change
     st_diff_case "served-${i##*:}" "a changed middle link hop -> ${i%%:*} of a nested link reports the scan" \
       $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
-    st_check "served: a changed symlink prints the tree scope (hop -> ${i%%:*})" st_line 'mode=static scope=tree'
   done
 
   # P5: web/f.txt -> ../hopf -> notes.txt; the change re-points hopf at a dump.
@@ -1686,6 +1602,18 @@ st_served_cases() {
   st_diff_case served-b 'a nested directory link re-pointed at a directory with a dump reports the scan' \
     $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
 
+  # P6: web/m -> ../media; the change replaces media with a link to the project root.
+  st_served served-p6 a web
+  mkdir -p "$r/media"
+  printf 'png\n' >"$r/media/a.png"
+  ln -s ../media "$r/web/m"
+  st_base "$r"
+  rm -rf "${r:?}/media"
+  ln -s . "$r/media"
+  st_commit "$r" change
+  st_diff_case served-p6 'a nested target directory replaced by a link to the project root reports the scan' \
+    $'symlink-permission\thigh\tpublic/a\ttarget=../web resolves=web'
+
   # P4 and (d): a dangling nested file link whose target the change adds; (e): its target changes.
   for i in other/real.sql:p4 db/dump:d db/seed:e; do
     st_served "served-${i##*:}" media media
@@ -1697,13 +1625,8 @@ st_served_cases() {
     st_base "$r"
     printf 'y\n' >"$r/${i%%:*}"
     st_commit "$r" change
-    st_diff_case "served-${i##*:}" "a nested file link whose target ${i%%:*} the change adds or edits is in scope" \
-      $'dump-archive-backup\tcritical\tpublic/media/x.sql\t'
-    st_check "served: the same change keeps the nested link finding (${i##*:})" \
-      st_line $'symlink-permission\thigh\tpublic/media/x.sql\ttarget=../'"${i%%:*} resolves=${i%%:*}"
-    st_check "served: the same change keeps the scan-root link in scope (${i##*:})" \
-      st_line $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
-    st_check "served: a change to a regular file keeps the diff scope (${i##*:})" st_line 'mode=static scope=diff'
+    st_diff_case "served-${i##*:}" "a nested file link whose target ${i%%:*} the change adds or edits reports the scan" \
+      $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
   done
 
   # Attacks: a two-link nested file chain whose end the change edits; a nested link whose missing
@@ -1720,8 +1643,8 @@ st_served_cases() {
     mkdir -p "$r/${chg%/*}"
     printf 'y\n' >"$r/$chg"
     st_commit "$r" change
-    st_diff_case "served-$name" "a nested file link served through ${target} is in scope when ${chg} changes" \
-      $'dump-archive-backup\tcritical\tpublic/media/'"${link#media/}"$'\t'
+    st_diff_case "served-$name" "a nested file link served through ${target} reports the scan when ${chg} changes" \
+      $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
   done
 
   # Attack: the change adds a symlink whose name ends in a newline; the raw diff record still reads it.
@@ -1733,9 +1656,8 @@ st_served_cases() {
   st_commit "$r" change
   st_diff_case served-nl 'an added symlink whose name ends in a newline reports the scan' \
     $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
-  st_check 'served: that change prints the tree scope' st_line 'mode=static scope=tree'
 
-  # Guard: the change touches no symlink and no path that serves the nested link.
+  # M2: the change touches no symlink, no public path, and no path that serves the nested link.
   st_served served-quiet media media
   mkdir -p "$r/db" "$r/docs"
   printf 'x\n' >"$r/db/seed"
@@ -1743,9 +1665,69 @@ st_served_cases() {
   st_base "$r"
   printf 'x\n' >"$r/docs/notes.txt"
   st_commit "$r" change
-  st_run served-quiet static --root "$r" --changed-from "$ST_BASE"
-  st_check 'served: a change to no symlink and no serving path completes clean, exit 0' test "$ST_RC" = 0
-  st_check 'served: that change keeps the diff scope' st_line 'mode=static scope=diff'
+  st_diff_case served-quiet 'a change to no symlink and no serving path still reports the existing link' \
+    $'symlink-permission\thigh\tpublic/media\ttarget=../media resolves=media'
+}
+
+# st_gitlink <dir> <path> <object id>: record a git submodule (a gitlink) in the index of the fixture,
+# with the empty directory that a checkout without the submodule leaves.
+st_gitlink() {
+  mkdir -p "$1/$2"
+  git -C "$1" update-index --add --cacheinfo "160000,$3,$2"
+}
+
+# st_clean <name>: a Laravel layout in r with no finding; its .gitignore ignores every probe.
+st_clean() {
+  r="$ST_TMP/$1"
+  mkdir -p "$r/public" "$r/storage/app/public"
+  printf '<?php\n' >"$r/public/index.php"
+  printf '%s\n' "$GITIGNORE_PROBES" >"$r/.gitignore"
+  (cd "$r" && git init -q) >/dev/null 2>&1
+}
+
+# S6: a git submodule is never read, so it is a not-verified line and the scan never exits 0 over it.
+st_submodule_cases() {
+  local r
+
+  # The change adds a submodule under public/.
+  st_clean sub-add
+  st_base "$r"
+  st_gitlink "$r" public/vendor 3333333333333333333333333333333333333333
+  st_commit "$r" change
+  st_run sub-add static --root "$r" --changed-from "$ST_BASE"
+  st_check 'submodule: a submodule the change adds under public/ is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: public/vendor - the change adds, removes, or updates a git submodule' "$ST_TMP/out.sub-add")"
+  st_check 'submodule: that submodule is named once' test "$(grep -c -F 'public/vendor' "$ST_TMP/out.sub-add")" = 1
+  st_run sub-add-tree static --root "$r"
+  st_check 'submodule: the static mode reports a submodule under public/ that is not checked out, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: public/vendor - a git submodule that is not checked out' "$ST_TMP/out.sub-add-tree")"
+  printf 'gitdir: elsewhere\n' >"$r/public/vendor/.git"
+  st_run sub-add-tree static --root "$r"
+  st_check 'submodule: a submodule under public/ that is checked out is read, so its .git is a finding, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'env-config-copy\tcritical\tpublic/vendor/.git\t' "$ST_TMP/out.sub-add-tree")"
+
+  # The change moves a submodule outside the scan roots to another commit, and the .gitmodules of the
+  # branch sets ignore = all for it.
+  st_clean sub-bump
+  st_gitlink "$r" modules/theme 1111111111111111111111111111111111111111
+  st_base "$r"
+  git -C "$r" update-index --cacheinfo 160000,2222222222222222222222222222222222222222,modules/theme
+  printf '[submodule "theme"]\n\tpath = modules/theme\n\turl = ../theme\n\tignore = all\n' >"$r/.gitmodules"
+  st_commit "$r" change
+  st_run sub-bump static --root "$r" --changed-from "$ST_BASE"
+  st_check 'submodule: a submodule bump that .gitmodules marks ignore = all is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: modules/theme - the change adds, removes, or updates a git submodule' "$ST_TMP/out.sub-bump")"
+  st_run sub-bump-tree static --root "$r"
+  st_check 'submodule: an unchanged submodule outside every scan root and deployment directory is no line, exit 0' test "$ST_RC" = 0
+
+  # A submodule above a scan root that is not checked out hides the public disk.
+  st_clean sub-above
+  rm -rf "${r:?}/storage"
+  st_gitlink "$r" storage 4444444444444444444444444444444444444444
+  st_commit "$r" base
+  st_run sub-above static --root "$r"
+  st_check 'submodule: a submodule above storage/app/public that is not checked out is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: storage - a git submodule that is not checked out' "$ST_TMP/out.sub-above")"
 }
 
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
@@ -1850,6 +1832,7 @@ self_test() {
   st_confine_cases
   st_chain_cases
   st_served_cases
+  st_submodule_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
