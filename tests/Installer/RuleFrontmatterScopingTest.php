@@ -483,7 +483,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // leaves out the criteria section when the assignment states none, and the review summary holds 500 characters.
         // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
         // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines, and a fence in a list item is bound by a stack of item offsets (issue #589).
-        'rules/code-review/general.md' => '06147cf97d420746b7b6387c496cef36e4c55543874b93d1ae624bc391ad58c2',
+        'rules/code-review/general.md' => 'd89bcef710c0810c2606ff320d9f890f127101ac06b8cd651f5413345e833e01',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
