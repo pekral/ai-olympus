@@ -12,6 +12,8 @@
 > - **The Merge Risk grade and its sentence** come from the `Merge risk:` line of the hidden record, the one owner of both (`@rules/code-review/general.md` *Merge risk*). The block adds the colour (🟢 low, 🟡 medium, 🔴 high) and the short SHA of the reviewed head.
 > - **The Actionable comments** come from the findings file: one entry for every published finding, on a changed line or not, Critical first. The review carries no inline comment, so this block is the one place a person reads a finding. A security finding marked `do not file publicly` on a public repository is in no block (the check of `@skills/code-review-github/references/cr-wrapper-contract.md` *Findings in the review body*).
 >
+> **A later review shows only the changes since the previous published review.** When the pull request already carries a trusted code-review report (`@rules/code-review/general.md` *Baseline resolution*, source 2) and its `Reviewed revision:` is an earlier commit of the reviewed head (`git merge-base --is-ancestor`), the summary, the Walkthrough, and Where to test describe only `git diff <that revision>..<reviewed head>`. The walkthrough file sets `since` to that revision, so the wrapper checks every area against the files of that range and shows `since <short SHA>` in the Walkthrough summary. The summary never repeats what the previous review already described. Two blocks still cover the whole pull request: **Merge Risk** grades the merge, and **Actionable comments** lists every open finding, new and carried over, because the newest review is the evidence the merge gate reads. The hidden record keeps its own rules (`@skills/code-review-github/references/cr-wrapper-contract.md` *GitHub pull-request review*). The first review, and a review whose previous revision is no earlier commit of the head after a history rewrite, describe the whole pull request and leave `since` out.
+>
 > **The summary holds at most 500 characters.** The wrapper counts code points of the normalised text (control characters removed, the text trimmed, and encoded as *Every value renders as text* states) and refuses a longer text with exit `1` and nothing posted. It never cuts a text. The author rewrites the summary shorter and publishes again. The summary is plain sentences: no line of it starts with `#`, `>`, `|`, or `<` once the control characters are removed.
 >
 > **Every value renders as text.** The wrapper encodes each value from the walkthrough, the record, and the findings once, before it renders it: `&`, `<`, `>`, `|`, and `\` become HTML entities, `![` loses its image markup, a backtick that closes no code span on its line becomes an entity, and a line loses its indent, a leading `#`, and a run of `-`, `=`, `*`, or `_`.
@@ -20,7 +22,7 @@
 > **Name no tooling of this package.** Every visible text follows `@rules/code-review/general.md` *Visible review text names none of the package's own tooling*. The wrapper checks the summary, the Merge Risk sentence, the Walkthrough, Where to test, and the Actionable comments.
 
 ````markdown
-{what the pull request changes, in plain sentences; at most 500 characters; no label, no heading, no code}
+{what the pull request changes, or on a later review what changed since the previous published review, in plain sentences; at most 500 characters; no label, no heading, no code}
 
 <details>
 <summary><strong>Merge Risk:</strong> <strong>{🟢 Low | 🟡 Medium | 🔴 High}</strong> · up to <code>{short SHA}</code></summary>
@@ -35,7 +37,7 @@
 </details>
 
 <details>
-<summary><strong>Walkthrough</strong></summary>
+<summary><strong>Walkthrough</strong>{ · since <code>{short SHA of the previous review}</code>, only on a later review}</summary>
 <dl>
 <dd>
 <br>

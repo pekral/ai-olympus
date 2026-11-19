@@ -66,6 +66,11 @@
 #                                  Critical) comes from the level
 #                    change_type   required: Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, Chore
 #                    diagram       optional, a mermaid `sequenceDiagram` of 60 lines at most, for a change with a flow
+#                    since         optional, the full SHA of the head the previous published review reviewed. Set, the
+#                                  walkthrough covers the changes since that commit only: every file of an area is a file
+#                                  that `compare/<since>...<head>` changes, the tests-only exception reads that file list,
+#                                  and the Walkthrough summary shows `since <short SHA>`. A since that is not an earlier
+#                                  commit of the head is refused (exit 1): leave it out and describe the whole pull request
 #                    test_routes   optional, 1 to 30 rows {method, path, try}: each page or route the change touches, from
 #                                  the route inventory of the security review (never from a running application), as an
 #                                  HTTP method (GET, POST, PUT, PATCH, DELETE), a path that starts with `/`, and one short
@@ -350,7 +355,8 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 def testfile: ascii_downcase | test($test_re);
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
-| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes"]) | length) == 0; "the walkthrough holds an unknown key")
+| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes", "since"]) | length) == 0; "the walkthrough holds an unknown key")
+| req(.since == null or (.since | type == "string" and test("^[0-9a-f]{40}$")); "walkthrough since must be a full 40-character commit SHA when set")
 | req(.tldr | isstr(1000); "walkthrough tldr must be 1 to 500 characters")
 | req(.tldr | printable | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
 | req(.description | isstr(1500); "walkthrough description must be 1 to 1500 characters")
@@ -362,13 +368,14 @@ def testfile: ascii_downcase | test($test_re);
 | req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
     and ((.files | type) == "array") and (.files | length) >= 1 and (.files | length) <= 500 and (.files | all(relpath))); "every walkthrough area needs a layer, a summary, and 1 to 500 relative file paths")
-| req([.areas[].files[]] | all(. as $f | $changed[$f] == true); "a walkthrough area names a file that the pull request does not change")
+| req([.areas[].files[]] | all(. as $f | $changed[$f] == true); "a walkthrough area names a file that the reviewed changes do not touch")
 | req(($changed | keys | all(testfile)) or ([.areas[].files[]] | all(testfile | not)); "a walkthrough area names a test file: the walkthrough lists no test file unless the pull request changes only tests")
 | req(.effort | type == "object" and ((keys - ["level", "minutes"]) | length) == 0 and (.level | isint) and .level <= 5 and (.minutes | isint) and .minutes <= 999; "walkthrough effort needs a level of 1 to 5 and minutes of 1 to 999")
 | req(.change_type as $c | ["Feature", "Bug fix", "Refactor", "Performance", "Security", "Tests", "Documentation", "Chore"] | any(. == $c); "walkthrough change_type must be Feature, Bug fix, Refactor, Performance, Security, Tests, Documentation, or Chore")
 | req(.diagram == null or (.diagram | type == "string" and length <= 4000 and (printable | test("^sequenceDiagram") and nocode and (test("<!--") | not) and ((split("\n") | length) <= 60))); "the walkthrough diagram must be a mermaid sequenceDiagram of 60 lines at most, with no fenced block and no comment marker")
 | {
     tldr: (.tldr | printable | gsub("^\\s+|\\s+$"; "") | inert),
+    since: (.since | if . == null then null else .[0:7] end),
     title: (.title | if . == null then null else oneline | inert end),
     description: (.description | oneline | inert),
     areas: [.areas[] | {layer: (.layer | cell), summary: (.summary | cell),
@@ -404,7 +411,7 @@ def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<
     + ["**Estimated code review effort:** \($walk.effort)\n**Change:** \($walk.change_type)"]
     + (if $walk.diagram == null then [] else ["### Sequence Diagram(s)", "```mermaid\n\($walk.diagram)\n```"] end))
    | join("\n\n")) as $walk_content
-| collapsed("<strong>Walkthrough</strong>"; $walk_content) as $walk_block
+| collapsed("<strong>Walkthrough</strong>" + (if $walk.since == null then "" else " · since <code>\($walk.since)</code>" end); $walk_content) as $walk_block
 | (if ($walk.routes | length) == 0 then null else collapsed("<strong>Where to test</strong>"; (["| Method and path | What to try |", "| :--- | :--- |"] + $walk.routes) | join("\n")) end) as $test_block
 | (if ($entries | length) == 0 then null
    else collapsed("<strong>Actionable comments (\($entries | length))</strong>"; $entries | join("\n\n")) end) as $actionable_block
@@ -592,7 +599,22 @@ cmd_post() {
     || die 3 "repository tree lookup on ${NWO}@${commit} returned no path list, nothing was published"
   jq -r '.[] | (.patch // "") | split("\n")[] | select(test("^[+-]")) | .[1:]' "$TMP_ROOT/files.json" >"$TMP_ROOT/diff-text.txt" 2>/dev/null \
     || die 3 "changed file lookup on ${NWO}#${NUMBER} returned no patch text, nothing was published"
-  jq --arg test_re "$TEST_RE" --slurpfile files "$TMP_ROOT/files.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
+  # A walkthrough with `since` covers the changes since the previous published review: its areas are checked against
+  # the files the compare of that commit and the head changes, never against the whole pull request.
+  cp "$TMP_ROOT/files.json" "$TMP_ROOT/scope.json"
+  local since="" compare_status=""
+  since="$(jq -r 'if type == "object" then .since // empty | strings else empty end' "$walk_file" 2>/dev/null || true)"
+  if [[ -n "$since" ]]; then
+    [[ "$since" =~ ^[0-9a-f]{40}$ ]] || die 1 "the walkthrough was refused, nothing was published: walkthrough since must be a full 40-character commit SHA when set"
+    gh api "repos/${NWO}/compare/${since}...${commit}" >"$TMP_ROOT/compare.json" 2>"$TMP_ROOT/compare.err" \
+      || die 3 "compare lookup of ${since}...${commit} failed on ${NWO}, nothing was published: $(cat "$TMP_ROOT/compare.err")"
+    compare_status="$(jq -r '.status // empty' "$TMP_ROOT/compare.json" 2>/dev/null || true)"
+    [[ "$compare_status" == "ahead" ]] \
+      || die 1 "the walkthrough was refused, nothing was published: since ${since} is not an earlier commit of the head ${commit} (compare status: ${compare_status:-none}); leave since out and describe the whole pull request"
+    jq '.files // []' "$TMP_ROOT/compare.json" >"$TMP_ROOT/scope.json" 2>/dev/null \
+      || die 3 "compare lookup of ${since}...${commit} on ${NWO} returned no file list, nothing was published"
+  fi
+  jq --arg test_re "$TEST_RE" --slurpfile files "$TMP_ROOT/scope.json" "$JQ_DEFS"$'\n'"$JQ_WALK" "$walk_file" >"$TMP_ROOT/walk.json" 2>"$TMP_ROOT/walk.err" \
     || die 1 "the walkthrough was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/walk.err" | head -n 1)"
 
   jq --argjson private "$private" "$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
@@ -763,6 +785,10 @@ case "$*" in
     if [[ "$*" == *"cursor="* ]]; then cat "$GH_THREADS_2"; else cat "$GH_THREADS_1"; fi
     ;;
   "api repos/o/r/pulls/7/files"*) cat "$GH_FILES" ;;
+  "api repos/o/r/compare/"*)
+    if [[ "${GH_COMPARE_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
+    cat "$GH_COMPARE"
+    ;;
   "api repos/o/r/git/trees/"*)
     if [[ "${GH_TREE_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
     cat "$GH_TREE"
@@ -838,7 +864,7 @@ MD
     : >"$tmp/ledger.audit"
     rm -f "$tmp/review.json"
     set +e
-    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
+    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_COMPARE="${GH_COMPARE_FILE:-$tmp/compare.ahead}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_GRAPHQL_CALLS="$tmp/graphql.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" --walkthrough-file "${WALK_FILE:-$tmp/walk.json}" - <<<"$findings" 2>"$tmp/stderr")"
@@ -1331,6 +1357,27 @@ Outside the diff.
   printf '[{"filename":"tests/Feature/ATest.php","patch":"@@ -1 +1 @@\\n+x"},{"filename":"phpunit.xml","patch":"@@ -1 +1 @@\\n+x"}]' >"$tmp/files.tests-and-config.json"
   GH_FILES_FILE="$tmp/files.tests-and-config.json" WALK_FILE="$tmp/walk-only-test.json" run_post "[]"
   check 'a pull request that changes tests and phpunit.xml only is a tests-only pull request, as classify-risk.sh grades it' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  # 10b. a walkthrough with since covers the changes since the previous published review only
+  local since_sha="cccccccccccccccccccccccccccccccccccccccc"
+  printf '{"status":"ahead","files":[{"filename":"src/A.php"}]}' >"$tmp/compare.ahead"
+  printf '{"status":"diverged","files":[{"filename":"src/A.php"}]}' >"$tmp/compare.diverged"
+  printf '{"status":"ahead","files":[{"filename":"tests/Feature/ATest.php"}]}' >"$tmp/compare.only-test"
+  jq -c --arg s "$since_sha" '.since = $s' "$tmp/walk.json" >"$tmp/walk-since.json"
+  WALK_FILE="$tmp/walk-since.json" run_post "[]"
+  check 'a walkthrough with since is published and its summary names the earlier commit' "$([[ $rc -eq 0 ]] && yes_if jq -e '.body | contains("<summary><strong>Walkthrough</strong> · since <code>ccccccc</code></summary>")' "$tmp/review.json" || echo no)"
+  WALK_FILE="$tmp/walk.json" run_post "[]"
+  check 'a walkthrough without since shows no since in its summary' "$([[ $rc -eq 0 ]] && yes_if jq -e '.body | contains("<summary><strong>Walkthrough</strong></summary>")' "$tmp/review.json" || echo no)"
+  GH_FILES_FILE="$tmp/files.with-test.json" GH_COMPARE_FILE="$tmp/compare.ahead" WALK_FILE="$(jq -c --arg s "$since_sha" '.since = $s | .areas = [{layer: "Tests", files: ["tests/Feature/ATest.php"], summary: "s"}]' "$tmp/walk.json" >"$tmp/walk-since-test.json" && echo "$tmp/walk-since-test.json")" run_post "[]"
+  check 'a walkthrough with since may not name a file the changes since that commit do not touch' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'reviewed changes do not touch' "$tmp/stderr" && echo yes || echo no)"
+  GH_FILES_FILE="$tmp/files.with-test.json" GH_COMPARE_FILE="$tmp/compare.only-test" WALK_FILE="$tmp/walk-since-test.json" run_post "[]"
+  check 'changes since the earlier commit that touch only tests may list their test files' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  GH_COMPARE_FILE="$tmp/compare.diverged" WALK_FILE="$tmp/walk-since.json" run_post "[]"
+  check 'a since that is not an earlier commit of the head is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'is not an earlier commit of the head' "$tmp/stderr" && echo yes || echo no)"
+  WALK_FILE="$tmp/walk-since.json" run_post "[]" GH_COMPARE_FAILS=1
+  check 'a failed compare lookup exits 3 and posts nothing' "$([[ $rc -eq 3 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
+  jq -c '.since = "abc"' "$tmp/walk.json" >"$tmp/walk-since-bad.json"
+  WALK_FILE="$tmp/walk-since-bad.json" run_post "[]"
+  check 'a since that is no full commit SHA is refused and nothing is posted' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'full 40-character commit SHA' "$tmp/stderr" && echo yes || echo no)"
   WALK_FILE="$tmp/does-not-exist.json" run_post "[$f_in]"
   check 'a missing walkthrough file publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'cannot read the walkthrough file' "$tmp/stderr" && echo yes || echo no)"
   set +e
