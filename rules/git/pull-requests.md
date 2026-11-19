@@ -30,6 +30,7 @@ This section is the GitHub mechanic for `@rules/compound-engineering/tracker.md`
   - **Over 600 characters, the section is a `<details>` block.** The heading line becomes the summary: `<details>`, then `<summary><strong><heading text></strong></summary>`, a blank line, the content, a blank line, and `</details>`.
   - **At most 600 characters, the section stays an open `##` section.**
   - **`## Merge risk` is never folded,** whatever its length. A heading inside any `<details>` block counts as folded, whether the block is bare or has a plain or multi-line `<summary>`.
+  - **No hand-written HTML stands above `## Merge risk`.** The template opens with that section, so only the issue-link line stands above it. The check refuses a `<details`, `</details`, `<!--`, or `-->` token anywhere above it, in any case, because it cannot prove how GitHub renders the section under such HTML. Remove the HTML.
   - **No text stands between a `</details>` and the next section.** The template defines no such place, and no count reads that text.
   - **A folded section is the same section for every reader of the body.** A rule or a skill that names a body section by its `## <name>` heading finds the folded form under that name.
   - **No fixed list of folded sections exists.** Walkthrough, Testing, and Audit fold only when they are over the limit, as every other section does.
