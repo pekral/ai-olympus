@@ -23,7 +23,8 @@
 #   public-files-scan.sh --self-test
 #
 # static (default mode of the skill)
-#   Scans public/ and storage/app/public/ of the project root on disk. The scan stays inside the
+#   Scans public/, storage/app/public/, and the directories that config/filesystems.php links, of the
+#   project root on disk. The scan stays inside the
 #   physical project root: resolve_link follows every path one component at a time and never reads,
 #   lists, or stats an entry outside it. A scan root behind a symlink is decided first:
 #     - the symlink resolves to a project directory: the root is scanned at that physical directory,
@@ -35,6 +36,30 @@
 #   A deployment directory is decided the same way. Below a scan root it does not descend into a
 #   symlinked directory and does not descend into a .git entry. An entry find cannot read is a
 #   not-verified line.
+#   The directories that config/filesystems.php serves are scan roots too, in every run. `php artisan
+#   storage:link` links each entry of its `links` array into public/, so the scan reads every entry
+#   as data (LINKS_AWK; it runs no PHP and reads no environment value) and scans each target as it
+#   scans storage/app/public/, with the same checks, named by its path below the project root. A
+#   target is read only as a helper call with one literal argument (storage_path, base_path,
+#   public_path, app_path, resource_path, database_path, config_path, lang_path, bootstrap_path). The
+#   cases that follow:
+#     - the target lies at or below a root already scanned: nothing more is read, and no path is
+#       reported twice;
+#     - the target is a directory above a root already scanned: it is scanned, and the paths of the
+#       root already scanned are reported once;
+#     - the target is the project root, or leaves it: one symlink-permission finding on
+#       config/filesystems.php that names the line, and nothing is read;
+#     - the target is a symlink: it is decided as a scan root above;
+#     - the target does not exist: nothing is served and no line is printed;
+#     - an entry that is not a helper call with one literal argument (a variable, an env() or
+#       config() call, a concatenation, an interpolated string), and a `links` key whose value is not
+#       an array literal: a not-verified line that names the config line and never the entry;
+#     - a config that is a symlink leaving the project, or is not readable, or exceeds 1 MiB: a
+#       not-verified line.
+#   Two other ways to declare a served directory are not read statically, so a file that holds one is
+#   a not-verified line: bootstrap/app.php, public/index.php, a provider of app/Providers, or a file
+#   of config/ that calls usePublicPath, and a provider or a file of config/ that names
+#   filesystems.links.
 #   --changed-from <base> is the review mode of a code review. The review reports every finding of the
 #   full static scan, never only the findings of the diff, so a finding that already exists in the
 #   project blocks the pull request too: a fail-safe. The base serves only the submodule check below.
@@ -48,7 +73,8 @@
 # runtime (explicit request only)
 #   Runs the name checks and the symlink check of the static mode on public/ and storage/app/public/
 #   and sends one HEAD request per finding path, plus /.env, to the base URL. A scan root the static
-#   mode would not read is a not-verified line. It accepts only a base
+#   mode would not read is a not-verified line. A directory that config/filesystems.php links is not
+#   probed: it is a not-verified line, and so is each static finding of that file. It accepts only a base
 #   URL whose host is localhost, a name under .localhost or .test, an address in 127.0.0.0/8, or [::1],
 #   with no user information, path, query, or fragment; any other target is refused with exit 4 before
 #   a request. Every accepted name is pinned to the loopback address: curl gets
@@ -68,7 +94,8 @@
 #   log-debug              high      history-scan.sh classify rule log-file; and *.log.<digit>*,
 #                                    *.log.gz, error_log, php_errors*, *.trace, *.prof,
 #                                    cachegrind.out.*, phpinfo.php, info.php, debug.php
-#   public-storage-script  high      in storage/app/public/ only: *.php, *.php<digit>, *.phtml, *.pht,
+#   public-storage-script  high      in storage/app/public/ and in each directory a links entry
+#                                    serves: *.php, *.php<digit>, *.phtml, *.pht,
 #                                    *.phar, *.phps, *.shtml, *.sh, *.cgi, *.pl, *.py, .htaccess,
 #                                    .user.ini, and a regular file with an execute bit
 #   symlink-permission     high      a symlink below a scan root whose target resolves outside the
@@ -215,7 +242,8 @@ PUB_P=''
 DISK_P=''
 declare -a PATHS=() PATHS_P=() KINDS=() SHARED=() CLASS=() LINK_IDX=() LINK_EV=()
 declare -a LINK_TRAIL=() LINK_TRAIL_RAW=() SCAN_ROOTS=() SCAN_PHYS=() ROOT_FIND=() ROOT_FEV=()
-declare -a DEPLOY_REL=() DEPLOY_ABS=()
+declare -a DEPLOY_REL=() DEPLOY_ABS=() CFG_FIND=() CFG_FEV=() DISK_EXTRA=()
+EXTRA_FROM=0
 
 emit() {
   # emit <check> <severity> <path> <evidence>
@@ -442,41 +470,237 @@ find_errors() {
 # finding unless the directory lies in public/ or storage/app/public/. A root whose symlink leaves the
 # project, or resolves to the project root or to a file, is a finding and is never read. SCAN_ROOTS
 # and SCAN_PHYS hold the roots to scan; ROOT_FIND and ROOT_FEV hold the root findings. PUB_P and
-# DISK_P hold the physical directory of public/ and storage/app/public/ when they are scanned.
+# DISK_P hold the physical directory of public/ and storage/app/public/ when they are scanned. The
+# directories that config/filesystems.php links follow as extra roots (config_roots).
 root_checks() {
-  local dir rc
+  local dir
   SCAN_ROOTS=()
   SCAN_PHYS=()
   ROOT_FIND=()
   ROOT_FEV=()
+  CFG_FIND=()
+  CFG_FEV=()
+  DISK_EXTRA=()
   PUB_P=''
   DISK_P=''
-  for dir in public storage/app/public; do
-    resolve_link "$ROOT_P/$dir"
-    rc=$?
-    if ((${#LINK_TRAIL[@]} == 0)); then
-      ((rc == 0)) && [[ -d "$RESOLVED" ]] && add_root "$dir"
-      continue
-    fi
-    if ((rc == 1)); then
-      not_verified "$dir/ - the symlink does not resolve to a directory; restore its target and run the scan again"
-      continue
-    fi
-    if ((rc == 0)) && [[ -d "$RESOLVED" && "$RESOLVED" != "$ROOT_P" ]]; then
-      add_root "$dir"
-      [[ "$RESOLVED" == "$ROOT_P/public" || "$RESOLVED" == "$ROOT_P"/public/* ||
-        "$RESOLVED" == "$ROOT_P/storage/app/public" || "$RESOLVED" == "$ROOT_P"/storage/app/public/* ]] && continue
-    fi
-    ROOT_FIND+=("$dir")
-    ROOT_FEV+=("$(trail_ev "$rc")")
-  done
+  for dir in public storage/app/public; do decide_root "$dir"; done
+  EXTRA_FROM=${#SCAN_ROOTS[@]}
+  config_roots
+  served_path_overrides
 }
 
-# add_root <root path>: scan the root at RESOLVED, its physical directory.
+# decide_root <relative directory>: the decision of one scan root, as root_checks states it. An extra
+# root that lies at or below a root already scanned adds nothing.
+decide_root() {
+  local dir="$1" rc
+  resolve_link "$ROOT_P/$dir"
+  rc=$?
+  if ((${#LINK_TRAIL[@]} == 0)); then
+    ((rc == 0)) && [[ -d "$RESOLVED" ]] && ! in_scan_roots "$RESOLVED" && add_root "$dir"
+    return 0
+  fi
+  if ((rc == 1)); then
+    not_verified "$dir/ - the symlink does not resolve to a directory; restore its target and run the scan again"
+    return 0
+  fi
+  if ((rc == 0)) && [[ -d "$RESOLVED" && "$RESOLVED" != "$ROOT_P" ]]; then
+    in_scan_roots "$RESOLVED" && return 0
+    add_root "$dir"
+    [[ "$RESOLVED" == "$ROOT_P/public" || "$RESOLVED" == "$ROOT_P"/public/* ||
+      "$RESOLVED" == "$ROOT_P/storage/app/public" || "$RESOLVED" == "$ROOT_P"/storage/app/public/* ]] && return 0
+  fi
+  ROOT_FIND+=("$dir")
+  ROOT_FEV+=("$(trail_ev "$rc")")
+}
+
+# add_root <root path>: scan the root at RESOLVED, its physical directory. A root other than public/
+# and storage/app/public/ is a directory that a links entry serves, and it gets the checks of the
+# public disk.
 add_root() {
   SCAN_ROOTS+=("$1")
   SCAN_PHYS+=("$RESOLVED")
-  if [[ "$1" == public ]]; then PUB_P="$RESOLVED"; else DISK_P="$RESOLVED"; fi
+  case "$1" in
+  public) PUB_P="$RESOLVED" ;;
+  storage/app/public) DISK_P="$RESOLVED" ;;
+  *) DISK_EXTRA+=("$1") ;;
+  esac
+}
+
+# --- the directories that the configuration serves --------------------------------------------------
+
+# `php artisan storage:link` creates a symlink in public/ for every entry of the `links` array of
+# config/filesystems.php, so each target is a directory that the web server serves, whichever path the
+# change touches. LINKS_AWK reads that array as data and never runs it. It prints one record per entry:
+#   <line> TAB OK TAB <path below the project root, "." for the root>
+#   <line> TAB OUT                  the path leaves the project root
+#   <line> TAB NV                   the entry is not a helper call with one literal argument
+# An entry the awk program cannot read to a literal path, and a `links` key whose value is not an array
+# literal, are NV. The record never carries the text of an entry, so a value that comes from env() is
+# never echoed, and the scan reads no environment value.
+# shellcheck disable=SC2016  # the awk program is single-quoted on purpose: its $ is awk text, not shell
+LINKS_AWK='
+function push(type, val, lno) { n++; tt[n] = type; tv[n] = val; tl[n] = lno }
+function lex(s, lno,    i, c, d, len, w) {
+  len = length(s); i = 1
+  while (i <= len) {
+    c = substr(s, i, 1); d = substr(s, i, 2)
+    if (inblk) { if (d == "*/") { inblk = 0; i += 2 } else i++; continue }
+    if (instr) {
+      if (c == "\\") { buf = buf substr(s, i + 1, 1); i += 2; continue }
+      if (c == q) { push(dyn ? "D" : "S", buf, sl); instr = 0; i++; continue }
+      if (q == "\"" && c == "$") dyn = 1
+      buf = buf c; i++; continue
+    }
+    if (c == " " || c == "\t" || c == "\r") { i++; continue }
+    if (d == "//" || (c == "#" && substr(s, i + 1, 1) != "[")) return
+    if (d == "/*") { inblk = 1; i += 2; continue }
+    if (c == sq || c == "\"") { instr = 1; q = c; buf = ""; dyn = 0; sl = lno; i++; continue }
+    if (d == "=>") { push("A", "=>", lno); i += 2; continue }
+    if (c ~ /[A-Za-z_\\]/) {
+      w = ""
+      while (i <= len && substr(s, i, 1) ~ /[A-Za-z0-9_\\]/) { w = w substr(s, i, 1); i++ }
+      push("I", w, lno); continue
+    }
+    push("P", c, lno); i++
+  }
+  if (instr) buf = buf "\n"
+}
+function helper(name) {
+  sub(/^\\/, "", name)
+  if (name == "storage_path") return "storage"
+  if (name == "base_path") return "/"
+  if (name == "public_path") return "public"
+  if (name == "app_path") return "app"
+  if (name == "resource_path") return "resources"
+  if (name == "database_path") return "database"
+  if (name == "config_path") return "config"
+  if (name == "lang_path") return "lang"
+  if (name == "bootstrap_path") return "bootstrap"
+  return ""
+}
+function entry(a, b,    k, depth, m, base, arg, parts, np, j, out, ns, stack) {
+  if (b < a) return
+  depth = 0; m = 0
+  for (k = a; k <= b; k++) {
+    if (tt[k] == "P" && tv[k] ~ /^[\[\(\{]$/) depth++
+    else if (tt[k] == "P" && tv[k] ~ /^[\]\)\}]$/) depth--
+    else if (tt[k] == "A" && depth == 0) { m = k; break }
+  }
+  k = (m ? m + 1 : a)
+  if (!(tt[k] == "I" && (base = helper(tv[k])) != "" && tt[k + 1] == "P" && tv[k + 1] == "(")) { print tl[a] "\tNV"; return }
+  arg = ""
+  if (tt[k + 2] == "S" && tt[k + 3] == "P" && tv[k + 3] == ")" && k + 3 == b) arg = tv[k + 2]
+  else if (tt[k + 2] == "P" && tv[k + 2] == ")" && k + 2 == b) arg = ""
+  else { print tl[a] "\tNV"; return }
+  if (arg ~ /[^ -~]/) { print tl[a] "\tNV"; return }
+  np = split((base == "/" ? "" : base) "/" arg, parts, "/")
+  ns = 0
+  for (j = 1; j <= np; j++) {
+    if (parts[j] == "" || parts[j] == ".") continue
+    if (parts[j] == "..") { if (ns == 0) { print tl[a] "\tOUT"; return } ns--; continue }
+    stack[++ns] = parts[j]
+  }
+  out = ""
+  for (j = 1; j <= ns; j++) out = out (j > 1 ? "/" : "") stack[j]
+  print tl[a] "\tOK\t" (out == "" ? "." : out)
+}
+function links(k,    o, depth, start, e, closer) {
+  if (tt[k + 2] == "P" && tv[k + 2] == "[") { o = k + 2; closer = "]" }
+  else if (tt[k + 2] == "I" && tv[k + 2] == "array" && tt[k + 3] == "P" && tv[k + 3] == "(") { o = k + 3; closer = ")" }
+  else { print tl[k] "\tNV"; return }
+  depth = 0; start = o + 1
+  for (e = o + 1; e <= n; e++) {
+    if (tt[e] == "P" && tv[e] ~ /^[\[\(\{]$/) depth++
+    else if (tt[e] == "P" && tv[e] ~ /^[\]\)\}]$/) {
+      if (depth == 0) { if (tv[e] == closer) { entry(start, e - 1); return } break }
+      depth--
+    } else if (tt[e] == "P" && tv[e] == "," && depth == 0) { entry(start, e - 1); start = e + 1 }
+  }
+  print tl[k] "\tNV"
+}
+{ lex($0, NR) }
+END {
+  for (i = 1; i <= n; i++) if (tt[i] == "S" && tv[i] == "links" && tt[i + 1] == "A") links(i)
+}
+'
+
+# config_roots: read every `links` entry of config/filesystems.php, and make each target that the awk
+# program reads to a path a scan root, scanned as storage/app/public is. A config that is missing sets
+# no links, and the public disk of the default is a root already. A target that is the project root,
+# or leaves it, is a symlink-permission finding on the config line, and is never read.
+config_roots() {
+  local cfg=config/filesystems.php file='' size line kind rel rc
+  if phys_entry "$cfg"; then
+    file="$PHYS_ENTRY"
+  elif ((${#LINK_TRAIL[@]})); then
+    not_verified "$cfg - a directory on the way is a symlink the scan does not read; check the links of the project by hand and run the scan again"
+    return 0
+  fi
+  [[ -n "$file" ]] || return 0
+  if [[ -L "$file" ]]; then
+    if ! resolve_link "$file" || [[ ! -f "$RESOLVED" ]]; then
+      not_verified "$cfg - the symlink leaves the project or does not resolve to a file, so the scan does not read it; check the links of the project by hand and run the scan again"
+      return 0
+    fi
+    file="$RESOLVED"
+  fi
+  [[ -e "$file" ]] || return 0
+  if [[ ! -f "$file" || ! -r "$file" ]]; then
+    not_verified "$cfg - the file is not a readable regular file; give the scan read access and run the scan again"
+    return 0
+  fi
+  size="$(wc -c <"$file" 2>/dev/null | tr -d ' ')"
+  if [[ ! "$size" =~ ^[0-9]+$ ]] || ((size > 1048576)); then
+    not_verified "$cfg - the file is larger than 1 MiB, so the scan does not read it; check the links of the project by hand and run the scan again"
+    return 0
+  fi
+  awk -v "sq='" "$LINKS_AWK" "$file" >"$SCRATCH/links" 2>/dev/null ||
+    { not_verified "$cfg - the links entries could not be read; run the scan again"; return 0; }
+  while IFS=$'\t' read -r line kind rel; do
+    [[ "$line" =~ ^[0-9]+$ ]] || continue
+    case "$kind" in
+    OK)
+      if [[ "$rel" == . ]]; then
+        CFG_FIND+=("$cfg")
+        CFG_FEV+=("line=$line links target=. resolves=.")
+        continue
+      fi
+      decide_root "$rel"
+      ;;
+    OUT)
+      CFG_FIND+=("$cfg")
+      CFG_FEV+=("line=$line links target=outside-project resolves=outside-project")
+      ;;
+    *)
+      not_verified "$cfg - the links entry at line $line is not a helper call with one literal path, so the scan does not know which directory it serves; write the entry as storage_path('<path>') or check the directory by hand, and run the scan again"
+      ;;
+    esac
+  done <"$SCRATCH/links"
+  return 0
+}
+
+# Another way to serve a directory that no static read settles: a custom public path, or a provider that
+# sets the links. Each file that names one is a not-verified line. The scan reads the file with grep -q
+# and prints no line of it.
+served_path_overrides() {
+  local pattern file phys rel
+  shopt -s nullglob
+  for pattern in 'bootstrap/app.php' 'public/index.php' 'app/Providers/*.php' 'config/*.php'; do
+    rel="${pattern%/*}"
+    resolve_link "$ROOT_P/$rel" || continue
+    # shellcheck disable=SC2231  # the unquoted ${pattern##*/} is the glob of the pattern
+    for phys in "$RESOLVED"/${pattern##*/}; do
+      [[ ! -L "$phys" && -f "$phys" && -r "$phys" ]] || continue
+      file="$rel/${phys##*/}"
+      if grep -q -I -E 'usePublicPath' -- "$phys" 2>/dev/null; then
+        not_verified "$(esc "$file") - the file sets the public path, so the scan cannot tell which directory the web server serves; check it by hand and run the scan again"
+      fi
+      if grep -q -I -E "filesystems\\.links" -- "$phys" 2>/dev/null; then
+        not_verified "$(esc "$file") - the file sets the filesystems links, so the scan cannot tell which directories they serve; check them by hand and run the scan again"
+      fi
+    done
+  done
+  shopt -u nullglob
 }
 
 # A physical path at or below a scanned root.
@@ -509,6 +733,7 @@ collect() {
     dir="${SCAN_ROOTS[i]}"
     phys="${SCAN_PHYS[i]}"
     while IFS= read -r -d '' p; do
+      ((i >= EXTRA_FROM)) && under_earlier "$i" "$p" && continue
       add_path "$dir${p#"$phys"}" "$p"
     done < <(find "$phys" -mindepth 1 \( -name .git -print0 -prune \) -o -print0 2>"$SCRATCH/find.err")
     find_errors "$dir" 'name checks'
@@ -516,10 +741,24 @@ collect() {
   return 0
 }
 
+# under_earlier <root index> <physical path>: a physical path at or below a root that precedes the
+# root, so an entry that two roots serve is scanned and reported once.
+under_earlier() {
+  local j
+  for ((j = 0; j < $1; j++)); do
+    [[ "$2" == "${SCAN_PHYS[j]}" || "$2" == "${SCAN_PHYS[j]}"/* ]] && return 0
+  done
+  return 1
+}
+
 # A path of the public disk: below storage/app/public/, or below a public/storage that is a real
 # directory of the physical public/ root.
 in_disk() {
+  local extra
   [[ "$1" == storage/app/public/* ]] && return 0
+  for extra in ${DISK_EXTRA[@]+"${DISK_EXTRA[@]}"}; do
+    [[ "$1" == "$extra"/* ]] && return 0
+  done
   [[ "$1" == public/storage/* && -n "$PUB_P" && ! -L "$PUB_P/storage" ]]
 }
 
@@ -621,6 +860,9 @@ static_checks() {
   for ((i = 0; i < ${#ROOT_FIND[@]}; i++)); do
     emit symlink-permission high "${ROOT_FIND[i]}" "${ROOT_FEV[i]}"
   done
+  for ((i = 0; i < ${#CFG_FIND[@]}; i++)); do
+    emit symlink-permission high "${CFG_FIND[i]}" "${CFG_FEV[i]}"
+  done
   for ((i = 0; i < ${#PATHS[@]}; i++)); do
     [[ -n "${CLASS[i]}" ]] || continue
     emit "${CLASS[i]}" "$(severity_of "${CLASS[i]}")" "${PATHS[i]}" "$(meta "${PATHS_P[i]}")"
@@ -637,6 +879,7 @@ static_checks() {
     rel="${SCAN_ROOTS[i]}"
     phys="${SCAN_PHYS[i]}"
     while IFS= read -r -d '' abs; do
+      ((i >= EXTRA_FROM)) && under_earlier "$i" "$abs" && continue
       writable=$((writable + 1))
       ((writable > FINDING_CAP)) && continue
       ww="$rel${abs#"$phys"}"
@@ -783,6 +1026,12 @@ runtime_checks() {
     [[ "${ROOT_FIND[i]}" == public && -n "$pub" ]] && continue
     [[ "${ROOT_FIND[i]}" == storage/app/public && -n "$disk" ]] && continue
     not_verified "${ROOT_FIND[i]}/ - the scan root is a symlink (${ROOT_FEV[i]}) that the scan does not read; run the static mode for the finding"
+  done
+  for ((i = 0; i < ${#CFG_FIND[@]}; i++)); do
+    not_verified "${CFG_FIND[i]} - a links entry (${CFG_FEV[i]}) that the scan does not read; run the static mode for the finding"
+  done
+  for rel in ${DISK_EXTRA[@]+"${DISK_EXTRA[@]}"}; do
+    not_verified "$rel/ - a directory that config/filesystems.php links, which the runtime mode does not probe; run the static mode for its files"
   done
   link=0
   if [[ -n "$pub" && -n "$disk" && -L "$pub/storage" ]] && resolve_link "$pub/storage" && [[ "$RESOLVED" == "$disk" ]]; then link=1; fi
@@ -1730,6 +1979,187 @@ st_submodule_cases() {
     test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: storage - a git submodule that is not checked out' "$ST_TMP/out.sub-above")"
 }
 
+# st_links <name> <links entries>: a clean project whose config/filesystems.php declares the links.
+st_links() {
+  st_clean "$1"
+  mkdir -p "$r/config"
+  printf "<?php\n\nreturn [\n    'disks' => [],\n    'links' => [\n%s\n    ],\n];\n" "$2" >"$r/config/filesystems.php"
+}
+
+# S7: a directory that config/filesystems.php links is served by `php artisan storage:link`, so the
+# scan reads every links entry in every run, whatever the change touches, and scans each target it can
+# read as it scans storage/app/public. An entry it cannot read is a not-verified line.
+st_links_cases() {
+  local r o="$ST_TMP/links-outside" i
+  mkdir -p "$o"
+  printf '%s\n' "$ST_MARKER" >"$o/hostonly-dump.sql"
+
+  # The reproduction: the config is unchanged, and the change adds a dump to the linked directory.
+  st_links links-dl "        public_path('downloads') => storage_path('app/downloads'),"
+  mkdir -p "$r/storage/app/downloads"
+  printf 'x\n' >"$r/storage/app/downloads/readme.txt"
+  st_base "$r"
+  printf '%s\n' "$ST_MARKER" >"$r/storage/app/downloads/db-backup.sql"
+  st_commit "$r" change
+  st_run links-dl static --root "$r" --changed-from "$ST_BASE"
+  st_check 'links: a dump added to a linked directory of an unchanged config is a critical finding, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'finding\tdump-archive-backup\tcritical\tstorage/app/downloads/db-backup.sql\t' "$ST_TMP/out.links-dl")"
+  st_check_not 'links: a clean file of a linked directory is no finding' st_line 'readme.txt'
+  st_run links-dl-tree static --root "$r"
+  st_check 'links: the static mode reports the same dump, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'dump-archive-backup\tcritical\tstorage/app/downloads/db-backup.sql\t' "$ST_TMP/out.links-dl-tree")"
+  st_check_not 'links: the content of the dump is never printed' st_line "$ST_MARKER"
+
+  # The same checks as storage/app/public: a script and an execute bit.
+  printf '<?php\n' >"$r/storage/app/downloads/shell.php"
+  printf 'x\n' >"$r/storage/app/downloads/run"
+  chmod 755 "$r/storage/app/downloads/run"
+  st_run links-dl-script static --root "$r"
+  st_check 'links: a PHP file of a linked directory is a public-storage-script finding' \
+    st_line $'finding\tpublic-storage-script\thigh\tstorage/app/downloads/shell.php\t'
+  st_check 'links: an execute bit in a linked directory is a public-storage-script finding' \
+    st_line $'public-storage-script\thigh\tstorage/app/downloads/run\t'
+
+  # A clean linked directory leaves the scan clean.
+  st_links links-clean "        public_path('downloads') => storage_path('app/downloads'),"
+  mkdir -p "$r/storage/app/downloads"
+  printf 'x\n' >"$r/storage/app/downloads/readme.txt"
+  st_commit "$r" base
+  st_run links-clean static --root "$r"
+  st_check 'links: a clean linked directory is no finding, exit 0' test "$ST_RC" = 0
+
+  # Every helper, the long array syntax, a double-quoted literal, a leading backslash, comments, and a
+  # trailing comma are read; a commented entry is not.
+  st_links links-forms "        // public_path('old') => storage_path('app/old'),
+        /* public_path('older') => storage_path('app/older'), */
+        public_path('a') => \\storage_path(\"app/a\"),
+        public_path('b') => base_path('files/b'),
+        public_path('c') => app_path('c'),
+        public_path('d') => resource_path('d'),
+        public_path('e') => database_path('e'),
+        public_path('f') =>
+            storage_path('app/f'),"
+  mkdir -p "$r/storage/app/old" "$r/storage/app/older" "$r/storage/app/a" "$r/files/b" "$r/app/c" "$r/resources/d" "$r/database/e" "$r/storage/app/f"
+  for i in storage/app/old storage/app/older storage/app/a files/b app/c resources/d database/e storage/app/f; do
+    printf 'x\n' >"$r/$i/dump.sql"
+  done
+  st_commit "$r" base
+  st_run links-forms static --root "$r"
+  for i in storage/app/a files/b app/c resources/d database/e storage/app/f; do
+    st_check "links: the entry that reads $i is scanned" st_line $'dump-archive-backup\tcritical\t'"$i/dump.sql"
+  done
+  st_check_not 'links: an entry in a line comment is not scanned' st_line 'storage/app/old/'
+  st_check_not 'links: an entry in a block comment is not scanned' st_line 'storage/app/older/'
+  st_check 'links: every readable entry leaves a complete scan, exit 5' test "$ST_RC" = 5
+
+  st_clean links-array
+  mkdir -p "$r/config" "$r/storage/app/dl"
+  printf "<?php\nreturn array('links' => array(public_path('dl') => storage_path('app/dl')));\n" >"$r/config/filesystems.php"
+  printf 'x\n' >"$r/storage/app/dl/a.sql"
+  st_commit "$r" base
+  st_run links-array static --root "$r"
+  st_check 'links: the array() syntax is read' st_line $'dump-archive-backup\tcritical\tstorage/app/dl/a.sql\t'
+
+  # A target that does not exist serves nothing.
+  st_links links-missing "        public_path('dl') => storage_path('app/missing'),"
+  st_commit "$r" base
+  st_run links-missing static --root "$r"
+  st_check 'links: a target that does not exist is no line, exit 0' test "$ST_RC" = 0
+
+  # A target the scan already scans is read once.
+  st_links links-dup "        public_path('storage') => storage_path('app/public'),
+        public_path('again') => storage_path('app/public/sub'),
+        public_path('up') => storage_path('app'),"
+  mkdir -p "$r/storage/app/public/sub"
+  printf '<?php\n' >"$r/storage/app/public/sub/shell.php"
+  printf '<?php\n' >"$r/storage/app/public/shell.php"
+  printf '<?php\n' >"$r/storage/app/other.php"
+  st_commit "$r" base
+  st_run links-dup static --root "$r"
+  st_check 'links: a file of the public disk is reported once however many entries serve it' \
+    test "$(grep -c -F $'\tstorage/app/public/shell.php\t' "$ST_TMP/out.links-dup")" = 1
+  st_check 'links: a file below a directory above the public disk is reported' st_line $'public-storage-script\thigh\tstorage/app/other.php\t'
+
+  # An entry the scan cannot read statically is a not-verified line, exit 3, and no environment value is read.
+  local want
+  # shellcheck disable=SC2016  # the entries are PHP text, never expanded
+  for i in "env('DL_DIR')" "env('DL_DIR', storage_path('app/dl'))" '$dir' "config('app.dl')" "storage_path('app') . '/dl'" \
+    "storage_path(\$name)" "storage_path(\"app/\$name\")" "'storage/app/dl'" "base_path(env('DL_DIR'))"; do
+    st_links links-nv "        public_path('ok') => storage_path('app/ok'),
+        public_path('dl') => $i,"
+    mkdir -p "$r/storage/app/ok"
+    printf '%s\n' "$ST_MARKER" >"$r/storage/app/ok/dump.sql"
+    st_commit "$r" base
+    st_run links-nv static --root "$r"
+    st_check "links: the entry $i is a not-verified line on its own line, exit 3" \
+      test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: config/filesystems.php - the links entry at line 7' "$ST_TMP/out.links-nv")"
+    st_check "links: the entry $i leaves the readable entry scanned" st_line $'dump-archive-backup\tcritical\tstorage/app/ok/dump.sql\t'
+    st_check_not "links: the entry $i is never echoed into the output" \
+      test -n "$(grep -F -e DL_DIR -e '$name' -e '$dir' -e app.dl "$ST_TMP/out.links-nv")"
+  done
+  st_clean links-var
+  mkdir -p "$r/config"
+  printf "<?php\n\$links = [];\nreturn ['links' => \$links];\n" >"$r/config/filesystems.php"
+  st_commit "$r" base
+  st_run links-var static --root "$r"
+  st_check 'links: a links key that is not an array literal is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: config/filesystems.php - the links entry at line 3' "$ST_TMP/out.links-var")"
+
+  # A target that is the project root, or leaves the project, is a finding on the config line and is never read.
+  st_links links-root "        public_path('all') => base_path(),"
+  st_commit "$r" base
+  st_run links-root static --root "$r"
+  st_check 'links: a target that is the project root is a symlink-permission finding on the config, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tconfig/filesystems.php\tline=6 links target=. ' "$ST_TMP/out.links-root")"
+  st_links links-out "        public_path('up') => base_path('../links-outside'),"
+  st_commit "$r" base
+  st_run links-out static --root "$r"
+  st_check 'links: a target that leaves the project is a finding that never says whether it exists, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tconfig/filesystems.php\tline=6 links target=outside-project' "$ST_TMP/out.links-out")"
+  st_check_not 'links: nothing outside the project is read for a target that leaves it' st_line 'hostonly-dump'
+
+  # A target that is a symlink is decided like a scan root.
+  st_links links-sym "        public_path('dl') => storage_path('app/dl'),"
+  mkdir -p "$r/storage/app"
+  ln -s "$o" "$r/storage/app/dl"
+  st_commit "$r" base
+  st_run links-sym static --root "$r"
+  st_check 'links: a target symlink that leaves the project is a finding on the target, exit 5' \
+    test "$ST_RC" = 5 -a -n "$(grep -F $'symlink-permission\thigh\tstorage/app/dl\ttarget=' "$ST_TMP/out.links-sym")" -a -n "$(grep -F 'resolves=outside-project' "$ST_TMP/out.links-sym")"
+  st_check_not 'links: nothing behind a target symlink that leaves the project is read' st_line 'hostonly-dump'
+
+  # Other declarations of a served directory that the scan cannot read are not-verified lines.
+  st_clean links-public-path
+  mkdir -p "$r/bootstrap" "$r/app/Providers"
+  printf "<?php\nreturn Application::configure()->create()->usePublicPath(base_path('web'));\n" >"$r/bootstrap/app.php"
+  printf "<?php\nconfig(['filesystems.links' => []]);\n" >"$r/app/Providers/AppServiceProvider.php"
+  st_commit "$r" base
+  st_run links-public-path static --root "$r"
+  st_check 'links: a custom public path in bootstrap/app.php is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: bootstrap/app.php - the file sets the public path' "$ST_TMP/out.links-public-path")"
+  st_check 'links: a provider that sets filesystems.links is a not-verified line' \
+    st_line 'not-verified: app/Providers/AppServiceProvider.php - the file sets the filesystems links'
+
+  # A config that is a symlink leaving the project is not read.
+  st_clean links-cfg-sym
+  mkdir -p "$r/config"
+  printf "<?php\nreturn ['links' => [public_path('x') => storage_path('app/x')]];\n" >"$o/filesystems.php"
+  ln -s "$o/filesystems.php" "$r/config/filesystems.php"
+  st_commit "$r" base
+  st_run links-cfg-sym static --root "$r"
+  st_check 'links: a config symlink that leaves the project is a not-verified line, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: config/filesystems.php - ' "$ST_TMP/out.links-cfg-sym")"
+
+  # The runtime mode does not probe a linked directory and says so.
+  st_curl_stub
+  st_links links-rt "        public_path('dl') => storage_path('app/dl'),"
+  mkdir -p "$r/storage/app/dl"
+  st_commit "$r" base
+  st_run links-rt runtime --root "$r" --base-url http://localhost
+  st_check 'links: the runtime mode reports a linked directory it does not probe, exit 3' \
+    test "$ST_RC" = 3 -a -n "$(grep -F 'not-verified: storage/app/dl/ - a directory that config/filesystems.php links' "$ST_TMP/out.links-rt")"
+}
+
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
 st_curl_stub() {
   mkdir -p "$ST_TMP/bin"
@@ -1833,6 +2263,7 @@ self_test() {
   st_chain_cases
   st_served_cases
   st_submodule_cases
+  st_links_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
