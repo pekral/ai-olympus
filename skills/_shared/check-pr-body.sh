@@ -1810,6 +1810,19 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(render '' "$(printf '%smarkdown\n## Problem\n## Gate\n%s' "$fence" "$fence")")" '"valid": true'
   scenario 'a heading quoted inside a tilde fence is not read' 0 \
     "$(render '' "$(printf '~~~markdown\n## Problem\n## Gate\n~~~')")" '"valid": true'
+  # A fenced code block opened by 0-3 spaces stays open until a closing fence of its own character and
+  # at least its length, whatever the indent of the lines inside it.
+  scenario 'a section heading after a fence indented by two spaces and less indented content is refused' 3 \
+    "$(render '' "$(printf '  %s\ncode\n  %s\n  ## Foreign\ntext\n  %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after a fence indented by one space is refused' 3 \
+    "$(render '' "$(printf ' %s\ncode\n %s\n ## Foreign\ntext\n %s\nafter' "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a section heading after a tilde fence indented by three spaces is refused' 3 \
+    "$(render '' "$(printf '   ~~~\ncode\n   ~~~\n   ## Foreign\ntext\n   ~~~\nafter')")" 'the heading on line'
+  scenario 'a heading quoted unindented inside an indented fence is not read' 0 \
+    "$(render '' "$(printf '  %smarkdown\n## Problem\n## Gate\n  %s' "$fence" "$fence")")" '"valid": true'
+  scenario 'an indented fence with unindented content and its closer, then no heading, is valid' 0 \
+    "$(render '' "$(printf '  %s\ncode\n  %s\ntext after the fence' "$fence" "$fence")")" '"valid": true'
+
   scenario 'a details block the template does not define is named by its line' 3 \
     "$(render '' "$(printf '<details>\n<summary><strong>Notes</strong></summary>\n\nx\n\n</details>')")" \
     'the <details> block on line'
