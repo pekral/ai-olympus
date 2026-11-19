@@ -69,7 +69,12 @@ The patterns of each check are listed in the header of `scripts/public-files-sca
    - **The review reports every finding of the full static scan.** It never narrows the findings to the diff. A finding that already exists in the project therefore blocks the pull request too. This is the fail-safe: no rule about which paths serve a file can decide that a finding is out of scope.
    - **A git submodule is not verified.** The scan does not read a submodule. A submodule the change touches, and a submodule that is not checked out where the scan reads, is a not-verified line with its path, so the scan exits `3`, never `0`. The script header owns the exact rule. The `--changed-from` base serves only this check.
    - The scan reads each symlink target byte for byte and stats only the physical entry inside the project.
-4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, whether or not the diff touches that file, because `php artisan storage:link` serves each target after the deployment. It scans each target it can read statically as it scans `storage/app/public`, with the same checks. An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a `Not verified: public files — …` line and an incomplete scan. A target that is the project root or leaves it is a `symlink-permission` finding on the line of the entry. The scan also reports a file that sets the public path (`usePublicPath`) or the `filesystems.links` configuration, because it cannot read what that serves. The script header owns the exact rules. The scan reads no `.env*` file and no environment value.
+4. **The configuration.** The scan reads every `links` entry of `config/filesystems.php` in every round, whether or not the diff touches that file, because `php artisan storage:link` serves each target after the deployment.
+   - It scans each target it can read statically as it scans `storage/app/public`, with the same checks.
+   - An entry it cannot read statically (a variable, an `env()` or `config()` call, a concatenation) is a `Not verified: public files — …` line and an incomplete scan.
+   - A target that is the project root or leaves it is a `symlink-permission` finding on the line of the entry.
+   - A file that sets the public path (`usePublicPath`) or the `filesystems.links` configuration is a not-verified line, because the scan cannot read what that serves.
+   - The script header owns the exact rules. The scan reads no `.env*` file and no environment value.
 5. **No patch of a reported path.** Exclude every reported path from each later patch read with a `:(exclude)<path>` pathspec.
 
 ### Findings and severity in a review
