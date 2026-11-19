@@ -623,12 +623,10 @@ test('attachment ids are strings, the same type as the attachmentId of the media
 });
 
 /**
- * A missing field reads as `missing`, so the null case proves the field is present and null.
- *
  * @param array{bin: string, calls: string, directory: string} $fixture
  * @param array<string, string> $environment
  */
-function jiraLoaderAttachmentsFetch(array $fixture, string $argument, array $environment): mixed
+function jiraLoaderAttachmentsFetchOrMissing(array $fixture, string $argument, array $environment): mixed
 {
     $document = json_decode(runJiraLoader($fixture, $argument, $environment)->getOutput(), associative: true);
 
@@ -643,16 +641,16 @@ test('attachmentsFetch names the fetch of the resolved key only when the issue o
     $subtaskAttachment = ['fields' => ['attachment' => [jiraLoaderAttachment(10_600, 'sub-notes.txt')]]];
 
     $fetches = [
-        jiraLoaderAttachmentsFetch(
+        jiraLoaderAttachmentsFetchOrMissing(
             $fixture,
             'https://acme.atlassian.net/browse/ACME-1234',
             ['FAKE_ACLI_VIEW_JSON' => (string) json_encode(jiraLoaderPastedFileView())],
         ),
-        jiraLoaderAttachmentsFetch($fixture, 'ACME-1234', [
+        jiraLoaderAttachmentsFetchOrMissing($fixture, 'ACME-1234', [
             'FAKE_ACLI_VIEW_JSON' => (string) json_encode($withSubtask),
             'FAKE_ACLI_VIEW_JSON_ACME_2' => (string) json_encode($subtaskAttachment),
         ]),
-        jiraLoaderAttachmentsFetch($fixture, 'ACME-1234', []),
+        jiraLoaderAttachmentsFetchOrMissing($fixture, 'ACME-1234', []),
     ];
     removeJiraLoaderFixture($fixture);
 
@@ -664,8 +662,6 @@ test('attachmentsFetch names the fetch of the resolved key only when the issue o
 });
 
 /**
- * The download is the one network call; a fake curl writes the file instead of fetching it.
- *
  * @param array{bin: string, calls: string, directory: string} $fixture
  */
 function installJiraLoaderFakeCurl(array $fixture): void
@@ -680,10 +676,7 @@ function installJiraLoaderFakeCurl(array $fixture): void
     chmod($fixture['bin'] . '/curl', 0o700);
 }
 
-/**
- * The manifest of the one download into `$scratch` that ran without `--dest`.
- */
-function jiraLoaderDefaultDestManifest(string $scratch): string
+function jiraLoaderSoleDefaultDestManifest(string $scratch): string
 {
     $manifests = glob($scratch . '/attachments.*/jira/attachments-manifest.json');
 
@@ -720,7 +713,7 @@ test('the download manifest names the description, comment, or subtask descripti
         'JIRA_SITE' => 'acme.atlassian.net',
     ], 'download-attachments.sh');
 
-    $manifest = jiraLoaderDefaultDestManifest($scratch);
+    $manifest = jiraLoaderSoleDefaultDestManifest($scratch);
     (new Process(['rm', '-rf', $scratch]))->run();
     unlink($fixture['bin'] . '/curl');
     removeJiraLoaderFixture($fixture);

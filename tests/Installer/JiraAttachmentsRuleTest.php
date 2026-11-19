@@ -142,7 +142,6 @@ test('every skill that reads the comments of a JIRA issue names the fetch trigge
     $packageDir = dirname(__DIR__, 2);
     $pointer = '`attachmentsFetch` is set or `descriptionMediaRefs` / `mediaRefs` is not empty, run `download-attachments.sh` '
         . 'and read only the `safe/` files that the manifest of that fetch lists (`@rules/jira/general.md` *Attachments*)';
-    // `resolve-issue` holds its JIRA load step in the source-detection reference its SKILL.md loads.
     $files = [
         'analyze-problem/SKILL.md',
         'analyze-support-issue/SKILL.md',
