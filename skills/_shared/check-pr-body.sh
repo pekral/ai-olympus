@@ -1806,8 +1806,15 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     "$(render '' "$(printf -- 'para\n<b>x</b> more\n\n  %s\ncode\n  %s\n  ## Foreign\ntext' "$fence" "$fence")")" 'the heading on line'
   scenario 'a second Merge risk block after an inline tag line, an indented fence, and its closer is refused' 3 \
     "$(render '' "$(printf -- 'para\n<span>x</span>\n\n  %s\ncode\n  %s\n  ## Merge risk 🟢 low\n\n**Door:** two-way no rollback signal\n**Blast radius:** FAST (docs-only)' "$fence" "$fence")")" 'Merge risk'
-  scenario 'a heading quoted unindented inside an indented fence is not read' 0 \
-    "$(render '' "$(printf '  %smarkdown\n## Problem\n## Gate\n  %s' "$fence" "$fence")")" '"valid": true'
+  # A fence on a list-marker line and a closer less indented than its item never hide a section or a second Merge risk block.
+  scenario 'a foreign section after a fence on a list-marker line and its less indented closer is refused' 3 \
+    "$(render '' "$(printf -- '-  %s\n  code\n   %s\n  %s\n  ## Foreign\ntext\n%s' "$fence" "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a foreign section after a fence on a list-marker line and an HTML block with a fence line is refused' 3 \
+    "$(render '' "$(printf -- '-  %s\n  code\n   %s\n  %s\n## Foreign\n<div>\n%s\n</div>\nafter' "$fence" "$fence" "$fence" "$fence")")" 'the heading on line'
+  scenario 'a second Merge risk block after a fence on a list-marker line and an HTML block with a fence line is refused' 3 \
+    "$(render '' "$(printf -- '-  %s\n  code\n   %s\n  %s\n## Merge risk 🟢 low\n\n**Door:** two-way no rollback signal\n**Blast radius:** FAST (docs-only)\n<div>\n%s\n</div>\nafter' "$fence" "$fence" "$fence" "$fence")")" 'Merge risk'
+  scenario 'a heading less indented than its indented fence is read as before the fix and refused' 3 \
+    "$(render '' "$(printf '  %smarkdown\n## Problem\n## Gate\n  %s' "$fence" "$fence")")" 'the heading on line'
   scenario 'an indented fence with unindented content and its closer, then no heading, is valid' 0 \
     "$(render '' "$(printf '  %s\ncode\n  %s\ntext after the fence' "$fence" "$fence")")" '"valid": true'
 
