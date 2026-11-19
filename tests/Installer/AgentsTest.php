@@ -1152,7 +1152,7 @@ test('raphael runs the project interactive-testing skill for its sandbox rules',
     $interactiveTesting = (string) file_get_contents($packageDir . '/skills/interactive-testing/SKILL.md');
     expect($interactiveTesting)->toContain('The testing agent MUST use its own interactive browser session.');
 
-    // Every interactive-testing run drives the web browser available to the session; headless
+    // Every interactive-testing run of a change that reaches a page drives the web browser available to the session; headless
     // shell automation is supplementary evidence only, and raphael holds the browser tools.
     expect($interactiveTesting)->toContain(
         'This applies to every change that reaches a page. Such a run drives the web browser available to the session.',
