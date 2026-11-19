@@ -1141,24 +1141,25 @@ check_merge_risk() {
 }
 
 # check_html_above_merge_risk <line number> — the body is on standard input and <line number> is the line of
-# the first `## Merge risk` section the scan read. Fail closed: when the lines above that section hold any
-# hand-written HTML that could open or close a <details> block or an HTML comment, the check cannot prove that
-# GitHub renders `## Merge risk` outside every <details> block, and it prints one problem. Matching the
-# HTML handling of GitHub form by form did not converge (a backtick in an attribute, an autolink, or a link
-# destination, a table row, a comment that a later one ends, a comment that holds `--` or `-->` in an
-# attribute), so no part of that handling is modelled here. A `<details` or `</details` token, a `<!--`, or a
-# `-->` on any line above the section is refused, wherever it stands: in an attribute, a code span, an
-# autolink, a link destination, or a table cell. A template and an agent-written body open with the Merge risk
-# section, so they carry no such token above it. The rule for the sections after Merge risk is unchanged.
+# the first `## Merge risk` section the scan read. Fail closed: when the lines up to that section, and the line of
+# its heading itself, hold any hand-written HTML that could open or close a <details> block or an HTML comment,
+# the check cannot prove that GitHub renders `## Merge risk` outside every <details> block, and it prints one
+# problem. Matching the HTML handling of GitHub form by form did not converge (a backtick in an attribute, an
+# autolink, or a link destination, a table row, a comment that a later one ends, a comment that holds `--` or
+# `-->` in an attribute), so no part of that handling is modelled here. A `<details` or `</details` token, a
+# `<!--`, or a `-->` is refused wherever it stands: in an attribute, a code span, an autolink, a link
+# destination, or a table cell. A template and an agent-written body open with the Merge risk section, so they
+# carry no such token above it. The rule for the sections after Merge risk is unchanged.
 # The problem names the line number and never the text.
 check_html_above_merge_risk() {
-  local first="$1" line number=0 lowered
+  local first="$1" line number=0
 
-  [[ "$first" -gt 1 ]] || return 0
-  while IFS= read -r line && [[ "$number" -lt $((first - 1)) ]]; do
+  # Lines are split on LF only, so a bare CR (a line ending in CommonMark) leaves text after it on the line of the
+  # Merge risk heading. The scan therefore includes the line of the first Merge risk section. A CR at the end of
+  # a line, and a CRLF line ending, hold no token.
+  while [[ "$number" -lt "$first" ]] && IFS= read -r line; do
     number=$((number + 1))
-    lowered="$(printf '%s' "$line" | LC_ALL=C tr '[:upper:]' '[:lower:]')"
-    if [[ "$lowered" == *'<details'* || "$lowered" == *'</details'* || "$lowered" == *'<!--'* || "$lowered" == *'-->'* ]]; then
+    if ci_match "$line" '<details|</details|<!--|-->'; then
       printf 'HTML: line %s holds hand-written HTML above the Merge risk section that cannot be verified; remove it\n' "$number"
       return 0
     fi
@@ -1776,6 +1777,17 @@ Fold a section into a `<details>` block when it is long.' render)" '"valid": tru
     tag_scenario 'an upper-case </DETAILS> token above Merge risk is refused' 3 'x </DETAILS>' "$unverifiable"
     tag_scenario 'a --> token alone above Merge risk is refused' 3 'x -->' "$unverifiable"
   }
+  # A bare CR is a line ending in CommonMark, and the check splits lines on LF only, so a <details> after a CR can
+  # stand on the line of the first Merge risk heading. GitHub renders the graded Merge risk section inside it.
+  local cr_risk=$'\r**Door:** two-way no rollback signal\r**Blast radius:** STANDARD (production-code-changed)\r</details>'
+  scenario 'a <details> after a bare CR on the first Merge risk line is refused' 3 \
+    "$(render $'## Merge risk ⚪ not computed — x\r<details>\r\r## Merge risk 🟡 medium\r'"$cr_risk")" "$unverifiable"
+  scenario 'a <?> and a <details> after bare CRs on the first Merge risk line are refused' 3 \
+    "$(render $'## Merge risk ⚪ not computed — x\r<?\r<details>\r\r## Merge risk 🟡 medium\r'"$cr_risk")" "$unverifiable"
+  # CRLF line endings, and one CR at the very end of the body, hold no token and stay valid.
+  scenario 'a body with CRLF line endings is valid' 0 \
+    "$(render | awk '{ printf "%s\r\n", $0 }')" '"valid": true'
+  scenario 'a body that ends in a CR is valid' 0 "$(render)"$'\r' '"valid": true'
   # Control: HTML below the Merge risk section keeps the folding rule it had. A long section folded under its
   # own <details> block, a comment, and a <details> named in a code span are valid, and so is a plain body.
   scenario 'HTML below the Merge risk section is still read by the folding rule' 0 \
