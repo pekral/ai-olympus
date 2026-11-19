@@ -11,7 +11,7 @@ test('the GitHub issue loaders point to the download script and its scan gate fo
         ->and($resolveIssue)->toContain('open only scan-promoted `safe/` files')
         ->and($resolveIssue)->not->toContain('Read attachment content and the inventoried URLs with your own tools')
         ->and($resolveIssue)->toContain('to a sensible depth.' . "\n")
-        ->and(strpos($resolveIssue, 'fall back to the GitHub MCP server.'))->toBeLessThan(strpos($resolveIssue, 'Fetch attachments only through'))
+        ->and($resolveIssue)->toContain("fall back to the GitHub MCP server.\nFetch attachments only through")
         ->and($gatherer)->toContain('Fetch it safely with \`skills/code-review-github/scripts/download-attachments.sh <URL>\`')
         ->and($gatherer)->toContain('promoted into \`safe/\`')
         ->and($gatherer)->not->toContain('Fetch it with your own tools.');
