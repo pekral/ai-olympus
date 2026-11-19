@@ -64,10 +64,16 @@
 #     - an entry that is not a helper call with one literal argument (a variable, an env() or config()
 #       call, a concatenation, an interpolated string or one with an escape), and a `links` or `disks`
 #       key whose value is not an array literal;
-#     - a config that is not `<?php`, then only use, declare, and namespace statements, then
-#       `return [ ... ];` with string-literal keys, or that holds a heredoc, a nowdoc, a backtick, an end
-#       tag, an attribute, a NUL byte, a carriage return that no line feed follows, an unterminated
-#       string or comment, or text before the open tag;
+#     - a config that is not `<?php`, then only `declare(...);` directives and class `use` statements,
+#       then `return [ ... ];` with string-literal keys, or that holds a heredoc, a nowdoc, a backtick,
+#       an end tag, an attribute, a NUL byte, a carriage return that no line feed follows, an
+#       unterminated string or comment, or text before the open tag;
+#     - a statement before the return that changes how a name inside the array resolves: a `namespace`
+#       statement (PHP then calls a function of that namespace before the global helper), and a `use`
+#       statement that holds `function` or `const` anywhere (plain, aliased, or inside a group: it
+#       rebinds a helper name or a constant to a function or a constant that the scan does not read).
+#       A `declare` that is not `declare(<directive>);`, and a `use` that holds anything but names, are
+#       not read either. A plain or aliased class `use` changes no function or constant name, so it is read;
 #     - a config that is a symlink, or whose directory is a symlink, is never opened, because a symlink
 #       can lead to a file the scan must never read (an .env file): a not-verified line and no read;
 #     - a config that is not readable or exceeds 1 MiB.
@@ -565,11 +571,12 @@ add_root() {
 # config/filesystems.php, and the framework serves every local disk that sets `serve` and a public
 # visibility, so each such directory or file is served whichever path the change touches. CONFIG_AWK
 # reads the file as data and never runs it. It models no more PHP than it needs, and every form it does
-# not model is a not-verified record, never a clean one: the file must be `<?php`, then only `use`,
-# `declare`, and `namespace` statements, then `return [ ... ];` as its last statement, and the keys of
-# that array must be string literals. A heredoc, a nowdoc, a backtick, an end tag, an attribute, a
-# carriage return that no line feed follows, an unterminated string or comment, and text before the
-# open tag are not modelled either. It prints one record per entry, fields separated by a tab:
+# not model is a not-verified record, never a clean one: the file must be `<?php`, then only
+# `declare(...);` directives and class `use` statements, then `return [ ... ];` as its last statement,
+# and the keys of that array must be string literals. A `namespace` statement and a `use` statement
+# that holds `function` or `const` rebind a name inside the array, so they are not modelled. A
+# heredoc, a nowdoc, a backtick, an end tag, an attribute, a carriage return that no line feed follows,
+# an unterminated string or comment, and text before the open tag are not modelled either. It prints one record per entry, fields separated by a tab:
 #   <line> OK <tag> <path below the project root, "." for the root, ".." components kept> <lexical path>
 #   <line> NV <tag>               the entry is a form that the scan does not read
 # The tag is `links`, `disk`, or `file` (the whole file). The path keeps every `..` component, so
@@ -743,14 +750,21 @@ END {
   i = 1
   while (i <= n && !(tt[i] == "I" && tolower(tv[i]) == "return")) {
     w = (tt[i] == "I") ? tolower(tv[i]) : ""
-    if (w != "use" && w != "declare" && w != "namespace") { print tl[i] "\tNV\tfile"; exit }
-    depth = 0
-    while (i <= n) {
-      if (isopen(i)) depth++
-      else if (isclose(i)) depth--
-      else if (tt[i] == "P" && tv[i] == ";" && depth == 0) { i++; break }
-      i++
-    }
+    if (w == "declare") {
+      j = i + 1
+      if (!(tt[j] == "P" && tv[j] == "(")) { print tl[i] "\tNV\tfile"; exit }
+      for (j++; j <= n && !(tt[j] == "P" && tv[j] == ")"); j++)
+        if (isopen(j) || isclose(j)) { print tl[j] "\tNV\tfile"; exit }
+      if (!(j < n && tt[j + 1] == "P" && tv[j + 1] == ";")) { print tl[i] "\tNV\tfile"; exit }
+      i = j + 2
+    } else if (w == "use") {
+      for (j = i + 1; j <= n && !(tt[j] == "P" && tv[j] == ";"); j++) {
+        if (tt[j] == "I" && (tolower(tv[j]) == "function" || tolower(tv[j]) == "const")) { print tl[j] "\tNV\tfile"; exit }
+        if (!(tt[j] == "I" || (tt[j] == "P" && tv[j] ~ /^[,{}]$/))) { print tl[j] "\tNV\tfile"; exit }
+      }
+      if (j > n) { print tl[i] "\tNV\tfile"; exit }
+      i = j + 1
+    } else { print tl[i] "\tNV\tfile"; exit }
   }
   lastl = n ? tl[n] : 1
   if (i > n) { print lastl "\tNV\tfile"; exit }
@@ -774,7 +788,7 @@ config_nv() {
   local line="$1" cfg=config/filesystems.php
   case "$2" in
   file)
-    not_verified "$cfg - line $line holds PHP that the scan does not read (code before the returned array, an unterminated string or comment, a heredoc, a backtick, an end tag, an attribute, a computed key, a spread, a NUL or stray carriage return byte, or text before the open tag), so it does not know which directories the file serves; write the file as one plain returned array or check the directories by hand, and run the scan again"
+    not_verified "$cfg - line $line holds PHP that the scan does not read (code before the returned array, a namespace statement, a use function or use const statement, an unterminated string or comment, a heredoc, a backtick, an end tag, an attribute, a computed key, a spread, a NUL or stray carriage return byte, or text before the open tag), so it does not know which directories the file serves; write the file as one plain returned array or check the directories by hand, and run the scan again"
     ;;
   disk)
     not_verified "$cfg - the disks entry at line $line is not a local disk whose serve, visibility, and root are literals, so the scan does not know whether it serves a directory; write the entry with literals or check the directory by hand, and run the scan again"
@@ -2491,6 +2505,19 @@ st_nv() {
   st_check "$1" test "$ST_RC" = 3 -a -n "$(grep -F "not-verified: $3" "$ST_TMP/out.$2")"
 }
 
+# st_rebind <name> <statements> [<links target>]: a project whose config/filesystems.php holds the statements on
+# line 2, before a return that links public/dl to the target (storage_path('app/dl') when none is given). The
+# directory storage/app/dl does not exist, and database/dumps holds a dump: it is the directory that PHP serves
+# when the statements rebind the helper, so the scan reads the project clean unless it reports the statements.
+st_rebind() {
+  st_clean "$1"
+  mkdir -p "$r/config" "$r/database/dumps"
+  printf '%s\n' "$ST_MARKER" >"$r/database/dumps/db.sql"
+  printf "<?php\n%s\nreturn ['links' => [public_path('dl') => %s]];\n" "$2" "${3:-storage_path('app/dl')}" >"$r/config/filesystems.php"
+  st_commit "$r" base
+  st_run "$1" static --root "$r"
+}
+
 # Round 7: the scan reads project-controlled input (the PHP of config/filesystems.php, the deployment
 # files, the files that move a framework path), so a form it cannot read with certainty is a
 # not-verified line, never a clean result. The cases that follow fail on the code of round 7.
@@ -2642,6 +2669,66 @@ return [
   st_commit "$r" base
   st_run fc-stock static --root "$r"
   st_check 'stock: a stock Laravel filesystems file is read with no line, exit 0' test "$ST_RC" = 0
+
+  # S13: a statement before the return that changes how a name inside the array resolves. PHP then
+  # calls another function than the global helper, so storage:link serves a directory the scan does
+  # not read (here database/dumps, behind storage_path('app/dl')). The scan reads no other file, so
+  # the statement is a not-verified line that names its line, never a clean result.
+  st_rebind s13-ns 'namespace App\Support;'
+  st_nv 's13: a namespace statement is a not-verified line on its line, exit 3' s13-ns 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-nsb 'namespace App\Support { }'
+  st_nv 's13: a bracketed namespace statement is a not-verified line, exit 3' s13-nsb 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-alias 'use function base_path as storage_path;'
+  st_nv 's13: a use function alias of a global helper is a not-verified line, exit 3' s13-alias 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-fn 'use function App\Support\dumps_dir as storage_path;'
+  st_nv 's13: a use function alias of a namespaced function is a not-verified line, exit 3' s13-fn 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-fnplain 'use function App\Support\storage_path;'
+  st_nv 's13: a use function import with no alias is a not-verified line, exit 3' s13-fnplain 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-group 'use App\Support\{function dumps_dir as storage_path};'
+  st_nv 's13: a group use with a function member is a not-verified line, exit 3' s13-group 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-groupmix 'use App\Support\{Foo, Bar as Baz, function dumps_dir as storage_path};'
+  st_nv 's13: a group use that mixes classes and a function member is a not-verified line, exit 3' s13-groupmix 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-const 'use const App\Support\DUMPS as PUBLIC_DIR;'
+  st_nv 's13: a use const statement is a not-verified line, exit 3' s13-const 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-constgroup 'use App\Support\{const DUMPS};'
+  st_nv 's13: a group use with a const member is a not-verified line, exit 3' s13-constgroup 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-case 'USE FUNCTION App\Support\dumps_dir AS storage_path;'
+  st_nv 's13: the keywords are read in any letter case, exit 3' s13-case 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-multi "use Illuminate\\Support\\Str;
+declare(strict_types=1);
+use function App\\Support\\dumps_dir as storage_path;"
+  st_nv 's13: the statement is named by its own line after clean statements, exit 3' s13-multi 'config/filesystems.php - line 4 holds PHP'
+  st_rebind s13-decl 'declare(ticks=1) storage_path_hook();'
+  st_nv 's13: a declare statement that carries a statement is a not-verified line, exit 3' s13-decl 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-declb 'declare(ticks=1) { }'
+  st_nv 's13: a declare block is a not-verified line, exit 3' s13-declb 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-declc 'declare(ticks=count([1]));'
+  st_nv 's13: a declare directive that is not a literal is a not-verified line, exit 3' s13-declc 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-usecall "use Foo\\Bar ('x');"
+  st_nv 's13: a use statement that holds anything but names is a not-verified line, exit 3' s13-usecall 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-useopen 'use Foo\Bar'
+  st_nv 's13: a use statement with no semicolon is a not-verified line, exit 3' s13-useopen 'config/filesystems.php - '
+  st_rebind s13-nsfn '' "namespace\\storage_path('app/dl')"
+  st_nv 's13: a namespace-relative helper name in an entry is a not-verified line, exit 3' s13-nsfn 'config/filesystems.php - '
+  # Attacks on the fix, kept as rows: a comment between the keywords, a group spread over lines, and a
+  # namespace after a clean statement are read as the same statement.
+  st_rebind s13-cmt 'use /* x */ function /* y */ App\Support\dumps_dir as storage_path;'
+  st_nv 's13: a comment between the use keywords is a not-verified line, exit 3' s13-cmt 'config/filesystems.php - line 2 holds PHP'
+  st_rebind s13-mline 'use App\Support\{
+    Foo,
+    function dumps_dir as storage_path,
+};'
+  st_nv 's13: a group use spread over lines names the line of its function member, exit 3' s13-mline 'config/filesystems.php - line 4 holds PHP'
+  st_rebind s13-nsafter 'declare(strict_types=1);
+namespace App\Support;'
+  st_nv 's13: a namespace after a declare directive is a not-verified line, exit 3' s13-nsafter 'config/filesystems.php - line 3 holds PHP'
+  # The forms the scan still reads: a declare directive and a class import, aliased or not, change no
+  # function or constant name, so the entry reads as the global helper and the scan reports nothing.
+  st_rebind s13-ok 'declare(strict_types=1);
+use Illuminate\Support\Str;
+use App\Support\Foo as storage_path;
+use App\Support\{Bar, Baz as Qux};'
+  st_check 's13: declare and class use statements stay accepted, exit 0' test "$ST_RC" = 0
 
   # M1: a .. component after a symlink component resolves at the physical target, as the kernel does.
   st_clean m1

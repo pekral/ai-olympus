@@ -184,6 +184,13 @@ test(
             ->and($script)->toContain('st_failclosed_cases')
             ->and($script)->toContain('\'s8: a config symlink to .env is a not-verified line, exit 3\'')
             ->and($script)->toContain('\'s9: a heredoc is a not-verified line\'')
+            ->and($skill)->toContain('a statement before the `return` that changes how a name in the array resolves '
+                . '(a `namespace` statement, and a `use` statement that holds `function` or `const`, plain, aliased, '
+                . 'or inside a group)')
+            ->and($script)->toContain('\'s13: a namespace statement is a not-verified line on its line, exit 3\'')
+            ->and($script)->toContain('\'s13: a use function alias of a global helper is a not-verified line, exit 3\'')
+            ->and($script)->toContain('\'s13: a group use with a function member is a not-verified line, exit 3\'')
+            ->and($script)->toContain('\'s13: declare and class use statements stay accepted, exit 0\'')
             ->and($script)->toContain('\'m3: a deployment step that writes a dump into a linked directory '
                 . 'is a gitignore-deploy finding, exit 5\'');
     },
