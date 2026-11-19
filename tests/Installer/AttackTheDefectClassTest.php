@@ -176,7 +176,7 @@ function attackClassWordsNameGitStash(array $words): bool
 
 function attackClassConfigKey(string $word): string
 {
-    if (!attackClassMatches('/^(?:alias\.[\w.-]++|help\.autocorrect)(?:=|$)/i', $word)) {
+    if (!attackClassMatches('/^(?:alias\.[^=]++|help\.autocorrect)(?:=|$)/i', $word)) {
         return '';
     }
 
@@ -240,10 +240,21 @@ function attackClassWordsSetRunningConfig(array $words, int $depth): bool
     return false;
 }
 
-/**
- * Decodes a configuration value the way git does: a backslash maps the next character, a double quote is dropped and
- * toggles the quoted state, and an unquoted semicolon or hash starts a comment.
- */
+function attackClassDecodeEscape(string $next): string
+{
+    return match ($next) {
+        'n' => "\n",
+        't' => "\t",
+        'b' => '',
+        default => $next,
+    };
+}
+
+function attackClassStartsComment(bool $quoted, string $character): bool
+{
+    return !$quoted && in_array($character, [';', '#'], strict: true);
+}
+
 function attackClassDecodeConfigValue(string $value): string
 {
     $decoded = '';
@@ -255,13 +266,7 @@ function attackClassDecodeConfigValue(string $value): string
 
         if ($character === '\\') {
             $position++;
-            $next = $value[$position] ?? '';
-            $decoded .= match ($next) {
-                'n' => "\n",
-                't' => "\t",
-                'b' => '',
-                default => $next,
-            };
+            $decoded .= attackClassDecodeEscape($value[$position] ?? '');
 
             continue;
         }
@@ -272,7 +277,7 @@ function attackClassDecodeConfigValue(string $value): string
             continue;
         }
 
-        if (!$quoted && ($character === ';' || $character === '#')) {
+        if (attackClassStartsComment($quoted, $character)) {
             break;
         }
 
@@ -307,7 +312,7 @@ function attackClassSectionRuns(string $text, int $depth): bool
 
     foreach (explode("\n", $text) as $line) {
         if (attackClassMatches('/^\s*\[/', $line)) {
-            $section = strtolower(attackClassReplace('/^\s*\[\s*([^\]\s]*)[^\]]*\].*$/s', '$1', $line));
+            $section = strtolower(attackClassReplace('/^\s*\[\s*([^\]\s."]*)[^\]]*\].*$/s', '$1', $line));
             $line = attackClassReplace('/^\s*\[[^\]]*\]/', '', $line);
         }
 
@@ -557,6 +562,8 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias set on the command line to a quoted shell command' => ['git -c alias.s="!git stash" s'],
     'alias set on the command line to a shell command' => ['git -c \'alias.s=!git stash\' s'],
     'alias set with the set subcommand' => ['git config set alias.s stash'],
+    'alias subsection header with the command on the header line' => ['[alias.s] command = -p stash'],
+    'alias subsection header with the command on the next line' => ["[alias.s]\n\tcommand = stash"],
     'alias that points at the command' => ['git -c alias.s=stash s push'],
     'alias to a partly quoted command' => ['git -c "alias.s=!git sta\\"\\"sh" s'],
     'alias to a path-qualified git' => ['git -c alias.s=\'!/usr/bin/git stash\' s'],
@@ -566,8 +573,14 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias value with a quoted letter' => ['git -c \'alias.s=st"a"sh\' s'],
     'alias value with empty quotes' => ['git -c "alias.s=sta\'\'sh" s'],
     'alias value with quotes inside' => ["[alias]\n\ts = st\"a\"sh"],
+    'alias with a blank in a subsection name' => ['git -c \'alias.s s.command=stash\' \'s s\''],
+    'alias with a colon in a subsection name' => ['git -c alias.s:s.command=stash s:s'],
+    'alias with a non-ASCII subsection name' => ['git -c alias.é.command=stash é'],
     'alias with a quoted value' => ['git config alias.sv "stash push"'],
     'alias with a shell command' => ['git config alias.s \'!git stash\''],
+    'alias with a slash in a subsection name' => ['git -c alias.s/s.command=stash s/s'],
+    'alias with a subsection name set with the set subcommand' => ['git config set alias.s:s.command stash'],
+    'alias with a subsection name written to the configuration' => ['git config --global alias.s:s.command stash'],
     'alias with blanks around the equals sign' => ['alias.sv = stash'],
     'alias written to the configuration' => ['git config --global alias.sv stash'],
     'another worktree' => ['git -C "$worktree" stash push'],
