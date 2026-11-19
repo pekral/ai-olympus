@@ -67,7 +67,7 @@ The rules apply in every output language. In a language other than English, appl
 1. Take the finished draft of the text. Mark the parts that *Constraints* protects. The step is done when every protected part is marked.
 2. Read the prose sentence by sentence against every rule in *Rules*, and rewrite each sentence that breaks one. The step is done when no sentence of the prose breaks a rule that *Constraints* does not suspend.
 3. Compare the result with the draft. Every fact, number, link, and protected part of the draft is in the result, unchanged, and the result adds no fact. Restore anything the rewrite lost or changed. The step is done when the comparison finds no difference outside the prose.
-4. Publish the result, or hand it back to the step that publishes it. When any later step rewrites the text, run this pass again over the new text.
+4. Publish the result, or hand it back to the step that publishes it. This pass is the last edit: every other prose pass, such as an `## Output Humanization` section the installer appends to a skill, runs before it. When a later step still changes the text, run this pass again over the new text.
 
 ## Output
 The edited text, ready to publish. The pass writes no file of its own and adds no note about itself to the text.
