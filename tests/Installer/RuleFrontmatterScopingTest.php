@@ -555,7 +555,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: two sanctioned transitions; no status change once the code review has started.
         // Re-baselined: a code-review report is a new comment on every run (`--create`); every other namespace keeps one comment per actor.
         // Re-baselined: every other publish in the JIRA `cr-comment` namespace passes `--create` too, and a retry references the one identity rule.
-        'rules/jira/general.md' => 'd339442cae1600a12f883193c5e19aa41321a43643ac2b7d121c21ba1198d5d0',
+        // Re-baselined: the new `## Attachments` section and its `## Code Review Application` entries.
+        'rules/jira/general.md' => '71d7fb14284454d170d18bdbe139403550237cc7d9f50c3fd514ca990d0a0f58',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
