@@ -36,7 +36,8 @@
 #     "customFields":  { "customfield_XXXXX": <parsed value>, … },
 #     "devSummary":    { "pullRequestCount", "branchCount", "commitCount", "state", "isStale", "byInstance" } | null,
 #     "pullRequests":  [ { "number", "title", "url", "state", "headRefName", "baseRefName", "isDraft", "mergedAt", "author" } ],
-#     "attachmentSite": "<configured *.atlassian.net site>" | null
+#     "attachmentSite": "<configured *.atlassian.net site>" | null,
+#     "attachmentsFetch": "skills/code-review-jira/scripts/download-attachments.sh <KEY>" | null
 #   }
 #
 # Notes:
@@ -76,6 +77,10 @@
 #     `attachments[]` entry by filename, and is null when the filename is missing or not unique.
 #     `attachmentId` equals that entry's `id`: both are strings, whatever type acli returns.
 #     The ADF `adfId` is a Media API ID, not the attachment ID.
+#   - `attachmentsFetch` is set when the issue or any subtask has an attachment, and null otherwise.
+#     It is built from the validated key only. It tells a consumer that the content is fetched
+#     through `download-attachments.sh`; rules/jira/general.md *Attachments* owns how, and its value
+#     is never executed.
 #   - `devSummary` is a convenience projection derived from
 #     customFields[$JIRA_DEV_SUMMARY_FIELD] (default `customfield_10000`,
 #     overridable via the JIRA_DEV_SUMMARY_FIELD env var). The shape stays
@@ -143,14 +148,16 @@ self_test() {
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
 
   # The stub reads the case it plays from the `mode` file beside it: ok, list-fails, short, subtasks,
-  # or subtask-list-fails.
+  # subtask-list-fails, attachments, or subtask-attachments.
   printf 'ok' >"$stubbin/mode"
   cat >"$stubbin/acli" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
 mode="$(cat "${0%/*}/mode")"
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" ]]; then
-  printf '%s\n' '{"fields": {"summary": "Subtask two", "description": null, "comment": {"total": 0, "comments": []}}}'
+  attachments='[]'
+  [[ "$mode" != "subtask-attachments" ]] || attachments='[{"id": "10600", "filename": "sub-notes.md"}]'
+  printf '%s\n' "{\"fields\": {\"summary\": \"Subtask two\", \"description\": null, \"attachment\": $attachments, \"comment\": {\"total\": 0, \"comments\": []}}}"
   exit 0
 fi
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-3" ]]; then
@@ -166,12 +173,15 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   [[ "$mode" != subtask* ]] || subtasks='[{"key": "TEST-2", "fields": {"summary": "Subtask two"}}, {"key": "TEST-3", "fields": {"summary": "Subtask three"}}]'
   total=2
   [[ "$mode" != "short" ]] || total=3
-  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" <<'JSON'
+  attachments='[]'
+  [[ "$mode" != "attachments" ]] || attachments='[{"id": "10500", "filename": "notes.md"}]'
+  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON'
 {
   "fields": {
     "summary": "Fixture issue",
     "status": { "name": "In Progress" },
     "subtasks": __SUBTASKS__,
+    "attachment": __ATTACHMENTS__,
     "comment": {
       "total": __TOTAL__,
       "comments": [
@@ -270,6 +280,7 @@ STUB
   check 'authorAccountId falls back to the view-embedded author' '.comments[1].authorAccountId' 'acc-view-fallback'
   check 'mentionAccountIds is empty with no mention node' '.comments[1].mentionAccountIds | length' '0'
   check 'a whole comment thread is complete' '.commentsComplete' 'true'
+  check 'an issue without attachments has no attachmentsFetch' '.attachmentsFetch' 'null'
 
   # load_case <mode> — load the fixture again with the stub playing <mode>; the result goes to $out.
   load_case() {
@@ -286,6 +297,11 @@ STUB
   check 'a subtask whose own view failed is reported as incomplete' '.subtasks[1].commentsComplete' 'false'
   load_case subtask-list-fails
   check 'a subtask whose comment list failed is reported as incomplete' '.subtasks[0].commentsComplete' 'false'
+  check 'subtasks without attachments leave attachmentsFetch null' '.attachmentsFetch' 'null'
+  load_case attachments
+  check 'an issue attachment sets attachmentsFetch to the fetch of its key' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
+  load_case subtask-attachments
+  check 'a subtask attachment alone sets attachmentsFetch too' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
@@ -726,4 +742,7 @@ def viewCommentIdx:
       author: (.author.login // null)
     }))
   }
+| .attachmentsFetch = (if ((.attachments | length) + ([.subtasks[].attachments[]] | length)) > 0
+    then "skills/code-review-jira/scripts/download-attachments.sh " + $key
+    else null end)
 '

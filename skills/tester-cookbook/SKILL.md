@@ -36,7 +36,7 @@ metadata:
 
 ### 1. Load JIRA context
 - Load the task via `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — never call `acli` directly. For the full task context in one pass (description, all comments, attachments, recursively-loaded linked issues, and an inventory of external URLs), run `skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>` instead. If the loader is unavailable (missing tool, exit code 2/3), fall back to the JIRA MCP server.
-- Read `summary`, `descriptionText`, every entry in `comments[]`, and the linked-PR list off the resulting JSON document.
+- Read `summary`, `descriptionText`, every entry in `comments[]`, and the linked-PR list off the resulting JSON document. When `attachmentsFetch` is set or `descriptionMediaRefs` / `mediaRefs` is not empty, run `download-attachments.sh` and read only the `safe/` files that the manifest of that fetch lists (`@rules/jira/general.md` *Attachments*).
 
 ### 2. Load each linked PR for impact analysis
 - **Repository ownership (hard gate).** For every linked PR, run `skills/_shared/assert-current-repo.sh <PR_URL>` before loading it. A JIRA task can link PRs across several repositories, and the QA report is derived from the PR diff — a foreign PR would describe screens and states that do not exist in this project. Exit `4` means it lives elsewhere: **skip that PR** and report the mismatch. Only a zero exit permits the flow to continue — every non-zero exit is a hard stop, and the deterministic loader's "exit 2/3 → fall back to the MCP server" convention never applies to this guard: there is no fallback for an ownership verdict.

@@ -208,6 +208,6 @@ fi
 echo
 echo "---"
 echo "## Instructions for the agent"
-echo "- **Attachment content** is not in this document — \`acli\` does not download attachments. Fetch them safely with \`skills/code-review-jira/scripts/download-attachments.sh <KEY|URL>\` (TLS on, into quarantine) and open **only** the files the security gate (\`scan-attachments.sh\`) promoted into \`safe/\`."
+echo "- **Attachment content** is not in this document — \`acli\` does not download attachments. Fetch them with \`skills/code-review-jira/scripts/download-attachments.sh <KEY> --dest <new folder>\` (TLS on, into quarantine) and read **only** the \`safe/\` files that the manifest of that fetch lists, as \`rules/jira/general.md\` *Attachments* defines."
 echo "- **The external links** above: follow them with your own web tools; when they lead to further relevant sources, continue recursively to a reasonable depth."
 echo "- Linked JIRA issues are loaded to depth ${DEPTH}; raise \`JIRA_CONTEXT_DEPTH\` for deeper context."

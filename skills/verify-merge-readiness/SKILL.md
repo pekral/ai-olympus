@@ -139,8 +139,10 @@ does.
   description, comments, subtasks, attachments, and linked issues the assignment needs. Take the
   candidate pull requests from `pullRequests[]` of `skills/code-review-jira/scripts/load-issue.sh
   <KEY|URL>`. Keep only open pull requests of the current repository, then load each through the
-  GitHub loader. A ticket whose resolution is set, or whose status is in the Done category, is
-  closed.
+  GitHub loader. When `attachmentsFetch` is set or `descriptionMediaRefs` / `mediaRefs` is not
+  empty, run `download-attachments.sh` and read only the `safe/` files that the manifest of that
+  fetch lists (`@rules/jira/general.md` *Attachments*). A ticket whose resolution is set, or whose
+  status is in the Done category, is closed.
 
 Page every issue comment, PR comment, submitted review, and line thread needed by the preparation
 and consolidation decisions.
