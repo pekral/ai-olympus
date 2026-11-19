@@ -257,7 +257,8 @@ test('architecture rules let a raw-body pass-through endpoint keep the generic R
     expect($content)->toContain('1. it reads only the raw body (`$request->getContent()`) or the raw request as a whole, never an individual input field');
     expect($content)->toContain('`$request->json(...)` included;');
     expect($content)->toContain('2. it has no validation rules to declare;');
-    expect($content)->toContain('3. the authorization or verification of the caller runs elsewhere — in route middleware that is registered on that route');
+    expect($content)->toContain('3. the authorization or verification of the caller runs elsewhere');
+    expect($content)->toContain('in route middleware that is registered on that route');
     expect($content)->toContain('or the endpoint is public by design and needs none;');
     expect($content)->toContain('4. it hands the raw payload on unchanged (for example to a queued job) and does not parse or shape it.');
 
@@ -267,8 +268,10 @@ test('architecture rules let a raw-body pass-through endpoint keep the generic R
 
     expect(substr_count($content, '4. it hands the raw payload on unchanged'))->toBe(1);
     expect($content)->toContain('The one exception is ' . $exception . ' below.');
-    expect($content)->toContain('**Controllers and Other Entry Points** → ' . $exception . ' does not trigger it either; a method that reads one input field off a generic `Request` still does.');
-    expect($review)->toContain('except a raw-body pass-through method that meets every condition of the exception in `@rules/laravel/architecture.md` *Controllers and Other Entry Points* — a method that reads one input field off a generic `Request` is still a finding;');
+    expect($content)->toContain('**Controllers and Other Entry Points** → ' . $exception . ' does not trigger it either;');
+    expect($content)->toContain('a method that reads one input field off a generic `Request` still does.');
+    expect($review)->toContain('except a raw-body pass-through method that meets every condition of the exception in `@rules/laravel/architecture.md`');
+    expect($review)->toContain('a method that reads one input field off a generic `Request` is still a finding;');
     expect($review)->not->toContain('it hands the raw payload on unchanged');
 });
 
