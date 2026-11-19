@@ -54,7 +54,7 @@ Never accepted as evidence:
 
 ### 1. Load the issue
 1. Run `skills/code-review-jira/scripts/gather-issue-context.sh <KEY>` for the issue, every comment, and the linked issues. When it fails on a large issue, load it with `acli jira workitem view <KEY> --fields '*all' --json` into a file and read it in parts.
-2. Run `skills/code-review-jira/scripts/download-attachments.sh <KEY>` and read only the files the scan gate moved to `safe/`. When the download fails, list every attachment as unread in *Co zatím nevíme* and follow `@rules/jira/general.md` *Attachments*. Never describe a screenshot from the text around it.
+2. When the context shows an `[attachment: <filename>]` marker, or when `attachmentsFetch` is set or `descriptionMediaRefs` / `mediaRefs` is not empty, run `download-attachments.sh` and read only the `safe/` files that the manifest of that fetch lists (`@rules/jira/general.md` *Attachments*). When the download fails, list every attachment as unread in *Co zatím nevíme*. Never describe a screenshot from the text around it.
 
 ### 2. Decide whether to publish at all
 1. Resolve this account's ID: `source skills/code-review-jira/scripts/jira-actor.sh && jira_actor_account_id`.
