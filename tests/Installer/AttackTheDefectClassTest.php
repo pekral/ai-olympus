@@ -240,6 +240,48 @@ function attackClassWordsSetRunningConfig(array $words, int $depth): bool
     return false;
 }
 
+/**
+ * Decodes a configuration value the way git does: a backslash maps the next character, a double quote is dropped and
+ * toggles the quoted state, and an unquoted semicolon or hash starts a comment.
+ */
+function attackClassDecodeConfigValue(string $value): string
+{
+    $decoded = '';
+    $quoted = false;
+    $length = strlen($value);
+
+    for ($position = 0; $position < $length; $position++) {
+        $character = $value[$position];
+
+        if ($character === '\\') {
+            $position++;
+            $next = $value[$position] ?? '';
+            $decoded .= match ($next) {
+                'n' => "\n",
+                't' => "\t",
+                'b' => '',
+                default => $next,
+            };
+
+            continue;
+        }
+
+        if ($character === '"') {
+            $quoted = !$quoted;
+
+            continue;
+        }
+
+        if (!$quoted && ($character === ';' || $character === '#')) {
+            break;
+        }
+
+        $decoded .= $character;
+    }
+
+    return $decoded;
+}
+
 function attackClassSectionLineRuns(string $section, string $line, int $depth): bool
 {
     $found = preg_match('/^\s*([\w.-]++)\s*+(?:=(.*))?$/s', $line, $parts);
@@ -253,7 +295,7 @@ function attackClassSectionLineRuns(string $section, string $line, int $depth): 
 
     return match (true) {
         $found === 0 => false,
-        $section === 'alias' && isset($parts[2]) => attackClassAliasRuns(attackClassReplace('/\\\\(["\\\\])/', '$1', $value), $depth),
+        $section === 'alias' && isset($parts[2]) => attackClassAliasRuns(attackClassDecodeConfigValue($value), $depth),
         $section === 'help' && $key === 'autocorrect' => attackClassAutocorrectRuns(attackClassReplace('/["\']/', '', $value)),
         default => false,
     };
@@ -502,6 +544,15 @@ test('the git stash detector catches every spelling of the command (issue #608)'
     'alias key with an escaped dot' => ['git config alias\.s stash'],
     'alias line with a leading option in a section' => ["[alias]\n\ts = -p stash"],
     'alias line with escaped quotes in a section' => ["[alias]\n\ts = st\\\"a\\\"sh"],
+    'alias section value in double quotes with a leading option' => ["[alias]\n\ts = \"-p stash\""],
+    'alias section value in double quotes with a long option' => ["[alias]\n\ts = \"--paginate stash\""],
+    'alias section value with a comment after quotes' => ["[alias]\n\ts = \"-p stash\" ; c"],
+    'alias section value with an escaped newline after an option' => ["[alias]\n\ts = -p\\nstash"],
+    'alias section value with an escaped newline after the command' => ["[alias]\n\ts = stash\\n"],
+    'alias section value with an escaped tab after an option' => ["[alias]\n\ts = -p\\tstash"],
+    'alias section value with an escaped tab after the command' => ["[alias]\n\ts = stash\\t"],
+    'alias section value with a quoted option on the section line' => ['[alias] s = "-p stash"'],
+    'alias section value with quotes around a blank' => ["[alias]\n\ts = -p\" \"stash"],
     'alias set in a named file' => ['git config --file .git/config alias.s stash'],
     'alias set on the command line to a quoted shell command' => ['git -c alias.s="!git stash" s'],
     'alias set on the command line to a shell command' => ['git -c \'alias.s=!git stash\' s'],
@@ -623,6 +674,7 @@ test('the git stash detector ignores text that only mentions the word, on one li
     'a file name after a continuation' => ["git add \\\n  stash.md"],
     'a file name in quotes' => ['git add "stash.txt"'],
     'alias line with a leading option and another command in a section' => ["[alias]\n\ts = -p status"],
+    'alias section value with escaped quotes around a word with a blank' => ["[alias]\n\tzz = \\\"-p stash\\\""],
     'alias value with a leading option and another command' => ['git -c \'alias.s=-p status\' s'],
     'a long list of path options with no command' => ['git ' . str_repeat('-C ', 25) . 'status'],
     'a long option list with no command' => ['git ' . str_repeat('--x ', 25) . 'status'],
