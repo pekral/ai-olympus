@@ -259,11 +259,18 @@ test('architecture rules let a raw-body pass-through endpoint keep the generic R
     expect($content)->toContain('2. it has no validation rules to declare;');
     expect($content)->toContain('3. the authorization or verification of the caller runs elsewhere');
     expect($content)->toContain('in route middleware that is registered on that route');
-    expect($content)->toContain('or the endpoint is public by design and needs none;');
+    expect($content)->toContain('or the route is public by design as `@rules/security/backend.md` *Route Access (issue #586)* defines it.');
+    expect($content)->toContain('An inbound webhook or other third-party callback is never public by design:');
+    expect($content)->toContain('it meets this condition only when the signature, timestamp, and replay check runs in its route middleware;');
+    expect($content)->not->toContain('or the endpoint is public by design and needs none');
     expect($content)->toContain('4. it hands the raw payload on unchanged (for example to a queued job) and does not parse or shape it.');
 
     expect($content)->toContain('The exception moves no check away. The raw payload stays untrusted input');
-    expect($content)->toContain('the method passes the raw body string, never the `Request` object, to an Action');
+    expect($content)->toContain('the request as a whole goes only to a framework or vendor handler, for example a signature verifier;');
+    expect($content)->toContain('a project-owned class — an Action, a queued job, or any other — receives only the raw body string,');
+    expect($content)->toContain('never the `Request` object, its string form (`(string) $request`), its headers, or its cookies');
+    expect($content)->toContain('A field read in a project-owned class that receives the `Request` object is the generic-`Request` finding.');
+    expect($content)->not->toContain('the method passes the raw body string, never the `Request` object, to an Action');
     expect($content)->toContain('needs a project-owned FormRequest, and the generic-`Request` finding stays for it.');
 
     expect(substr_count($content, '4. it hands the raw payload on unchanged'))->toBe(1);
