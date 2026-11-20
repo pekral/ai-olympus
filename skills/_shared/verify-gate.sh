@@ -367,8 +367,8 @@ STUB
   rm -f "$project/composer.lock"
 
   # --- Arguments and configuration -----------------------------------------------------------
-  code=0; verify_in "$project" --tier full --output=/tmp/x || code=$?
-  check 'an option in place of the sha is refused' "$([[ "$code" -eq 1 && ! -e /tmp/x ]] && echo pass)"
+  code=0; verify_in "$project" --tier full "--output=$tmp/refused-sha-output" || code=$?
+  check 'an option in place of the sha is refused' "$([[ "$code" -eq 1 && ! -e "$tmp/refused-sha-output" ]] && echo pass)"
   code=0; verify_in "$project" --tier full "${head:0:12}" || code=$?
   check 'an abbreviated sha is refused' "$([[ "$code" -eq 1 ]] && echo pass)"
   code=0; verify_in "$project" --tier full 0000000000000000000000000000000000000000 || code=$?
