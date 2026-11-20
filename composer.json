@@ -41,7 +41,7 @@
   },
   "require-dev": {
     "composer/composer": "^2.11.2",
-    "ergebnis/composer-normalize": "^2.57.0",
+    "ergebnis/composer-normalize": "^2.58.0",
     "laravel/pint": "^1.32.3",
     "pekral/phpcs-rules": "dev-master",
     "pekral/phpstan-rules": "dev-master",
@@ -50,7 +50,7 @@
     "pestphp/pest-plugin": "^5.0",
     "pestphp/pest-plugin-type-coverage": "^5.1.1",
     "phpstan/extension-installer": "^1.4.3",
-    "phpstan/phpstan": "^2.3.6",
+    "phpstan/phpstan": "^2.3.7",
     "phpstan/phpstan-deprecation-rules": "^2.0.5",
     "phpstan/phpstan-mockery": "^2.0",
     "phpstan/phpstan-phpunit": "^2.1.2",
