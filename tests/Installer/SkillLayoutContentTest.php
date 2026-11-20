@@ -157,3 +157,19 @@ test('skill-creator prunes the skill it creates before the quality gates', funct
         ->toContain('The step is done when the summary lists every sentence the step deleted or rewrote')
         ->toContain('@rules/writing/general.md');
 });
+
+test('skill-creator makes the skill it creates ship the scripts its workflow needs (issue #581)', function (): void {
+    $text = packageTextFiles()['skills/skill-creator/SKILL.md'];
+
+    expect($text)
+        ->toContain('- **Shell steps** — the deterministic shell steps the skill\'s workflow runs (or none)')
+        ->toContain('- **Ship the scripts the workflow needs.**')
+        ->toContain('reuse a `skills/_shared/*.sh` helper or a script of another skill first')
+        ->toContain('A single short command stays inline in `SKILL.md`.')
+        ->toContain('(git mode `100755`)')
+        ->toContain('Add a test that runs it under `tests/Contract/**` or `tests/Installer/**`')
+        ->toContain('- **Reference a script by its repository path.**')
+        ->toContain('Verify every reference, script paths included, points to a real file before saving.')
+        ->toContain('- New files, when the skill ships a script: `skills/<slug>/scripts/<name>.sh` and its test')
+        ->toContain('has a passing test (or the skill ships no script)');
+});

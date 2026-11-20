@@ -42,6 +42,7 @@ Before generating any file, gather:
 - **Scope** — read-only review, code change, refactor, delivery, or other
 - **Required rules** — which `rules/**/*.md*` files the skill must apply
 - **Integrations** — issue tracker, GitHub, MySQL, Telescope, etc. (or none)
+- **Shell steps** — the deterministic shell steps the skill's workflow runs (or none)
 - **Output expectations** — markdown report, code change, PR comment, etc.
 
 If running interactively, confirm the inputs with the user. If running autonomously (e.g. invoked by `resolve-issue` or a scheduled workflow), take the inputs from the triggering issue / PR description, cite where each one came from, and list every input the source does not settle as not verified in the final summary.
@@ -72,7 +73,9 @@ The rules that make the split work, each one load-bearing:
 
 - **Progressive disclosure.** Keep the `SKILL.md` body under 500 lines (this repo's `skill-check.config.json` enforces the same limit) and move detail into a sibling file rather than growing the body. A referenced file costs nothing until it is read.
 - **References stay one level deep.** Every supporting file links directly from `SKILL.md`. A file that is only reachable through another file gets partially read (`head -100`) instead of read whole.
-- **Say whether a script is executed or read.** *"Run `scripts/validate.sh`"* and *"see `scripts/validate.sh` for the algorithm"* are different instructions; execution is the default because it is cheaper and more reliable than regenerating the logic.
+- **Say whether a script is executed or read.** *"Run `skills/<slug>/scripts/validate.sh`"* and *"see `skills/<slug>/scripts/validate.sh` for the algorithm"* are different instructions; execution is the default because it is cheaper and more reliable than regenerating the logic.
+- **Ship the scripts the workflow needs.** For each shell step collected above, reuse a `skills/_shared/*.sh` helper or a script of another skill first. Write `skills/<slug>/scripts/<name>.sh` only for a step that is deterministic and is multi-command, parsed by the agent, or repeated. A single short command stays inline in `SKILL.md`. The script is executable (git mode `100755`) and starts with `#!/usr/bin/env bash`, a header comment that states its purpose and usage, and `set -euo pipefail`, as in `skills/_shared/assert-current-repo.sh`. Add a test that runs it under `tests/Contract/**` or `tests/Installer/**`, as `tests/Contract/Shared/ReadManifestUnreadableTest.php` does for `skills/_shared/read-manifest.sh`.
+- **Reference a script by its repository path.** Write `skills/<slug>/scripts/<name>.sh` and say that it is executed. The installer copies `skills/**` to `.claude/skills/` and `.agents/skills/`, and `AGENTS.md` maps the bare path to `.agents/skills/` on Codex, so one form works on both platforms.
 - **Name files for their content and forward-slash every path.** `references/finance.md`, never `docs/file2.md`; `scripts/helper.sh`, never `scripts\helper.sh`.
 - **A reference file over 100 lines opens with a table of contents**, so a partial read still shows the full scope.
 
@@ -131,7 +134,7 @@ Omit a section only when it does not apply.
 ### 5. Reference rules and other skills
 - Reference rule files as `@rules/<area>/<file>.md` exactly as they exist on disk.
 - Reference other skills as `@skills/<slug>/SKILL.md`.
-- Never invent paths. Verify every reference points to a real file before saving.
+- Never invent paths. Verify every reference, script paths included, points to a real file before saving.
 
 ### 6. Keep behavior minimal
 - One skill, one workflow. Split into separate skills if the scope grows.
@@ -171,6 +174,7 @@ Skip the README update only when the skill is intentionally internal and not par
 ## Output
 
 - New file: `skills/<slug>/SKILL.md`
+- New files, when the skill ships a script: `skills/<slug>/scripts/<name>.sh` and its test
 - Updated `CHANGELOG.md` and `README.md`
 - Short summary covering:
   - chosen slug and scope
@@ -192,6 +196,7 @@ Skip the README update only when the skill is intentionally internal and not par
 
 ## Done when
 - `skills/<slug>/SKILL.md` exists with valid frontmatter and required sections
+- Each script the skill ships is executable, is referenced by its `skills/<slug>/scripts/<name>.sh` path, and has a passing test (or the skill ships no script)
 - The summary lists the sentences the pruning step deleted or rewrote, and the guard behind every kept `never` / `do not`
 - `composer skill-check` passes with no warnings on the new file
 - `CHANGELOG.md` and `README.md` reflect the new skill (or the omission is justified)
