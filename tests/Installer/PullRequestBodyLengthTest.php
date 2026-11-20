@@ -68,6 +68,8 @@ test('the overflow comment is updated in place, so a changed body never leaves a
     expect($rule)->not->toContain('<PR-URL> <file> agent-note')
         ->and($rule)->toContain('The helper updates the one overflow comment of this actor in place on every later publish')
         ->and($rule)->toContain('Never publish it in the create-only `agent-note` namespace or with `--create`')
+        ->and($rule)->toContain('After the publish, delete every older `## Pull-request body overflow` comment of this actor')
+        ->and($rule)->toContain('skills/_shared/delete-owned-github-comment.sh <PR-URL> <comment-id>')
         ->and($helper)->toContain('`pr-body-overflow`');
 });
 
@@ -83,7 +85,7 @@ test('the overflow comment is a durable copy that merge preparation never delete
             'A `## Pull-request body overflow` comment never enters the manifest: '
             . 'it holds the durable copy of the pull-request body\'s verbatim content',
         )
-        ->and($skill)->toContain('and the delete helper refuses it.')
+        ->and($skill)->toContain('and the delete helper refuses it unless a newer overflow comment of the same actor supersedes it.')
         ->and($helper)->toContain('refusing to delete a pull-request body overflow comment');
     expect($reports)->toContain('whose description carries them under the length limit of `@rules/git/pull-requests.md` *PR Content Requirements*.')
         ->and($reports)->not->toContain('has no length cap');
