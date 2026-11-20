@@ -90,15 +90,22 @@
 #   line; so is a symlink below those four directories, a symlinked public/index.php or artisan, and a
 #   file grep cannot read.
 #   Laravel 12 loads every *.php file below config/ (LoadConfiguration::getConfigurationFiles walks the
-#   directory recursively). It keys each file with its nested directories and its basename joined by
-#   dots, sorts the keys, and sets each with Repository::set, which splits the key on dots, so a file
+#   directory recursively). It keys each file with its nested directory and its basename joined by
+#   dots, where the nested directory is the directory of the file with every copy of the config path
+#   removed (getNestedDirectory uses str_replace, so a second copy inside the directory goes too),
+#   sorts the keys, and sets each with Repository::set, which splits the key on dots, so a file
 #   loads into filesystems.links or filesystems.disks after config/filesystems.php did. The scan does
 #   not read such a file. Each *.php file below config/ whose key starts with `filesystems.`
 #   (config/filesystems/**/*.php, config/filesystems.<anything>.php, and a file below a directory
 #   named filesystems.<anything>) is a not-verified line that names the file; a name that ends in
 #   .php and a line feed counts too, as the Finder pattern *.php matches it. The key is case-sensitive:
 #   config/Filesystems/links.php, config/filesystem.php, and config/app/filesystems.php set no such key
-#   and are not reported. A symlinked file or directory below config/ is never followed (above).
+#   and are not reported. The scan cannot know the deployed config path, so it reports as well each
+#   *.php file below config/ whose directory below config/ holds the text `config` in any letter case
+#   (the config path ends in `config`, so only then can a second copy of it stand in the directory, as in
+#   config/var/www/html/config/filesystems/links.php on a host deployed at /var/www/html, which loads as
+#   filesystems.links). The basename of a file is never removed, so it is not part of that rule. A
+#   symlinked file or directory below config/ is never followed (above).
 #   What the scan does not see, so a clean result does not cover it:
 #     - a cached configuration, bootstrap/cache/config.php (or the file APP_CONFIG_CACHE names), which
 #       the framework loads instead of every file of config/;
@@ -888,13 +895,16 @@ config_roots() {
 # config/filesystems.php was loaded (config/filesystems/links.php, config/filesystems.links.php,
 # config/filesystems/disks/dl.php). The scan does not read these files, so each one is a not-verified
 # line that names it. The test is the key as Laravel builds it, and Laravel keys are case-sensitive, so
-# config/Filesystems/links.php and config/filesystem.php set no filesystems.* key. A file below a dot
+# config/Filesystems/links.php and config/filesystem.php set no filesystems.* key. The nested directory of
+# the key is the directory of the file with every copy of the config path removed (getNestedDirectory uses
+# str_replace), and the scan cannot know the deployed config path. The path ends in `config`, so a file
+# whose directory below config/ holds the text `config` in any letter case is a not-verified line as well. A file below a dot
 # directory or with a dot name is reported as well, because the scan does not rely on the Finder rules of
 # the framework. The Finder pattern `*.php` also matches a name that ends in `.php` and a line feed (PCRE `$`),
 # and the key then keeps that suffix, so the find matches it too. find does not follow a symlink: a symlinked file or directory below config/ is a
 # not-verified line of served_path_overrides, and nothing is read through it.
 config_nested() {
-  local rc base p rel key
+  local rc base p rel key dir
   resolve_link "$ROOT_P/config"
   rc=$?
   ((rc == 0 && ${#LINK_TRAIL[@]} == 0)) || return 0
@@ -904,9 +914,17 @@ config_nested() {
     rel="${p#"$base"/}"
     key="${rel%.php}"
     key="${key//\//.}"
+    dir=''
+    [[ "$rel" == */* ]] && dir="${rel%/*}"
     case "$key" in
     filesystems.*)
       not_verified "config/$(esc "$rel") - Laravel loads this file under the key $(esc "$key"), so it sets part of the filesystems configuration (the links or the disks) and the scan does not read it; write its entries as literals in config/filesystems.php, or check the directories they serve by hand, and run the scan again"
+      continue
+      ;;
+    esac
+    case "$dir" in
+    *[Cc][Oo][Nn][Ff][Ii][Gg]*)
+      not_verified "config/$(esc "$rel") - the directory of this file holds the text config, so on a host whose config path ends in that text Laravel can remove a second copy of the config path from the directory and load the file under another key, such as one that starts with filesystems., and the scan cannot know that path; rename the directory so it does not hold the text config, and run the scan again"
       ;;
     esac
   done < <(find "$base" -type f \( -name '*.php' -o -name $'*.php\n' \) -print0 2>"$SCRATCH/find.err")
@@ -3161,6 +3179,41 @@ st_cfgkey_cases() {
   st_check_not 's15: nothing is read through those symlinks' st_line 'db.sql'
 }
 
+# S16: LoadConfiguration::getNestedDirectory removes every copy of the absolute config path from the
+# directory of a file (str_replace), not only the leading one. The scan cannot know the deployed path, so a
+# file whose directory below config/ holds the text `config` (the config path ends in /config) is a
+# not-verified line, in any letter case. Each of these files loads as filesystems.links on a host deployed
+# at the path that the fixture's own config path stands for.
+st_cfgpath_cases() {
+  local r spec name file shown R P
+  for spec in "a|R/filesystems/links.php" "b|R/filesystems.links.php" "c|Rfilesystems/links.php" \
+    "f|F/configystems/links.php" "g|x/Config/y.php" "h|CONFIG/a.php" "i|a/xconfigx/b.php" \
+    "j|config/a.php" "k|a/b/config/c/d.php" "l|a/CoNfIg"$'\n'"x/b.php" "m|a/b/ConFig/links.php"$'\n'; do
+    name="cfgpath-${spec%%|*}"
+    P="$ST_TMP/$name"
+    R="$P/config"
+    file="${spec#*|}"
+    case "$file" in
+    R*) file="${R#/}${file#R}" ;;
+    F*) file="files${P}/configystems/links.php" ;;
+    esac
+    st_cfgkey "$name" "$file"
+    shown="${file//$'\n'/\\x0a}"
+    st_nv "s16: config/$shown has the text config in its directory and is a not-verified line that names it, exit 3" "$name" "config/$shown - the directory of this file holds the text config"
+    st_check_not "s16: config/$shown is not read, so no dump behind it is a finding" st_line 'db.sql'
+  done
+  # The basename is never removed, a directory name that only holds part of the word is no copy of the
+  # config path, and the stock top-level files leave the project clean.
+  st_cfgkey cfgpath-other 'app.php' "[]"
+  for file in config.php a/config.php a/conf/b.php a/confi/g.php a/cnfg/b.php a/co_nfig/c.php; do
+    mkdir -p "$r/$(dirname "config/$file")"
+    printf "<?php\n\nreturn [];\n" >"$r/config/$file"
+  done
+  st_commit "$r" more
+  st_run cfgpath-other static --root "$r"
+  st_check 's16: config files with no text config in their directory leave the project clean, exit 0' test "$ST_RC" = 0
+}
+
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
 st_curl_stub() {
   mkdir -p "$ST_TMP/bin"
@@ -3267,6 +3320,7 @@ self_test() {
   st_links_cases
   st_failclosed_cases
   st_cfgkey_cases
+  st_cfgpath_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
