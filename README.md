@@ -41,7 +41,7 @@ The installer writes, for Claude Code and Codex:
 - `.claude/rules` and `.codex/rules` — the rule library
 - `.claude/skills` and `.agents/skills` — the skills, in the project only
 - `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the nine agents and their Codex adapters
-- `.claude/commands` — the five slash commands
+- `.claude/commands` — the five Claude Code slash commands; Codex uses the matching skills below
 - `AGENTS.md` in the project root, unless one already exists
 
 `--global` additionally writes the skills to `~/.claude/skills` and `~/.agents/skills`. Every other switch, the installer flow, and the distribution contents are in [`docs/installation.md`](docs/installation.md).
@@ -83,7 +83,15 @@ A command works in any session, because the session that receives it holds the `
 /prepare-issue-for-merge https://github.com/owner/repo/issues/123
 ```
 
-In Codex, ask the root session to take the `krang` role, so it spawns the specialists itself:
+In Codex, invoke the matching skill with `$`:
+
+```text
+$verify-merge-readiness https://github.com/owner/repo/issues/123
+```
+
+The installer puts the same 73 skills, including their scripts and references, in `.claude/skills` and `.agents/skills`. Select the installed name offered by Codex if it includes a namespace. If newly installed skills do not appear, restart Codex.
+
+To resolve an issue through the full pipeline, ask the root session to take the `krang` role and spawn the specialists itself:
 
 ```text
 Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123
@@ -101,7 +109,17 @@ With several references, or with the optional `--merge` flag, the same command p
 /do-it add the CSV export of orders, then a date filter for it, and fix the typo on the login page
 ```
 
-Codex invokes the same workflows as `$verify-merge-readiness` and `$do-it`.
+The five command workflows have these Codex skill names; pass the same arguments after the name:
+
+| Claude Code command | Codex skill |
+|---|---|
+| `/prepare-issue-for-merge` | `$verify-merge-readiness` |
+| `/do-it` | `$do-it` |
+| `/redesign-page` | `$deliver-page-redesign` |
+| `/report-code-review` | `$code-review-github`, `$code-review-jira`, or `$code-review-bugsnag`, by tracker |
+| `/test-assignment` | `$test-assignment` |
+
+To publish a release, explicitly invoke `/publish-github-release 0.5.3` in Claude Code or `$publish-github-release 0.5.3` in Codex. The workflow checks the milestone, audits the release diff, and merges the release preparation before it creates the tag and GitHub release.
 
 [`rules/compound-engineering/orchestration.md`](rules/compound-engineering/orchestration.md) *Starting the orchestrator — the top-level role and the nested hand-over* explains why `krang` is not started as a subagent.
 
@@ -118,7 +136,7 @@ A batch unit first tries `gh pr update-branch --rebase` to reach the latest defa
 | Agents | Shared role definitions with Codex TOML adapters | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
 | Commands | `/do-it`, `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` | `.claude/commands` |
 
-The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. Codex has no user-defined slash commands, so it reaches each command's workflow through the skill the command delegates to, such as `$verify-merge-readiness`, `$deliver-page-redesign`, or `$test-assignment`.
+The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. The five slash commands are installed for Claude Code only. Codex reaches their workflows through the skill names listed in [Quick start](#quick-start).
 
 The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. On a pull request from a branch of the same repository, a converged code review with no blocking finding counts as the approval, because GitHub does not let the author approve their own pull request. A pull request from a fork still needs a GitHub approval. One opt-in path replaces the review and the CI wait. A project sets `merge.low-risk-path: true` and `risk.critical-paths` in its manifest; then, when the default-branch copy of `skills/_shared/classify-risk.sh --merge-risk` answers `low-risk-merge=yes` for the exact head (a `FAST` diff of regular application source and test files inside the allow-list in that script header, none of them critical for the project), `merge-github-pr` reads the diff in one security-only check, then merges on a green full quality gate of that head. Without the opt-in every merge keeps the review and green CI.
 
