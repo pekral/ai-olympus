@@ -173,7 +173,7 @@ test(
         $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
         $body = publicFilesScanBody();
 
-        expect($skill)->toContain('- **Unknown is not clean.** The scan reads project-controlled input')
+        expect($skill)->toContain('- **Unknown is not clean, for every source the scan reads or names.** The scan reads project-controlled input')
             ->and($skill)->toContain('It never opens the file through a symlink: a symlinked file or directory is a '
                 . '`Not verified: public files — …` line')
             ->and($skill)->toContain('- A deployment step that names a path below a served path is checked as a step that names '
@@ -208,3 +208,22 @@ test(
                 . 'is a gitignore-deploy finding, exit 5\'');
     },
 );
+
+test('a config file that Laravel loads under a filesystems key is named and not read, and the limits are stated (issue #580)', function (): void {
+    $skill = packageSource('skills/laravel-public-files-audit/SKILL.md');
+    $script = packageSource('skills/laravel-public-files-audit/scripts/public-files-scan.sh');
+    $changelog = packageSource('CHANGELOG.md');
+
+    expect($skill)->toContain('- **A configuration file that Laravel loads under a `filesystems.` key is not verified without being read.**')
+        ->and($skill)->toContain('So `config/filesystems/links.php` and `config/filesystems.links.php` set `filesystems.links`')
+        ->and($skill)->toContain('- **What the scan does not see, and reports as clean.**')
+        ->and($skill)->toContain('A cached configuration (`bootstrap/cache/config.php`')
+        ->and($skill)->not->toContain('Every other form the scan cannot read with certainty is not verified too, never clean')
+        ->and($changelog)->toContain('and a file below `config/` that Laravel loads under a `filesystems.` key')
+        ->and($changelog)->toContain('The scan does not see a cached configuration (`bootstrap/cache/config.php`)')
+        ->and(publicFilesScanBody())->toContain('config_nested()')
+        ->and(publicFilesScanBody())->toContain('filesystems.*)')
+        ->and($script)->toContain('st_cfgkey_cases')
+        ->and($script)->toContain('"s15: config/$shown sets a filesystems.* key and is a not-verified line that names it, exit 3"')
+        ->and($script)->toContain('\'s15: config files whose key is not filesystems.* leave the project clean, exit 0\'');
+});
