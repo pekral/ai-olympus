@@ -33,8 +33,8 @@
 #               (GitHub Markdown).
 #   MARKER_KEY  Optional. Marker namespace, defaults to `cr-comment`. Other
 #               namespaces this package writes: `merge-readiness`,
-#               `test-report`, `mysql-report`, `analysis-plan` (upserted, same
-#               as `cr-comment`),
+#               `test-report`, `mysql-report`, `analysis-plan`, `pr-body-overflow`
+#               (upserted, same as `cr-comment`),
 #               and `agent-note` — the one namespace that
 #               is create-only (see step 3 below). A project skill may pass its own
 #               namespace; `@rules/code-review/general.md` *Authorship trust*

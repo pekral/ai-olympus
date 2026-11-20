@@ -98,13 +98,14 @@ function removeGitHubCommentPublisherFixture(array $fixture): void
  * @param array{bin: string, body: string, calls: string, directory: string} $fixture
  * @param array<string, string> $environment
  */
-function runGitHubCommentPublisher(array $fixture, array $environment, string $body): Process
+function runGitHubCommentPublisher(array $fixture, array $environment, string $body, string $markerKey = ''): Process
 {
     $packageDir = dirname(__DIR__, 3);
     $process = new Process([
         $packageDir . '/skills/code-review-github/scripts/upsert-comment.sh',
         'https://github.com/acme/widgets/pull/42',
         '-',
+        ...($markerKey === '' ? [] : [$markerKey]),
     ], $packageDir, [
         'FAKE_GH_ACTOR' => 'bot',
         'FAKE_GH_BODY' => $fixture['body'],
@@ -143,6 +144,31 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
             ->and($process->getOutput())->toContain('#issuecomment-502')
             // The marker travels in the published body, so the next run finds it again.
             ->and($payload)->toContain('<!-- cr-comment:actor=bot -->');
+    } finally {
+        removeGitHubCommentPublisherFixture($fixture);
+    }
+});
+
+test('a second pull-request body overflow publish updates the first comment instead of adding a duplicate', function (): void {
+    $fixture = createGitHubCommentPublisherFixture();
+    $listJson = json_encode([
+        githubComment(801, '2026-03-01T00:00:00Z', 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR);
+
+    try {
+        $process = runGitHubCommentPublisher($fixture, [
+            'FAKE_GH_LIST_JSON' => $listJson,
+            'FAKE_GH_RESPONSE' => '{"id":801,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-801"}',
+        ], "## Pull-request body overflow\n\nAudit lines and one more", 'pr-body-overflow');
+
+        $calls = (string) file_get_contents($fixture['calls']);
+        $payload = (string) file_get_contents($fixture['body']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('repos/acme/widgets/issues/comments/801 -X PATCH')
+            ->and($calls)->not->toContain('-X POST')
+            ->and($process->getErrorOutput())->toContain('action=updated id=801')
+            ->and($payload)->toContain('Audit lines and one more');
     } finally {
         removeGitHubCommentPublisherFixture($fixture);
     }

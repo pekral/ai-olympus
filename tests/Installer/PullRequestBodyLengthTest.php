@@ -46,7 +46,7 @@ test('verbatim audit, security, and package content moves to an overflow comment
     $verbatim = '**Verbatim content never shrinks; it moves to an overflow comment.** Shortening never rewrites, merges, or drops '
         . 'a line of the Audit block, its incompleteness statement, an item of the Security acceptance checklist, '
         . 'or a package row of a dependency-update body.';
-    $publish = '`skills/code-review-github/scripts/upsert-comment.sh <PR-URL> <file> agent-note`, '
+    $publish = '`skills/code-review-github/scripts/upsert-comment.sh <PR-URL> <file> pr-body-overflow`, '
         . 'headed `## Pull-request body overflow`';
     $section = 'the count per event class and every distinct host and external-write target), '
         . 'the incompleteness statement verbatim, and a pointer to that comment';
@@ -58,6 +58,17 @@ test('verbatim audit, security, and package content moves to an overflow comment
     expect($reference)->toContain(
         'the transcript moves unchanged to the overflow comment of `@rules/git/pull-requests.md` *PR Content Requirements*',
     );
+});
+
+test('the overflow comment is updated in place, so a changed body never leaves an older copy behind', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $helper = (string) file_get_contents($packageDir . '/skills/code-review-github/scripts/upsert-comment.sh');
+
+    expect($rule)->not->toContain('<PR-URL> <file> agent-note')
+        ->and($rule)->toContain('The helper updates the one overflow comment of this actor in place on every later publish')
+        ->and($rule)->toContain('Never publish it in the create-only `agent-note` namespace or with `--create`')
+        ->and($helper)->toContain('`pr-body-overflow`');
 });
 
 test('the overflow comment is a durable copy that merge preparation never deletes', function (): void {
