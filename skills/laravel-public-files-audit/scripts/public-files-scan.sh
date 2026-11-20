@@ -99,7 +99,7 @@
 #     - a file whose tokens extend, declare, alias (use ... as, also in a group use), or create with new a
 #       class whose short name is Application (PHP_AWK splits the file into tokens and drops comments and
 #       white space; it reads every PHP file of bootstrap/, public/index.php, artisan, and each PHP file of
-#       app/, config/, and routes/ that holds the text application);
+#       app/, config/, and routes/ that holds the text application, never a .env* file);
 #     - a PHP file of bootstrap/ that creates any object with new;
 #     - a bootstrap/app.php that, after an open tag and only declare(strict_types=0|1) directives and class
 #       use statements, does not return Application::configure(basePath: dirname(__DIR__)) or
@@ -107,8 +107,10 @@
 #     - a public/index.php or artisan whose tokens differ from the stock file of the Laravel 11 and 12
 #       skeleton (STOCK_INDEX, STOCK_ARTISAN), unless the file holds no token;
 #     - a file PHP_AWK reads that it cannot split into tokens with certainty: no open tag at the start, a
-#       close tag before the end, a heredoc or a nowdoc, a backtick string, a NUL byte, or an
-#       unterminated comment, string, or interpolation;
+#       close tag before the end, a heredoc or a nowdoc, a backtick string, a NUL byte, a carriage return
+#       that a byte other than a line feed follows (PHP ends a // or # comment there; a CRLF file is read),
+#       or an unterminated comment, string, or interpolation; and such a file larger than 1 MiB, which
+#       PHP_AWK does not read;
 #     - a .laravel entry at the project root (Laravel takes .laravel/ as the bootstrap path, with its own
 #       providers.php and cached configuration) and a storage/framework/maintenance.php (public/index.php
 #       runs it before the application).
@@ -137,14 +139,17 @@
 #       it), and a service provider outside app/ and bootstrap/ (a local package, for example);
 #     - vendor code, which includes the base configuration of the framework that Laravel merges below
 #       config/filesystems.php;
-#     - PHP code outside the files the scan searches: a directory such as src/, a package, and a file that
-#       a composer autoload rule loads from outside app/, also in place of a framework class; so an
-#       Application subclass defined there and created outside bootstrap/ moves a path the scan does not see;
+#     - PHP code outside the files the scan searches: a directory such as src/, a package, a file that a
+#       composer autoload rule loads from outside app/, also in place of a framework class, and a file whose
+#       name does not end in .php, also below app/, bootstrap/, config/, and routes/ (a composer autoload
+#       rule can load it); so an Application subclass defined there and created outside bootstrap/ moves a
+#       path the scan does not see;
 #     - a path method, property, or class named at run time (a variable name, a string built from parts);
 #     - the base path that Application::configure() without an argument infers from APP_BASE_PATH or from
 #       the directory of the composer autoloader;
 #     - the document root and the configuration of the web server, and any environment value, which
-#       includes APP_BASE_PATH and LARAVEL_STORAGE_PATH set in the environment or in an .env file.
+#       includes APP_BASE_PATH and LARAVEL_STORAGE_PATH set in the environment or in an .env file;
+#     - code that creates a link or copies a file at run time (symlink(), File::link(), a closure command).
 #   --changed-from <base> is the review mode of a code review. The review reports every finding of the
 #   full static scan, never only the findings of the diff, so a finding that already exists in the
 #   project blocks the pull request too: a fail-safe. The base serves only the submodule check below.
@@ -1053,11 +1058,12 @@ OVERRIDE_APP='setInstance|class_alias'
 # and a named argument (name:): a declaration, an override, a property write, or a string for reflection.
 OVERRIDE_MEMBER='(->|::|\$)?\b(app|base|bootstrap|config|database|lang|public|resource|storage)Path\b(\(|:[^:]|:$)?'
 
-# PHP_AWK reads one PHP file on stdin as data, never as code, and splits it into tokens: white space and
-# comments are dropped, a name is kept in lower case (PHP names are case-insensitive), and a string is one
-# token. A form it does not model is one "uncertain" line and nothing else: a missing open tag, a close tag
-# before the end of the file, a heredoc or nowdoc, a backtick string, and an unterminated comment, string,
-# or interpolation. A { $ } or $ { } interpolation in a double-quoted string is read as code up to its
+# PHP_AWK reads one PHP file on stdin as data, never as code, and splits it into tokens: white space (space,
+# TAB, LF, and CR, as PHP reads it) and comments are dropped, a name is kept in lower case (PHP names are
+# case-insensitive), and a string is one token. A form it does not model is one "uncertain" line and nothing
+# else: a missing open tag, a close tag before the end of the file, a heredoc or nowdoc, a backtick string, a
+# CR that a byte other than an LF follows (PHP ends a // or # comment at a CR, PHP_AWK only at an LF), and an
+# unterminated comment, string, or interpolation. A { $ } or $ { } interpolation in a double-quoted string is read as code up to its
 # closing brace, so a quote inside it does not end the string. Each hit is one line:
 #   extends          extends followed by a name whose last part is Application
 #   class            a class named Application
@@ -1092,7 +1098,7 @@ function code(i, nested,   c, d, depth, j, k, line) {
   depth = 0
   while (i <= n) {
     c = substr(s, i, 1); d = substr(s, i + 1, 1)
-    if (index(" \t\n\r\f\v", c)) { i++; continue }
+    if (index(" \t\n\r", c)) { i++; continue }
     if (c == "?" && d == ">") {
       if (nested || substr(s, i + 2) ~ /[^ \t\r\n]/) return fail("a close tag before the end of the file")
       return n + 1
@@ -1152,7 +1158,7 @@ function stock(   t, imp, clash, u, c, k) {
   for (; k <= nt; k++) if (T[k] == "configure") return 0
   return 1
 }
-{ s = (NR > 1) ? s "\n" $0 : $0 }
+{ if (index(substr($0, 1, length($0) - 1), "\r")) fail("a carriage return that a byte other than a line feed follows"); s = (NR > 1) ? s "\n" $0 : $0 }
 END {
   q = "\047"; n = length(s); p = 1; shebang = ""
   if (substr(s, 1, 2) == "#!") { k = index(s, "\n"); shebang = k ? substr(s, 1, k - 1) : s; p = k ? k + 1 : n + 1 }
@@ -1279,10 +1285,17 @@ member_report() {
 }
 
 # php_tokens <file> <mode> [<output>]: PHP_AWK on one regular file, read on stdin, so no file name reaches
-# awk. A file that holds a NUL byte is uncertain, because awk can end a line there. The output goes to php,
+# awk. A file larger than 1 MiB is uncertain and not read, the cap of the config reader, because the run time
+# of PHP_AWK grows with the square of the file size. A file that holds a NUL byte is uncertain, because awk
+# can end a line there. The output goes to php,
 # or to the output file.
 php_tokens() {
-  local out="${3:-$SCRATCH/php}"
+  local out="${3:-$SCRATCH/php}" size
+  size="$(wc -c <"$1" 2>/dev/null | tr -d ' ')"
+  if [[ "$size" =~ ^[0-9]+$ ]] && ((size > 1048576)); then
+    printf 'uncertain\tthe file is larger than 1 MiB, so the scan does not read it\n' >"$out"
+    return 0
+  fi
   if [[ "$(LC_ALL=C tr -d -c '\000' <"$1" 2>/dev/null | wc -c)" -gt 0 ]]; then
     printf 'uncertain\ta NUL byte\n' >"$out"
     return 0
@@ -1309,12 +1322,12 @@ php_report() {
 
 # php_class_check <dir> <physical dir>: PHP_AWK on every PHP file below bootstrap/ (bootstrap/app.php in mode
 # app), and on each PHP file below app/, config/, and routes/ that holds the text application in any letter
-# case, because the name of the framework class can only be written out. A symlink is never read (it is a
+# case, because the name of the framework class can only be written out. A .env* file is never read. A symlink is never read (it is a
 # not-verified line of served_path_overrides), and an entry find or grep cannot read is one already.
 php_class_check() {
   local p mode
   if [[ "$1" == bootstrap ]]; then
-    find "$2" -type f -name '*.php' -print0 2>/dev/null
+    find "$2" -type f -name '*.php' ! -name '.env*' -print0 2>/dev/null
   else
     grep -r -l -i -a --null --include='*.php' --exclude='.env*' -e application -- "$2" 2>/dev/null
   fi >"$SCRATCH/phpfiles"
@@ -3730,6 +3743,75 @@ EOF
   st_commit "$r" base
   st_run app-l11 static --root "$r"
   st_check 's17: the stock bootstrap/app.php of Laravel 11 with a strict_types declaration reads clean, exit 0' test "$ST_RC" = 0
+  st_tokens_cases
+}
+
+# st_tok_nv <name> <label> <needle>: scan the fixture; it is incomplete with a not-verified line that carries the needle.
+st_tok_nv() {
+  st_commit "$r" base
+  st_run "$1" static --root "$r"
+  st_nv "$2 is a not-verified line, exit 3" "$1" "$3"
+}
+
+# S18 to S21: PHP ends a // or # comment at a CR as well as at an LF, so a CR that a byte other than an LF
+# follows is uncertain; a file over 1 MiB is not split into tokens; a .env* file below bootstrap/ is never
+# read; a form feed is no white space in PHP, so it stays a token. Every fixture holds placeholder content only.
+# shellcheck disable=SC2016  # the fixtures are PHP text, never expanded
+st_tokens_cases() {
+  local r f CR=$'\r' U='the scan cannot split this PHP file into tokens with certainty'
+  st_app cr-app-slash
+  printf "<?php\n// boot\rreturn \\\\Acme\\\\App::configure(basePath: dirname(__DIR__).'/site')->create();\n%s\n" "${ST_STOCK_APP#<?php}" >"$r/bootstrap/app.php"
+  st_tok_nv cr-app-slash 's18: a bootstrap/app.php that hides a return behind a // comment and a CR' "bootstrap/app.php - $U (a carriage return"
+
+  st_app cr-app-hash
+  printf "<?php\n# boot\rreturn \\\\Acme\\\\App::configure(basePath: dirname(__DIR__).'/site')->create();\n%s\n" "${ST_STOCK_APP#<?php}" >"$r/bootstrap/app.php"
+  st_tok_nv cr-app-hash 's18: a bootstrap/app.php that hides a return behind a # comment and a CR' "bootstrap/app.php - $U (a carriage return"
+
+  st_app cr-app-only
+  printf "<?php // app\rreturn \\\\Acme\\\\App::configure(basePath: dirname(__DIR__).'/site')->create();\n" >"$r/bootstrap/app.php"
+  st_tok_nv cr-app-only 's18: a bootstrap/app.php whose only tokens stand behind a CR' "bootstrap/app.php - $U (a carriage return"
+
+  st_app cr-index
+  printf "%s\n// boot\rrequire __DIR__.'/../src/boot.php';\n" "$STOCK_INDEX" >"$r/public/index.php"
+  st_tok_nv cr-index 's18: a public/index.php that hides a require behind a CR' "public/index.php - $U (a carriage return"
+
+  st_app cr-artisan
+  printf "%s\n# autoload\rrequire __DIR__.'/src/boot.php';\n" "$STOCK_ARTISAN" >"$r/artisan"
+  st_tok_nv cr-artisan 's18: an artisan that hides a require behind a CR' "artisan - $U (a carriage return"
+
+  st_app cr-subclass
+  printf "<?php\n\nnamespace App\\\\Foundation;\n\n// framework paths\rclass App extends \\\\Illuminate\\\\Foundation\\\\Application {}\n" >"$r/app/Foundation/App.php"
+  st_tok_nv cr-subclass 's18: an app/ subclass behind a CR' "app/Foundation/App.php - $U (a carriage return"
+
+  st_app cr-new
+  printf "<?php\n\n// x\r\$a = new \\\\Acme\\\\App('/srv');\n\nreturn [];\n" >"$r/bootstrap/providers.php"
+  st_tok_nv cr-new 's18: a new in bootstrap/providers.php behind a CR' "bootstrap/providers.php - $U (a carriage return"
+
+  st_app crlf-control
+  for f in bootstrap/app.php public/index.php; do
+    sed "s/\$/${CR}/" "$r/$f" >"$r/$f.tmp" && mv "$r/$f.tmp" "$r/$f"
+  done
+  printf "<?php\r\n\r\nreturn [\r\n    App\\\\Providers\\\\AppServiceProvider::class, // the provider\r\n];\r\n" >"$r/bootstrap/providers.php"
+  st_commit "$r" base
+  st_run crlf-control static --root "$r"
+  st_check 's18: the stock bootstrap/app.php and public/index.php and a commented bootstrap/providers.php with CRLF line ends read clean, exit 0' test "$ST_RC" = 0
+
+  st_app ff-app
+  printf '%s\n' "$ST_STOCK_APP" | sed "s/^return Application/return\\$(printf '\f')Application/" >"$r/bootstrap/app.php"
+  st_tok_nv ff-app 's21: a form feed between two tokens of bootstrap/app.php (PHP reads no white space there)' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app big
+  { printf '<?php\n\n// '; head -c 1048580 /dev/zero | tr '\000' 'x'; printf '\n'; } >"$r/bootstrap/generated.php"
+  SECONDS=0
+  st_tok_nv big 's19: a PHP file of bootstrap/ larger than 1 MiB' "bootstrap/generated.php - $U (the file is larger than 1 MiB"
+  st_check 's19: the file larger than 1 MiB is not split into tokens, so the scan ends within 60 s' test "$SECONDS" -lt 60
+
+  st_app env-boot
+  printf "<?php\n\n\$x = new \\\\Acme\\\\App('/srv');\n\nreturn ['PLACEHOLDER' => 'value'];\n" >"$r/bootstrap/.env.local.php"
+  st_commit "$r" base
+  st_run env-boot static --root "$r"
+  st_check 's20: a .env* file below bootstrap/ is never read, so the scan reads clean, exit 0' test "$ST_RC" = 0
+  st_check_not 's20: no line names the .env* file below bootstrap/' st_line '.env.local.php'
 }
 
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
