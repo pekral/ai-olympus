@@ -85,10 +85,33 @@
 #     - a config that is not readable or exceeds 1 MiB.
 #   Other ways to move a served directory are not read statically, so a PHP file of app/, bootstrap/,
 #   config/, routes/, public/index.php, or artisan that calls usePublicPath, use<App|Base|Bootstrap|
-#   Config|Database|Lang|Storage>Path, or names path.public, path.base, path.lang, path.config,
-#   path.storage, path.database, path.resources, path.bootstrap, or filesystems.links is a not-verified
-#   line; so is a symlink below those four directories, a symlinked public/index.php or artisan, and a
-#   file grep cannot read.
+#   Config|Database|Lang|Storage>Path, setBasePath, setInstance, or class_alias, or names path.public,
+#   path.base, path.lang, path.config, path.storage, path.database, path.resources, path.bootstrap,
+#   LARAVEL_STORAGE_PATH, or filesystems.links is a not-verified line; so is a symlink below those four
+#   directories, a symlinked public/index.php or artisan, and a file grep cannot read.
+#   The helpers (storage_path, public_path, base_path, config_path, ...) and LoadConfiguration ask the
+#   application object for its paths, so each of these is a not-verified line that names the file too,
+#   in any letter case:
+#     - a file of those that names a path method or property <app|base|bootstrap|config|database|lang|
+#       public|resource|storage>Path anywhere but in a plain call (->name( or ::name(), a variable
+#       ($name), or a named argument (name:): a declaration or an override, a property write, or a
+#       string for reflection (OVERRIDE_MEMBER);
+#     - a file whose tokens extend, declare, alias (use ... as, also in a group use), or create with new a
+#       class whose short name is Application (PHP_AWK splits the file into tokens and drops comments and
+#       white space; it reads every PHP file of bootstrap/, public/index.php, artisan, and each PHP file of
+#       app/, config/, and routes/ that holds the text application);
+#     - a PHP file of bootstrap/ that creates any object with new;
+#     - a bootstrap/app.php that, after an open tag and only declare(strict_types=0|1) directives and class
+#       use statements, does not return Application::configure(basePath: dirname(__DIR__)) or
+#       Application::configure() of Illuminate\Foundation\Application, or that calls configure again;
+#     - a public/index.php or artisan whose tokens differ from the stock file of the Laravel 11 and 12
+#       skeleton (STOCK_INDEX, STOCK_ARTISAN), unless the file holds no token;
+#     - a file PHP_AWK reads that it cannot split into tokens with certainty: no open tag at the start, a
+#       close tag before the end, a heredoc or a nowdoc, a backtick string, a NUL byte, or an
+#       unterminated comment, string, or interpolation;
+#     - a .laravel entry at the project root (Laravel takes .laravel/ as the bootstrap path, with its own
+#       providers.php and cached configuration) and a storage/framework/maintenance.php (public/index.php
+#       runs it before the application).
 #   Laravel 12 loads every *.php file below config/ (LoadConfiguration::getConfigurationFiles walks the
 #   directory recursively). It keys each file with its nested directory and its basename joined by
 #   dots, where the nested directory is the directory of the file with every copy of the config path
@@ -114,7 +137,14 @@
 #       it), and a service provider outside app/ and bootstrap/ (a local package, for example);
 #     - vendor code, which includes the base configuration of the framework that Laravel merges below
 #       config/filesystems.php;
-#     - the document root and the configuration of the web server, and any environment value.
+#     - PHP code outside the files the scan searches: a directory such as src/, a package, and a file that
+#       a composer autoload rule loads from outside app/, also in place of a framework class; so an
+#       Application subclass defined there and created outside bootstrap/ moves a path the scan does not see;
+#     - a path method, property, or class named at run time (a variable name, a string built from parts);
+#     - the base path that Application::configure() without an argument infers from APP_BASE_PATH or from
+#       the directory of the composer autoloader;
+#     - the document root and the configuration of the web server, and any environment value, which
+#       includes APP_BASE_PATH and LARAVEL_STORAGE_PATH set in the environment or in an .env file.
 #   --changed-from <base> is the review mode of a code review. The review reports every finding of the
 #   full static scan, never only the findings of the diff, so a finding that already exists in the
 #   project blocks the pull request too: a fail-safe. The base serves only the submodule check below.
@@ -236,6 +266,43 @@ docker-compose*.yml
 docker-compose*.yaml
 compose.yml
 compose.yaml'
+
+# The stock public/index.php and artisan of the Laravel 11 and 12 skeletons (laravel/laravel, branches 11.x
+# and 12.x, which carry the same two files). The scan compares their tokens with the tokens of the project's
+# files, so comments and white space do not count.
+STOCK_INDEX="<?php
+
+use Illuminate\\Foundation\\Application;
+use Illuminate\\Http\\Request;
+
+define('LARAVEL_START', microtime(true));
+
+if (file_exists(\$maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
+    require \$maintenance;
+}
+
+require __DIR__.'/../vendor/autoload.php';
+
+/** @var Application \$app */
+\$app = require_once __DIR__.'/../bootstrap/app.php';
+
+\$app->handleRequest(Request::capture());"
+STOCK_ARTISAN="#!/usr/bin/env php
+<?php
+
+use Illuminate\\Foundation\\Application;
+use Symfony\\Component\\Console\\Input\\ArgvInput;
+
+define('LARAVEL_START', microtime(true));
+
+require __DIR__.'/vendor/autoload.php';
+
+/** @var Application \$app */
+\$app = require_once __DIR__.'/bootstrap/app.php';
+
+\$status = \$app->handleCommand(new ArgvInput);
+
+exit(\$status);"
 
 usage() {
   cat >&2 <<'EOF'
@@ -971,13 +1038,144 @@ serve_prefix() {
 }
 
 # Another way to serve a directory that no static read settles: a custom framework path, a container
-# binding for one, or code that sets the links. The scan reads the PHP files of app/, bootstrap/,
-# config/, routes/, and public/index.php with grep, and prints the match only. Each file that names one
-# is a not-verified line. A symlink below those directories, a directory that is a symlink leaving the
-# project, a symlinked public/index.php, and a file grep cannot read are not-verified lines too.
+# binding for one, code that sets the links, and an application object that moves its own paths. The scan
+# reads the PHP files of app/, bootstrap/, config/, routes/, public/index.php, and artisan with grep and
+# PHP_AWK, and prints the match only. Each file that names one is a not-verified line. A symlink below those
+# directories, a directory that is a symlink leaving the project, a symlinked public/index.php, and a file
+# grep cannot read are not-verified lines too.
 OVERRIDE_PUBLIC='usePublicPath|path\.public'
 OVERRIDE_LINKS='filesystems\.links'
-OVERRIDE_PATH='use(App|Base|Bootstrap|Config|Database|Lang|Storage)Path|path\.(base|lang|config|storage|database|resources|bootstrap)'
+OVERRIDE_PATH='use(App|Base|Bootstrap|Config|Database|Lang|Storage)Path|path\.(base|lang|config|storage|database|resources|bootstrap)|setBasePath|LARAVEL_STORAGE_PATH'
+# The helpers ask the application object that Container::getInstance() holds for its paths, so code that
+# replaces that object, or aliases a class name to another class, moves every path.
+OVERRIDE_APP='setInstance|class_alias'
+# A path method or property of the Application class named anywhere but in a plain call (->name( or ::name()
+# and a named argument (name:): a declaration, an override, a property write, or a string for reflection.
+OVERRIDE_MEMBER='(->|::|\$)?\b(app|base|bootstrap|config|database|lang|public|resource|storage)Path\b(\(|:[^:]|:$)?'
+
+# PHP_AWK reads one PHP file on stdin as data, never as code, and splits it into tokens: white space and
+# comments are dropped, a name is kept in lower case (PHP names are case-insensitive), and a string is one
+# token. A form it does not model is one "uncertain" line and nothing else: a missing open tag, a close tag
+# before the end of the file, a heredoc or nowdoc, a backtick string, and an unterminated comment, string,
+# or interpolation. A { $ } or $ { } interpolation in a double-quoted string is read as code up to its
+# closing brace, so a quote inside it does not end the string. Each hit is one line:
+#   extends          extends followed by a name whose last part is Application
+#   class            a class named Application
+#   alias            a name whose last part is Application, followed by as (use ... as, group use)
+#   new-application  new followed by a name whose last part is Application
+#   new              new anywhere (mode boot and app: a file of bootstrap/)
+# Mode app (bootstrap/app.php) prints "boot<TAB>stock" when the file is empty, or holds only an open tag,
+# declare(strict_types=0|1) directives and class use statements, and then returns
+# Application::configure(basePath: dirname(__DIR__)) or Application::configure(), where Application is the
+# full name Illuminate\Foundation\Application or the short name that a use statement imports from it and
+# no other use statement imports, and no later token is configure; otherwise "boot<TAB>other". Mode dump
+# prints the shebang line and every token, for the comparison of public/index.php and artisan.
+# shellcheck disable=SC2016  # the awk program is single-quoted on purpose: its $ is awk text, not shell
+PHP_AWK='
+function fail(why) { if (!failed) print "uncertain\t" why; failed = 1; return 0 }
+function isid(c) { return c ~ /[A-Za-z0-9_\\]/ || c > "\177" }
+function add(t, nested) { if (!nested) T[++nt] = t }
+function last(t) { sub(/.*\\/, "", t); return t }
+function hit(kind) { if (!(kind in H)) print "hit\t" kind; H[kind] = 1 }
+function skipdq(i,   c, d) {
+  while (i <= n) {
+    c = substr(s, i, 1); d = substr(s, i + 1, 1)
+    if (c == "\\") { i += 2; continue }
+    if (c == "\"") return i
+    if (c == "{" && d == "$") { i = code(i + 1, 1); if (!i) return 0; i++; continue }
+    if (c == "$" && d == "{") { i = code(i + 2, 1); if (!i) return 0; i++; continue }
+    i++
+  }
+  return fail("an unterminated string")
+}
+function code(i, nested,   c, d, depth, j, k, line) {
+  depth = 0
+  while (i <= n) {
+    c = substr(s, i, 1); d = substr(s, i + 1, 1)
+    if (index(" \t\n\r\f\v", c)) { i++; continue }
+    if (c == "?" && d == ">") {
+      if (nested || substr(s, i + 2) ~ /[^ \t\r\n]/) return fail("a close tag before the end of the file")
+      return n + 1
+    }
+    if ((c == "#" && d != "[") || (c == "/" && d == "/")) {
+      k = index(substr(s, i), "\n"); line = k ? substr(s, i, k - 1) : substr(s, i)
+      if (index(line, "?>")) return fail("a close tag in a line comment")
+      i = k ? i + k : n + 1; continue
+    }
+    if (c == "/" && d == "*") {
+      k = index(substr(s, i + 2), "*/"); if (!k) return fail("an unterminated comment")
+      i += k + 3; continue
+    }
+    if (c == q) {
+      for (j = i + 1; j <= n && substr(s, j, 1) != q; j += (substr(s, j, 1) == "\\") ? 2 : 1) ;
+      if (j > n) return fail("an unterminated string")
+      add(substr(s, i, j - i + 1), nested); i = j + 1; continue
+    }
+    if (c == "\"") { j = skipdq(i + 1); if (!j) return 0; add(substr(s, i, j - i + 1), nested); i = j + 1; continue }
+    if (c == "`") return fail("a backtick string")
+    if (substr(s, i, 3) == "<<<") return fail("a heredoc or a nowdoc")
+    if (c == "{") { depth++; add(c, nested); i++; continue }
+    if (c == "}") { if (nested && depth == 0) return i; depth--; add(c, nested); i++; continue }
+    if (c == "$" && isid(d)) {
+      for (j = i + 1; j <= n && isid(substr(s, j, 1)); j++) ;
+      add(substr(s, i, j - i), nested); i = j; continue
+    }
+    if (isid(c)) {
+      for (j = i; j <= n && isid(substr(s, j, 1)); j++) ;
+      add(tolower(substr(s, i, j - i)), nested); i = j; continue
+    }
+    if (substr(s, i, 3) == "?->") { add("->", nested); i += 3; continue }
+    if ((c == ":" && d == ":") || (c == "-" && d == ">")) { add(c d, nested); i += 2; continue }
+    add(c, nested); i++
+  }
+  if (nested) return fail("an unterminated interpolation")
+  return n + 1
+}
+function stock(   t, imp, clash, u, c, k) {
+  t = 1; imp = 0; clash = 0
+  while (1) {
+    if (T[t] == "declare" && T[t + 1] == "(" && T[t + 2] == "strict_types" && T[t + 3] == "=" && (T[t + 4] == "0" || T[t + 4] == "1") && T[t + 5] == ")" && T[t + 6] == ";") { t += 7; continue }
+    if (T[t] == "use" && isid(substr(T[t + 1], 1, 1)) && T[t + 2] == ";") {
+      u = T[t + 1]; sub(/^\\/, "", u)
+      if (u == "illuminate\\foundation\\application") imp = 1; else if (last(u) == "application") clash = 1
+      t += 3; continue
+    }
+    break
+  }
+  if (T[t] != "return") return 0
+  c = T[t + 1]; sub(/^\\/, "", c)
+  if (!(c == "illuminate\\foundation\\application" || (c == "application" && imp && !clash))) return 0
+  if (T[t + 2] != "::" || T[t + 3] != "configure" || T[t + 4] != "(") return 0
+  if (T[t + 5] == ")") k = t + 6
+  else if (T[t + 5] == "basepath" && T[t + 6] == ":" && T[t + 7] == "dirname" && T[t + 8] == "(" && T[t + 9] == "__dir__" && T[t + 10] == ")" && T[t + 11] == ")") k = t + 12
+  else return 0
+  for (; k <= nt; k++) if (T[k] == "configure") return 0
+  return 1
+}
+{ s = (NR > 1) ? s "\n" $0 : $0 }
+END {
+  q = "\047"; n = length(s); p = 1; shebang = ""
+  if (substr(s, 1, 2) == "#!") { k = index(s, "\n"); shebang = k ? substr(s, 1, k - 1) : s; p = k ? k + 1 : n + 1 }
+  if (n > 0) {
+    if (tolower(substr(s, p, 5)) != "<?php" || (p + 5 <= n && !index(" \t\r\n", substr(s, p + 5, 1)))) fail("no open tag at the start")
+    else code(p + 5, 0)
+  }
+  if (failed) exit
+  for (t = 1; t <= nt; t++) {
+    if (T[t] == "extends" && last(T[t + 1]) == "application") hit("extends")
+    if (T[t] == "class" && T[t + 1] == "application" && T[t - 1] != "::") hit("class")
+    if (last(T[t]) == "application" && T[t + 1] == "as") hit("alias")
+    if (T[t] == "new") {
+      if (last(T[t + 1]) == "application") hit("new-application")
+      if (mode == "boot" || mode == "app") hit("new")
+    }
+  }
+  if (mode == "app") print "boot\t" ((nt == 0 || stock()) ? "stock" : "other")
+  if (mode == "dump") {
+    gsub(/\r/, "\\r", shebang); print "shebang\t" shebang
+    for (t = 1; t <= nt; t++) { x = T[t]; gsub(/\n/, "\\n", x); gsub(/\r/, "\\r", x); print "tok\t" x }
+  }
+}'
 
 served_path_overrides() {
   local dir rc base p
@@ -994,9 +1192,13 @@ served_path_overrides() {
       not_verified "$(esc "${p#"$ROOT_P"/}") - the entry is a symlink, so the scan does not read it; check where it points and run the scan again"
     done < <(find "$base" -type l -print0 2>"$SCRATCH/find.err")
     find_errors "$dir" 'symlink check'
-    grep -r -a -i -o -H -E --include='*.php' --exclude='.env*' -e "$OVERRIDE_PUBLIC|$OVERRIDE_LINKS|$OVERRIDE_PATH" -- "$base" \
+    grep -r -a -i -o -H -E --include='*.php' --exclude='.env*' -e "$OVERRIDE_PUBLIC|$OVERRIDE_LINKS|$OVERRIDE_PATH|$OVERRIDE_APP" -- "$base" \
       >"$SCRATCH/override" 2>"$SCRATCH/grep.err"
     override_report "$dir"
+    # An entry grep cannot read is already a not-verified line of override_report.
+    grep -r -a -i -o -H -E --null --include='*.php' --exclude='.env*' -e "$OVERRIDE_MEMBER" -- "$base" >"$SCRATCH/member" 2>/dev/null
+    member_report
+    php_class_check "$dir" "$base"
   done
   # A public/ that does not resolve inside the project is a finding of its own, so only the file is decided here.
   # public/index.php boots the web request and artisan boots the command that runs `storage:link`; each
@@ -1007,10 +1209,25 @@ served_path_overrides() {
     if ((rc == 0)) && [[ -L "$PHYS_ENTRY" ]]; then
       not_verified "$base - the entry is a symlink, so the scan does not read it; check where it points and run the scan again"
     elif ((rc == 0)) && [[ -e "$PHYS_ENTRY" ]]; then
-      grep -a -i -o -H -E -e "$OVERRIDE_PUBLIC|$OVERRIDE_LINKS|$OVERRIDE_PATH" -- "$PHYS_ENTRY" >"$SCRATCH/override" 2>"$SCRATCH/grep.err"
+      grep -a -i -o -H -E -e "$OVERRIDE_PUBLIC|$OVERRIDE_LINKS|$OVERRIDE_PATH|$OVERRIDE_APP" -- "$PHYS_ENTRY" >"$SCRATCH/override" 2>"$SCRATCH/grep.err"
       override_report "$base"
+      grep -a -i -o -H -E --null -e "$OVERRIDE_MEMBER" -- "$PHYS_ENTRY" >"$SCRATCH/member" 2>/dev/null
+      member_report
+      [[ -f "$PHYS_ENTRY" ]] && php_entry_check "$base" "$PHYS_ENTRY"
     fi
   done
+  # Laravel takes .laravel/ as the bootstrap path when it is a directory (Application::bindPathsInContainer),
+  # so its providers.php and its cached configuration replace those of bootstrap/. public/index.php runs
+  # storage/framework/maintenance.php before the application when the file exists. The scan reads neither.
+  phys_entry .laravel
+  if [[ -e "$PHYS_ENTRY" || -L "$PHYS_ENTRY" ]]; then
+    not_verified ".laravel - Laravel uses this directory as the bootstrap path when it exists, so its providers and its cached configuration replace those of bootstrap/ and the scan does not read them; remove it or check it by hand, and run the scan again"
+  fi
+  # A storage/ that leaves the project is a symlink-permission finding of its own.
+  phys_entry storage/framework/maintenance.php
+  if [[ -n "$PHYS_ENTRY" && (-e "$PHYS_ENTRY" || -L "$PHYS_ENTRY") ]]; then
+    not_verified "storage/framework/maintenance.php - public/index.php runs this file before the application when it exists, and it can move a framework path; the scan does not read it, so remove it or check it by hand, and run the scan again"
+  fi
 }
 
 # override_report <what>: one not-verified line for each file and each kind of match that grep printed
@@ -1027,6 +1244,7 @@ override_report() {
     case "$hit" in
     usePublicPath | path.public) kind=public ;;
     filesystems.links) kind=links ;;
+    setInstance | class_alias) kind=app ;;
     *) kind=path ;;
     esac
     shopt -u nocasematch
@@ -1036,9 +1254,96 @@ override_report() {
     case "$kind" in
     public) not_verified "$file - the file sets the public path, so the scan cannot tell which directory the web server serves; check it by hand and run the scan again" ;;
     links) not_verified "$file - the file sets the filesystems links, so the scan cannot tell which directories they serve; check them by hand and run the scan again" ;;
+    app) not_verified "$file - the file replaces the application instance or aliases a class (setInstance, class_alias), so the scan cannot tell which application the helpers ask for their paths; check it by hand and run the scan again" ;;
     *) not_verified "$file - the file sets a framework path, so the scan cannot tell which directory the helpers it reads point at; check it by hand and run the scan again" ;;
     esac
   done <"$SCRATCH/override"
+}
+
+# member_report: one not-verified line for each file in which grep --null printed an OVERRIDE_MEMBER match
+# as "<path>NUL<match>" that is not a plain call (->name( or ::name(), a variable ($name), or a named
+# argument (name: and a byte that is not a colon). What is left declares, overrides, or writes the path
+# method or property, or names it in a string, for reflection for example.
+member_report() {
+  local file hit seen=$'\n'
+  while IFS= read -r -d '' file && IFS= read -r hit; do
+    case "$hit" in
+    '$'* | '->'*'(' | '::'*'(') continue ;;
+    '->'* | '::'*) ;;
+    *':' | *':'?) continue ;;
+    esac
+    [[ "$seen" == *$'\n'"$file"$'\n'* ]] && continue
+    seen+="$file"$'\n'
+    not_verified "$(esc "${file#"$ROOT_P"/}") - the file names a framework path method or property ($(esc "$hit")) outside a plain call, so it can declare, override, or write that path and the scan cannot tell which directory the helpers point at; check it by hand and run the scan again"
+  done <"$SCRATCH/member"
+}
+
+# php_tokens <file> <mode> [<output>]: PHP_AWK on one regular file, read on stdin, so no file name reaches
+# awk. A file that holds a NUL byte is uncertain, because awk can end a line there. The output goes to php,
+# or to the output file.
+php_tokens() {
+  local out="${3:-$SCRATCH/php}"
+  if [[ "$(LC_ALL=C tr -d -c '\000' <"$1" 2>/dev/null | wc -c)" -gt 0 ]]; then
+    printf 'uncertain\ta NUL byte\n' >"$out"
+    return 0
+  fi
+  LC_ALL=C awk -v "mode=$2" "$PHP_AWK" <"$1" >"$out" 2>/dev/null ||
+    printf 'uncertain\tawk could not read the file\n' >"$out"
+}
+
+# php_report <path below the root>: the not-verified lines of one PHP_AWK run.
+php_report() {
+  local file kind what cls=''
+  file="$(esc "$1")"
+  while IFS=$'\t' read -r kind what; do
+    case "$kind:$what" in
+    uncertain:*) not_verified "$file - the scan cannot split this PHP file into tokens with certainty ($what), so it cannot tell whether the file extends, replaces, or creates the framework Application class; check it by hand and run the scan again" ;;
+    hit:new) not_verified "$file - the file creates an object with new, and bootstrap/ builds the application, so the object can be another application that moves a framework path; check it by hand and run the scan again" ;;
+    hit:*) cls+="${cls:+, }$what" ;;
+    boot:other) not_verified "$file - the file does not build the application with the stock call Application::configure(basePath: dirname(__DIR__)) or Application::configure() of the framework Application class, so the scan cannot tell the base path or the class of the application; check it by hand and run the scan again" ;;
+    esac
+  done <"$SCRATCH/php"
+  [[ -z "$cls" ]] ||
+    not_verified "$file - the file extends, declares, aliases, or creates the framework Application class ($cls), so a framework path can move in a way the scan does not read; check it by hand and run the scan again"
+}
+
+# php_class_check <dir> <physical dir>: PHP_AWK on every PHP file below bootstrap/ (bootstrap/app.php in mode
+# app), and on each PHP file below app/, config/, and routes/ that holds the text application in any letter
+# case, because the name of the framework class can only be written out. A symlink is never read (it is a
+# not-verified line of served_path_overrides), and an entry find or grep cannot read is one already.
+php_class_check() {
+  local p mode
+  if [[ "$1" == bootstrap ]]; then
+    find "$2" -type f -name '*.php' -print0 2>/dev/null
+  else
+    grep -r -l -i -a --null --include='*.php' --exclude='.env*' -e application -- "$2" 2>/dev/null
+  fi >"$SCRATCH/phpfiles"
+  while IFS= read -r -d '' p; do
+    [[ -L "$p" || ! -f "$p" ]] && continue
+    mode=scan
+    if [[ "$1" == bootstrap ]]; then
+      mode=boot
+      [[ "$p" == "$2/app.php" ]] && mode=app
+    fi
+    php_tokens "$p" "$mode"
+    php_report "${p#"$ROOT_P"/}"
+  done <"$SCRATCH/phpfiles"
+}
+
+# php_entry_check <name> <physical file>: public/index.php and artisan are read only when their tokens equal
+# those of the stock file (STOCK_INDEX, STOCK_ARTISAN) or the file holds no token, because either file can
+# load another bootstrap file or replace the application before the scan's rules apply.
+php_entry_check() {
+  local stock="$STOCK_INDEX"
+  [[ "$1" == artisan ]] && stock="$STOCK_ARTISAN"
+  printf '%s\n' "$stock" >"$SCRATCH/stock.php"
+  php_tokens "$SCRATCH/stock.php" dump "$SCRATCH/stock.tok"
+  php_tokens "$2" dump
+  php_report "$1"
+  grep -q '^uncertain' "$SCRATCH/php" && return 0
+  grep -q '^tok' "$SCRATCH/php" || return 0
+  cmp -s <(grep -E '^(shebang|tok)' "$SCRATCH/php") <(grep -E '^(shebang|tok)' "$SCRATCH/stock.tok") ||
+    not_verified "$1 - the file is not the stock file of the Laravel 11 or 12 skeleton (comments and white space aside), so it can load another bootstrap file or replace the application before the scan's rules apply; check it by hand and run the scan again"
 }
 
 # A physical path at or below a scanned root.
@@ -3214,6 +3519,219 @@ st_cfgpath_cases() {
   st_check 's16: config files with no text config in their directory leave the project clean, exit 0' test "$ST_RC" = 0
 }
 
+# S17: the helpers storage_path(), public_path(), base_path(), and config_path() ask the application object
+# for its paths, and LoadConfiguration reads the config path from it. A subclass of the framework Application
+# class that overrides a path method or writes a path property, a bootstrap/app.php that builds another
+# application or passes another base path, and code that replaces the application object move those paths.
+# st_app <name>: a project with the stock bootstrap/app.php, public/index.php, and artisan of the Laravel 12
+# skeleton, a config/filesystems.php with the stock storage link, and a dump in database/dumps that no file
+# names, so the scan reads the project clean unless it reports the file that moves a path.
+ST_STOCK_APP="<?php
+
+use Illuminate\\Foundation\\Application;
+use Illuminate\\Foundation\\Configuration\\Exceptions;
+use Illuminate\\Foundation\\Configuration\\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware \$middleware): void {
+        //
+    })
+    ->withExceptions(function (Exceptions \$exceptions): void {
+        //
+    })->create();"
+st_app() {
+  st_clean "$1"
+  mkdir -p "$r/config" "$r/bootstrap" "$r/database/dumps" "$r/app/Foundation" "$r/app/Providers" "$r/routes"
+  printf '%s\n' "$ST_MARKER" >"$r/database/dumps/db.sql"
+  printf "<?php\n\nreturn [\n    'disks' => [],\n    'links' => [public_path('storage') => storage_path('app/public')],\n];\n" >"$r/config/filesystems.php"
+  printf '%s\n' "$ST_STOCK_APP" >"$r/bootstrap/app.php"
+  printf '%s\n' "$STOCK_INDEX" >"$r/public/index.php"
+  printf '%s\n' "$STOCK_ARTISAN" >"$r/artisan"
+}
+
+# st_app_nv <name> <label> <needle>: scan the fixture; it is incomplete with a not-verified line that carries
+# the needle, and no dump behind the moved path is read.
+st_app_nv() {
+  st_commit "$r" base
+  st_run "$1" static --root "$r"
+  st_nv "s17: $2 is a not-verified line, exit 3" "$1" "$3"
+  st_check_not "s17: $2 reads nothing behind the moved path" st_line 'db.sql'
+}
+
+# st_subclass <file below app/> <class body>: an Application subclass App\Foundation\App, and a bootstrap/app.php
+# that builds the application from it.
+st_subclass() {
+  printf '<?php\n\nnamespace App\\Foundation;\n\nuse Illuminate\\Foundation\\Application;\n\nclass App extends Application\n{\n%s\n}\n' "$2" >"$r/$1"
+  printf '<?php\n\nuse App\\Foundation\\App;\n\nreturn App::configure(basePath: dirname(__DIR__))->create();\n' >"$r/bootstrap/app.php"
+}
+
+# shellcheck disable=SC2016  # the fixtures are PHP text, never expanded
+st_apppath_cases() {
+  local r
+  st_app app-control
+  st_commit "$r" base
+  st_run app-control static --root "$r"
+  st_check 's17: the stock bootstrap/app.php, public/index.php, and artisan read clean, exit 0' test "$ST_RC" = 0
+
+  st_app app-m
+  st_subclass app/Foundation/App.php "    public function configPath(\$path = ''): string { return \$this->basePath('settings'); }"
+  st_app_nv app-m 'M: a subclass that overrides configPath()' 'app/Foundation/App.php - the file extends, declares, aliases, or creates the framework Application class'
+  st_nv 's17: M: the bootstrap/app.php that builds it is a not-verified line' app-m 'bootstrap/app.php - the file does not build the application with the stock call'
+  st_nv 's17: M: the override of configPath() is a not-verified line' app-m 'app/Foundation/App.php - the file names a framework path method or property'
+
+  st_app app-n
+  st_subclass app/Foundation/App.php "    public function storagePath(\$path = ''): string { return \$this->basePath('database/dumps'); }"
+  st_app_nv app-n 'N: a subclass that overrides storagePath()' 'app/Foundation/App.php - the file names a framework path method or property'
+
+  st_app app-o
+  st_subclass app/Foundation/App.php "    public function __construct(\$basePath = null) { parent::__construct(\$basePath); \$this->storagePath = \$this->basePath('database/dumps'); }"
+  st_app_nv app-o 'O: a subclass constructor that writes $this->storagePath' 'app/Foundation/App.php - the file names a framework path method or property'
+
+  st_app app-p
+  sed "s|basePath: dirname(__DIR__))|basePath: dirname(__DIR__).'/site')|" "$r/bootstrap/app.php" >"$r/bootstrap/app.tmp" && mv "$r/bootstrap/app.tmp" "$r/bootstrap/app.php"
+  st_app_nv app-p "P: a bootstrap/app.php with basePath: dirname(__DIR__).'/site'" 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-q
+  printf '<?php\n\nnamespace App\\Foundation;\n\nclass App\n    extends /* the framework */\n    \\Illuminate\\Foundation\\Application\n{\n}\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-q 'a subclass whose extends spans lines and a comment' 'app/Foundation/App.php - the file extends, declares, aliases, or creates the framework Application class'
+
+  st_app app-r
+  printf '<?php\n\nuse Illuminate\\Foundation\\Application as Base;\n\nclass App extends Base\n{\n}\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-r 'a subclass of an alias of the Application class' 'app/Foundation/App.php - the file extends, declares, aliases, or creates the framework Application class'
+
+  st_app app-s
+  printf '<?php\n\nuse Illuminate\\Foundation\\{Application as Base};\n\nclass App extends Base\n{\n}\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-s 'a subclass of a group-use alias of the Application class' 'app/Foundation/App.php - the file extends, declares, aliases, or creates the framework Application class'
+
+  st_app app-t
+  printf "<?php\n\n\$app = new Illuminate\\\\Foundation\\\\Application(dirname(__DIR__).'/site');\n\nreturn \$app;\n" >"$r/bootstrap/app.php"
+  st_app_nv app-t 'a bootstrap/app.php that creates the Application with new' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-u
+  printf "<?php\n\n\$x = new \\\\Acme\\\\App(dirname(__DIR__).'/site');\n\nreturn [App\\\\Providers\\\\AppServiceProvider::class];\n" >"$r/bootstrap/providers.php"
+  st_app_nv app-u 'a bootstrap file that creates an object with new' 'bootstrap/providers.php - the file creates an object with new'
+
+  st_app app-v
+  printf "<?php\n\nuse Illuminate\\\\Container\\\\Container;\n\nContainer::setInstance(new \\\\Acme\\\\App('/srv/site'));\n" >"$r/app/Providers/Swap.php"
+  st_app_nv app-v 'Container::setInstance() in a provider' 'app/Providers/Swap.php - the file replaces the application instance or aliases a class'
+
+  st_app app-w
+  printf "<?php\n\nclass_alias(\\\\Acme\\\\App::class, 'Illuminate\\\\Foundation\\\\Application');\n" >"$r/app/helpers.php"
+  st_app_nv app-w 'class_alias() in app/' 'app/helpers.php - the file replaces the application instance or aliases a class'
+
+  st_app app-x
+  printf "<?php\n\napp()->setBasePath('/srv/site');\n" >"$r/routes/web.php"
+  st_app_nv app-x 'setBasePath() in routes/' 'routes/web.php - the file sets a framework path'
+
+  st_app app-y
+  printf "<?php\n\n\$_SERVER['LARAVEL_STORAGE_PATH'] = dirname(__DIR__).'/database/dumps';\n\nreturn [];\n" >"$r/config/app.php"
+  st_app_nv app-y 'LARAVEL_STORAGE_PATH set in a config file' 'config/app.php - the file sets a framework path'
+
+  st_app app-z
+  mkdir -p "$r/.laravel/cache"
+  printf "<?php\n\nreturn [];\n" >"$r/.laravel/cache/config.php"
+  st_app_nv app-z 'a .laravel directory' '.laravel - Laravel uses this directory as the bootstrap path'
+
+  st_app app-aa
+  mkdir -p "$r/storage/framework"
+  printf "<?php\n\n\$_SERVER['LARAVEL_STORAGE_PATH'] = '/srv/dumps';\n" >"$r/storage/framework/maintenance.php"
+  st_app_nv app-aa 'a storage/framework/maintenance.php' 'storage/framework/maintenance.php - public/index.php runs this file before the application'
+
+  st_app app-ab
+  printf "%s\nrequire __DIR__.'/../src/boot.php';\n" "$STOCK_INDEX" >"$r/public/index.php"
+  st_app_nv app-ab 'a public/index.php that loads another file' 'public/index.php - the file is not the stock file of the Laravel 11 or 12 skeleton'
+
+  st_app app-ac
+  printf '%s\n' "$STOCK_ARTISAN" | sed 's|bootstrap/app.php|src/boot.php|' >"$r/artisan"
+  st_app_nv app-ac 'an artisan that loads another bootstrap file' 'artisan - the file is not the stock file of the Laravel 11 or 12 skeleton'
+
+  st_app app-ad
+  printf '%s\n' "$ST_STOCK_APP" | sed 's/^use Illuminate.Foundation.Application;/use Acme\\App as Application;/' >"$r/bootstrap/app.php"
+  st_app_nv app-ad 'a bootstrap/app.php that imports another class as Application' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-ae
+  printf '%s\n' "$ST_STOCK_APP" | sed "s|^return Application|require __DIR__.'/../src/boot.php'; return Application|" >"$r/bootstrap/app.php"
+  st_app_nv app-ae 'a bootstrap/app.php with a statement before the return' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-af
+  printf '<?php\n\n$x = <<<EOT\n/*\nEOT;\nclass App extends Application {} // */\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-af 'a heredoc in a file that names Application' 'app/Foundation/App.php - the scan cannot split this PHP file into tokens with certainty'
+
+  st_app app-ag
+  printf '<?php\n\ntrait MovesPaths\n{\n    public function\n        storagePath($path = %s): string { return %s; }\n}\n' "''" "'/srv/dumps'" >"$r/app/Foundation/MovesPaths.php"
+  st_app_nv app-ag 'a storagePath() declaration across lines in a trait' 'app/Foundation/MovesPaths.php - the file names a framework path method or property'
+
+  st_app app-ah
+  printf "<?php\n\n(new ReflectionProperty(app(), 'storagePath'))->setValue(app(), '/srv/dumps');\n" >"$r/app/Providers/Reflect.php"
+  st_app_nv app-ah 'a path property named in a string for reflection' 'app/Providers/Reflect.php - the file names a framework path method or property'
+
+  st_app app-ai
+  sed 's|configure(basePath: dirname(__DIR__))|configure($base)|' "$r/bootstrap/app.php" >"$r/bootstrap/app.tmp" && mv "$r/bootstrap/app.tmp" "$r/bootstrap/app.php"
+  st_app_nv app-ai 'a configure() call with a variable' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-aj
+  sed 's|->create();|->booted(fn () => \\Acme\\App::configure())->create();|' "$r/bootstrap/app.php" >"$r/bootstrap/app.tmp" && mv "$r/bootstrap/app.tmp" "$r/bootstrap/app.php"
+  st_app_nv app-aj 'a second configure() call in bootstrap/app.php' 'bootstrap/app.php - the file does not build the application with the stock call'
+
+  st_app app-ak
+  printf '<?php\n\nclass Paths\n{\n    public function STORAGEPATH(): string { return %s; }\n}\n' "'/srv/dumps'" >"$r/app/Foundation/Paths.php"
+  st_app_nv app-ak 'a declaration in upper case' 'app/Foundation/Paths.php - the file names a framework path method or property'
+
+  st_app app-al
+  printf '<?php\n\n$s = "{$a[" /* "]}";\nclass App extends Application {} // */\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-al 'a subclass behind an interpolation that holds a quote and a comment start' 'app/Foundation/App.php - the file extends, declares, aliases, or creates the framework Application class'
+
+  st_app app-am
+  printf '<?php ?>/* <?php class App extends Application {} ?> */\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-am 'a subclass between a close tag and an open tag' 'app/Foundation/App.php - the scan cannot split this PHP file into tokens with certainty'
+
+  st_app app-an
+  printf '<?php\n\n// \000\nclass App extends Application {}\n' >"$r/app/Foundation/App.php"
+  st_app_nv app-an 'a NUL byte in a file that names Application' 'app/Foundation/App.php - the scan cannot split this PHP file into tokens with certainty (a NUL byte)'
+
+  # Clean controls: the other stock forms of the call, and ordinary code that uses the application.
+  st_app app-clean
+  printf '<?php\n\nreturn \\Illuminate\\Foundation\\Application::configure()->create();\n' >"$r/bootstrap/app.php"
+  printf "<?php\n\nreturn [\n    App\\\\Providers\\\\AppServiceProvider::class,\n];\n" >"$r/bootstrap/providers.php"
+  cat >"$r/app/Providers/AppServiceProvider.php" <<'EOF'
+<?php
+
+namespace App\Providers;
+
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\ServiceProvider;
+
+class AppServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->app->singleton('uploads', fn (Application $app): string => $app->storagePath('app/uploads'));
+    }
+
+    public function uploadPath(string $name): string
+    {
+        $storagePath = $this->app->storagePath("app/{$name}");
+
+        return "{$storagePath}/" . config('app.name');
+    }
+}
+EOF
+  printf "<?php\n\n// The name of the application.\nreturn ['name' => 'Laravel'];\n" >"$r/config/app.php"
+  st_commit "$r" base
+  st_run app-clean static --root "$r"
+  st_check 's17: a configure() call by its full name, a provider that uses the application, and a method named uploadPath() read clean, exit 0' test "$ST_RC" = 0
+  st_app app-l11
+  printf '<?php\n\ndeclare(strict_types=1);\n\n%s\n' "${ST_STOCK_APP#<?php}" | sed 's/): void {/) {/' >"$r/bootstrap/app.php"
+  st_commit "$r" base
+  st_run app-l11 static --root "$r"
+  st_check 's17: the stock bootstrap/app.php of Laravel 11 with a strict_types declaration reads clean, exit 0' test "$ST_RC" = 0
+}
+
 # A curl stub: logs its argv, writes headers, and answers 200 for backup.sql, 302 for laravel.log, else 404.
 st_curl_stub() {
   mkdir -p "$ST_TMP/bin"
@@ -3321,6 +3839,7 @@ self_test() {
   st_failclosed_cases
   st_cfgkey_cases
   st_cfgpath_cases
+  st_apppath_cases
 
   printf '%s: self-test %s passed, %s failed (%s checks)\n' "$PROG" "$ST_PASS" "$ST_FAIL" "$((ST_PASS + ST_FAIL))"
   [[ $ST_FAIL -eq 0 ]]
