@@ -172,14 +172,14 @@ test('a fenced quote of the heading never makes a merge-readiness comment deleta
     chmod($directory . '/bin/gh', 0755);
     $fence = "```\n## Pull-request body overflow\n```";
     file_put_contents($directory . '/comments.json', json_encode([
-        overflowDeleteComment(1001, 'bot', "Merge readiness\n\n" . $fence . "\n\n<!-- merge-readiness:actor=bot -->"),
-        overflowDeleteComment(1002, 'bot', "Review\n\n" . $fence . "\n\n<!-- cr-comment:actor=bot -->"),
+        overflowDeleteComment(1_001, 'bot', "Merge readiness\n\n" . $fence . "\n\n<!-- merge-readiness:actor=bot -->"),
+        overflowDeleteComment(1_002, 'bot', "Review\n\n" . $fence . "\n\n<!-- cr-comment:actor=bot -->"),
         overflowDeleteComment(
             1003,
             'bot',
             "## Pull-request body overflow\n\nMoved\n\n<!-- merge-readiness:actor=bot -->\n<!-- pr-body-overflow:actor=bot -->",
         ),
-        overflowDeleteComment(1004, 'bot', "## Pull-request body overflow\n\nNewest\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1_004, 'bot', "## Pull-request body overflow\n\nNewest\n\n<!-- pr-body-overflow:actor=bot -->"),
     ], JSON_THROW_ON_ERROR));
 
     try {
@@ -200,11 +200,11 @@ test('a newer comment that only quotes the heading in a fence never supersedes t
     chmod($directory . '/bin/gh', 0755);
     $fence = "```\n## Pull-request body overflow\n```";
     file_put_contents($directory . '/comments.json', json_encode([
-        overflowDeleteComment(1101, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
-        overflowDeleteComment(1102, 'bot', "Test report\n\n" . $fence . "\n\n<!-- test-report:actor=bot -->"),
-        overflowDeleteComment(1103, 'bot', "Note\n\n" . $fence . "\n\n<!-- pr-body-overflow:actor=bot -->"),
-        overflowDeleteComment(1104, 'bot', "Note\n\n```\n<!-- pr-body-overflow:actor=bot -->\n```\n\n## Pull-request body overflow"),
-        overflowDeleteComment(1105, 'bot', "## Pull-request body overflow\n\nA note\n\n<!-- agent-note:actor=bot -->"),
+        overflowDeleteComment(1_101, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1_102, 'bot', "Test report\n\n" . $fence . "\n\n<!-- test-report:actor=bot -->"),
+        overflowDeleteComment(1_103, 'bot', "Note\n\n" . $fence . "\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1_104, 'bot', "Note\n\n```\n<!-- pr-body-overflow:actor=bot -->\n```\n\n## Pull-request body overflow"),
+        overflowDeleteComment(1_105, 'bot', "## Pull-request body overflow\n\nA note\n\n<!-- agent-note:actor=bot -->"),
     ], JSON_THROW_ON_ERROR));
 
     try {
@@ -223,9 +223,9 @@ test('an operator comment without a marker is never deleted by the two-argument 
     installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
     chmod($directory . '/bin/gh', 0755);
     file_put_contents($directory . '/comments.json', json_encode([
-        overflowDeleteComment(1201, 'bot', "## Pull-request body overflow\n\nThe operator's own note"),
-        overflowDeleteComment(1202, 'bot', "My note\n\n## Pull-request body overflow\n\nMore\n\n<!-- pr-body-overflow:actor=bot -->"),
-        overflowDeleteComment(1203, 'bot', "## Pull-request body overflow\n\nReal copy\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1_201, 'bot', "## Pull-request body overflow\n\nThe operator's own note"),
+        overflowDeleteComment(1_202, 'bot', "My note\n\n## Pull-request body overflow\n\nMore\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1_203, 'bot', "## Pull-request body overflow\n\nReal copy\n\n<!-- pr-body-overflow:actor=bot -->"),
     ], JSON_THROW_ON_ERROR));
 
     try {
