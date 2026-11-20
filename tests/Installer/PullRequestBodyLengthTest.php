@@ -68,7 +68,9 @@ test('the overflow comment is updated in place, so a changed body never leaves a
     expect($rule)->not->toContain('<PR-URL> <file> agent-note')
         ->and($rule)->toContain('The helper updates the one overflow comment of this actor in place on every later publish')
         ->and($rule)->toContain('Never publish it in the create-only `agent-note` namespace or with `--create`')
-        ->and($rule)->toContain('After the publish, delete every older `## Pull-request body overflow` comment of this actor')
+        ->and($rule)->toContain(
+            'After the publish, `donatello`, the run that published the overflow comment, deletes every older overflow comment of this actor',
+        )
         ->and($rule)->toContain('skills/_shared/delete-owned-github-comment.sh <PR-URL> <comment-id>')
         ->and($helper)->toContain('`pr-body-overflow`');
 });
@@ -89,4 +91,29 @@ test('the overflow comment is a durable copy that merge preparation never delete
         ->and($helper)->toContain('refusing to delete a pull-request body overflow comment');
     expect($reports)->toContain('whose description carries them under the length limit of `@rules/git/pull-requests.md` *PR Content Requirements*.')
         ->and($reports)->not->toContain('has no length cap');
+});
+
+test('the overflow delete is a named exception of the delete-helper boundary, granted to donatello on both platforms', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
+    $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
+    $agent = (string) file_get_contents($packageDir . '/agents/donatello.md');
+    $codex = (string) file_get_contents($packageDir . '/codex/agents/donatello.toml');
+    $helperCall = 'skills/_shared/delete-owned-github-comment.sh <PR-URL> <comment-id>';
+
+    expect($rule)->toContain('`donatello`, the run that published the overflow comment')
+        ->and($rule)->toContain('named exception of `@rules/compound-engineering/orchestration.md` *Bash capability boundary*')
+        ->and($orchestration)->toContain('only `april` in `@skills/verify-merge-readiness/SKILL.md` may invoke them')
+        ->and($orchestration)->toContain(
+            '**One named exception to the delete-helper limit.** The two-argument form `' . $helperCall . '` that `donatello` runs after it published a pull-request body overflow comment',
+        )
+        ->and($orchestration)->toContain(
+            '| `donatello` | Delete an older pull-request body overflow comment of its own account on the pull request it works on, once it published the newer overflow comment | L1 |',
+        )
+        ->and($agent)->toContain(
+            'the one named delete is the two-argument form `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=donatello ' . $helperCall . '`',
+        )
+        ->and($agent)->toContain('never with the protected-id arguments and never on any other comment')
+        ->and($codex)->toContain('The delete helper `delete-owned-github-comment.sh` that the *Bash boundary* of the source definition names')
+        ->and($codex)->toContain('`AUDIT_TRAIL_ROLE=donatello`');
 });
