@@ -175,7 +175,7 @@ test('a fenced quote of the heading never makes a merge-readiness comment deleta
         overflowDeleteComment(1_001, 'bot', "Merge readiness\n\n" . $fence . "\n\n<!-- merge-readiness:actor=bot -->"),
         overflowDeleteComment(1_002, 'bot', "Review\n\n" . $fence . "\n\n<!-- cr-comment:actor=bot -->"),
         overflowDeleteComment(
-            1003,
+            1_003,
             'bot',
             "## Pull-request body overflow\n\nMoved\n\n<!-- merge-readiness:actor=bot -->\n<!-- pr-body-overflow:actor=bot -->",
         ),

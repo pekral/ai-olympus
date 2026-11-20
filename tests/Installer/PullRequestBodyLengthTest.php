@@ -105,10 +105,12 @@ test('the overflow delete is a named exception of the delete-helper boundary, gr
         ->and($rule)->toContain('named exception of `@rules/compound-engineering/orchestration.md` *Bash capability boundary*')
         ->and($orchestration)->toContain('only `april` in `@skills/verify-merge-readiness/SKILL.md` may invoke them')
         ->and($orchestration)->toContain(
-            '**One named exception to the delete-helper limit.** The two-argument form `' . $helperCall . '` that `donatello` runs after it published a pull-request body overflow comment',
+            '**One named exception to the delete-helper limit.** The two-argument form `' . $helperCall
+            . '` that `donatello` runs after it published a pull-request body overflow comment',
         )
         ->and($orchestration)->toContain(
-            '| `donatello` | Delete an older pull-request body overflow comment of its own account on the pull request it works on, once it published the newer overflow comment | L1 |',
+            '| `donatello` | Delete an older pull-request body overflow comment of its own account on the pull request it works on, '
+            . 'once it published the newer overflow comment | L1 |',
         )
         ->and($agent)->toContain(
             'the one named delete is the two-argument form `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=donatello ' . $helperCall . '`',
