@@ -10,8 +10,12 @@
 #
 # A pull-request body overflow comment is the durable copy of the body's verbatim
 # content, so it is deleted only when a newer overflow comment of the same actor
-# exists on the same target: the older copy is then superseded. The two-argument
-# form deletes only such a superseded copy and needs no protected id.
+# exists on the same target: the older copy is then superseded. An overflow comment
+# carries the pr-body-overflow marker (or the legacy agent-note marker) of the actor
+# and opens with the heading line (a leading marker-only line is skipped); a heading quoted anywhere else identifies nothing.
+# The two-argument form deletes only such a superseded copy, needs no protected id,
+# and refuses a comment without an overflow marker or with a merge-readiness or
+# cr-comment marker.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -23,8 +27,9 @@ Usage: $PROG <GitHub issue-or-PR URL> <comment-id> <final-tldr-id> <current-cr-i
 
 Deletes only an authenticated actor-owned top-level issue/PR comment. The final
 TL;DR and current CR evidence must be passed as protected IDs. The two-argument
-form deletes only a pull-request body overflow comment that a newer overflow
-comment of the same actor supersedes.
+form deletes only a pull-request body overflow comment (the pr-body-overflow or
+agent-note marker of the actor, opening with the overflow heading) that a newer
+pr-body-overflow comment of the same actor supersedes.
 EOF
 }
 
@@ -128,21 +133,69 @@ fi
 # The overflow comment holds the durable copy of the pull-request body's verbatim content.
 # Read the body into a variable first: grep -q exits on the first match, which would SIGPIPE jq under pipefail on a large body.
 COMMENT_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
-OVERFLOW_HEADING='^## Pull-request body overflow[[:space:]]*$'
-if grep -Eq "$OVERFLOW_HEADING" <<<"$COMMENT_BODY"; then
-  # The copy is superseded only by a newer overflow comment of this actor on the same target.
+OVERFLOW_HEADING='## Pull-request body overflow'
+
+# True when the body carries the marker on a line of its own outside a fenced code block.
+# A quoted marker or a quoted heading never identifies a comment.
+body_has_marker() {
+  awk -v marker="$2" '
+    /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
+    !fenced { sub(/[ \t\r]+$/, ""); if ($0 == marker) found = 1 }
+    END { exit !found }
+  ' <<<"$1"
+}
+
+# True when the first non-blank line of the body is exactly the overflow heading.
+# A leading line that holds only an agent marker does not count as content.
+body_opens_with_heading() {
+  local first_line
+  first_line="$(awk '{ sub(/[ \t\r]+$/, "") } NF && $0 !~ /^<!-- [a-z][a-z0-9-]*:actor=[^ ]+ -->$/ { print; exit }' <<<"$1")"
+  [[ "$first_line" == "$OVERFLOW_HEADING" ]]
+}
+
+# A pull-request body overflow comment of this actor carries the pr-body-overflow marker, or the
+# legacy agent-note marker an earlier publish left, and opens with the heading.
+# upsert-comment.sh appends the marker after the body, so the heading stays the first non-blank line.
+is_overflow_comment() {
+  { body_has_marker "$1" "<!-- pr-body-overflow:actor=$ACTOR -->" || body_has_marker "$1" "<!-- agent-note:actor=$ACTOR -->"; } \
+    && body_opens_with_heading "$1"
+}
+
+if [[ "$OVERFLOW_ONLY" -eq 1 ]]; then
+  # The two-argument form never touches merge evidence or a comment without an overflow marker.
+  if grep -Eq '<!-- (merge-readiness|cr-comment):actor=' <<<"$COMMENT_BODY"; then
+    printf '%s\n' "$PROG: the two-argument form never deletes a merge-readiness or cr-comment comment" >&2
+    exit 4
+  fi
+
+  if ! is_overflow_comment "$COMMENT_BODY"; then
+    printf '%s\n' "$PROG: the two-argument form deletes only a superseded pull-request body overflow comment" >&2
+    exit 4
+  fi
+fi
+
+if [[ "$OVERFLOW_ONLY" -eq 1 ]] || is_overflow_comment "$COMMENT_BODY" || body_opens_with_heading "$COMMENT_BODY"; then
+  # The copy is superseded only by a newer overflow comment of this actor on the same target:
+  # one that carries the pr-body-overflow marker and opens with the heading.
   # A failed listing counts as no newer comment, so the copy stays.
   NEWER_OVERFLOW=0
-  NEWER_OVERFLOW="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER/comments" --paginate 2>/dev/null | jq -s -r \
+  NEWER_BODIES=""
+  if NEWER_BODIES="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER/comments" --paginate 2>/dev/null | jq -s -c \
     --arg actor "$ACTOR" --argjson id "$COMMENT_ID" \
-    '[.[][] | select(.user.login == $actor and .id > $id and ((.body // "") | test("(^|\n)## Pull-request body overflow[ \t]*(\n|$)")))] | length')" || NEWER_OVERFLOW=0
-  if [[ ! "$NEWER_OVERFLOW" =~ ^[0-9]+$ || "$NEWER_OVERFLOW" -eq 0 ]]; then
+    '.[][] | select(.user.login == $actor and .id > $id) | (.body // "")')"; then
+    while IFS= read -r newer_json; do
+      [[ -n "$newer_json" ]] || continue
+      newer_body="$(printf '%s' "$newer_json" | jq -r '.')"
+      if body_has_marker "$newer_body" "<!-- pr-body-overflow:actor=$ACTOR -->" && body_opens_with_heading "$newer_body"; then
+        NEWER_OVERFLOW=$((NEWER_OVERFLOW + 1))
+      fi
+    done <<<"$NEWER_BODIES"
+  fi
+
+  if [[ "$NEWER_OVERFLOW" -eq 0 ]]; then
     printf '%s\n' "$PROG: refusing to delete a pull-request body overflow comment" >&2
     exit 4
   fi
-elif [[ "$OVERFLOW_ONLY" -eq 1 ]]; then
-  printf '%s\n' "$PROG: the two-argument form deletes only a superseded pull-request body overflow comment" >&2
-  exit 4
 fi
 
 DELETE_RC=0

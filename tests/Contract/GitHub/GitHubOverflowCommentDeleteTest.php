@@ -124,8 +124,8 @@ test('a newer overflow comment of another author never makes the actor\'s newest
     installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
     chmod($directory . '/bin/gh', 0755);
     file_put_contents($directory . '/comments.json', json_encode([
-        overflowDeleteComment(901, 'bot', "## Pull-request body overflow\n\nAudit lines"),
-        overflowDeleteComment(902, 'stranger', "## Pull-request body overflow\n\nQuoted copy"),
+        overflowDeleteComment(901, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(902, 'stranger', "## Pull-request body overflow\n\nQuoted copy\n\n<!-- pr-body-overflow:actor=stranger -->"),
     ], JSON_THROW_ON_ERROR));
 
     try {
@@ -144,7 +144,7 @@ test('an overflow comment is never deleted on a quoted heading or on a failed lo
     installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
     chmod($directory . '/bin/gh', 0755);
     file_put_contents($directory . '/comments.json', json_encode([
-        overflowDeleteComment(911, 'bot', "## Pull-request body overflow\n\nAudit lines"),
+        overflowDeleteComment(911, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
         overflowDeleteComment(912, 'bot', "> ## Pull-request body overflow\n\nA reply that quotes the heading"),
         overflowDeleteComment(913, 'bot', 'See the ## Pull-request body overflow comment above'),
     ], JSON_THROW_ON_ERROR));
@@ -161,6 +161,81 @@ test('an overflow comment is never deleted on a quoted heading or on a failed lo
         expect($failedLookup->getExitCode())->toBe(4)
             ->and($failedLookup->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment')
             ->and(is_file($directory . '/deleted'))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($directory);
+    }
+});
+
+test('a fenced quote of the heading never makes a merge-readiness comment deletable in the two-argument form', function (): void {
+    $directory = installerCreateProjectRoot();
+    installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
+    chmod($directory . '/bin/gh', 0755);
+    $fence = "```\n## Pull-request body overflow\n```";
+    file_put_contents($directory . '/comments.json', json_encode([
+        overflowDeleteComment(1001, 'bot', "Merge readiness\n\n" . $fence . "\n\n<!-- merge-readiness:actor=bot -->"),
+        overflowDeleteComment(1002, 'bot', "Review\n\n" . $fence . "\n\n<!-- cr-comment:actor=bot -->"),
+        overflowDeleteComment(
+            1003,
+            'bot',
+            "## Pull-request body overflow\n\nMoved\n\n<!-- merge-readiness:actor=bot -->\n<!-- pr-body-overflow:actor=bot -->",
+        ),
+        overflowDeleteComment(1004, 'bot', "## Pull-request body overflow\n\nNewest\n\n<!-- pr-body-overflow:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR));
+
+    try {
+        foreach (['1001', '1002', '1003'] as $id) {
+            $process = runOverflowCommentDelete($directory, [$id]);
+
+            expect($process->getExitCode())->toBe(4)
+                ->and(is_file($directory . '/deleted'))->toBeFalse();
+        }
+    } finally {
+        installerRemoveDirectory($directory);
+    }
+});
+
+test('a newer comment that only quotes the heading in a fence never supersedes the only overflow copy', function (): void {
+    $directory = installerCreateProjectRoot();
+    installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
+    chmod($directory . '/bin/gh', 0755);
+    $fence = "```\n## Pull-request body overflow\n```";
+    file_put_contents($directory . '/comments.json', json_encode([
+        overflowDeleteComment(1101, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1102, 'bot', "Test report\n\n" . $fence . "\n\n<!-- test-report:actor=bot -->"),
+        overflowDeleteComment(1103, 'bot', "Note\n\n" . $fence . "\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1104, 'bot', "Note\n\n```\n<!-- pr-body-overflow:actor=bot -->\n```\n\n## Pull-request body overflow"),
+        overflowDeleteComment(1105, 'bot', "## Pull-request body overflow\n\nA note\n\n<!-- agent-note:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR));
+
+    try {
+        $process = runOverflowCommentDelete($directory, ['1101']);
+
+        expect($process->getExitCode())->toBe(4)
+            ->and($process->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment')
+            ->and(is_file($directory . '/deleted'))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($directory);
+    }
+});
+
+test('an operator comment without a marker is never deleted by the two-argument form, even when it holds the heading line', function (): void {
+    $directory = installerCreateProjectRoot();
+    installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
+    chmod($directory . '/bin/gh', 0755);
+    file_put_contents($directory . '/comments.json', json_encode([
+        overflowDeleteComment(1201, 'bot', "## Pull-request body overflow\n\nThe operator's own note"),
+        overflowDeleteComment(1202, 'bot', "My note\n\n## Pull-request body overflow\n\nMore\n\n<!-- pr-body-overflow:actor=bot -->"),
+        overflowDeleteComment(1203, 'bot', "## Pull-request body overflow\n\nReal copy\n\n<!-- pr-body-overflow:actor=bot -->"),
+    ], JSON_THROW_ON_ERROR));
+
+    try {
+        foreach (['1201', '1202'] as $id) {
+            $process = runOverflowCommentDelete($directory, [$id]);
+
+            expect($process->getExitCode())->toBe(4)
+                ->and($process->getErrorOutput())->toContain('deletes only a superseded pull-request body overflow comment')
+                ->and(is_file($directory . '/deleted'))->toBeFalse();
+        }
     } finally {
         installerRemoveDirectory($directory);
     }
