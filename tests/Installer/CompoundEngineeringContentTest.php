@@ -1787,6 +1787,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . '`cr-inline` (the inline review comments that an earlier release of '
             . '`skills/code-review-github/scripts/post-inline-review.sh` posted on the changed lines of a pull request), '
             . '`proposal-review` (the Critical findings of the proposal review, `skills/_shared/orchestration/proposal-review.md` step 6), '
+            . '`pr-body-overflow` (the durable copy of the verbatim pull-request body content, '
+            . '`rules/git/pull-requests.md` *PR Content Requirements*; one comment per pull request, updated in place), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',
         )
         ->and($codeReview)->toContain('A new namespace joins this list in the same change that first writes it')
