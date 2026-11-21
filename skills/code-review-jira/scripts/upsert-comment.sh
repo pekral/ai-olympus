@@ -218,7 +218,12 @@ fi
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
+# shellcheck source=../../_shared/resolve-command-helper.sh
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh"
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || {
+  echo 'upsert-comment.sh: command-owned audit helper is not installed' >&2
+  exit 3
+}
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
 
@@ -469,6 +474,6 @@ if [[ "$UPDATE_RC" -ne 0 ]]; then
   exit 3
 fi
 
-bash "$AUDIT_TRAIL" record --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "$ACTION" || true
+bash "$AUDIT_TRAIL" record-if-configured --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "$ACTION" || exit 3
 echo "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}"
 echo "action=${ACTION} id=${TARGET_ID}" >&2

@@ -75,6 +75,8 @@ else
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/resolve-command-helper.sh" || exit 3
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || exit 3
 NAME_WITH_OWNER="$("$SCRIPT_DIR"/assert-current-repo.sh "$TARGET_URL")"
 EXPECTED_NAME="$(printf '%s/%s' "$OWNER" "$REPOSITORY" | tr '[:upper:]' '[:lower:]')"
 ACTUAL_NAME="$(printf '%s' "$NAME_WITH_OWNER" | tr '[:upper:]' '[:lower:]')"
@@ -201,7 +203,7 @@ fi
 DELETE_RC=0
 gh api --method DELETE "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID" >/dev/null || DELETE_RC=$?
 # The audit line is written at the moment of the delete, with the real exit status of the request.
-bash "$SCRIPT_DIR/audit-trail.sh" record --target "delete comment $COMMENT_ID on $TARGET_URL" --status "$DELETE_RC" || true
+bash "$AUDIT_TRAIL" record --target "delete comment $COMMENT_ID on $TARGET_URL" --status "$DELETE_RC" || true
 [[ "$DELETE_RC" -eq 0 ]] || exit "$DELETE_RC"
 
 VERIFY_OUTPUT=""

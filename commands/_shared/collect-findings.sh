@@ -39,7 +39,9 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
+LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
 
 usage() {
   cat >&2 <<'EOF'
@@ -81,7 +83,7 @@ JQ_REPORTS='include "review-trust"; [ review_reports[] | select(trusted_review) 
 
 # The record of a review body is read through the one unwrap in cr-header.sh.
 # shellcheck source=cr-header.sh
-source "$HERE/cr-header.sh"
+source "$SKILL_ROOT/_shared/cr-header.sh"
 
 # extractor_verdict <exit-code> <report-index> — 0 when the extractor accepted the report. A refused report
 # is counted and named, and the function returns 1. A missing tool or another failure ends the collection.
@@ -146,7 +148,7 @@ cmd_collect() {
   fi
 
   # The store check is the extractor's own, so a malformed store stops the run before any report is read.
-  if [[ -e "$store" ]] && ! "$HERE/extract-findings.sh" --validate "$store" >/dev/null 2>"$tmp/validate.err"; then
+  if [[ -e "$store" ]] && ! "$SKILL_ROOT/_shared/extract-findings.sh" --validate "$store" >/dev/null 2>"$tmp/validate.err"; then
     while IFS= read -r line; do
       echo "$PROG: $(safe_display "$line")" >&2
     done <"$tmp/validate.err"
@@ -173,7 +175,7 @@ cmd_collect() {
     fi
     rc=0
     set +e
-    "$HERE/extract-findings.sh" --header --input "$tmp/report.$i" >"$tmp/header.json" 2>"$tmp/extract.err"
+    "$SKILL_ROOT/_shared/extract-findings.sh" --header --input "$tmp/report.$i" >"$tmp/header.json" 2>"$tmp/extract.err"
     rc=$?
     set -e
     if extractor_verdict "$rc" "$i"; then
@@ -185,7 +187,7 @@ cmd_collect() {
   for i in $(jq -s -r 'sort_by([.time, .created]) | .[].i' "$tmp/order.jsonl"); do
     rc=0
     set +e
-    "$HERE/extract-findings.sh" --repo "$repo" --pr "$pr" --input "$tmp/report.$i" --store "$store" >/dev/null 2>"$tmp/extract.err"
+    "$SKILL_ROOT/_shared/extract-findings.sh" --repo "$repo" --pr "$pr" --input "$tmp/report.$i" --store "$store" >/dev/null 2>"$tmp/extract.err"
     rc=$?
     set -e
     if extractor_verdict "$rc" "$i"; then
@@ -330,7 +332,7 @@ self_test() {
   comment leonardo-bot MEMBER 2026-10-10T10:00:00Z leonardo-bot "$tmp/pr9.md" >"$tmp/comments9.jsonl"
   payload 9 "$tmp/comments9.jsonl" >"$tmp/pr9.json"
   run_case 'a second pull request is collected into the same store' 0 -- --loaded "$tmp/pr9.json" --store "$tmp/store.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/store.jsonl" >"$tmp/report.json" 2>/dev/null
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/store.jsonl" >"$tmp/report.json" 2>/dev/null
   check 'two collected pull requests give one recurrence in the analysis' "$(jq -e '
       (.recurrences | length) == 1 and .recurrences[0].prs == 2
       and (.recurrences[0].occurrences | map(.url)) == ["https://github.com/acme/shop/pull/7", "https://github.com/acme/shop/pull/9"]' "$tmp/report.json" >/dev/null && echo 0 || echo 1)"

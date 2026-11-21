@@ -3,7 +3,7 @@ description: Review one task's pull request and report the result to its tracker
 argument-hint: [GitHub issue or pull request URL, JIRA issue key or URL, or Bugsnag error URL] [fresh]
 ---
 
-On Claude Code, resolve `commands/_shared/` below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+Resolve `commands/_shared/` below `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` when this command is loaded by the native plugin. In a Composer installation, resolve it below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
 
 This session holds the `krang` role in review-only mode and never starts `krang` as a subagent, per
 `@rules/compound-engineering/orchestration.md`
@@ -21,7 +21,7 @@ defines which agents run, in which order, what each one publishes, and what the 
 mode with the reference, and with the fresh-review request when the user gave `fresh`, and nothing
 else. Do not restate, shorten, or
 extend those steps in the dispatch prompt: a step that this command and the agent definition state
-differently makes the run follow the wrong one. When `.claude/command-support/_shared/krang-workflow.inc` is not installed, stop and
+differently makes the run follow the wrong one. When the workflow is missing from the resolved command-support directory, stop and
 report it. Never perform a specialist's step in this session.
 
 For Codex, invoke the matching wrapper — `$code-review-github`, `$code-review-jira`, or

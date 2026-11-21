@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\Installer;
+use Symfony\Component\Process\Process;
 use Tests\Support\StderrCapture;
 
 /**
@@ -51,7 +52,7 @@ test('install records the hash of every installed workflow copy in the git direc
             ->and($lines['.claude/command-support/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.claude/command-support/_shared/classify-risk.sh'))
             ->and($lines['.codex/commands/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.codex/commands/_shared/classify-risk.sh'))
             ->and($lines['.claude/commands/do-it.md'])->toBe(hash_file('sha256', $root . '/.claude/commands/do-it.md'))
-            ->and($lines)->not->toHaveKey('.claude/skills/code-review/SKILL.md')
+            ->and($lines['.claude/skills/code-review/SKILL.md'])->toBe(hash_file('sha256', $root . '/.claude/skills/code-review/SKILL.md'))
             ->and(is_file($root . '/.git/ai-olympus/installed-copies.sha256.tmp'))->toBeFalse();
     } finally {
         installerRemoveDirectory($root);
@@ -166,3 +167,57 @@ test('install fails when it cannot write the reference', function (string $block
     'the reference' => ['installed-copies.sha256'],
     'the temporary file' => ['installed-copies.sha256.tmp'],
 ]);
+
+test('an installed classifier verifies and runs its own libraries in a consumer repository', function (string $commands, string $skills): void {
+    $root = installerCreateProjectRoot();
+
+    try {
+        (new Process(['git', 'init', '-q'], $root))->mustRun();
+        (new Process(['git', '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=Fixture', 'commit', '--allow-empty', '-qm', 'fixture'], $root))->mustRun();
+        $tip = trim((new Process(['git', 'rev-parse', 'HEAD'], $root))->mustRun()->getOutput());
+        [$status] = installedCopyReferenceInstall($root, '--prune');
+        expect($status)->toBe(0);
+        $classifier = $commands . '/_shared/classify-risk.sh';
+        $verify = [
+            'bash', $skills . '/_shared/verify-installed-copy.sh', '--root', $root, '--commit', $tip, '--installed-reference',
+            $classifier, $commands . '/_shared/domain-vocabulary.sh', $commands . '/_shared/skill-path.sh',
+            $commands . '/_shared/read-manifest.sh', $skills . '/_shared/domain-vocabulary.sh', $skills . '/_shared/verify-installed-copy.sh',
+        ];
+        expect((new Process($verify, $root))->mustRun()->getOutput())->toContain('installed-copy-verdict=verified');
+        $classify = new Process(['bash', $classifier, '--files', '-'], $root, input: "README.md\n");
+        expect($classify->mustRun()->getOutput())->toContain('tier=FAST');
+
+        installerWriteFile($root . '/' . $skills . '/_shared/domain-vocabulary.sh', "# altered after installation\n");
+        $refused = new Process($verify, $root);
+        expect($refused->run())->not->toBe(0)
+            ->and($refused->getOutput())->toContain('hash-mismatch', 'installed-copy-verdict=refused');
+    } finally {
+        installerRemoveDirectory($root);
+    }
+})->with([
+    ['.claude/command-support', '.claude/skills'],
+    ['.codex/commands', '.agents/skills'],
+]);
+
+test('each public command loads a protocol shipped by both the plugin and the installer', function (): void {
+    $package = dirname(__DIR__, 2);
+    $root = installerCreateProjectRoot();
+
+    try {
+        [$status] = installedCopyReferenceInstall($root, '--prune');
+        expect($status)->toBe(0);
+
+        foreach (['do-it', 'prepare-issue-for-merge', 'redesign-page', 'report-code-review', 'test-assignment'] as $name) {
+            foreach ([[$package . '/commands', $package . '/commands'], [$root . '/.claude/commands', $root . '/.claude/command-support'], [$root . '/.codex/commands', $root . '/.codex/commands']] as [$entryRoot, $supportRoot]) {
+                $entry = (string) file_get_contents($entryRoot . '/' . $name . '.md');
+                expect(preg_match_all('~`commands/(_shared/[a-z0-9./-]+[.]inc)`~', $entry, $matches))->toBeGreaterThan(0);
+
+                foreach ($matches[1] as $protocol) {
+                    expect(is_file($supportRoot . '/' . $protocol))->toBeTrue();
+                }
+            }
+        }
+    } finally {
+        installerRemoveDirectory($root);
+    }
+});

@@ -3,15 +3,15 @@ description: Turn free-form instructions into a prioritised work queue of GitHub
 argument-hint: [free-form instructions]
 ---
 
-On Claude Code, resolve `commands/_shared/` below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+Resolve `commands/_shared/` below `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` when this command is loaded by the native plugin. In a Composer installation, resolve it below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
 
 This session holds the `krang` role for this request and never starts `krang` as a subagent, per
 `@rules/compound-engineering/orchestration.md`
-*Starting the orchestrator — the top-level role and the nested hand-over*. Run `@skills/do-it/SKILL.md` with these instructions:
+*Starting the orchestrator — the top-level role and the nested hand-over*. Run `commands/_shared/orchestration/do-it.inc` with these instructions:
 
 $ARGUMENTS
 
-If the instructions are empty, stop and ask for them. Follow the skill in full. Split the
+If the instructions are empty, stop and ask for them. Follow the queue protocol in full. Split the
 instructions into independently deliverable items. Reuse the issue of an item that has one, under
 the author test of the skill, and create one GitHub issue for every other item. Order the queue with
 `skills/_shared/order-work-queue.sh`, plan the parallel batches with `commands/_shared/plan-parallel.sh`,

@@ -179,7 +179,8 @@ render() {
     write_scenario "$scenario" "$width" "$height" "$output_dir" "${mockups[@]}"
 
     local driver status=0
-    driver="$(cd "$(dirname "$SELF")/../../_shared" && pwd)/browser-drive.sh"
+    source "$(dirname "$SELF")/../../_shared/resolve-command-helper.sh" || exit 3
+    driver="$(resolve_command_helper browser-drive.sh)" || exit 3
 
     if [ ! -x "$driver" ]; then
         echo "$PROG: browser-drive.sh not found next to this skill: $driver" >&2

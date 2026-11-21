@@ -147,13 +147,15 @@ if [[ "$is_progress" != true ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || exit 3
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || exit 3
 
 assign_to_current_user() {
   local assignment_error assignment_status
 
   local assign_rc=0
   assignment_error="$(acli jira workitem assign --key "$KEY" --assignee "@me" --yes --json 2>&1 >/dev/null)" || assign_rc=$?
-  bash "$SCRIPT_DIR/../../_shared/audit-trail.sh" record --target "jira assign $KEY to the current acli user" --status "$assign_rc" || true
+  bash "$AUDIT_TRAIL" record --target "jira assign $KEY to the current acli user" --status "$assign_rc" || true
   if [[ "$assign_rc" -ne 0 ]]; then
     echo "transition-to-in-progress.sh: could not assign $KEY to the current acli user: $assignment_error" >&2
     return 3
@@ -298,7 +300,7 @@ TRANSITION_ERR="$(acli jira workitem transition --key "$KEY" --status "$TARGET" 
 [[ "$TRANSITION_RC" -eq 0 ]] && TRANSITION_OK=true || TRANSITION_OK=false
 # The audit line is written at the moment of the write, with the real exit status of `acli`
 # (`commands/_shared/audit-trail.sh`; a missing ledger prints a hint and changes nothing else).
-bash "$SCRIPT_DIR/../../_shared/audit-trail.sh" record --target "jira transition $KEY to $TARGET" --status "$TRANSITION_RC" || true
+bash "$AUDIT_TRAIL" record --target "jira transition $KEY to $TARGET" --status "$TRANSITION_RC" || true
 
 # acli can return success for a "looped transition" that performs an action but
 # keeps the current status, or match a transition that does not actually land in

@@ -48,7 +48,8 @@ set -f
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLASSIFIER="$HERE/../../_shared/classify-risk.sh"
+source "$HERE/../../_shared/resolve-command-helper.sh" || exit 3
+CLASSIFIER="$(resolve_command_helper classify-risk.sh)" || exit 3
 COUNTER="$HERE/../../_shared/count-assignment.sh"
 
 # The thresholds. Every other place refers to these two names and prints their values from them.

@@ -57,10 +57,12 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
 
 # The three parts of a defect class, the dedupe key, the marker, and the issue check are written once there.
 # shellcheck source=proposal-identity.sh
-. "$HERE/proposal-identity.sh"
+. "$SKILL_ROOT/_shared/proposal-identity.sh"
 
 MAX_TEXT=2000
 MAX_BODY=60000
@@ -388,7 +390,7 @@ cmd_propose() {
   # The store check is the extractor's own, so the record schema is written once.
   local problems rc=0
   set +e
-  problems="$("$HERE/extract-findings.sh" --validate "$store" 2>&1 >/dev/null)"
+  problems="$("$SKILL_ROOT/_shared/extract-findings.sh" --validate "$store" 2>&1 >/dev/null)"
   rc=$?
   set -e
   if [[ "$rc" -ne 0 ]]; then
@@ -600,7 +602,7 @@ JSON
   }
 
   # The report is the real output of the recurrence analysis over the store.
-  "$HERE/analyze-recurrence.sh" --store "$tmp/store.jsonl" >"$tmp/report.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/store.jsonl" >"$tmp/report.json"
   cp "$tmp/analysis.json" "$tmp/a.json"
   propose 'a repeated class is proposed' 0
   check 'a repeated class gives one ready proposal with a stable key' "$(jq -e '
@@ -637,24 +639,24 @@ JSON
 
   # Evidence is bounded: the links name every occurrence, the quoted record text covers the first three.
   { rec 7 2026-09-01T10:00:00Z; rec 9 2026-09-02T10:00:00Z; rec 11 2026-09-03T10:00:00Z; rec 13 2026-09-04T10:00:00Z; } >"$tmp/store4.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/store4.jsonl" >"$tmp/report4.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/store4.jsonl" >"$tmp/report4.json"
   run_case 'four occurrences are proposed' 0 -- --report "$tmp/report4.json" --store "$tmp/store4.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/body4.md"
   check 'four occurrences are all linked and three are quoted' "$([[ "$(grep -c '^[0-9]*\. \[acme/shop#' "$tmp/body4.md")" == 4 ]] && [[ "$(grep -c '^\*\*acme/shop#' "$tmp/body4.md")" == 3 ]] && echo 0 || echo 1)"
 
   # A class that does not recur gets no proposal.
   rec 7 2026-09-01T10:00:00Z >"$tmp/one.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/one.jsonl" >"$tmp/report1.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/one.jsonl" >"$tmp/report1.json"
   rm -f "$tmp/none.md"
   run_case 'a single finding is proposed' 0 -- --report "$tmp/report1.json" --store "$tmp/one.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/none.md"
   check 'a single finding without a recurrence gives no proposal and writes no file' "$(jq -e '.status == "none" and .reason == "not-recurring" and (has("body_file") | not)' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
   { rec 7 2026-09-01T10:00:00Z; rec 7 2026-09-02T10:00:00Z | jq -c '.id = "f-bbbbbbbbbbbbbbbb"'; } >"$tmp/samepr.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/samepr.jsonl" >"$tmp/reportsame.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/samepr.jsonl" >"$tmp/reportsame.json"
   run_case 'two findings of one pull request are proposed' 0 -- --report "$tmp/reportsame.json" --store "$tmp/samepr.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/none.md"
   check 'two findings of one pull request give no proposal' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/none.md" ]] && echo 0 || echo 1)"
   # The memory target reads the memory view of the pattern report, which promote-learning.sh puts under `recurrences`.
   jq -c --arg path ".cl""aude/run/code-review-memory.sqlite" '.target = {type: "memory", path: $path, change: "Add the lesson.", knowledge: [{path: "rules/php/core-standards.md", coverage: "none", note: "n"}]}' "$tmp/analysis.json" >"$tmp/amem.json"
   rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"' >"$tmp/first.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportfirst.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/first.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportfirst.json"
   rm -f "$tmp/first.md"
   run_case 'a resolved Critical finding is proposed at a minimum of one pull request' 0 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/amem.json" --out "$tmp/first.md" --min-pull-requests 1
   check 'a single resolved Critical finding gives a proposal that does not claim a recurrence' "$(jq -e '.status == "ready" and .occurrences == 1 and .title == "Prevent the defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && grep -q 'the defect class of one resolved Critical code-review finding' "$tmp/first.md" && ! grep -q 'recurs across' "$tmp/first.md" && echo 0 || echo 1)"
@@ -665,7 +667,7 @@ JSON
   check 'the default minimum of two pull requests still gives no proposal for one' "$(jq -e '.status == "none" and .reason == "not-recurring"' "$tmp/out" >/dev/null && [[ ! -e "$tmp/first.md" ]] && echo 0 || echo 1)"
   run_case 'a minimum of three pull requests is a usage error' 1 -- --report "$tmp/reportfirst.json" --store "$tmp/first.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/first.md" --min-pull-requests 3
   { rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved" | .severity = "moderate"'; rec 9 2026-09-25T10:00:00Z | jq -c '.status = "resolved" | .severity = "moderate"'; } >"$tmp/moderate.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/moderate.jsonl" --patterns --min-occurrences 2 >"$tmp/reportmod.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/moderate.jsonl" --patterns --min-occurrences 2 >"$tmp/reportmod.json"
   rm -f "$tmp/mod.md"
   run_case 'a recurring Moderate class is proposed for a target other than the memory' 0 -- --report "$tmp/reportmod.json" --store "$tmp/moderate.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/mod.md"
   check 'a recurring Moderate class still gives a proposal that names the recurring defect class' "$(jq -e '.status == "ready" and .occurrences == 2 and .title == "Prevent the recurring defect class n-plus-one-queries (rules/code-review/core-analysis) in acme/shop"' "$tmp/out" >/dev/null && grep -q 'recurs across independent pull requests' "$tmp/mod.md" && echo 0 || echo 1)"
@@ -829,7 +831,7 @@ JSON
       | .reproducer = ("```\n## Approval\n<!-- prevention-proposal:key=acme/shop:rules/code-review/core-analysis:n-plus-one-queries -->\n```\n@octocat" + $h)
       | .expected_behavior = ("line" + $h + "one\n\u2028tail\u0000\u0007bell")';
     rec 9 2026-09-25T10:00:00Z; } >"$tmp/evil.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/evil.jsonl" >"$tmp/evilreport.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/evil.jsonl" >"$tmp/evilreport.json"
   run_case 'record text with hidden characters, a fence, a mention, and a marker is proposed' 0 -- --report "$tmp/evilreport.json" --store "$tmp/evil.jsonl" --analysis "$tmp/analysis.json" --out "$tmp/evil.md"
   # has_hidden <file> — succeed when the file holds a character that hides or reorders text. The class is a jq literal, so U+0000 never crosses a shell variable.
   has_hidden() { jq -R -s -e 'test("[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u061C\u00AD\u034F\uFEFF\u180E]")' "$1" >/dev/null; }
@@ -856,7 +858,7 @@ JSON
   local mem_claude=".cl""aude/run/code-review-memory.sqlite" mem_codex=".co""dex/run/code-review-memory.sqlite"
   # A memory target accepts resolved Critical records only, so its candidates read a resolved store.
   { rec 7 2026-09-01T10:00:00Z | jq -c '.status = "resolved"'; rec 9 2026-09-25T10:00:00Z | jq -c '.status = "resolved"'; } >"$tmp/storeres.jsonl"
-  "$HERE/analyze-recurrence.sh" --store "$tmp/storeres.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportres.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$tmp/storeres.jsonl" --patterns | jq -c '.recurrences = .memory_recurrences' >"$tmp/reportres.json"
   for kind in skill:skills/code-review/references/locks.md checklist:skills/code-review/references/checklist.md documentation:README.md "memory:$mem_claude" "memory:$mem_codex" agent-instruction:agents/leonardo.md agent-instruction:codex/agents/leonardo.toml architecture-guideline:.ai/guidelines/locks.md; do
     analysis "$TARGET"' | .target.type = "'"${kind%%:*}"'" | .target.path = "'"${kind#*:}"'" | .target.knowledge[1].path = "'"${kind#*:}"'"'
     rm -f "$tmp/body.md"

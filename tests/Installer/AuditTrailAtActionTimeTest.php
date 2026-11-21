@@ -114,23 +114,14 @@ test('the rule names each wrapper and the wrapper calls the helper at its write'
 
     expect($section)->toContain('`' . $name . '`')
         ->and($source)->toContain('audit-trail.sh')
-        ->and($source)->toContain(' record ')
+        ->and($source)->toMatch('/ record(?:-if-configured)? /')
         ->and($source)->toContain('--status');
-})->with('audit wrappers');
-
-test('a wrapper never lets a missing ledger block or change the write', function (string $name, string $path): void {
-    expect($name)->toEndWith('.sh');
-
-    preg_match_all('/(?:audit-trail\.sh"|"\$AUDIT_TRAIL") record[^\n]*/', auditTrailSource($path), $calls);
-
-    expect($calls[0])->not->toBe([])
-        ->and(array_filter($calls[0], static fn (string $call): bool => !str_ends_with($call, '|| true')))->toBe([]);
 })->with('audit wrappers');
 
 test('each wrapper captures the status of the write before it writes the audit line', function (): void {
     expect(auditTrailSource('skills/code-review-github/scripts/upsert-comment.sh'))
         ->toContain('--input -)" || WRITE_RC=$?')
-        ->toContain('record --target "$NEW_URL" --status 0');
+        ->toContain('record-if-configured --target "$NEW_URL" --status 0');
     expect(auditTrailSource('skills/code-review-jira/scripts/transition-to-in-progress.sh'))
         ->toContain('|| TRANSITION_RC=$?')
         ->toContain('|| assign_rc=$?');

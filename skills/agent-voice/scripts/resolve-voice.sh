@@ -21,6 +21,7 @@ set -uo pipefail
 DEFAULT_VOICE="relaxed"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+
 voice_of_manifest() {
   local manifest="$1" voice
 
@@ -59,8 +60,13 @@ CASES
 
 case "${1:-}" in
 "")
-  manifest="$("$HERE/../../_shared/read-manifest.sh" 2>/dev/null)" || {
-    [[ $? -ne 3 ]] || "$HERE/../../_shared/read-manifest.sh" >/dev/null || true
+  source "$HERE/../../_shared/resolve-command-helper.sh"
+  MANIFEST_READER="$(resolve_command_helper read-manifest.sh)" || {
+    echo 'resolve-voice.sh: command-owned manifest helper is not installed' >&2
+    exit 3
+  }
+  manifest="$("$MANIFEST_READER" 2>/dev/null)" || {
+    [[ $? -ne 3 ]] || "$MANIFEST_READER" >/dev/null || true
     manifest="{}"
   }
   voice_of_manifest "$manifest"

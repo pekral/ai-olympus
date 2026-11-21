@@ -124,6 +124,8 @@ if [[ "$is_review" != true ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || exit 3
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || exit 3
 
 # Read current status for the idempotence check.
 if ! ISSUE_JSON="$("$SCRIPT_DIR/load-issue.sh" "$KEY")"; then
@@ -151,7 +153,7 @@ TRANSITION_ERR="$(acli jira workitem transition --key "$KEY" --status "$TARGET" 
 [[ "$TRANSITION_RC" -eq 0 ]] && TRANSITION_OK=true || TRANSITION_OK=false
 # The audit line is written at the moment of the write, with the real exit status of `acli`
 # (`commands/_shared/audit-trail.sh`; a missing ledger prints a hint and changes nothing else).
-bash "$SCRIPT_DIR/../../_shared/audit-trail.sh" record --target "jira transition $KEY to $TARGET" --status "$TRANSITION_RC" || true
+bash "$AUDIT_TRAIL" record --target "jira transition $KEY to $TARGET" --status "$TRANSITION_RC" || true
 
 # acli can return success for a "looped transition" that performs an action but
 # keeps the current status, or match a transition that does not actually land in

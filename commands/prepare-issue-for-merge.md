@@ -3,12 +3,12 @@ description: Prepare one or more GitHub or JIRA issues' pull requests for merge,
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [more references] [--merge]
 ---
 
-On Claude Code, resolve `commands/_shared/` below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+Resolve `commands/_shared/` below `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` when this command is loaded by the native plugin. In a Composer installation, resolve it below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
 
 With exactly one reference and no flag, this session holds the `krang` role for this request
 and never starts `krang` as a subagent, per `@rules/compound-engineering/orchestration.md`
 *Starting the orchestrator — the top-level role and the nested hand-over*.
-Run `@skills/verify-merge-readiness/SKILL.md` with these arguments:
+Run `commands/_shared/orchestration/verify-merge-readiness.inc` with these arguments:
 
 $ARGUMENTS
 

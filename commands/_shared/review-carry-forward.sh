@@ -202,15 +202,17 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
 
 # The loaders are plain variables, never read from the environment. The self-test replaces them with stubs.
-GITHUB_LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
-JIRA_LOADER="$HERE/../code-review-jira/scripts/load-issue.sh"
-EXTRACT="$HERE/extract-findings.sh"
+GITHUB_LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
+JIRA_LOADER="$SKILL_ROOT/code-review-jira/scripts/load-issue.sh"
+EXTRACT="$SKILL_ROOT/_shared/extract-findings.sh"
 # The one header parser; cr_header_canonical gives the strict view the decision relies on.
 # shellcheck source=cr-header.sh
-source "$HERE/cr-header.sh"
-CHECK_HEADER="$HERE/check-cr-header.sh"
+source "$SKILL_ROOT/_shared/cr-header.sh"
+CHECK_HEADER="$SKILL_ROOT/_shared/check-cr-header.sh"
 GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)
 
 # gate_lock_is_stale and gate_holder_text: the one stale-holder probe, shared with the gate lock.
@@ -221,7 +223,7 @@ source "$HERE/gate-record.sh"
 source "$HERE/state-path.sh"
 # jira_actor_account_id comes from the one shared definition of the acli actor.
 # shellcheck source=../code-review-jira/scripts/jira-actor.sh
-source "$HERE/../code-review-jira/scripts/jira-actor.sh"
+source "$SKILL_ROOT/code-review-jira/scripts/jira-actor.sh"
 
 PR_URL_SHAPE='^https://(www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+/?$'
 ISSUE_URL_SHAPE='^https://(www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[0-9]+/?$'

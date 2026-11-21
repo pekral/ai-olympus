@@ -60,11 +60,13 @@ umask 077
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
+LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
 # shellcheck source=gate-record.sh
 . "$HERE/gate-record.sh"
 # shellcheck source=proposal-identity.sh
-. "$HERE/proposal-identity.sh"
+. "$SKILL_ROOT/_shared/proposal-identity.sh"
 
 MAX_REASON=500
 ISSUE_URL_RE="^https://github\\.com/${REPO_RE}/issues/[1-9][0-9]{0,8}\$"
@@ -230,7 +232,7 @@ patterns() {
     return 0
   fi
   set +e
-  "$HERE/analyze-recurrence.sh" --store "$store" --patterns >"$tmp/patterns.json" 2>"$tmp/patterns.err"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$store" --patterns >"$tmp/patterns.json" 2>"$tmp/patterns.err"
   rc=$?
   set -e
   while IFS= read -r line; do
@@ -625,7 +627,9 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the tracker loader is a fixture and not the network.
   mkdir -p "$tmp/skills/_shared" "$tmp/skills/code-review-github/scripts" "$tmp/fixture"
-  cp "$HERE"/{promote-learning,analyze-recurrence,extract-findings,cr-header,propose-prevention,proposal-identity,read-manifest,gate-record,project-commands}.sh "$HERE/finding-defs.jq" "$tmp/skills/_shared/"
+  mkdir -p "$tmp/commands/_shared"
+  cp "$HERE"/{skill-path,promote-learning,propose-prevention,read-manifest,gate-record,project-commands}.sh "$tmp/commands/_shared/"
+  cp "$SKILL_ROOT"/_shared/{resolve-command-helper.sh,cr-header.sh,extract-findings.sh,analyze-recurrence.sh,proposal-identity.sh,finding-defs.jq,review-trust.jq} "$tmp/skills/_shared/"
   script="$tmp/commands/_shared/promote-learning.sh"
   cat >"$tmp/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash

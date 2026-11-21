@@ -890,7 +890,9 @@ reach_tags() {
 # The default-branch allow-list as W records. Read through read-manifest.sh, which reads composer.json
 # from the default branch only; the branch under review never supplies it.
 allow_records() {
-  local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh" json status=0
+  local manifest json status=0
+  source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || return 3
+  manifest="$(resolve_command_helper read-manifest.sh)" || return 3
   [[ -f "$manifest" ]] || return 0
   json="$(bash "$manifest" 2>/dev/null)" || status=$?
   # Exit 3: the default-branch composer.json exists but cannot be read. The allow-list is then empty, and the report
@@ -1235,7 +1237,10 @@ mode_full() {
   pick_hash
   build_sensitive
   # shellcheck source=../../_shared/gate-record.sh
-  . "$SCRIPT_DIR/../../_shared/gate-record.sh"
+  source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || return 3
+  local gate_library
+  gate_library="$(resolve_command_helper gate-record.sh)" || return 3
+  . "$gate_library"
   set +e +o pipefail
 
   check_push "$repo"

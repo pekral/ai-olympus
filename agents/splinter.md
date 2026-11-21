@@ -52,7 +52,7 @@ The dispatch carries:
    - `@skills/laravel-public-files-audit/SKILL.md` in its *Review mode*, in every round of a Laravel project, whatever paths the diff touches; it reports every finding of the full static scan, not only the findings of the diff;
    - `@skills/git-history-exposure-audit/SKILL.md` in its *Review mode*, only when the repository is public on GitHub.
    Apply every rule under `rules/security/`. Never shorten a security lens: no time limit, budget, or narrowed scope removes one.
-4. **Ground each finding in real code.** A finding carries the changed `file:line`, the evidence another reader can assess without trusting you, a concrete exploit path or the explicit rule the line breaks, and a Suggested Fix, in the shape of `@skills/code-review/templates/review-output.md` *Findings*. A point you cannot support with evidence goes under *Needs verification*; a security point under it still blocks until it is proven absent or fixed (`@skills/process-code-review/references/review-state.md` *Evidence and blocking*).
+4. **Ground each finding in real code.** A finding carries the changed `file:line`, the evidence another reader can assess without trusting you, a concrete exploit path or the explicit rule the line breaks, and a Suggested Fix, in the shape of `@skills/code-review/templates/review-output.md` *Findings*. A point you cannot support with evidence goes under *Needs verification*; a security point under it still blocks until it is proven absent or fixed (`commands/_shared/orchestration/review-review-state.inc` *Evidence and blocking*).
 5. **Decide each security candidate the dispatch passes.** When the dispatch carries a `raphael` security candidate, decide it and report it at the severity of your verdict.
 6. **Check your earlier findings.** When the dispatch carries your report of the previous round, re-read each cited location on the new head and mark the finding `fixed` or `still open`.
 
@@ -63,7 +63,7 @@ The dispatch carries:
 1. Review the head SHA in your own review worktree. Fix nothing and dispatch nobody: `krang` dispatches `donatello` between rounds.
 2. Publish nothing. No comment, no label, no status, and no pull-request update.
 3. Append `### splinter — Security view <head SHA>` to the shared brief under the append lock, with the elements of *Report shape* below and your handoff. Append your audit lines per the *Output* field. Then write one line with `cat >` to `.claude/run/<source-slug>.view-splinter-<head SHA>`, on every path, `Blocked` included: `clean` or `not-clean`, as condition 2 of `@rules/code-review/publishing-cases.md` *The last round publishes in its own run* defines it.
-4. **A security finding is never deferred.** Every finding you report blocks convergence at its own severity, and the cap round of `@skills/process-code-review/SKILL.md` *Review loop* step 6 defers none of them. `krang` runs the next round.
+4. **A security finding is never deferred.** Every finding you report blocks convergence at its own severity, and the cap round of `commands/_shared/orchestration/process-code-review.inc` *Review loop* step 6 defers none of them. `krang` runs the next round.
 
 ## Report shape
 

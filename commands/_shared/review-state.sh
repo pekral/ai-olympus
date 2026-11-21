@@ -91,9 +91,11 @@ set -euo pipefail
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
 # shellcheck source=state-path.sh
 . "$HERE/state-path.sh"
-LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
+LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
 
 DEFAULT_CAP=3
 MAX_CAP=10
@@ -443,7 +445,7 @@ load_state() {
   if [[ -z "$problems" ]]; then
     jq -c '.findings[]' "$file" >"$out.findings"
     if [[ -s "$out.findings" ]]; then
-      problems="$("$HERE/extract-findings.sh" --validate "$out.findings" 2>&1 >/dev/null || true)"
+      problems="$("$SKILL_ROOT/_shared/extract-findings.sh" --validate "$out.findings" 2>&1 >/dev/null || true)"
     fi
   fi
   if [[ -n "$problems" ]]; then
@@ -580,9 +582,9 @@ cmd_record() {
     cat >"$TMP/report.md"
     input="$TMP/report.md"
   fi
-  "$HERE/extract-findings.sh" --header --input "$input" >"$TMP/header.json" \
+  "$SKILL_ROOT/_shared/extract-findings.sh" --header --input "$input" >"$TMP/header.json" \
     || fail 3 "the round report could not be read; nothing was recorded"
-  "$HERE/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
+  "$SKILL_ROOT/_shared/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
     || fail 3 "the round report could not be read; nothing was recorded"
 
   local paths='null'
@@ -640,9 +642,9 @@ cmd_late() {
     cat >"$TMP/report.md"
     input="$TMP/report.md"
   fi
-  "$HERE/extract-findings.sh" --header --input "$input" >"$TMP/header.json" \
+  "$SKILL_ROOT/_shared/extract-findings.sh" --header --input "$input" >"$TMP/header.json" \
     || fail 3 "the round report could not be read; nothing was recorded"
-  "$HERE/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
+  "$SKILL_ROOT/_shared/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
     || fail 3 "the round report could not be read; nothing was recorded"
 
   # A late view belongs to the last recorded round only: the report names that round's revision and carries a
@@ -884,8 +886,10 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
   mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts"
-  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$tmp/pkg/skills/_shared/"
-  script="$tmp/pkg/skills/_shared/$PROG"
+  mkdir -p "$tmp/pkg/commands/_shared"
+  cp "$HERE"/{skill-path,review-state,state-path,read-manifest,classify-risk,domain-vocabulary}.sh "$tmp/pkg/commands/_shared/"
+  cp "$SKILL_ROOT"/_shared/{resolve-command-helper.sh,cr-header.sh,extract-findings.sh,state-path.sh,domain-vocabulary.sh,finding-defs.jq,review-trust.jq} "$tmp/pkg/skills/_shared/"
+  script="$tmp/pkg/commands/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$1" >>"$tmp/loader-calls"

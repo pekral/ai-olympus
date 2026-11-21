@@ -56,7 +56,6 @@ This rule applies in every voice and every language, to every text of the two su
 2. Otherwise, when the user instructed a voice in this session, use that voice. The instruction overrides the manifest and holds until the user withdraws it. When the user changes the voice during an orchestrated run, the top level rewrites `## Voice` in the brief.
 3. Otherwise run `skills/agent-voice/scripts/resolve-voice.sh` once per run. It reads the manifest key `voice` from the default branch through `commands/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*) and prints the voice name.
 4. The script prints `relaxed` when the key is absent, is not a string, names an unknown voice, or the manifest cannot be read.
-5. The top level of an orchestrated run (`command`, or the root session) records the voice from step 2 or 3 as `## Voice` in the shared brief and names it in every dispatch prompt.
 
 The step is done when one voice name from *Voices* is chosen.
 

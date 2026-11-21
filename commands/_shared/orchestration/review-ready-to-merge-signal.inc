@@ -1,0 +1,30 @@
+# Ready-to-merge signal on the pull request
+
+Referenced from `skills/process-code-review/SKILL.md` *Promote the PR out of Draft*. Extracted to keep the skill body under the skill-check token limit.
+
+It runs at exactly one moment: the Review loop converged (`skills/process-code-review/SKILL.md` *Review loop* step 4 — zero Critical, zero unfulfilled reviewer comments, no undeferred Moderate), and the merge has not happened yet. The signal lands on the pull request only. No agent writes a status on the source tracker item once the code review has started (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*): no GitHub issue label, no JIRA transition, and no Bugsnag status.
+
+**One pull request never gets it.** A pull request whose body carries the marker `<!-- ai-olympus:contribution-policy=human-description -->` stays a Draft with no `ready to merge` label and an untouched body, because its description waits for its author (`@rules/git/pull-requests.md` *Foreign repository with a contribution policy — a human writes the description*). Skip *Promote the PR out of Draft*, this section, and the merge-risk refresh for it.
+
+The write is unconditional, idempotent, and verified. A zero exit code is not evidence: an external write can be silently blocked in auto-mode.
+
+### Pull-request label
+Run every `gh label` and `gh pr edit` command below, and `gh pr ready` in the revert, as `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo commands/_shared/audit-trail.sh run -- <command>`: the helper appends the one audit line of the write (`@rules/compound-engineering/orchestration.md` *Record the line at the moment of the write*), and the agent appends none by hand.
+
+The pull request is on GitHub whatever the source tracker is, so this write runs for a GitHub, a JIRA, and a Bugsnag source, and also when there is no source tracker item.
+1. **Create the label when the repository lacks it**, then ignore the "already exists" outcome on every later run: `gh label create "ready to merge" --description "The code review converged; the PR is waiting to be merged" --color 1d76db`.
+2. **Apply it to the pull request:** `gh pr edit <PR-NUMBER|URL> --add-label "ready to merge"`.
+3. **Refresh the `## Merge risk` heading** of the pull-request body as `@skills/resolve-issue/references/pull-request.md` *Merge risk* → *Refresh after the gate* states, with the write that the `gh pr edit --body-file` exception of `agents/leonardo.md` *Bash boundary* names, run as the `audit-trail.sh run --` command above. Skip it when the body carries no such heading.
+4. **Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <PR-URL>`. When it did not land, report the failed write in the completion report; the PR stays promoted.
+
+### Revert when the review re-opens
+A commit landing after the promotion can re-open the review (*Finalization* — **Only a gate fix that changes business logic re-opens the review**). The pull-request signal then states something untrue, so withdraw it:
+
+1. `gh pr ready --undo <PR-NUMBER|URL>` returns the PR to Draft, and `gh pr edit <PR-NUMBER|URL> --remove-label "ready to merge"` removes the label.
+2. Verify the withdrawal by re-reading through the deterministic loader. When it does not land, report the stale signal in the completion report and never report convergence.
+
+The source tracker item is left as it is in both directions.
+
+A fix commit carrying only the verbatim output of the project's fixers re-opens nothing, so it never triggers this revert — the converged verdict stands and the signal stays.
+
+**The detector is not always the owner.** The role that notices that the effective PR diff fingerprint changed may sit outside this skill (typically the implementing agent, during the pre-merge quality gate). It reports the staleness; it does not write or withdraw the signal itself. A content-identical history rewrite preserves the signal and starts no CR round.

@@ -115,8 +115,10 @@ append_line() {
   done
   HELD_LOCK="${file}.lock"
   trap release_lock EXIT
-  printf '%s\n' "$line" >>"$file"
+  local status=0
+  printf '%s\n' "$line" >>"$file" || status=$?
   release_lock
+  return "$status"
 }
 
 # Resolve --file and --role; return 1 (with a hint) when the ledger is not configured.
@@ -1432,7 +1434,8 @@ EOF
     chmod +x "$tmp/bin/gh"
     printf 'body\n' >"$tmp/body.md"
     local upsert
-    upsert="$(cd "$(dirname "$script")/../code-review-github/scripts" && pwd)/upsert-comment.sh"
+    source "$(dirname "$script")/skill-path.sh" || return 4
+    upsert="$(command_skill_root)/code-review-github/scripts/upsert-comment.sh"
     before="$(line_count)"
     out="$(PATH="$tmp/bin:$PATH" "$upsert" https://github.com/o/r/issues/5 "$tmp/body.md" 2>/dev/null)"
     expect_eq 'the comment publisher keeps its stdout' "$out" 'https://github.com/o/r/issues/5#issuecomment-77'
@@ -1479,6 +1482,14 @@ main() {
   --self-test) self_test ;;
   append) shift; cmd_append "$@" ;;
   record) shift; cmd_record "$@" ;;
+  record-if-configured)
+    shift
+    if [[ -z "${AUDIT_TRAIL_FILE:-}" || -z "${AUDIT_TRAIL_ROLE:-}" ]]; then
+      echo "$PROG: AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE are not both set; no audit line written" >&2
+      return 0
+    fi
+    cmd_record "$@"
+    ;;
   run) shift; cmd_run "$@" ;;
   verify) shift; cmd_verify "$@" ;;
   *) usage; return 1 ;;

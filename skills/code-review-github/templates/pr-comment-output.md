@@ -241,7 +241,7 @@ History exposure: not run — the repository is private.  *(render this one body
 ---
 
 **Summary:** {n} Critical · {n} Moderate · assignment conformance: {conformant | N gap(s) | no linked issue}{` · coverage {result}` — appended only when the `## Coverage` section is rendered; omitted on a clean 100% pass}
-{` · security: owned by review (<url of review's security comment>)` — appended **only** when the inline `security-review` pass was skipped because the caller set `SECURITY_OWNER=review`; omitted when the pass ran here. **The URL is mandatory**: the token records a delegation, and without a link to the delivered review there is nothing to distinguish a security pass that ran from one that died mid-run. A token with no URL is itself the visible gap, and `@skills/merge-github-pr/SKILL.md` blocks the merge on it} · {tracker-mirror status}
+{delegated security summary suffix, supplied verbatim with the verified URL of the delivered security comment. Omit when security ran inline. Missing delivery blocks publication as covered.}
 
 ---
 

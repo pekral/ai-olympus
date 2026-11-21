@@ -56,6 +56,8 @@ umask 077
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$HERE/skill-path.sh" || exit 3
+SKILL_ROOT="$(command_skill_root)" || exit 3
 
 # The owner and the name follow GitHub's own rules. Neither starts with a hyphen, so neither is read as a flag.
 OWNER_RE='[A-Za-z0-9][A-Za-z0-9-]*'
@@ -153,7 +155,7 @@ cmd_record() {
   parse_loop_args record "$@"
   require_tools jq gh
   canonical_pull_request "$PR_URL"
-  "$HERE/extract-findings.sh" --repo "$CANONICAL_REPO" --pr "$PR_NUMBER" --input "$INPUT" --store "$DIR/$STORE_NAME"
+  "$SKILL_ROOT/_shared/extract-findings.sh" --repo "$CANONICAL_REPO" --pr "$PR_NUMBER" --input "$INPUT" --store "$DIR/$STORE_NAME"
 }
 
 cmd_collect() {
@@ -194,7 +196,7 @@ cmd_analyze() {
 
   local rc=0
   set +e
-  "$HERE/analyze-recurrence.sh" --store "$dir/merged.jsonl" --state "$dir/state.json" ${flags[@]+"${flags[@]}"} >"$tmp/report.json"
+  "$SKILL_ROOT/_shared/analyze-recurrence.sh" --store "$dir/merged.jsonl" --state "$dir/state.json" ${flags[@]+"${flags[@]}"} >"$tmp/report.json"
   rc=$?
   set -e
   cat "$tmp/report.json"
@@ -254,7 +256,9 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the loader and the search can be replaced without a seam.
   mkdir -p "$tmp/skills/_shared" "$tmp/skills/code-review-github/scripts" "$tmp/bin" "$tmp/fixture"
-  cp "$HERE"/{feedback-loop,extract-findings,cr-header,collect-findings,analyze-recurrence,propose-prevention,proposal-identity,read-manifest}.sh "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$tmp/skills/_shared/"
+  mkdir -p "$tmp/commands/_shared"
+  cp "$HERE"/{skill-path,feedback-loop,collect-findings,propose-prevention,read-manifest}.sh "$tmp/commands/_shared/"
+  cp "$SKILL_ROOT"/_shared/{resolve-command-helper.sh,cr-header.sh,extract-findings.sh,analyze-recurrence.sh,proposal-identity.sh,finding-defs.jq,review-trust.jq} "$tmp/skills/_shared/"
   script="$tmp/commands/_shared/feedback-loop.sh"
 
   # The loader returns the payload of the pull request, with the repository spelled as the URL spells it.
