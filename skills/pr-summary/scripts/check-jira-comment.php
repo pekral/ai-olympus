@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 require __DIR__ . '/../../_shared/report-check-common.php';
 
-const JIRA_SUMMARY_MAX_CHARACTERS = 3000;
+const JIRA_SUMMARY_MAX_CHARACTERS = 3_000;
 
 const JIRA_SUMMARY_MAX_TLDR_CHARACTERS = 600;
 
@@ -30,23 +30,30 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none
 function jiraSummarySections(array $lines, string $level): array
 {
     $sections = [];
+    $heading = null;
+    $body = [];
 
     foreach ($lines as $line) {
-        if (str_starts_with($line, $level . '. ')) {
-            $sections[] = ['heading' => $line, 'body' => []];
-
-            continue;
-        }
-
-        if ($sections !== [] && $line !== '----') {
-            $sections[count($sections) - 1]['body'][] = $line;
-
-            continue;
-        }
-
         if ($line === '----') {
             break;
         }
+
+        if (!str_starts_with($line, $level . '. ')) {
+            $body[] = $line;
+
+            continue;
+        }
+
+        if ($heading !== null) {
+            $sections[] = ['heading' => $heading, 'body' => $body];
+        }
+
+        $heading = $line;
+        $body = [];
+    }
+
+    if ($heading !== null) {
+        $sections[] = ['heading' => $heading, 'body' => $body];
     }
 
     return $sections;
@@ -70,7 +77,7 @@ function jiraSummaryTldrViolations(array $sections): array
             static fn (string $line): bool => preg_match('/^\[[^|\]]+\|[^\]]+\](?: · \[[^|\]]+\|[^\]]+\])*$/u', $line) !== 1,
         ));
 
-        if (count($paragraph) !== 1 || preg_match('/^(?:\*+ |#+ |h[1-6]\. )/u', $paragraph[0] ?? '') === 1) {
+        if (count($paragraph) !== 1 || preg_match('/^(?:\*+ |#+ |h[1-6]\. )/u', $paragraph[0]) === 1) {
             $violations[] = 'tldr: use one paragraph combining changes and deployment impact';
         }
 
@@ -114,33 +121,19 @@ function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaUnmet): a
 {
     $violations = [];
     $issueLevel = 0;
-    $group = null;
     $groups = [];
 
-    foreach ($lines as $line) {
-        if ($line === '----') {
-            break;
-        }
-
-        if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
-            $group = $line;
-            $groups[$group] = [];
+    foreach (jiraSummarySections($lines, 'h2') as $section) {
+        if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $section['heading']) === 1) {
+            $groups[] = $section;
 
             continue;
         }
 
-        if (str_starts_with($line, 'h2. ')) {
-            $issueLevel++;
+        $issueLevel++;
 
-            if ($groups !== []) {
-                $violations[] = 'sections: an issue-level section below a pull-request group: ' . $line;
-            }
-
-            continue;
-        }
-
-        if ($group !== null) {
-            $groups[$group][] = $line;
+        if ($groups !== []) {
+            $violations[] = 'sections: an issue-level section below a pull-request group: ' . $section['heading'];
         }
     }
 
@@ -148,22 +141,32 @@ function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaUnmet): a
         $violations[] = sprintf('sections: %d issue-level h2 sections, expected %d', $issueLevel, $criteriaUnmet ? 1 : 0);
     }
 
-    foreach ($groups as $heading => $body) {
-        $sections = jiraSummarySections($body, 'h3');
-
-        if (count($sections) !== JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA) {
-            $violations[] = sprintf(
-                'sections: %d h3 sections under "%s", expected %d',
-                count($sections),
-                $heading,
-                JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA,
-            );
-        }
-
-        $violations = [...$violations, ...jiraSummaryTldrViolations($sections)];
+    foreach ($groups as $group) {
+        $violations = [...$violations, ...jiraSummaryGroupViolations($group)];
     }
 
     return $violations;
+}
+
+/**
+ * @param array{heading: string, body: list<string>} $group
+ * @return list<string>
+ */
+function jiraSummaryGroupViolations(array $group): array
+{
+    $sections = jiraSummarySections($group['body'], 'h3');
+    $violations = [];
+
+    if (count($sections) !== JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA) {
+        $violations[] = sprintf(
+            'sections: %d h3 sections under "%s", expected %d',
+            count($sections),
+            $group['heading'],
+            JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA,
+        );
+    }
+
+    return [...$violations, ...jiraSummaryTldrViolations($sections)];
 }
 
 /**
