@@ -147,7 +147,7 @@ Both behaviours are therefore overridden **for the tracker comment**. This is th
 1. **Every acceptance criterion is met** → one explicit positive sentence, in the assignment's own language. The sentence is the whole report: never a checklist of satisfied requirements, never a "what is working" list.
 2. **Something is not met** → which criterion, and what concretely is missing: one entry per Critical gap, each with its plain-language example.
 3. **The assignment states no explicit acceptance criteria** → say that too, plus the basis the state was judged on (the described expected behaviour, the reporter's example, the reproduction steps). Otherwise the absence of criteria is indistinguishable from the absence of a check.
-   - **JIRA is the one exception.** A JIRA comment renders no `Acceptance criteria` section for this verdict and says nothing about the missing criteria (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The pull-request comment still carries the verdict in `## Functional Review`.
+   - **JIRA is the one exception to publishing all three verdicts.** Its report carries only requirements that still need a change or an answer. Satisfied criteria, positive verdicts, and completion counts are omitted. When every criterion is satisfied, or none is stated, omit `Acceptance criteria` entirely (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The full verdict is still passed internally, and the pull-request comment retains `## Functional Review`.
 
 Four boundaries keep this narrow:
 

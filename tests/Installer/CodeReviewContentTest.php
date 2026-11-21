@@ -52,9 +52,8 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     expect($prSummary)->toContain('this slot is how the assignment verdict reaches the reader');
     expect($prSummary)->toContain('authors no verdict, no banner');
 
-    // Issue #118: on JIRA the same verdict renders as the first section instead of travelling
-    // through the slot. The verdict is relocated on that one target, never dropped.
-    expect($prSummary)->toContain('on JIRA the `Acceptance criteria` section carries the same verdict whenever the assignment states explicit criteria');
+    // JIRA publishes only remaining requests; the full verdict stays on the pull request.
+    expect($prSummary)->toContain('on JIRA only requirements that still need action are published');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');
@@ -81,121 +80,25 @@ function jiraPublishedBody(string $template): string
     return $end === false ? $template : mb_substr($template, 0, $end);
 }
 
-test('the JIRA pr-summary template opens with the verdict and drops the mechanism fields (issue #118)', function (): void {
+test('the JIRA template keeps only actionable requirements and one combined summary', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $body = jiraPublishedBody($jiraTemplate);
 
-    // The four Problem / Cause / Result / What I fixed labels were literally in this file on the
-    // base branch, so each absence fails there rather than passing vacuously. `Cause` is the one
-    // that mattered: it asked for a mechanism, and a mechanism is what put method names in a
-    // product manager's ticket.
-    foreach (['*Problem:*', '*Cause:*', '*Result:*', '*What I fixed:*', '*Side benefit:*', '*Filed separately:*'] as $droppedField) {
-        expect($jiraTemplate)->not->toContain($droppedField);
-    }
+    expect($body)->toContain('only for explicit requirements that still need a change or an answer')
+        ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
+        ->toContain('h2. TL;DR')
+        ->not->toContain('h2. What changed')
+        ->not->toContain('h2. Impact after deployment')
+        ->not->toContain('h2. How to test');
+    expect($jiraTemplate)->toContain('remaining action; omit repaired parts and their history.')
+        ->toContain('When every requirement is')
+        ->toContain('satisfied, omit the whole section.');
 
-    // The binding section order, asserted as an order and not merely as presence. Every run
-    // renders this one shape: the review is retold in plain language, and there is no How to test.
-    $criteria = mb_strpos($body, 'h2. Acceptance criteria');
-    $findings = mb_strpos($body, 'h2. Review findings');
-    $whatChanged = mb_strpos($body, 'h2. What changed');
-    $impact = mb_strpos($body, 'h2. Impact after deployment');
-    $closingLine = mb_strpos($body, '[PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]');
-    $footer = mb_strpos($body, '_This comment is generated automatically.');
-    assert($criteria !== false && $findings !== false && $whatChanged !== false);
-    assert($impact !== false && $closingLine !== false && $footer !== false);
-
-    expect($criteria)->toBe(0);
-    expect($body)->not->toContain('[Status line:');
-    expect($body)->toContain('only when the assignment states explicit acceptance criteria');
-    expect($findings)->toBeGreaterThan($criteria);
-    expect($whatChanged)->toBeGreaterThan($findings);
-    expect($impact)->toBeGreaterThan($whatChanged);
-    expect($closingLine)->toBeGreaterThan($impact);
-    expect($footer)->toBeGreaterThan($closingLine);
-    expect($body)->not->toContain('h2. How to test');
-
-    // The ticket owner learns what to watch once the change is in production. A converged review
-    // with nothing affected outside the diff omits that section, so it is never read as "no review".
-    expect($body)->toContain('TL;DR of one feature a production deployment of this change can affect');
-    expect($body)->toContain('TL;DR of one observable change in behaviour, in one short sentence');
-    expect($jiraTemplate)->toContain('When no code-review comment exists for the current head yet');
-    expect($jiraTemplate)->toContain('the review found no affected part outside the diff');
-    expect($jiraTemplate)->not->toContain('It states impact, never mechanism');
-    expect($jiraTemplate)->toContain('"h2. Co může změna ovlivnit po nasazení"');
-
-    // No section of its own for questions: a question closes the criterion bullet it concerns.
-    expect($body)->not->toContain('Clarifying questions');
-    expect($body)->not->toContain('{embedded_blocks}');
-    expect($body)->toContain('When a question for a human is open, it is the closing sentence of this bullet.');
-    expect($jiraTemplate)->toContain('A question about an acceptance criterion closes that criterion\'s bullet in');
-
-    // The review carries no out-of-scope point, so the ticket lists none (issue #455).
-    expect($jiraTemplate)->toContain('The review carries no out-of-scope point and no follow-up proposal');
-    expect($jiraTemplate)->not->toContain('appears only when it is Critical');
-
-    // The verdict is a section now, not an optional slot, and no slot remains for the questions.
-    expect($jiraTemplate)->toContain('This section is the only route the assignment verdict takes into this comment');
-    expect($jiraTemplate)->toContain('verdict is the Acceptance criteria section above, which is why that section is');
-
-    // Scope confirmation (issue #118 is JIRA-only): the other two targets keep their own shape.
     foreach (['github', 'bugsnag'] as $target) {
         $other = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
         expect($other)->toContain('Cause:');
-        expect($other)->not->toContain('h2. Acceptance criteria');
     }
-});
-
-test('a JIRA pr-summary comment filled in from a real assignment fits 3 000 characters (issue #118)', function (): void {
-    // The "Done when" criterion of issue #118: the template, filled in from a real assignment,
-    // fits the cap. The example below is the run behind that issue — a bulk-pipeline change whose
-    // published comment was 10 964 B of method names, SHAs, gate results, and coverage figures.
-    $filledIn = <<<'WIKI'
-        h2. Acceptance criteria
-
-        3 of 4 criteria are met and an automated test verifies each of them.
-
-        * Bulk sending to over 500 recipients is not verified. It needs a run on a real account. Who can run one such send?
-
-        h2. Review findings
-
-        * The merge is blocked by a missing check that a second save keeps another person's action. Without it the data loss can return.
-        * A deleted action stays in the pipeline overview until the page is reloaded, so a user can believe the delete failed and try again.
-
-        h2. What changed
-
-        * Adding an action no longer empties the pipeline when two people edit one campaign at once.
-        * A bulk send now reports the number of recipients it actually reached, instead of the number requested.
-        * Reordering actions saves on the first attempt, also for pipelines with more than ten actions.
-
-        h2. Impact after deployment
-
-        * Campaign pipelines: a user may notice a slower save on a pipeline with many actions.
-        * Bulk sending: the delivery report can show a lower count than before for the same send.
-
-        [PR #482|https://github.com/acme/pipelines/pull/482] · [PROJ-6974|https://acme.atlassian.net/browse/PROJ-6974]
-
-        ----
-
-        _This comment is generated automatically. It is written for the person who owns this ticket, not for a developer._
-        WIKI;
-
-    // Structure first: a length check over a body in the wrong shape would prove nothing.
-    $criteria = mb_strpos($filledIn, 'h2. Acceptance criteria');
-    $findings = mb_strpos($filledIn, 'h2. Review findings');
-    $whatChanged = mb_strpos($filledIn, 'h2. What changed');
-    $impact = mb_strpos($filledIn, 'h2. Impact after deployment');
-    $closingLine = mb_strpos($filledIn, '[PR #482|');
-    assert($criteria !== false && $findings !== false && $whatChanged !== false && $impact !== false && $closingLine !== false);
-
-    expect($criteria)->toBe(0);
-    expect($findings)->toBeGreaterThan($criteria);
-    expect($whatChanged)->toBeGreaterThan($findings);
-    expect($impact)->toBeGreaterThan($whatChanged);
-    expect($closingLine)->toBeGreaterThan($impact);
-
-    // The cap the rule states, counted the way the rule states it: characters, not bytes.
-    expect(mb_strlen($filledIn))->toBeLessThan(3_000);
 });
 
 test('CR skills publish through the publish helper — GitHub and JIRA both post a new code-review comment on every run', function (): void {
@@ -2228,8 +2131,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → `Acceptance criteria` (only when the assignment states explicit criteria), '
-        . '`Review findings`, `What changed`, `Impact after deployment`, with no status line above them.',
+        '**JIRA renders one shape on every run** → `Acceptance criteria` (only for requirements that still need action), '
+        . '`Review findings`, `TL;DR`, with no status line above them.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4504,15 +4407,15 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
 
     // The publish step the wrapper follows and the mirror description name the deployment impact too.
     expect($jira)->toContain(
-        '`What changed`, `Impact after deployment` retold from that comment\'s `## Affected behaviour outside the diff`, '
+        'one `TL;DR` paragraph combining observable changes and deployment impact from that comment\'s `## Affected behaviour outside the diff`, '
         . 'then the closing links line and the footer',
     );
-    expect($jira)->toContain('(*Acceptance criteria*, *Review findings*, *What changed*, *Impact after deployment*, with the verdict');
+    expect($jira)->toContain('(*Acceptance criteria*, *Review findings*, *TL;DR*, with only requirements that still need action');
 
     // The ticket's own sections, restated where this wrapper describes its output.
     expect($jira)->toContain(
-        'Its sections are `Acceptance criteria` (only when the assignment states explicit criteria), `Review findings`, '
-        . '`What changed`, and `Impact after deployment`, with no status line and above a footer',
+        'Its sections are `Acceptance criteria` (only for requirements that still need action), `Review findings`, '
+        . '`TL;DR`, with no status line and above a footer',
     );
 });
 

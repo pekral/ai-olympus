@@ -25,8 +25,8 @@ test('an issue with several pull requests gets its remarks and findings split pe
         ->and($reference)->not->toContain('Carry every other pull request\'s group over verbatim.');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md'))
-        ->toContain('changed, and Impact after deployment sit in one h2. group per pull')
-        ->toContain('request, below Acceptance criteria, and their headings drop to h3.');
+        ->toContain('Review findings and TL;DR sit in one h2. group per pull')
+        ->toContain('request, below any Acceptance criteria, and their headings drop to h3.');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
         ->toContain('### An issue with several pull requests')

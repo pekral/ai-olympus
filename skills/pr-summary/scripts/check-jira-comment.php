@@ -6,11 +6,9 @@ require __DIR__ . '/../../_shared/report-check-common.php';
 
 const JIRA_SUMMARY_MAX_CHARACTERS = 3000;
 
-const JIRA_SUMMARY_MAX_BULLETS = 3;
+const JIRA_SUMMARY_MAX_TLDR_CHARACTERS = 600;
 
-const JIRA_SUMMARY_MAX_BULLET_CHARACTERS = 200;
-
-const JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA = 3;
+const JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA = 2;
 
 const JIRA_SUMMARY_GROUP_HEADING = '/^h2\. \[PR #\d+\|/u';
 
@@ -18,10 +16,10 @@ const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
 
-const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <stated|none> <source-file>\n"
+const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none> <source-file>\n"
     . "  Checks the Wiki Markup source of a pr-summary JIRA comment before it is published.\n"
-    . "  --criteria stated  the assignment states explicit acceptance criteria\n"
-    . "  --criteria none    the assignment states none, so the comment has no criteria section\n"
+    . "  --criteria unmet   an explicit requirement still needs a change or an answer\n"
+    . "  --criteria none    no requirement needs action, so the comment has no criteria section\n"
     . "  Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.\n"
     . "  stdout: one `violation: <check>: <detail>` line per violation.\n";
 
@@ -62,25 +60,24 @@ function jiraSummaryTldrViolations(array $sections): array
 {
     $violations = [];
 
-    foreach (array_slice($sections, -2) as $section) {
-        $bullets = array_values(array_filter(
-            $section['body'],
-            static fn (string $line): bool => preg_match('/^\*+ /u', $line) === 1,
-        ));
-
-        if (count($bullets) > JIRA_SUMMARY_MAX_BULLETS) {
-            $violations[] = sprintf('tldr: %d bullets under "%s", the limit is %d', count($bullets), $section['heading'], JIRA_SUMMARY_MAX_BULLETS);
+    foreach (array_slice($sections, -1) as $section) {
+        if (preg_match('/^h[23]\. TL;DR$/u', $section['heading']) !== 1) {
+            $violations[] = 'tldr: the final section must be TL;DR';
         }
 
-        foreach ($bullets as $bullet) {
-            if (mb_strlen($bullet) - 2 > JIRA_SUMMARY_MAX_BULLET_CHARACTERS) {
-                $violations[] = sprintf(
-                    'tldr: a bullet of %d characters under "%s", the limit is %d',
-                    mb_strlen($bullet) - 2,
-                    $section['heading'],
-                    JIRA_SUMMARY_MAX_BULLET_CHARACTERS,
-                );
-            }
+        $paragraph = array_values(array_filter(
+            $section['body'],
+            static fn (string $line): bool => preg_match('/^\[[^|\]]+\|[^\]]+\](?: · \[[^|\]]+\|[^\]]+\])*$/u', $line) !== 1,
+        ));
+
+        if (count($paragraph) !== 1 || preg_match('/^(?:\*+ |#+ |h[1-6]\. )/u', $paragraph[0] ?? '') === 1) {
+            $violations[] = 'tldr: use one paragraph combining changes and deployment impact';
+        }
+
+        $length = mb_strlen(implode(' ', $paragraph));
+
+        if ($length > JIRA_SUMMARY_MAX_TLDR_CHARACTERS) {
+            $violations[] = sprintf('tldr: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_TLDR_CHARACTERS);
         }
     }
 
@@ -91,10 +88,10 @@ function jiraSummaryTldrViolations(array $sections): array
  * @param list<string> $lines
  * @return list<string>
  */
-function jiraSummarySingleShapeViolations(array $lines, bool $criteriaStated): array
+function jiraSummarySingleShapeViolations(array $lines, bool $criteriaUnmet): array
 {
     $sections = jiraSummarySections($lines, 'h2');
-    $expected = JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA + ($criteriaStated ? 1 : 0);
+    $expected = JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA + ($criteriaUnmet ? 1 : 0);
     $violations = [];
 
     if (count($sections) !== $expected) {
@@ -102,7 +99,7 @@ function jiraSummarySingleShapeViolations(array $lines, bool $criteriaStated): a
             'sections: %d h2 sections, expected %d %s a criteria section',
             count($sections),
             $expected,
-            $criteriaStated ? 'with' : 'without',
+            $criteriaUnmet ? 'with' : 'without',
         );
     }
 
@@ -113,7 +110,7 @@ function jiraSummarySingleShapeViolations(array $lines, bool $criteriaStated): a
  * @param list<string> $lines
  * @return list<string>
  */
-function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaStated): array
+function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaUnmet): array
 {
     $violations = [];
     $issueLevel = 0;
@@ -147,8 +144,8 @@ function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaStated): 
         }
     }
 
-    if ($issueLevel !== ($criteriaStated ? 1 : 0)) {
-        $violations[] = sprintf('sections: %d issue-level h2 sections, expected %d', $issueLevel, $criteriaStated ? 1 : 0);
+    if ($issueLevel !== ($criteriaUnmet ? 1 : 0)) {
+        $violations[] = sprintf('sections: %d issue-level h2 sections, expected %d', $issueLevel, $criteriaUnmet ? 1 : 0);
     }
 
     foreach ($groups as $heading => $body) {
@@ -213,7 +210,7 @@ function jiraSummaryFrameViolations(array $lines): array
 /**
  * @return list<string>
  */
-function jiraSummaryViolations(string $source, bool $criteriaStated): array
+function jiraSummaryViolations(string $source, bool $criteriaUnmet): array
 {
     $lines = reportCheckLines($source);
 
@@ -222,14 +219,14 @@ function jiraSummaryViolations(string $source, bool $criteriaStated): array
     return [
         ...reportCheckLengthViolations($source, JIRA_SUMMARY_MAX_CHARACTERS),
         ...jiraSummaryFrameViolations($lines),
-        ...($grouped ? jiraSummaryGroupedShapeViolations($lines, $criteriaStated) : jiraSummarySingleShapeViolations($lines, $criteriaStated)),
+        ...($grouped ? jiraSummaryGroupedShapeViolations($lines, $criteriaUnmet) : jiraSummarySingleShapeViolations($lines, $criteriaUnmet)),
         ...jiraSummaryTextViolations($lines),
     ];
 }
 
-if (!isset($argv[3]) || isset($argv[4]) || $argv[1] !== '--criteria' || !in_array($argv[2], ['stated', 'none'], true)) {
+if (!isset($argv[3]) || isset($argv[4]) || $argv[1] !== '--criteria' || !in_array($argv[2], ['unmet', 'none'], true)) {
     fwrite(STDERR, JIRA_SUMMARY_USAGE);
     exit(1);
 }
 
-reportCheckFinish(jiraSummaryViolations(reportCheckReadSource('check-jira-comment.php', $argv[3]), $argv[2] === 'stated'));
+reportCheckFinish(jiraSummaryViolations(reportCheckReadSource('check-jira-comment.php', $argv[3]), $argv[2] === 'unmet'));

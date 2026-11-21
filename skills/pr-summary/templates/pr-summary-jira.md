@@ -1,6 +1,6 @@
 h2. Acceptance criteria
 
-[Render this heading and everything under it only when the assignment states explicit acceptance criteria. One sentence carrying the verdict: "All N criteria are met and an automated test verifies each of them." or "N of M met."]
+[Render this heading and everything under it only for explicit requirements that still need a change or an answer. Omit satisfied requirements, positive verdicts, and completion counts.]
 
 * [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing and why the review judged it so, in plain prose. When a question for a human is open, it is the closing sentence of this bullet.]
 
@@ -15,15 +15,9 @@ h3. Already reported in an earlier review
 
 * [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
 
-h2. What changed
+h2. TL;DR
 
-* [TL;DR of one observable change in behaviour, in one short sentence. Where a before exists: before -> after.]
-* [Next. At most three bullets in total.]
-
-h2. Impact after deployment
-
-* [TL;DR of one feature a production deployment of this change can affect, in one short sentence: the feature in plain language and what a user there may notice.]
-* [Next feature. At most three bullets. The features where nothing visible should change share one bullet.]
+[One paragraph of at most 600 characters combining observable changes and deployment impact: what behaves differently, which features it affects, and what a user should watch after release.]
 
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
@@ -53,14 +47,13 @@ Who reads this comment
   it.
 
 Section order is binding, and it is the same on every run
-  Acceptance criteria (only when the assignment states explicit criteria),
-  then Review findings, then What changed, then Impact after deployment, then
+  Acceptance criteria (only for requirements that still need action),
+  then Review findings, then TL;DR, then
   the closing links line and the footer. The comment opens with its first
   heading. There is no separate
   section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
   the post-convergence report, and the merge-readiness TL;DR all render this
-  one shape. The verdict comes first because it is the one thing the reader
-  opens the ticket for. A JIRA comment carries no How to test section: the
+  one shape. The requests for changes come first so the reader knows what remains. A JIRA comment carries no How to test section: the
   steps a tester follows live on the GitHub pull request, whose description
   carries them (@rules/git/pull-requests.md, Testing). This order
   is JIRA's own; the GitHub and Bugsnag templates keep their What changed /
@@ -72,22 +65,16 @@ No status line
   deployed. A point that blocks the merge is a Review findings bullet.
 
 Acceptance criteria
-  Rendered only when the assignment states explicit acceptance criteria. When
-  it states none, leave out the heading and everything under it, and say
-  nothing about the missing criteria anywhere in the comment.
-  One verdict sentence, then a bullet only for a criterion that is unmet,
-  partially met, or awaiting a human's confirmation. Satisfied criteria are
-  never enumerated one by one — the verdict is the whole report for them.
+  Rendered only for explicit requirements that are unmet, partially met, or
+  need an answer before acceptance. Each bullet states the remaining change
+  or answer and its evidence. Omit satisfied requirements, positive verdicts,
+  and completion counts throughout the report. When every requirement is
+  satisfied, omit the whole section. Omit it too when no criteria are stated.
   An unmet or partially met criterion states why, and one closing sentence
   mentions the author of the changes (@skills/pr-summary/SKILL.md, An unmet
   criterion addresses the author).
-  This section is the only route the assignment verdict takes into this comment,
-  and a CR run on a ticket with explicit criteria always carries it — met or
-  not met (@rules/code-review/general.md, Two-Part CR Output, "The tracker
-  comment carries the same verdict — in all three cases"). The
-  @skills/assignment-compliance-check/SKILL.md result is what fills it; on JIRA
-  that result is rendered into this section rather than appended as an embedded
-  block.
+  The caller passes the full assignment verdict internally; only its requests
+  for changes render here. The pull request retains its functional verdict.
 
 Questions
   A JIRA comment has no Clarifying questions section. The caller passes each
@@ -106,9 +93,8 @@ Questions
 Review findings
   A plain-language retelling of the newest GitHub pull-request review, so the
   reader understands what the review reported and can respond to it.
-  - When the issue links more than one pull request, Review findings, What
-    changed, and Impact after deployment sit in one h2. group per pull
-    request, below Acceptance criteria, and their headings drop to h3.
+  - When the issue links more than one pull request, Review findings and TL;DR sit in one h2. group per pull
+    request, below any Acceptance criteria, and their headings drop to h3.
     (references/several-pull-requests.md).
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the
@@ -117,7 +103,8 @@ Review findings
   - Only a point that must be resolved before the merge is listed: a defect
     or an open question that needs an answer. Every such point of the technical
     review is listed. A point that needs no action (resolved, deferred,
-    informational) is not. An assumption, a hypothesis, or a point with no
+    informational) is not. In a partially resolved finding, list only the
+    remaining action; omit repaired parts and their history. An assumption, a hypothesis, or a point with no
     evidence is never listed. The rule is owned by @skills/pr-summary/SKILL.md
     (Review-only run).
   - A point that blocks the merge comes first and says in words that it blocks
@@ -137,46 +124,30 @@ Review findings
     (Review-only run); never add a round number, a provenance value, or a
     count.
 
-What changed
-  A TL;DR: at most three bullets of one short sentence each, observable
-  behaviour only, in before -> after form where a before exists. A bullet
-  carries no quoted confirmation text and no second sentence. It states
-  observable behaviour, never mechanism — a bullet that
-  explains how the code works belongs on the pull request instead. The JIRA
-  shape carries no Problem / Cause / Result fields: Cause asks for a mechanism,
-  and a mechanism is what invites method names into a product manager's ticket.
-
-Impact after deployment
-  The parts of the application a production deployment of the change can
-  affect, so the ticket owner knows what to watch after the release. What
-  changed says what behaves differently; this section says where. It is a
-  TL;DR too.
-  - At most three bullets of one short sentence each: the feature in plain
-    language, and what a user there may notice. The features that run through
-    the changed code with nothing visible to change share one bullet that
-    names them.
-  - Source: the features the diff itself changes, plus the parts the newest
-    pull-request review lists under "Affected behaviour outside the diff"
-    (@rules/code-review/core-analysis.md, Behaviour changed outside the diff).
-    Retell each part as a feature, never as a file, a class, or a method.
-  - When no code-review comment exists for the current head yet, derive the
-    parts from the diff, and say in the first bullet that the review has not
-    confirmed them.
-  - When the review comment carries no "Affected behaviour outside the diff",
-    the review found no affected part outside the diff: list only the features
-    the diff changes, with no caveat.
+TL;DR
+  One paragraph of at most 600 characters combining observable changes and
+  deployment impact. State the affected features and what a user should watch
+  after release in connected prose, with no list or repeated facts. Use
+  before -> after where useful. Keep mechanisms on the pull request.
+  Source: the features the diff changes, plus the newest review's "Affected
+  behaviour outside the diff" (@rules/code-review/core-analysis.md).
+  When no code-review comment exists for the current head yet, derive the
+  parts from the diff and say the review has not confirmed them.
+  When the review comment carries no "Affected behaviour outside the diff",
+  the review found no affected part outside the diff: include only features
+  the diff changes, with no caveat.
 
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md — a
   Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
-  kódu", "h2. Co se změnilo", "h2. Co může změna ovlivnit po nasazení", and
+  kódu", "h2. TL;DR", and
   the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
   3 000 characters, counted over the published body. When the comment overflows,
-  shorten What changed first, then merge Impact after deployment bullets,
+  shorten the combined TL;DR paragraph first,
   then write each Review findings bullet in two sentences —
   never drop an Acceptance criteria bullet or a Review findings bullet. @rules/reports/general.md owns this cap, and
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
@@ -184,16 +155,16 @@ Length
 
 Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
-  <stated|none> <source-file> on the rendered source, and publish only a source
+  <unmet|none> <source-file> on the rendered source, and publish only a source
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
   cap, the missing status line, the criteria section against the flag, the
-  three bullets of at most 200 characters in What changed and Impact after
-  deployment, leaked Markdown, code macros, commit hashes, and the footer.
+  single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, and the footer.
 
 No embedded blocks
   The JIRA template has no {embedded_blocks} slot. The Assignment Compliance
-  verdict is the Acceptance criteria section above, which is why that section is
-  first, and every open question sits in a bullet per Questions above.
+  result supplies only the requirements that still need action in Acceptance
+  criteria; satisfied criteria and positive verdicts are omitted. Every open
+  question sits in a bullet per Questions above.
 
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of

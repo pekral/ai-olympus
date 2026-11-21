@@ -274,8 +274,8 @@ GitHub pull-request comment, which is the surface that consumes them. On a JIRA 
 comments:
 
 1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/SKILL.md` *The JIRA shape* defines: the
-   `Acceptance criteria` when the assignment states explicit criteria, `Review findings` with the
-   exact blocker first, `What changed`, `Impact after deployment`, the closing links line, and the
+   `Acceptance criteria` only for requirements that still need action, `Review findings` with the
+   exact blocker first, `TL;DR`, the closing links line, and the
    footer, within that rule's
    3 000-character cap. An open question about the assignment closes the bullet of the criterion
    it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes

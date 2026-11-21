@@ -24,15 +24,9 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         '',
         '* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
         '',
-        'h2. Co se změnilo',
+        'h2. TL;DR',
         '',
-        '* U Ecwidu přibylo tlačítko „Refresh products“: dřív celá synchronizace -> teď jen produkty.',
-        '* Synchronizace Ecwidu běží ve vlastní frontě.',
-        '',
-        'h2. Co může změna ovlivnit po nasazení',
-        '',
-        '* Tlačítko „Refresh products“: v účtu se objeví nebo aktualizují produkty obchodu.',
-        '* Připojení obchodu, „Refresh orders“ a „Sync contacts“: viditelně se nic nemění.',
+        '„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
         '',
         '[PR #27625|https://github.com/acme/app/pull/27625] · [ECOMAIL-6720|https://example.atlassian.net/browse/ECOMAIL-6720]',
         '',
@@ -48,8 +42,6 @@ function jiraSummaryWithCriteria(): string
 {
     return implode("\n", [
         'h2. Akceptační kritéria',
-        '',
-        '2 ze 3 kritérií jsou splněná.',
         '',
         '* Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
         '',
@@ -68,17 +60,14 @@ function jiraSummaryForTwoPullRequests(): string
         '',
         'Kontrola nenašla žádný bod k vyřešení.',
         '',
-        'h3. Co se změnilo',
+        'h3. TL;DR',
         '',
-        '* Synchronizace běží ve vlastní frontě.',
-        '',
-        'h3. Co může změna ovlivnit po nasazení',
-        '',
-        '* Synchronizace obchodu: viditelně se nic nemění.',
+        'Synchronizace obchodu nově zpracuje jen nové objednávky.',
+
     ]);
 
     return implode("\n\n", [
-        "h2. Akceptační kritéria\n\nVšechna 2 kritéria jsou splněná.",
+        "h2. Akceptační kritéria\n\n* Hromadné odeslání vyžaduje opravu.",
         $group(11),
         $group(12),
         '[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]',
@@ -92,9 +81,9 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
 })->with([
-    'no criteria in the assignment' => [jiraSummaryWithoutCriteria(), 'none'],
-    'stated criteria with an unmet one and a mention' => [jiraSummaryWithCriteria(), 'stated'],
-    'two pull requests' => [jiraSummaryForTwoPullRequests(), 'stated'],
+    'all criteria met or no criteria stated' => [jiraSummaryWithoutCriteria(), 'none'],
+    'two pull requests' => [jiraSummaryForTwoPullRequests(), 'unmet'],
+    'unmet criteria and a mention' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
 test('a summary that passes the check converts to ADF with no wiki markup left', function (): void {
@@ -118,43 +107,44 @@ test('a status text above the first heading fails the check', function (): void 
         ->and($process->getOutput())->toContain('violation: status line: the comment must open with an h2 heading');
 });
 
-test('the criteria section must match what the assignment states', function (string $source, string $criteria, string $violation): void {
+test('the criteria section must match whether any requirement still needs action', function (string $source, string $criteria, string $violation): void {
     $process = runJiraSummaryCheck($source, $criteria);
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: sections: ' . $violation);
 })->with([
-    'criteria section for an assignment with none' => [jiraSummaryWithCriteria(), 'none', '4 h2 sections, expected 3 without a criteria section'],
-    'criteria section in a grouped comment for an assignment with none' => [
+    'criteria section in a grouped comment when no requirement needs action' => [
         jiraSummaryForTwoPullRequests(),
         'none',
         '1 issue-level h2 sections, expected 0',
     ],
-    'missing criteria section for stated criteria' => [jiraSummaryWithoutCriteria(), 'stated', '3 h2 sections, expected 4 with a criteria section'],
+    'criteria section when no requirement needs action' => [jiraSummaryWithCriteria(), 'none', '3 h2 sections, expected 2 without a criteria section'],
+    'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 h2 sections, expected 3 with a criteria section'],
 ]);
 
-test('the last two sections are a TL;DR of at most three short bullets', function (string $search, string $replacement, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+test('the combined summary must be one short paragraph', function (string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([
+        '„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $replacement,
+    ]), 'none');
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: tldr: ' . $violation);
 })->with([
-    'four bullets under the impact section' => [
-        '* Připojení obchodu',
-        "* Objednávky: beze změny.\n* Kontakty: beze změny.\n* Připojení obchodu",
-        '4 bullets under "h2. Co může změna ovlivnit po nasazení", the limit is 3',
-    ],
-    'four bullets under what changed' => [
-        '* Synchronizace Ecwidu',
-        "* Třetí změna.\n* Čtvrtá změna.\n* Synchronizace Ecwidu",
-        '4 bullets under "h2. Co se změnilo", the limit is 3',
-    ],
-    'long bullet' => [
-        '* Synchronizace Ecwidu běží ve vlastní frontě.',
-        '* ' . str_repeat('ž', 201),
-        'a bullet of 201 characters under "h2. Co se změnilo", the limit is 200',
-    ],
+    'list instead of prose' => ['* První změna.', 'use one paragraph combining changes and deployment impact'],
+    'long paragraph' => [str_repeat('ž', 601), '601 characters, the limit is 600'],
+    'separate paragraphs' => ["Změna.\n\nDopad.", 'use one paragraph combining changes and deployment impact'],
 ]);
+
+test('the former separate sections are refused', function (): void {
+    $source = jiraSummaryWithoutCriteria([
+        'h2. TL;DR' => "h2. Co se změnilo\n\n* Nové objednávky se synchronizují.\n\nh2. Co může změna ovlivnit po nasazení",
+    ]);
+    $process = runJiraSummaryCheck($source, 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: sections:')
+        ->and($process->getOutput())->toContain('violation: tldr: the final section must be TL;DR');
+});
 
 test('a review finding may be longer than a TL;DR bullet', function (): void {
     $process = runJiraSummaryCheck(
@@ -167,7 +157,12 @@ test('a review finding may be longer than a TL;DR bullet', function (): void {
 });
 
 test('Markdown and developer tokens fail the check', function (string $line, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* Synchronizace Ecwidu běží ve vlastní frontě.' => $line]), 'none');
+    $process = runJiraSummaryCheck(
+        jiraSummaryWithoutCriteria(
+            ['„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $line],
+        ),
+        'none',
+    );
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: ' . $violation);
@@ -207,12 +202,17 @@ test('the check refuses a wrong call and a missing source file', function (strin
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
     'missing source file' => ['--criteria none /nonexistent/source', 'cannot read /nonexistent/source'],
-    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
-    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <stated|none> <source-file>'],
+    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> <source-file>'],
+    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> <source-file>'],
 ]);
 
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
-    $summary = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* Synchronizace Ecwidu běží ve vlastní frontě.' => $text]), 'none');
+    $summary = runJiraSummaryCheck(
+        jiraSummaryWithoutCriteria(
+            ['„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $text],
+        ),
+        'none',
+    );
     $support = ReportCheckRun::over('skills/analyze-support-issue/scripts/check-comment.php', "h2. TL;DR\n" . $text);
 
     expect($summary->getOutput())->toContain('violation: ' . $violation)

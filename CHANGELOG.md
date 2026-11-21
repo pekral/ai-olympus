@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🐛 **Fixed**: JIRA code-review reports omit satisfied requirements, positive completion verdicts, and repaired parts of an open finding. Only remaining requests for changes or answers are listed. The former change and deployment-impact sections now form one `TL;DR` paragraph, capped at 600 characters. The JIRA comment validator accepts `--criteria unmet|none` so a fully satisfied assignment has no criteria section.
+
 ## [0.5.3] - 2026-11-20
 
 - ✨ **Added**: the `skill-creator` skill makes a new skill ship the shell scripts its workflow needs (#581). *Inputs the agent must collect* gains the shell steps, and step 2 reuses a `skills/_shared/*.sh` helper or a script of another skill first. A new `skills/<slug>/scripts/<name>.sh` is written only for a deterministic step that has several commands, is parsed by the agent, or repeats. It is executable, starts with the repository's shell header, is referenced by its bare `skills/<slug>/scripts/<name>.sh` path (the form that works on Claude Code and Codex), and has a test under `tests/Contract/**` or `tests/Installer/**`. The Output and Done when sections list the script and its test. `tests/Installer/SkillLayoutContentTest.php` pins it.
