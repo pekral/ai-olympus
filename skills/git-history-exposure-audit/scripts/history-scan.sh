@@ -1236,10 +1236,11 @@ mode_full() {
   require_git
   pick_hash
   build_sensitive
-  # shellcheck source=../../_shared/gate-record.sh
+  # shellcheck source=../../_shared/resolve-command-helper.sh
   source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || return 3
   local gate_library
   gate_library="$(resolve_command_helper gate-record.sh)" || return 3
+  # shellcheck source=../../../commands/_shared/gate-record.sh
   . "$gate_library"
   set +e +o pipefail
 

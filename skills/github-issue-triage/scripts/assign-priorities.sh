@@ -554,11 +554,15 @@ STUB
   # A failed effort derivation is named and leaves the effort labels unchanged. The copy of this script
   # sits next to a derive-effort.sh stub that fails, so no override of the real path exists.
   local real_script="$script"
-  mkdir -p "$SELF_TEST_TMP/failing"
-  cp "$script" "$SELF_TEST_TMP/failing/assign-priorities.sh"
-  printf '#!/usr/bin/env bash\necho "derive-effort.sh: boom" >&2\nexit 1\n' >"$SELF_TEST_TMP/failing/derive-effort.sh"
-  chmod +x "$SELF_TEST_TMP/failing/assign-priorities.sh" "$SELF_TEST_TMP/failing/derive-effort.sh"
-  script="$SELF_TEST_TMP/failing/assign-priorities.sh"
+  local fixture="$SELF_TEST_TMP/failing"
+  local scripts="$fixture/skills/github-issue-triage/scripts"
+  mkdir -p "$scripts" "$fixture/skills/_shared" "$fixture/commands/_shared"
+  cp "$(dirname "$real_script")/../../_shared/resolve-command-helper.sh" "$fixture/skills/_shared/"
+  cp "$AUDIT_TRAIL" "$fixture/commands/_shared/"
+  cp "$script" "$scripts/assign-priorities.sh"
+  printf '#!/usr/bin/env bash\necho "derive-effort.sh: boom" >&2\nexit 1\n' >"$scripts/derive-effort.sh"
+  chmod +x "$scripts/assign-priorities.sh" "$scripts/derive-effort.sh"
+  script="$scripts/assign-priorities.sh"
   e2e '--issue — a failed effort derivation is named and the effort label stays' \
     '[{"number":11,"title":"feat(core): eleven","body":"","labels":[{"name":"effort: large"}]}]' '--issue 11' \
     '#11  enhancement (title) — applied: +enhancement +priority: medium (effort not derived: derive-effort.sh: boom)' \

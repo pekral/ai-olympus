@@ -82,7 +82,7 @@ require_tools() {
 JQ_REPORTS='include "review-trust"; [ review_reports[] | select(trusted_review) ]'
 
 # The record of a review body is read through the one unwrap in cr-header.sh.
-# shellcheck source=cr-header.sh
+# shellcheck source=../../skills/_shared/cr-header.sh
 source "$SKILL_ROOT/_shared/cr-header.sh"
 
 # extractor_verdict <exit-code> <report-index> — 0 when the extractor accepted the report. A refused report
@@ -159,7 +159,7 @@ cmd_collect() {
   repo="$(jq -r '.repo.nameWithOwner' "$tmp/payload.json")"
   pr="$(jq -r '.number' "$tmp/payload.json")"
   comments="$(jq '(.comments // []) | length' "$tmp/payload.json")"
-  jq -c -L "$HERE" "$JQ_REPORTS" "$tmp/payload.json" >"$tmp/reports.json"
+  jq -c -L "$SKILL_ROOT/_shared" "$JQ_REPORTS" "$tmp/payload.json" >"$tmp/reports.json"
 
   local count i collected=0 refused=0 rc
   count="$(jq 'length' "$tmp/reports.json")"

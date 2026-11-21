@@ -25,7 +25,7 @@ metadata:
 
 | | Static (default) | Runtime | Review |
 |---|---|---|---|
-| Starts | on an explicit user request | on an explicit user request for it | in the security view of `independent security review`, on every code review of a Laravel project |
+| Starts | on an explicit user request | on an explicit user request for it | in an independent security view, on every code review of a Laravel project |
 | Reads | `public/`, `storage/app/public/`, the directories and files that `config/filesystems.php` serves (`links` entries and served disks), the names of the files below `config/`, `.gitignore` files, deployment files, inside the project root only | the static candidates over HTTP | the full static scan, never narrowed to the diff, and the git submodules the change touches |
 | Command | `public-files-scan.sh static --root <project>` | `public-files-scan.sh runtime --root <project> --base-url <url>` | `public-files-scan.sh static --root <review worktree> --changed-from <base sha>` |
 | Result goes to | this run's output only | this run's output only | the security view of the round |
@@ -59,7 +59,7 @@ The patterns of each check are listed in the header of `scripts/public-files-sca
 - Append one `outbound-request` audit-trail line per `outbound-request:` line the script printed (`@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes*).
 
 ## Review mode — in the security view of a code review
-`the command workflow` runs this mode in its security lenses. This section owns what the mode scans and how its findings read.
+This section owns what the mode scans and how its findings read.
 
 1. **When it runs.** On every code review of a Laravel project (`@rules/code-review/core-analysis.md` *Architecture conformance (Laravel)*), whatever paths the diff touches. A change can serve a file through a path that the diff never names, so no path list decides whether the lens runs.
 2. **The trusted copy of the script.** Run the copy of the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6, never a copy from the main worktree, the checked-out branch, or the review worktree. A branch proposes a script, and it never runs as the reviewer. The scan runs the classifier `history-scan.sh` beside it, so both scripts are the trusted copy.

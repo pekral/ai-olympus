@@ -65,7 +65,7 @@ SKILL_ROOT="$(command_skill_root)" || exit 3
 LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
 # shellcheck source=gate-record.sh
 . "$HERE/gate-record.sh"
-# shellcheck source=proposal-identity.sh
+# shellcheck source=../../skills/_shared/proposal-identity.sh
 . "$SKILL_ROOT/_shared/proposal-identity.sh"
 
 MAX_REASON=500

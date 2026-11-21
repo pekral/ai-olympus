@@ -210,7 +210,7 @@ GITHUB_LOADER="$SKILL_ROOT/code-review-github/scripts/load-issue.sh"
 JIRA_LOADER="$SKILL_ROOT/code-review-jira/scripts/load-issue.sh"
 EXTRACT="$SKILL_ROOT/_shared/extract-findings.sh"
 # The one header parser; cr_header_canonical gives the strict view the decision relies on.
-# shellcheck source=cr-header.sh
+# shellcheck source=../../skills/_shared/cr-header.sh
 source "$SKILL_ROOT/_shared/cr-header.sh"
 CHECK_HEADER="$SKILL_ROOT/_shared/check-cr-header.sh"
 GIT=(git --no-pager --no-lazy-fetch --no-replace-objects)
@@ -222,7 +222,7 @@ source "$HERE/gate-record.sh"
 # shellcheck source=state-path.sh
 source "$HERE/state-path.sh"
 # jira_actor_account_id comes from the one shared definition of the acli actor.
-# shellcheck source=../code-review-jira/scripts/jira-actor.sh
+# shellcheck source=../../skills/code-review-jira/scripts/jira-actor.sh
 source "$SKILL_ROOT/code-review-jira/scripts/jira-actor.sh"
 
 PR_URL_SHAPE='^https://(www\.)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+/?$'
@@ -381,7 +381,7 @@ assignment_items() {
     load_github "$url" "$TMP/issue-$i.json" || { reason 'context unreadable'; return 1; }
     jq -e '.kind == "issue"' "$TMP/issue-$i.json" >/dev/null 2>&1 || { reason 'context unreadable'; return 1; }
     jq -e '.subIssuesComplete == true' "$TMP/issue-$i.json" >/dev/null 2>&1 || { reason 'sub-issues unverified'; return 1; }
-    jq -c -L "$HERE" 'include "review-trust";
+    jq -c -L "$SKILL_ROOT/_shared" 'include "review-trust";
       {kind: "github-issue", id: .url, title: (.title // ""), body: (.body // ""),
        sub: ([(.subIssues // [])[] | {id: (.url // ""), title: (.title // ""), body: (.body // "")}] | sort_by(.id)),
        comments: ([(.comments // [])[] | select(trusted_github_comment) | {id: (.url // ""), body}] | sort_by(.id))}' \
@@ -398,7 +398,7 @@ assignment_items() {
     read_done 'acli: the account of the operator (jira-actor.sh)'
     actor="$(jira_actor_account_id 2>/dev/null || true)"
     assignee="$(jq -r '.assignee // ""' "$TMP/jira.json")"
-    jq -c -L "$HERE" --arg actor "$actor" --arg assignee "$assignee" 'include "review-trust";
+    jq -c -L "$SKILL_ROOT/_shared" --arg actor "$actor" --arg assignee "$assignee" 'include "review-trust";
       {kind: "jira-issue", id: .key, title: (.summary // ""), body: (.descriptionText // ""),
        sub: ([(.subtasks // [])[] | {id: (.key // ""), title: (.summary // ""), body: (.descriptionText // "")}] | sort_by(.id)),
        comments: ([(.comments // [])[] | select(trusted_jira_comment($actor; $assignee)) | {id: ((.id // "") | tostring), body}]
@@ -483,7 +483,7 @@ cmd_decide() {
   if ! load_pr "$PR_URL"; then
     reason 'context unreadable'
   else
-    jq -c -L "$HERE" 'include "review-trust"; newest_trusted_report' "$TMP/pr.json" >"$TMP/review.json"
+    jq -c -L "$SKILL_ROOT/_shared" 'include "review-trust"; newest_trusted_report' "$TMP/pr.json" >"$TMP/review.json"
     if [[ ! -s "$TMP/review.json" ]]; then
       reason 'no trusted review'
     else
@@ -725,7 +725,7 @@ check_assignment() {
 # check_feedback <review-time> — a trusted, marker-less comment newer than the review is new reviewer feedback.
 check_feedback() {
   jq -e '.reviewCommentsComplete == true' "$TMP/pr.json" >/dev/null 2>&1 || { reason 'context unreadable'; return 0; }
-  if jq -e -L "$HERE" --arg t "$1" 'include "review-trust";
+  if jq -e -L "$SKILL_ROOT/_shared" --arg t "$1" 'include "review-trust";
       [((.comments // [])[] | select(trusted_github_comment) | .createdAt),
        ((.reviews // [])[] | select(trusted_github_comment) | .submittedAt),
        ((.reviewComments // [])[] | select(trusted_github_comment) | .createdAt)]
@@ -765,7 +765,7 @@ cmd_answer() {
     [[ ! -f "$file" ]] || payloads[${#payloads[@]}]="$file"
   done
   if [[ "$COMMENT" =~ ^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(pull|issues)/[0-9]+#(issuecomment-|pullrequestreview-|discussion_r)[0-9]+$ ]]; then
-    found="$(jq -s -c -L "$HERE" --arg url "$COMMENT" 'include "review-trust";
+    found="$(jq -s -c -L "$SKILL_ROOT/_shared" --arg url "$COMMENT" 'include "review-trust";
         [ (.[] | (.comments // [])[], (.reviews // [])[], (.reviewComments // [])[]) | select(.url == $url) ] as $m
         | if ($m | length) != 1 then "refused:no loaded comment has this URL"
           elif ($m[0] | trusted_github_comment | not) then "refused:the comment is not a trusted, marker-less comment"
@@ -774,7 +774,7 @@ cmd_answer() {
   elif [[ "$COMMENT" =~ ^[0-9]+$ && -f "$TMP/jira.json" ]]; then
     local actor
     actor="$(jira_actor_account_id 2>/dev/null || true)"
-    found="$(jq -c -L "$HERE" --arg id "$COMMENT" --arg actor "$actor" 'include "review-trust";
+    found="$(jq -c -L "$SKILL_ROOT/_shared" --arg id "$COMMENT" --arg actor "$actor" 'include "review-trust";
         (.assignee // "") as $assignee
         | [ (.comments // [])[] | select(((.id // "") | tostring) == $id) ] as $m
         | if ($m | length) != 1 then "refused:no loaded comment has this id"

@@ -109,3 +109,5 @@ The roster has no agent dedicated to the analysis of an issue, so two agents sha
 
 The handoff of the run names the number of Critical findings per agent, the URL of the published
 comment or `none`, and the withheld finding, when one exists.
+
+For an approved safeguard, enforce `commands/_shared/orchestration/safeguard-implementation.inc` through implementation and independent review.

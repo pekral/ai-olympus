@@ -6,6 +6,8 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
+For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+
 ## Constraints
 
 - **Read-only on the audited project.** Never edit, create, or delete a file of the audited project. Never run the test suite, a fixer, a static analyser, or a build. Never run an exploit against a live system, and keep every proof of a boundary failure a read of the code or a local, side-effect-free reproduction. Never stage, commit, push, or open a pull request. Read-only inspection commands (`git log`, `git grep`, `rg`, `find`, `cat`, `sed -n`) are allowed. The one write this skill makes is the four artefacts in its own run directory (*Run directory* below), which is git-ignored scratch space.
@@ -42,7 +44,7 @@ Read only the supplied scope, profile, coverage unit, revision, and any previous
 - Return the affected files, evidence, verdict, finding fingerprint, coverage gaps, and inputs needed for the recorded digest. Use `scripts/audit-artifacts.sh` for the inventory, fingerprint, digest and schema checks.
 
 ## Output
-Return the path of the run directory, the profile and budget (total, spent per stage), the count of findings per verdict, the findings of verdict `confirmed` ordered by severity, the coverage units with status `blocked` or `deferred`, the gaps the coverage critics reported, and the result of `validate`. For an incremental run, also return the base run, the count of reused and invalidated units, and the changed paths no base unit held. State that the audit published nothing.
+Return the path of the run directory, the profile and budget (total, spent per stage), the count of findings per verdict, the findings of verdict `confirmed` ordered by severity, the coverage units with status `blocked` or `deferred`, the documented gaps in coverage, and the result of `validate`. For an incremental run, also return the base run, the count of reused and invalidated units, and the changed paths no base unit held. State that the audit published nothing.
 
 ---
 

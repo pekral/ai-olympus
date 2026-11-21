@@ -4,4 +4,5 @@ skill_root="$(command_skill_root)" || exit 3
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   exec bash "$skill_root/_shared/domain-vocabulary.sh" "$@"
 fi
+# shellcheck source=../../skills/_shared/domain-vocabulary.sh
 source "$skill_root/_shared/domain-vocabulary.sh"

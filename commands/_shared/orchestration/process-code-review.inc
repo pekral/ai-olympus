@@ -205,3 +205,5 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
 - Treat unresolved GitHub reviewer threads as first-class checklist items; skip already-resolved threads, and resolve a thread only after its fix lands
 - Do not converge until every actionable reviewer comment is verified fulfilled — the applied change must correspond to what the reviewer asked for, not merely produce zero new Critical / Moderate findings
 - Avoid unnecessary commits or noise
+
+Keep every worktree carrying a blocked reproducer swap. Return its recovery directory and reason to the operator; no cleanup path may remove that working tree. For a completed implementation, use only the independent review result for the review verdict. Supply the consolidated evidence to april after convergence and apply the missing-report token on an unreported standalone run.

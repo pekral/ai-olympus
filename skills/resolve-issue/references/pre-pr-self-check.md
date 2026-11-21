@@ -4,7 +4,7 @@ Referenced from `skills/resolve-issue/SKILL.md` *Pre-PR self-check*. Extracted t
 
 ## Why a self-check and not a review
 
-`review`'s review is the one authoritative LLM review (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two*), so this pass runs no review lens over its own diff. On a `FAST`-tier run, where no `review` pass is dispatched, the deterministic gates below plus the classifier's sensitive-area force stand in its place.
+The pre-PR self-check verifies deterministic evidence. Its result records the checks performed and the sensitive-area classification.
 
 ## Procedure
 
@@ -15,7 +15,7 @@ Referenced from `skills/resolve-issue/SKILL.md` *Pre-PR self-check*. Extracted t
 
 ## The boundary
 
-- **It is not a review.** It invokes no review skill, produces no severity-graded findings, and gates nothing on a finding count. Judgment calls — architecture, reuse, security reasoning — belong to `review`.
+- **It is not a review.** It invokes no review skill, produces no severity-graded findings, and gates nothing on a finding count. List judgments requiring independent review separately.
 - **It does not run the build.** The project's full gate runs once immediately before the merge (`references/quality-gates.md` *Gate placement — deferred to the merge boundary*); this pass runs the diff-targeted tests and the static analysis for the changed files, each through `commands/_shared/run-gate.sh --exclusive --command "<command>"` (`@skills/resolve-issue/references/quality-gates.md` *Targeted checks take the machine lock too*).
 - **It never claims a verdict it did not produce.** The technical report says what this pass checked, never "code review clean" or "security review passed".
 

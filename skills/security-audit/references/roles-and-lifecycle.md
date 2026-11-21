@@ -15,7 +15,7 @@ A coverage unit is one attack class on one surface of one subsystem. `coverage-l
 | `attack_class` | The hunting area of the unit (*Hunting areas* below). |
 | `paths` | The files and directories the unit covers. |
 | `status` | `queued`, `candidate`, `covered`, `blocked`, `deferred`, or `out_of_scope`. |
-| `agent` | The ID of the hunter that holds the unit (`hunter-<n>`), or `null` before a hunter opens. |
+| `agent` | The assessment ID (`hunter-<n>`), or `null` before assessment. |
 | `findings` | The fingerprints of the findings the unit produced. |
 | `reason` | Why a `blocked`, `deferred`, or `out_of_scope` unit was not covered. |
 | `inputs` | The security inputs on the unit's path (*Security inputs* below). Required for a `covered` unit. |
@@ -26,14 +26,14 @@ A coverage unit is one attack class on one surface of one subsystem. `coverage-l
 
 | Status | Meaning | Final |
 |--------|---------|-------|
-| `queued` | In the inventory, waiting for a hunter. | no |
-| `candidate` | Hunted; its candidates wait for a verifier. | no |
+| `queued` | Inventoried and awaiting assessment. | no |
+| `candidate` | Assessed; its candidates await independent validation. | no |
 | `covered` | Hunted, and every candidate it produced has a verdict. | yes |
-| `blocked` | A hunter could not analyse it, for example the code is unreadable or generated at deploy time. | yes, with a reason |
-| `deferred` | No hunter reached it, for example the hunting budget was spent. | yes, with a reason |
+| `blocked` | The unit could not be analysed, for example the code is unreadable or generated at deploy time. | yes, with a reason |
+| `deferred` | The unit was not assessed, for example the hunting budget was spent. | yes, with a reason |
 | `out_of_scope` | Outside the scope the user named. | yes, with a reason |
 
-A finished run leaves no unit `queued` or `candidate`. One hunter holds one unit, and one hunter pass is one pass of the budget.
+A finished run leaves no unit `queued` or `candidate`. Each assessed unit records one assessment ID and consumes one pass.
 
 ## Security inputs
 
@@ -58,7 +58,7 @@ A security input is a file whose change can change the security verdict of a uni
 
 ## Hunting areas
 
-Every unit names one attack class. The class decides which lenses of the *Core Checks* of `@skills/security-review/SKILL.md` the hunter walks.
+Every unit names one attack class. The class decides which lenses of the *Core Checks* of `@skills/security-review/SKILL.md` apply to the unit.
 
 | `attack_class` | Hunting area | Lenses |
 |----------------|--------------|--------|
@@ -72,7 +72,7 @@ Every unit names one attack class. The class decides which lenses of the *Core C
 
 ## AI and agent threat model
 
-A unit of attack class `ai_tools` walks the ten threat classes below. Its hunter returns one outcome per class: `candidate` with the candidate, `no_candidate` with what it traced, or `not_applicable` with the reason the class cannot occur on this surface. `coverage.schema.json` refuses a covered `ai_tools` unit that leaves a class out, and `validate` refuses a unit with a `candidate` outcome that lists no finding.
+A unit of attack class `ai_tools` walks the ten threat classes below. The record contains one outcome per class: `candidate` with the candidate, `no_candidate` with what it traced, or `not_applicable` with the reason the class cannot occur on this surface. `coverage.schema.json` refuses a covered `ai_tools` unit that leaves a class out, and `validate` refuses a unit with a `candidate` outcome that lists no finding.
 
 | `class` | The weakness |
 |---------|--------------|
@@ -105,7 +105,7 @@ The status is `bound`, `unbound`, or `unclear`. `validate` refuses a unit with a
 
 ## Finding lifecycle
 
-Every finding is in exactly one state, set by the verifier and confirmed by the coordinator. **Only a validated finding reaches `confirmed`:** a verifier that is not one of its hunters tried to refute it, read the full path, and recorded all six kinds of control without one that stops the flow or leaves it unclear.
+Each finding record contains exactly one independently validated verdict. **Only a validated finding reaches `confirmed`:** a verifier that is not one of its hunters tried to refute it, read the full path, and recorded all six kinds of control without one that stops the flow or leaves it unclear.
 
 | State | Meaning | Severity | `boundary_failure_demonstrated` | `verifier` |
 |-------|---------|----------|---------------------------------|------------|

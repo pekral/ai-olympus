@@ -154,7 +154,7 @@ Author the change, commit it, and push. The self-checks below still run — they
 
 ## Pre-PR self-check (lightweight, deterministic)
 
-After implementation, and **before creating the pull request**, verify only what must hold before the work is handed off. The authoritative LLM review is `review`'s and it happens once (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two*).
+After implementation, and **before creating the pull request**, verify only what must hold before the work is handed off.
 
 Walk these items and record each one's result in the handoff:
 
@@ -166,7 +166,7 @@ Walk these items and record each one's result in the handoff:
 6. **The diff matches the requested scope** — anything else is removed or recorded as a deferred follow-up (*Deferred-item follow-up issues* below).
 7. **Nothing obviously warrants escalation** — say so in the handoff when the change turned out to touch a security boundary, a migration, or a payment path.
 
-**This is not a review, and it never substitutes for one.** It does **not** run `code-review` / `security-review` over its own diff, produces no severity-graded findings, and gates nothing on a finding count. Anything needing a reviewer's judgment belongs to `review`, on a tier that dispatches it.
+**This is not a review, and it never substitutes for one.** It does **not** run `code-review` / `security-review` over its own diff, produces no severity-graded findings, and gates nothing on a finding count. Return unresolved judgment calls with their evidence.
 
 **Blocked, not shipped.** When an item cannot be satisfied — a criterion has no implementation, the tests covering the change fail, static analysis is red — stop as **Blocked** and surface it rather than opening a pull request that knowingly carries it. The procedure, the boundary, and what the removed duplicate review cost live in `references/pre-pr-self-check.md`. Prevention proposal sources also need the `references/safeguard-implementation.md` proofs.
 
@@ -194,7 +194,7 @@ Every item the run knowingly deferred — the *Out of scope (deferred)* group fr
 
 ## Final report
 
-**A missing post-convergence report is stated, never left silent.** This skill publishes no `reporting flow` report of its own. When the run ends without that reporting step and the source is a tracker, the handoff carries the literal token `report: not-published (no-orchestrator)` — a machine token, identical in every handoff language — so a reader sees the gap instead of assuming it was covered (`the command workflow` step 6a owns the report itself).
+**A missing post-convergence report is stated, never left silent.** Report the publication status in the handoff. When the run ends without that reporting step and the source is a tracker, the handoff carries the literal token `report: not-published (no-orchestrator)` — a machine token, identical in every handoff language — so a reader sees the gap instead of assuming it was covered.
 
 Reporting is split by audience and destination:
 
@@ -202,7 +202,7 @@ Reporting is split by audience and destination:
 
 Post the technical report as a comment on the GitHub PR, rendered from `skills/resolve-issue/templates/technical-report-comment.md`. It must contain:
 
-- **Self-check summary** — the result of each item of the *Pre-PR self-check* above. Report what this pass actually did — never a code-review or security-review verdict it did not produce (`@rules/code-review/review-process.md` *Output Rules — Truthful reporting*); those are `review`'s, published by the review loop that runs after this skill.
+- **Self-check summary** — the result of each item of the *Pre-PR self-check* above. Report what this pass actually did — never a code-review or security-review verdict it did not produce (`@rules/code-review/review-process.md` *Output Rules — Truthful reporting*).
 
 ### Non-technical report → original task tracker
 

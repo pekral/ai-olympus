@@ -3,7 +3,7 @@ description: Test one task's pull request against its assignment, prove that not
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [report|fix] [optional test data]
 ---
 
-Resolve `commands/_shared/` below `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` when this command is loaded by the native plugin. In a Composer installation, resolve it below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+Use the shared directory supplied by direct skill entry when present. Otherwise bind `commands/_shared/` to `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` for the native plugin, `.claude/command-support/_shared/` for Composer Claude, or `.codex/commands/_shared/` for project Codex. Retain that directory for every included protocol and helper.
 
 This session holds the `krang` role in test mode and never starts `krang` as a subagent, per
 `@rules/compound-engineering/orchestration.md`

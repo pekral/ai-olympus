@@ -2,7 +2,7 @@
 # Resolve against this skill installation, even when the caller works in another repository.
 resolve_command_helper() {
   local name="$1" shared root support component path
-  [[ "$name" =~ ^[a-z][a-z0-9-]*[.]sh$ ]] || return 1
+  [[ "$name" == skill-entry.inc || "$name" =~ ^[a-z][a-z0-9-]*[.]sh$ ]] || return 1
   # A symlink install links individual source files. Resolve this already-loaded library first.
   local origin="${BASH_SOURCE[0]}" target
   while [[ -L "$origin" ]]; do
@@ -36,3 +36,9 @@ resolve_command_helper() {
   [[ -f "$path" ]] || return 1
   printf '%s\n' "$path"
 }
+
+# A discovered skill can locate its public invocation contract even without project instructions.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  [[ $# -eq 1 && "$1" == --entry ]] || exit 1
+  resolve_command_helper skill-entry.inc
+fi

@@ -6,6 +6,8 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
+For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+
 ## Constraints
 - Apply @rules/git/general.md
 - **Never merge a PR without a converged code review.** A code review must have been run on the PR's final diff and report **no errors** — **0 Critical, and no undeferred Moderate**. A Moderate is either fixed in the review loop or, at the cap round only, deferred into a tracker sub-issue; a **security-relevant** Moderate (the S1–S3 carve-out) never defers and always blocks. This is the hard merge gate from `@rules/git/pull-requests.md` *Merging*, verified in step 2. Its exemptions are a **`FAST`-tier PR**, a **dependency-only PR** (`@rules/git/pull-requests.md` *`FAST`-tier pull requests*, *Dependency-only pull requests*), and the opt-in low-risk path, which replaces it, qualified in step 2.

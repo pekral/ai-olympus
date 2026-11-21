@@ -1,6 +1,6 @@
 # Recurrence analysis — the defect classes that repeat across pull requests
 
-This file is the one contract for finding the defect classes that recur across independent pull requests. It is phase 2 of the recurring-defect epic (#185). It reads the finding records of `finding-records.md` and adds no record, no fingerprint, and no review format.
+Collect and normalize the supplied records and return the recurrence report.
 
 ## Command
 
@@ -77,12 +77,3 @@ One JSON object: `schema`, `threshold`, `window_days`, `valid`, `records`, `proc
 ## Analysis never blocks a pull request
 
 The review loop records its rounds and the issue-to-pull-request pipeline runs as before. `@skills/process-code-review/SKILL.md` calls `commands/_shared/feedback-loop.sh` after each round and after the publish, and no step reads the result of the call to decide anything. `@skills/resolve-issue/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, and the merge gate call neither the collection nor the analysis. A missing `jq`, a missing store, a failed collection, or a failed analysis changes nothing for a pull request (`feedback-loop.md` *When the analysis is unavailable*).
-
-## What the wiring phase decided
-
-`feedback-loop.md` owns the wiring of phase 4 (#189):
-
-- The collection and the analysis run from `commands/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `command` runs the analysis when the user asks for it.
-- The store is one file for each pull request in a derived, git-ignored directory. `analyze` merges them.
-- The `repo` value is the canonical `nameWithOwner` that GitHub reports, resolved by `feedback-loop.sh` before any record is written.
-- A prevention proposal for a reported class is the subject of `prevention-proposal.md`.

@@ -7,6 +7,8 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
+For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a GitHub-sourced review decides for itself.
 - Publishing is limited to linked-issue comments via `gh` and to one pull-request review through `scripts/post-inline-review.sh`, which carries every finding in the Actionable comments block and the hidden review record in its body. The review carries no inline comment, and no `cr-comment` pull-request comment is posted.

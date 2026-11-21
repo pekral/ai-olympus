@@ -7,6 +7,8 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
+For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `@skills/code-review-github/references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a JIRA-sourced review decides for itself.
 - Apply @rules/jira/general.md
@@ -92,7 +94,7 @@ Apply `@skills/code-review-github/references/cr-wrapper-contract.md` *Output Rul
 Before the run ends, confirm both halves actually landed where they belong. The split is a property of what was published, not of what was intended.
 
 1. The **GitHub PR comment** carries the technical report — findings, severities, counts, the reviewed revision, the diff fingerprint, coverage, and the quality-gate result.
-2. The **JIRA comment** carries the non-technical summary alone, and nothing on the banned list survives in it. Walk the rendered body against that list before the publish; `the command workflow` runs the same walk when it is the publisher.
+2. The **JIRA comment** carries the non-technical summary alone, and nothing on the banned list survives in it. Walk the rendered body against that list before the publish.
 
 A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.
 

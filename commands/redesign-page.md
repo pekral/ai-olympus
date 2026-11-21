@@ -3,7 +3,7 @@ description: Redesign one application page from its URL — previews for approva
 argument-hint: [page URL]
 ---
 
-Resolve `commands/_shared/` below `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` when this command is loaded by the native plugin. In a Composer installation, resolve it below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+Use the shared directory supplied by direct skill entry when present. Otherwise bind `commands/_shared/` to `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` for the native plugin, `.claude/command-support/_shared/` for Composer Claude, or `.codex/commands/_shared/` for project Codex. Retain that directory for every included protocol and helper.
 
 This session holds the `krang` role. Run `commands/_shared/orchestration/deliver-page-redesign.inc` with the page URL:
 $ARGUMENTS

@@ -441,7 +441,7 @@ load_state() {
   if ! jq -e -s 'length == 1' "$file" >/dev/null 2>&1; then
     fail 3 "the review state is not one JSON document; the loop is not converged"
   fi
-  problems="$(jq -r -L "$HERE" "$JQ_STATE"' state_errors[]' "$file" 2>&1 || true)"
+  problems="$(jq -r -L "$SKILL_ROOT/_shared" "$JQ_STATE"' state_errors[]' "$file" 2>&1 || true)"
   if [[ -z "$problems" ]]; then
     jq -c '.findings[]' "$file" >"$out.findings"
     if [[ -s "$out.findings" ]]; then
@@ -560,7 +560,7 @@ cmd_record() {
     # Past the cap a round starts only as a security round: a security finding is left, every other finding is
     # deferred, and the security rounds are not spent. The verdict decides it, never the caller.
     local current
-    current="$(jq -r -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' verdict($cap; $threshold).verdict' "$TMP/state.json")"
+    current="$(jq -r -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' verdict($cap; $threshold).verdict' "$TMP/state.json")"
     [[ "$current" == 'security-round' ]] || fail 5 "the round cap of $cap is spent and the verdict is $current, not security-round; no further automatic review round starts"
   fi
   if [[ "$iteration" -gt 0 && -z "$changed" ]]; then
@@ -593,24 +593,24 @@ cmd_record() {
     paths="$(cat "$TMP/changed.json")"
   fi
 
-  jq -c -s -L "$HERE" --slurpfile s "$TMP/state.json" --argjson changed "$paths" \
+  jq -c -s -L "$SKILL_ROOT/_shared" --slurpfile s "$TMP/state.json" --argjson changed "$paths" \
     --arg rev "$(jq -r '.revision' "$TMP/header.json")" --arg time "$(jq -r '.time' "$TMP/header.json")" \
     --argjson cap "$cap" --arg threshold "$threshold" \
     "$JQ_STATE"$'\n'". as \$cur | \$s[0] | $JQ_RECORD" "$TMP/round.jsonl" >"$TMP/merged.json"
   # After a convergence at the cap, a round whose blocking findings are all security findings takes the security
   # rounds that are left; every other change escalates instead of letting the convergence cover an unreviewed diff.
-  if [[ "$after_convergence" == true ]] && ! jq -e -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson before "$iteration" \
+  if [[ "$after_convergence" == true ]] && ! jq -e -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" --argjson before "$iteration" \
     "$JQ_STATE"' .state | verdict($cap; $threshold).open as $o
       | ($o | length) > 0 and all($o[]; .security) and $before < $cap + security_rounds' "$TMP/merged.json" >/dev/null; then
     jq -c '.status = "escalated" | .escalation_reason = "cap-spent-after-convergence"' "$TMP/state.json" >"$TMP/next.json"
     write_state "$TMP/next.json" "$state"
-    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+    jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
     fail 5 "the loop converged in the cap round of $cap; a later change needs a review round the cap no longer allows: escalated (cap-spent-after-convergence)"
   fi
   jq -c --argjson cap "$cap" '.state | .max_iterations = $cap' "$TMP/merged.json" \
     | jq -c --arg t "$threshold" '.blocking_threshold = $t' >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
+  jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" --argjson carried "$(jq -c '.carried' "$TMP/merged.json")" \
     "$JQ_STATE"' output($cap; $threshold; $carried)' "$TMP/next.json"
 }
 
@@ -660,11 +660,11 @@ cmd_late() {
   config="$(effective_config)"
   cap="${config%% *}"
   threshold="${config#* }"
-  jq -c -s -L "$HERE" --slurpfile s "$TMP/state.json" --argjson cap "$cap" --arg threshold "$threshold" \
+  jq -c -s -L "$SKILL_ROOT/_shared" --slurpfile s "$TMP/state.json" --argjson cap "$cap" --arg threshold "$threshold" \
     "$JQ_STATE"$'\n'". as \$cur | \$s[0] | $JQ_LATE" "$TMP/round.jsonl" >"$TMP/next.json"
   jq -c --argjson cap "$cap" --arg t "$threshold" '.max_iterations = $cap | .blocking_threshold = $t' "$TMP/next.json" >"$TMP/next2.json"
   write_state "$TMP/next2.json" "$state"
-  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next2.json"
+  jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next2.json"
 }
 
 cmd_evaluate() {
@@ -686,14 +686,14 @@ cmd_evaluate() {
   threshold="${config#* }"
   if [[ "$final" == true ]]; then
     check_writable "$state"
-    jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' settle($cap; $threshold; true)' \
+    jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' settle($cap; $threshold; true)' \
       "$TMP/state.json" >"$TMP/next.json"
     if ! cmp -s <(jq -c . "$TMP/state.json") "$TMP/next.json"; then
       write_state "$TMP/next.json" "$state"
     fi
     cp "$TMP/next.json" "$TMP/state.json"
   fi
-  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/state.json"
+  jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/state.json"
 }
 
 cmd_scope() {
@@ -745,7 +745,7 @@ cmd_scope() {
     signals="$("$HERE/classify-risk.sh" --files "$TMP/changed.txt" 2>/dev/null | sed -n 's/^signal=[^|]*|\([a-z-]*\)|.*/\1/p' || true)"
   fi
   # The next `record` reads the scope stored here: a blocking finding outside a delta round stays open.
-  jq -c -L "$HERE" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" --argjson lines "$lines" \
+  jq -c -L "$SKILL_ROOT/_shared" --arg signals "$signals" --slurpfile changed "$TMP/changed.json" --argjson lines "$lines" \
     --argjson max_files "$SMALL_DELTA_FILES" --argjson max_lines "$SMALL_DELTA_LINES" --argjson cap "$cap" "$JQ_STATE"'
     ($signals | split("\n") | map(select(. != ""))) as $sig
     | [ (if .iteration == 0 then "first-round" else empty end),
@@ -784,7 +784,7 @@ trusted_comment() {
   rc=$?
   set -e
   [[ "$rc" -eq 0 ]] || fail 4 "the comment cannot be verified: the pull request cannot be loaded ($(state_path_display "$(head -n 1 "$TMP/pr.err")")); the state is unchanged"
-  verdict="$(jq -r -L "$HERE" --arg url "$url" --arg pattern "$pattern" --arg what "$what" --arg repo "$repo" --argjson pr "$pr" 'include "review-trust";
+  verdict="$(jq -r -L "$SKILL_ROOT/_shared" --arg url "$url" --arg pattern "$pattern" --arg what "$what" --arg repo "$repo" --argjson pr "$pr" 'include "review-trust";
     if type != "object" or .kind != "pr" or .number != $pr
        or ((.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase)
     then "refused:the loader returned another item than the pull request of the state"
@@ -835,13 +835,13 @@ cmd_dismiss() {
   config="$(effective_config)"
   cap="${config%% *}"
   threshold="${config#* }"
-  jq -c -L "$HERE" --arg id "$id" --arg actor "trusted:$association" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -c -L "$SKILL_ROOT/_shared" --arg id "$id" --arg actor "trusted:$association" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     (.findings[] | select(.finding_id == $id)) as $f
     | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "dismissed", actor: $actor}]
     | .findings = (.findings | map(if .finding_id == $id then .status = "dismissed" else . end))
     | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+  jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
 cmd_defer() {
@@ -867,13 +867,13 @@ cmd_defer() {
   cap="${config%% *}"
   threshold="${config#* }"
   [[ "$(jq -r '.iteration' "$TMP/state.json")" -ge "$cap" ]] || fail 4 "a finding is deferred only at the cap round ($cap)"
-  jq -e -L "$HERE" --arg id "$id" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -e -L "$SKILL_ROOT/_shared" --arg id "$id" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     verdict($cap; $threshold).deferrable | any(.finding_id == $id)' "$TMP/state.json" >/dev/null \
     || fail 4 "finding $id is not deferrable: it is not blocking, or it is security-relevant or at or above the blocking threshold"
-  jq -c -L "$HERE" --arg id "$id" --arg url "$url" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+  jq -c -L "$SKILL_ROOT/_shared" --arg id "$id" --arg url "$url" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
     .deferrals += [{finding_id: $id, url: $url}] | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
   write_state "$TMP/next.json" "$state"
-  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+  jq -c -L "$SKILL_ROOT/_shared" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
 # The fixtures below are Markdown that carries backticks and dollar signs; none of it is meant to expand.

@@ -7,7 +7,7 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 ## Codex integration
 
 - Before changing files, inspect `.codex/rules/` and read every rule whose `paths` frontmatter matches the files in scope. Rules without `paths` apply to every task.
-- Reusable workflows live in `.agents/skills/`. Invoke a matching skill with `$skill-name`, and follow its `SKILL.md` in full. For a user invocation of `$skill-name`, the root session first loads `.codex/commands/_shared/skill-entry.inc`. A specialist receiving a bounded skill step applies the named skill directly.
+- Reusable workflows live in `.agents/skills/`. Invoke a matching skill with `$skill-name`, and follow its `SKILL.md` in full. A mapped workflow skill declares its direct user entry in its own installed SKILL.md. Follow that entry for an explicit user invocation. An ordinary skill or an assigned work step uses its bounded contract in the current executor.
 - Project-scoped custom agents live in `.codex/agents/`. Use the specialist named by the workflow and preserve the role boundaries in its instructions.
 - AI Olympus run state lives in `.codex/run/`. In imported role instructions, interpret `.claude/run/` as `.codex/run/`, `@skills/` as `.agents/skills/`, `@rules/` as `.codex/rules/`, `@commands/` as `.codex/commands/`, and `agents/<name>.md` as `.codex/agent-instructions/<name>.md`.
 - A rule, skill, or command that names a shipped script by a **bare** path — `commands/_shared/classify-risk.sh`, `skills/code-review-github/scripts/load-issue.sh` — means the matching file below `.codex/commands/` or `.agents/skills/` by its first path segment. Run it with the shell; these are deterministic helpers, not skills to invoke.

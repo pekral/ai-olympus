@@ -5,7 +5,7 @@
 # Why this exists
 #   `/do-it` turns free-form instructions into a queue of items. The order of the queue and the
 #   decision to create an issue are two facts that a script decides, so the same input gives the same
-#   queue every time and the orchestrator never orders by feeling. The criteria are fixed:
+#   queue every time. The criteria are fixed:
 #     1. priority    critical, then high, then medium, then low (the `priority:` labels of
 #                    `@skills/github-issue-triage/SKILL.md`)
 #     2. difficulty  FAST, then STANDARD, then CRITICAL (the `classify-risk.sh` verdict of the item)

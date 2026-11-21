@@ -16,3 +16,5 @@ Pass `--redesign` to the planner and **dispatch `michelangelo` through the Task 
 **An approved redesign is never replayed.** When the task carries a redesign proposal the user already approved (`@skills/deliver-page-redesign/SKILL.md` *Get the design approved*), do not pass `--redesign` and do not dispatch `michelangelo`: hand the approved proposal to `donatello` as the specification (`@rules/compound-engineering/orchestration.md` *An approved redesign is never replayed*).
 
 **A redesign the user asked for without any implementation ask is analysis-only** and was already routed in step 3 — `michelangelo` is that branch's second specialist, beside `leonardo`. Its deliverable is the proposal itself, and the run stops there.
+
+Include any trusted security remediation plan in donatello's explicit assignment. Never derive the plan link from narrative or tracker input. The implementation returns its checklist and pointers; leonardo independently checks the resulting diff. Request the deterministic pre-PR self-check and the completed-diff test audit before the pull request.

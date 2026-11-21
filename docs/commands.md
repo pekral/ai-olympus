@@ -14,9 +14,7 @@ steps, outputs, and done condition. They do not select a role, dispatch work, ow
 review loop, or decide a merge. A command may invoke a skill directly when that
 bounded work is all the request needs.
 
-Codex has no custom slash-command discovery. The installed root instructions load the
-matching contract from `.codex/commands/` before direct use of a user-facing skill.
-This keeps the same lifecycle on both platforms without making a skill coordinate it.
+Codex discovers a directly invoked workflow via its installed SKILL.md. The same entry resolves on Claude when skill discovery selects a same-named skill. The entry resolver locates its own project's, plugin's or home installation, including when the project retains an older AGENTS.md. Ordinary skills and already assigned steps keep their executor.
 
 Use `commands/do-it.md` as the prompt and formatting model. Preserve the argument
 shape of an existing command. Put any new shared routing instruction below
@@ -47,3 +45,7 @@ shape of an existing command. Put any new shared routing instruction below
 | Prepare one or several pull requests for a merge decision | `orchestration/verify-merge-readiness.inc` | `verify-merge-readiness` returns exact-head evidence and unanswered decisions. |
 | Process the interactive testing backlog | `orchestration/auto-interactive-testing.inc` | `auto-interactive-testing` returns local scenario results, evidence and cleanup status. |
 | Verify delegated security in a merge | `security-delivery.inc` | The merge uses trusted review identity, the linked security comment and its timestamp. |
+| Resolve a direct user workflow from its discovered skill | `skill-entry.inc` | The installed SKILL.md resolves its own command assets. Specialist work and ordinary direct skills continue in their existing executor. |
+| Analyse pending issues or file an approved safeguard | `orchestration/pending-analysis.inc`, `orchestration/safeguard-implementation.inc` | Consume permitted issue text, consent, approval and proof, then return one bounded result. |
+| Record feedback, identify recurrences, propose prevention and promote a verified lesson | `orchestration/feedback-loop.inc`, `orchestration/recurrence-analysis.inc`, `orchestration/prevention-proposal.inc`, `orchestration/learning-promotion.inc` | The references in skills describe the store, candidate and evidence formats. |
+| Select inline review lenses and request an independent database report | `orchestration/specialized-reviews.inc`, `orchestration/tracker-review-lenses.inc`, `orchestration/database-report.inc` | The bounded SQL, schema, Redis, security and compliance analyses return findings or a stated applicability result. |

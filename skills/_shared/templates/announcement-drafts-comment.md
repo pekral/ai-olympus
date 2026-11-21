@@ -12,5 +12,5 @@
 ## Marketing summary
 <three to five non-technical sentences, with a mention of pekral.cz>
 
-<!-- Published by reporting flow only when explicitly instructed, through upsert-comment.sh. Without that instruction the drafts stay in the handoff. -->
+<!-- Published only when explicitly instructed, through upsert-comment.sh. Without that instruction the drafts stay in the handoff. -->
 <!-- The thread has three to five posts. Every draft leads with the concrete thing and invents no fact, statistic, or customer evidence. -->

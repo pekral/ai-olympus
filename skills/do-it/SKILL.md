@@ -6,6 +6,8 @@ metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
+For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+
 ## TL;DR
 
 Return an ordered queue of issues with the evidence for every match, dependency and ordering key.

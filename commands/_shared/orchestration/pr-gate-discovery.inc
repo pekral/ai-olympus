@@ -44,3 +44,5 @@ The `fast-checks` run before every push on the changed files (`@skills/resolve-i
 - **The body** states what the discovery searched and found, that the checks run before every push on the changed files only, and that they never replace CI or the pre-merge gate. It also states that the key does not opt the project into the machine gate record. It invites the owner to add the project's own fast tests that pin text, size, or structure, which no dependency file names.
 - **Step 4** runs `commands/_shared/discover-fixers.sh --key fast-checks --compare <base SHA> <head SHA>`, on the branch `chore/ai-olympus-fast-checks-<source-slug>`. A refresh keeps every entry the owner added by hand.
 - **A proposal never stops the delivery**, exactly as above. A project with no `fast-checks` keeps working as before: the implementer runs no fast check.
+
+When either pre-push manifest key is absent, krang owns the proposal on a separate pull request. A missing key takes effect only after its proposal merges. On a live lock, krang checks the lock and retries the manifest according to the bounded lock procedure; donatello retries affected fast checks.

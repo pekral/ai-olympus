@@ -166,13 +166,13 @@ AUDIT_TRAIL="$HERE/../audit-trail.sh"
 CHECK_HEADER="$SKILL_ROOT/_shared/check-cr-header.sh"
 CARRY_LINES="$SKILL_ROOT/_shared/carry-operator-lines.php"
 CHECK_VISIBLE="$SKILL_ROOT/_shared/check-visible-review-text.php"
-# shellcheck source=../../_shared/github-target.sh
+# shellcheck source=../../../skills/_shared/github-target.sh
 source "$SKILL_ROOT/_shared/github-target.sh"
 # The one encoder of the hidden review record.
-# shellcheck source=../../_shared/cr-header.sh
+# shellcheck source=../../../skills/_shared/cr-header.sh
 source "$SKILL_ROOT/_shared/cr-header.sh"
 # The one definition of a test file (TEST_RE).
-# shellcheck source=../../_shared/domain-vocabulary.sh
+# shellcheck source=../../../skills/_shared/domain-vocabulary.sh
 source "$SKILL_ROOT/_shared/domain-vocabulary.sh"
 
 usage() {

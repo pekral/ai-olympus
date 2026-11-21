@@ -61,7 +61,7 @@ source "$HERE/skill-path.sh" || exit 3
 SKILL_ROOT="$(command_skill_root)" || exit 3
 
 # The three parts of a defect class, the dedupe key, the marker, and the issue check are written once there.
-# shellcheck source=proposal-identity.sh
+# shellcheck source=../../skills/_shared/proposal-identity.sh
 . "$SKILL_ROOT/_shared/proposal-identity.sh"
 
 MAX_TEXT=2000
