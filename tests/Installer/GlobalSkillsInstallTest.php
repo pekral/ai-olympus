@@ -139,7 +139,7 @@ test('global skill helpers use the matching home payload outside any checkout', 
                 ['HOME' => $result['home']],
             );
 
-            expect($process->mustRun()->getOutput())->toBe($helper . "\n")
+            expect($process->mustRun()->getOutput())->toBe(realpath($helper) . "\n")
                 ->and(is_file($helper))->toBeTrue();
         }
     });

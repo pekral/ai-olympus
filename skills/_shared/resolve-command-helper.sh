@@ -20,7 +20,7 @@ resolve_command_helper() {
     *) return 1 ;;
   esac
   # Global skills have their own private command distribution, outside command discovery.
-  if [[ "$root" == "${HOME:-}" ]]; then
+  if [[ -n "${HOME:-}" && "$root" -ef "$HOME" ]]; then
     case "$shared" in
       */.claude/skills/_shared) [[ ! -d "$root/.claude/ai-olympus-commands" ]] || support=.claude/ai-olympus-commands/_shared ;;
       */.agents/skills/_shared) [[ ! -d "$root/.agents/ai-olympus-commands" ]] || support=.agents/ai-olympus-commands/_shared ;;
