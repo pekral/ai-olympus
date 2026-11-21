@@ -42,4 +42,4 @@ Every run posts a new comment, so a run that reviewed one pull request renders o
 
 ## Length on JIRA
 
-The 3 000-character cap covers the whole comment. Shorten per `SKILL.md` *Length follows the facts* inside each group, starting with the group of the pull request with the longest `What changed`. Never drop a `Review findings` bullet, and never drop a group this run rendered.
+The 3 000-character cap covers the whole comment. Shorten per `SKILL.md` *Length follows the facts* inside each group, starting with the group of the pull request with the longest `TL;DR` on JIRA, or `What changed` on GitHub and Bugsnag. Never drop a `Review findings` bullet, and never drop a group this run rendered.

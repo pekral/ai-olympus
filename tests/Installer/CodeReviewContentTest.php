@@ -87,10 +87,10 @@ test('the JIRA template keeps only actionable requirements and one combined summ
 
     expect($body)->toContain('only for explicit requirements that still need a change or an answer')
         ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('h2. TL;DR')
-        ->not->toContain('h2. What changed')
-        ->not->toContain('h2. Impact after deployment')
-        ->not->toContain('h2. How to test');
+        ->toContain('h2. TL;DR');
+    expect($body)->not->toContain('h2. What changed');
+    expect($body)->not->toContain('h2. Impact after deployment');
+    expect($body)->not->toContain('h2. How to test');
     expect($jiraTemplate)->toContain('remaining action; omit repaired parts and their history.')
         ->toContain('When every requirement is')
         ->toContain('satisfied, omit the whole section.');

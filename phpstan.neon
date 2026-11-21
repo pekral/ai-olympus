@@ -4,6 +4,8 @@ parameters:
         - src
         - tests
         - bin
+    scanFiles:
+        - skills/_shared/report-check-common.php
     tmpDir: build/phpstan
     treatPhpDocTypesAsCertain: false
 
