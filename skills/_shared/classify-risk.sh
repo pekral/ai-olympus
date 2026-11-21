@@ -1017,6 +1017,31 @@ merge_scope_scan() {
   '
 }
 
+# The text diff below is deliberately forced to text so the structural parser can
+# compare it with GitHub's patch. Inspect the pinned object modes and numstat
+# first: a binary blob must never acquire a focused route through that conversion.
+pinned_regular_text_entries() {
+  local base="$1" head="$2" meta path old_mode new_mode old_oid new_oid status line added rest deleted entries=0
+  while IFS= read -r -d '' meta; do
+    IFS= read -r -d '' path || return 1
+    [[ "$meta" == :* ]] || return 1
+    read -r old_mode new_mode old_oid new_oid status <<<"${meta#:}"
+    [[ "$old_mode" == 000000 || "$old_mode" == 100644 ]] || return 1
+    [[ "$new_mode" == 000000 || "$new_mode" == 100644 ]] || return 1
+    [[ "$old_oid" =~ ^0+$ ]] || git cat-file -e "${old_oid}^{blob}" 2>/dev/null || return 1
+    [[ "$new_oid" =~ ^0+$ ]] || git cat-file -e "${new_oid}^{blob}" 2>/dev/null || return 1
+    entries=$((entries + 1))
+  done < <(git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --raw -z --no-renames "$base...$head" 2>/dev/null)
+  [[ "$entries" -gt 0 ]] || return 1
+
+  while IFS= read -r -d '' line; do
+    added="${line%%$'\t'*}"
+    rest="${line#*$'\t'}"
+    deleted="${rest%%$'\t'*}"
+    [[ "$added" != '-' && "$deleted" != '-' ]] || return 1
+  done < <(git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --numstat -z --no-textconv --no-renames "$base...$head" 2>/dev/null)
+}
+
 # composer.json is trusted only after both trees parse as JSON and differ solely
 # in existing version constraints. A partial hunk never establishes that fact.
 composer_constraints_only() {
@@ -1071,8 +1096,52 @@ composer_patch_compatible() {
   ' >/dev/null
 }
 
+# A lock-only update is eligible for the lowest grade only when both package
+# graphs retain their identities and every resolved version change is a patch
+# increase. Composer constraints alone do not prove the resolved graph.
+composer_lock_patch_compatible() {
+  local base="$1" head="$2" base_lock head_lock
+  base_lock="$(git show "${base}:composer.lock" 2>/dev/null)" || return 1
+  head_lock="$(git show "${head}:composer.lock" 2>/dev/null)" || return 1
+  jq -e 'type == "object"' >/dev/null <<<"$base_lock" || return 1
+  jq -e 'type == "object"' >/dev/null <<<"$head_lock" || return 1
+  jq -en --argjson base "$base_lock" --argjson head "$head_lock" '
+    def package_maps:
+      [(.packages // []), (."packages-dev" // [])]
+      | map(
+          if type != "array" then error("package group") else
+            reduce .[] as $package ({};
+              if ($package | type) == "object" and ($package.name | type) == "string" and ($package.version | type) == "string"
+              then .[$package.name] = $package.version
+              else error("package entry")
+              end)
+          end);
+    def patch:
+      if test("^v?[0-9]+\\.[0-9]+\\.[0-9]+$")
+      then capture("^v?(?<major>[0-9]+)\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)$")
+      else null
+      end;
+    ($base | package_maps) as $base_packages |
+    ($head | package_maps) as $head_packages |
+    all(range(0; 2); . as $group |
+      ($base_packages[$group] | keys_unsorted) == ($head_packages[$group] | keys_unsorted)) and
+    [range(0; 2) as $group |
+      ($base_packages[$group] | keys_unsorted[]) as $name |
+      select($base_packages[$group][$name] != $head_packages[$group][$name]) |
+      { before: $base_packages[$group][$name], after: $head_packages[$group][$name] }
+    ] as $changes |
+    ($changes | length > 0) and
+    all($changes[];
+      (.before | patch) as $before | (.after | patch) as $after |
+      $before != null and $after != null and
+      $before.major == $after.major and $before.minor == $after.minor and
+      (($after.patch | tonumber) > ($before.patch | tonumber))
+    )
+  ' >/dev/null
+}
+
 merge_scope() {
-  local diff_arg="" base_arg="" head_arg="" comparison_base="" diff_text actual_diff scan actual_scan actual_paths supplied_paths line path reason="" composer_changed=0 config_executable=0 fingerprint classification forced tier
+  local diff_arg="" base_arg="" head_arg="" comparison_base="" diff_text actual_diff scan actual_scan actual_paths supplied_paths line path reason="" composer_changed=0 lock_changed=0 config_executable=0 fingerprint classification forced floor override
   local -a classification_args=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -1092,13 +1161,16 @@ merge_scope() {
   comparison_base="$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false merge-base "$base_arg" "$head_arg" 2>/dev/null)" || {
     printf 'merge-scope=conservative\nmerge-scope-reason=base-head-unreadable\nmerge-scope-full-application-review=yes\n'; return 0
   }
+  if ! pinned_regular_text_entries "$comparison_base" "$head_arg"; then
+    printf 'merge-scope=conservative\nmerge-scope-reason=pinned-entry-not-regular-text\nmerge-scope-full-application-review=yes\n'; return 0
+  fi
   actual_diff="$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none "$base_arg...$head_arg" 2>/dev/null)" || {
     printf 'merge-scope=conservative\nmerge-scope-reason=base-head-unreadable\nmerge-scope-full-application-review=yes\n'; return 0
   }
   scan="$(merge_scope_scan <<<"$diff_text")"
   actual_scan="$(merge_scope_scan <<<"$actual_diff")"
-  supplied_paths="$(awk -F'|' '$1 == "F" { print $2 }' <<<"$scan" | LC_ALL=C sort -u)"
-  actual_paths="$(awk -F'|' '$1 == "F" { print $2 }' <<<"$actual_scan" | LC_ALL=C sort -u)"
+  supplied_paths="$(awk 'index($0, "F|") == 1 { print substr($0, 3) }' <<<"$scan" | LC_ALL=C sort -u)"
+  actual_paths="$(awk 'index($0, "F|") == 1 { print substr($0, 3) }' <<<"$actual_scan" | LC_ALL=C sort -u)"
   if [[ "$supplied_paths" != "$actual_paths" ]] || grep -q '^X|' <<<"$scan" || grep -q '^X|' <<<"$actual_scan"; then
     printf 'merge-scope=conservative\nmerge-scope-reason=diff-does-not-match-base-head\nmerge-scope-full-application-review=yes\n'; return 0
   fi
@@ -1107,7 +1179,13 @@ merge_scope() {
     X\|*) reason="${line#X|}" ;;
     F\|*)
       path="${line#F|}"
-      case "$path" in composer.json) composer_changed=1 ;; composer.lock|build/phpstan/*.neon|build/phpstan/*.neon.dist) : ;; *) [[ -n "$reason" ]] || reason="outside-static-analysis-tooling|$path" ;; esac
+      case "$path" in
+      composer.json) composer_changed=1 ;;
+      composer.lock) lock_changed=1 ;;
+      build/phpstan/*baseline*.neon|build/phpstan/*baseline*.neon.dist) : ;;
+      build/phpstan/*.neon|build/phpstan/*.neon.dist) config_executable=1 ;;
+      *) [[ -n "$reason" ]] || reason="outside-static-analysis-tooling|$path" ;;
+      esac
       ;;
     esac
   done <<<"$actual_scan"
@@ -1121,25 +1199,25 @@ merge_scope() {
     classification="$(classify --files - --ignore-assignment <<<"$actual_paths")" || return 1
   fi
   forced="$(awk -F= '$1 == "forced" { print $2; exit }' <<<"$classification")"
-  tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$classification")"
-  if [[ "$forced" != "none" ]]; then
-    printf 'merge-scope=conservative\nmerge-scope-reason=classification-force-%s\nmerge-scope-full-application-review=yes\n' "$(safe_display "$forced")"; return 0
+  floor="$(awk -F= '$1 == "floor" { print $2; exit }' <<<"$classification")"
+  override="$(awk -F= '$1 == "override" { print $2; exit }' <<<"$classification")"
+  if [[ "$forced" != "none" || "$floor" != "none" || "$override" != "none" ]]; then
+    printf 'merge-scope=conservative\nmerge-scope-reason=classification-constraint-%s-%s-%s\nmerge-scope-full-application-review=yes\n' "$(safe_display "$forced")" "$(safe_display "$floor")" "$(safe_display "$override")"; return 0
   fi
   fingerprint="$(git -c core.hooksPath=/dev/null -c core.fsmonitor=false diff --binary --full-index --no-color --no-ext-diff --no-textconv --no-renames "$base_arg...$head_arg" | git patch-id --verbatim | awk 'NR == 1 { print $1 }')" || {
     printf 'merge-scope=conservative\nmerge-scope-reason=proof-unreadable\nmerge-scope-full-application-review=yes\n'; return 0
   }
   [[ "$fingerprint" =~ ^[0-9a-f]{40}$ ]] || { printf 'merge-scope=conservative\nmerge-scope-reason=proof-unreadable\nmerge-scope-full-application-review=yes\n'; return 0; }
-  grep -Eiq '^\+[^+]*(includes:|bootstrapFiles:|autoload:|services:)' <<<"$actual_diff" && config_executable=1
   printf 'merge-scope=focused-tooling\nmerge-scope-reason=static-analysis-configuration-baseline-and-dependency-metadata\n'
   printf 'merge-scope-base=%s\nmerge-scope-head=%s\nmerge-scope-fingerprint=%s\n' "$comparison_base" "$head_arg" "$fingerprint"
-  printf 'merge-scope-role=leonardo:focused-dependency-config-security\nmerge-scope-check=static-analysis-configuration\nmerge-scope-check=baseline-scope\n'
+  printf 'merge-scope-role=leonardo:focused-dependency-config-security\nmerge-scope-role=splinter:focused-dependency-config-security\nmerge-scope-completion=leonardo-and-splinter\nmerge-scope-check=static-analysis-configuration\nmerge-scope-check=baseline-scope\n'
   if [[ "$composer_changed" -eq 1 ]]; then
     printf 'merge-scope-check=dependency-version-constraints\n'
     while IFS= read -r line; do case "$line" in 0) printf 'merge-scope-check=runtime-dependency-compatibility\n' ;; 1) printf 'merge-scope-check=development-dependency-compatibility\n' ;; esac; done < <(composer_constraint_scope "$comparison_base" "$head_arg")
   fi
-  grep -qx 'F|composer.lock' <<<"$actual_scan" && printf 'merge-scope-check=lock-and-supply-chain-integrity\n'
+  [[ "$lock_changed" -eq 0 ]] || printf 'merge-scope-check=lock-and-supply-chain-integrity\n'
   [[ "$config_executable" -eq 0 ]] || printf 'merge-scope-check=static-analysis-executable-configuration-security\n'
-  if [[ "$composer_changed" -eq 0 ]] || composer_patch_compatible "$comparison_base" "$head_arg"; then
+  if [[ "$lock_changed" -eq 1 ]] && composer_lock_patch_compatible "$comparison_base" "$head_arg" && { [[ "$composer_changed" -eq 0 ]] || composer_patch_compatible "$comparison_base" "$head_arg"; }; then
     printf 'merge-scope-low-risk-eligible=yes\n'
   else
     printf 'merge-scope-low-risk-eligible=no\n'
@@ -1702,14 +1780,14 @@ TEXT
   mkdir -p "$scope_repo/build/phpstan"
   git -C "$scope_repo" init -q
   printf '{"require":{"vendor/tool":"^1.0.0"},"scripts":{}}\n' >"$scope_repo/composer.json"
-  printf '{"packages":[]}\n' >"$scope_repo/composer.lock"
+  printf '{"packages":[{"name":"vendor/tool","version":"1.0.0"}],"packages-dev":[]}\n' >"$scope_repo/composer.lock"
   printf 'parameters:\n    ignoreErrors: []\n' >"$scope_repo/build/phpstan/baseline.neon"
-  printf 'parameters:\n    paths: [app]\n' >"$scope_repo/build/phpstan/phpstan.neon"
+  printf 'services:\n    - class: Vendor\\BaseRule\nparameters:\n    paths: [app]\n' >"$scope_repo/build/phpstan/phpstan.neon"
   git -C "$scope_repo" add -A
   git -C "$scope_repo" -c user.name=t -c user.email=t@t commit -q -m base
   scope_base="$(git -C "$scope_repo" rev-parse HEAD)"
   printf '{"require":{"vendor/tool":"^1.0.1"},"scripts":{}}\n' >"$scope_repo/composer.json"
-  printf '{"packages":[{"name":"vendor/tool","version":"1.1.0"}]}\n' >"$scope_repo/composer.lock"
+  printf '{"packages":[{"name":"vendor/tool","version":"1.0.1"}],"packages-dev":[]}\n' >"$scope_repo/composer.lock"
   printf 'parameters:\n    ignoreErrors:\n        - message: rule\n' >"$scope_repo/build/phpstan/baseline.neon"
   printf 'services:\n    - class: Vendor\\Rule\nparameters:\n    paths: [app]\n' >"$scope_repo/build/phpstan/phpstan.neon"
   git -C "$scope_repo" add -A
@@ -1725,6 +1803,26 @@ TEXT
     --merge-scope --diff "$scope_diff" --base "$scope_base" --head "$scope_head"
   expect_line 'verified tooling scope has low merge risk' 'merge-risk=low' \
     --merge-risk --diff "$scope_diff" --base "$scope_base" --head "$scope_head" --ignore-assignment --coverage ok --gate green
+  expect_line 'focused tooling names the independent security view' 'merge-scope-role=splinter:focused-dependency-config-security' \
+    --merge-scope --diff "$scope_diff" --base "$scope_base" --head "$scope_head"
+  expect_line 'a critical floor selects the conservative scope' 'merge-scope=conservative' \
+    --merge-scope --diff "$scope_diff" --base "$scope_base" --head "$scope_head" --floor CRITICAL
+  expect_line 'a thorough override selects the conservative scope' 'merge-scope=conservative' \
+    --merge-scope --diff "$scope_diff" --base "$scope_base" --head "$scope_head" --override thorough
+  printf '{"packages":[{"name":"vendor/tool","version":"1.1.0"}],"packages-dev":[]}\n' >composer.lock
+  git add composer.lock
+  git -c user.name=t -c user.email=t commit -q -m locked-minor
+  scope_incompatible_head="$(git rev-parse HEAD)"
+  scope_incompatible="$(git diff --no-color --no-ext-diff --no-textconv --text "$scope_base...$scope_incompatible_head" | writediff)"
+  expect_line 'a resolved minor lock upgrade is not low risk eligible' 'merge-scope-low-risk-eligible=no' \
+    --merge-scope --diff "$scope_incompatible" --base "$scope_base" --head "$scope_incompatible_head"
+  printf '{"packages":[{"name":"vendor/replaced","version":"1.0.1"}],"packages-dev":[]}\n' >composer.lock
+  git add composer.lock
+  git -c user.name=t -c user.email=t commit -q -m replaced-lock
+  scope_incompatible_head="$(git rev-parse HEAD)"
+  scope_incompatible="$(git diff --no-color --no-ext-diff --no-textconv --text "$scope_base...$scope_incompatible_head" | writediff)"
+  expect_line 'a replaced lock package is not low risk eligible' 'merge-scope-low-risk-eligible=no' \
+    --merge-scope --diff "$scope_incompatible" --base "$scope_base" --head "$scope_incompatible_head"
   printf '{"require":{"vendor/tool":"^2.0.0"},"scripts":{}}\n' >composer.json
   git add composer.json
   git -c user.name=t -c user.email=t@t commit -q -m incompatible
@@ -1772,6 +1870,40 @@ TEXT
     --merge-scope --diff "$(newfile 'composer.json' '{"require":{"vendor/tool":"^9.9"}}' | writediff)"
   expect_line 'a mode-only tooling diff is never focused' 'merge-scope=conservative' \
     --merge-scope --diff "$(printf 'diff --git a/build/phpstan/phpstan.neon b/build/phpstan/phpstan.neon\nold mode 100644\nnew mode 100755\n' | writediff)"
+  git checkout -q "$scope_base"
+  printf 'services:\n    - class: Vendor\\ChangedRule\n' >build/phpstan/phpstan.neon
+  git add build/phpstan/phpstan.neon
+  git -c user.name=t -c user.email=t commit -q -m changed-existing-service
+  scope_incompatible_head="$(git rev-parse HEAD)"
+  scope_incompatible="$(git diff --no-color --no-ext-diff --no-textconv --text "$scope_base...$scope_incompatible_head" | writediff)"
+  expect_line 'an existing executable configuration change gets a security check' 'merge-scope-check=static-analysis-executable-configuration-security' \
+    --merge-scope --diff "$scope_incompatible" --base "$scope_base" --head "$scope_incompatible_head"
+  git checkout -q "$scope_base"
+  printf 'binary\0configuration\n' >build/phpstan/phpstan.neon
+  git add build/phpstan/phpstan.neon
+  git -c user.name=t -c user.email=t commit -q -m binary-config
+  scope_incompatible_head="$(git rev-parse HEAD)"
+  scope_incompatible="$(git diff --no-color --no-ext-diff --no-textconv --text "$scope_base...$scope_incompatible_head" | writediff)"
+  expect_line 'a binary tooling configuration takes the conservative scope' 'merge-scope-reason=pinned-entry-not-regular-text' \
+    --merge-scope --diff "$scope_incompatible" --base "$scope_base" --head "$scope_incompatible_head"
+  cd "$tmp"
+
+  local pipe_repo pipe_base pipe_head pipe_diff
+  pipe_repo="$tmp/pipe-repo"
+  manifest_repo "$pipe_repo" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["critical\\|route"] } } } }'
+  mkdir -p "$pipe_repo/build/phpstan"
+  printf 'parameters:\n    paths: [app]\n' >"$pipe_repo/build/phpstan/critical|route.neon"
+  git -C "$pipe_repo" add build/phpstan
+  git -C "$pipe_repo" -c user.name=t -c user.email=t commit -q -m base-config
+  pipe_base="$(git -C "$pipe_repo" rev-parse HEAD)"
+  printf 'parameters:\n    paths: [src]\n' >"$pipe_repo/build/phpstan/critical|route.neon"
+  git -C "$pipe_repo" add build/phpstan
+  git -C "$pipe_repo" -c user.name=t -c user.email=t commit -q -m critical-config
+  pipe_head="$(git -C "$pipe_repo" rev-parse HEAD)"
+  pipe_diff="$(git -C "$pipe_repo" diff --no-color --no-ext-diff --no-textconv --text "$pipe_base...$pipe_head" | writediff)"
+  cd "$pipe_repo"
+  expect_line 'a project-critical filename containing a pipe takes the conservative scope' 'merge-scope=conservative' \
+    --merge-scope --diff "$pipe_diff" --base "$pipe_base" --head "$pipe_head"
   cd "$tmp"
 
   expect_line 'a small tested fix with green checks is low risk' 'merge-risk=low' \

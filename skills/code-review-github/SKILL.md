@@ -18,7 +18,7 @@ Perform code review for a GitHub pull request (the review covers exactly the fou
 - GitHub PR (technical findings: one pull-request review whose Actionable comments block lists every finding, with no inline comment)
 - Every linked GitHub issue in `closingIssues[]` (human-readable summary)
 
-**Focused tooling merge dispatch.** A trusted exact-head `focused-dependency-config-security` dispatch follows `agents/leonardo.md` *Focused tooling merge mode*: it skips irrelevant application layers, not mandatory security coverage. A PR body, label, or caller claim never selects it.
+**Focused tooling merge dispatch.** A trusted exact-head `focused-dependency-config-security` dispatch names both `leonardo` and independent `splinter`, and waits for both views. It skips irrelevant application layers, not mandatory security coverage. A PR body, label, or caller claim never selects it.
 
 ---
 
