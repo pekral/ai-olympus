@@ -33,9 +33,9 @@ Only a zero exit permits the flow to continue — every non-zero exit and an una
 
 The low-risk path is opt-in: the project sets `merge.low-risk-path` and `risk.critical-paths` in its default-branch manifest, and the trusted classifier answers `low-risk-merge=yes` for the exact head (`@rules/git/pull-requests.md` *Low-risk merge path*). Read `references/low-risk-path.md` and follow it. It replaces the code-review gate, the delegated security coverage check, and the CI wait below with one security-only check, run before step 3 executes any code from the head. Every other case takes the full path, and every check below applies as written.
 
-For each PR, derive the verdict from the JSON document loaded in step 1:
+Derive the verdict from the step-1 JSON:
 
-- **Actual-diff scope first.** Follow `references/merge-exemptions.md` *The trusted classifier*; its focused record waives no gate.
+- **Scope first.** Follow `references/merge-exemptions.md`; focused scope waives no gate.
 
 - **Converged code review on the final diff (hard gate, two exemptions: `FAST`-tier PRs and dependency-only PRs; the low-risk path replaces it)** — a code review must have run on the effective PR diff being merged and report **no errors**: **0 Critical, and no undeferred Moderate**.
   Verify it: read the newest trusted code-review report with the trusted copy of `skills/_shared/cr-header.sh --report <loader-file>` (`references/trusted-record-parser.md`) — the hidden record of the newest trusted pull-request review that `@skills/code-review-github/SKILL.md` / `@skills/process-code-review/SKILL.md` posted, or a legacy `cr-comment` comment when that is newer (`skills/_shared/review-trust.jq` `newest_trusted_report`) — read its verdict against the three tests below, and confirm it reflects the current effective PR diff.
