@@ -183,12 +183,20 @@ test('an installed classifier verifies and runs its own libraries in a consumer 
         [$status] = installedCopyReferenceInstall($root, '--prune');
         expect($status)->toBe(0);
         $classifier = $commands . '/_shared/classify-risk.sh';
+        $delivery = $commands . '/_shared/security-delivery.php';
         $verify = [
             'bash', $skills . '/_shared/verify-installed-copy.sh', '--root', $root, '--commit', $tip, '--installed-reference',
-            $classifier, $commands . '/_shared/domain-vocabulary.sh', $commands . '/_shared/skill-path.sh',
+            $delivery, $classifier, $commands . '/_shared/domain-vocabulary.sh', $commands . '/_shared/skill-path.sh',
             $commands . '/_shared/read-manifest.sh', $skills . '/_shared/domain-vocabulary.sh', $skills . '/_shared/verify-installed-copy.sh',
         ];
         expect((new Process($verify, $root))->mustRun()->getOutput())->toContain('installed-copy-verdict=verified');
+        $missingSecurity = new Process(
+            [PHP_BINARY, $delivery],
+            $root,
+            input: json_encode(['summary' => '0 Critical · security: owned by leonardo', 'head_date' => '2026-05-28T12:00:00Z'], JSON_THROW_ON_ERROR),
+        );
+        expect($missingSecurity->run())->toBe(3);
+
         $classify = new Process(['bash', $classifier, '--files', '-'], $root, input: "README.md\n");
         expect($classify->mustRun()->getOutput())->toContain('tier=FAST');
 
