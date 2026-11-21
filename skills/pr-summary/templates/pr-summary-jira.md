@@ -73,7 +73,8 @@ Acceptance criteria
   An unmet or partially met criterion states why, and one closing sentence
   mentions the author of the changes (@skills/pr-summary/SKILL.md, An unmet
   criterion addresses the author).
-  The caller passes the full assignment verdict internally; only its requests
+  The caller passes the full @skills/assignment-compliance-check/SKILL.md
+  verdict internally; only its requests
   for changes render here. The pull request retains its functional verdict.
 
 Questions

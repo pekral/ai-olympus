@@ -347,7 +347,7 @@ test('assignment-compliance-check states the tracker verdict in all three cases'
     }
 });
 
-test('the tracker comment always carries the assignment verdict, the affirmative one included', function (): void {
+test('GitHub and Bugsnag carry the full verdict while JIRA carries remaining actions', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
@@ -364,11 +364,10 @@ test('the tracker comment always carries the assignment verdict, the affirmative
         expect($template)->not->toContain('the only route an assignment gap takes into this comment');
     }
 
-    // Issue #118: JIRA carries the same verdict in its first section instead of the slot, so the
-    // "always" half of the contract holds there through the section rather than through a block.
+    // JIRA filters the internal verdict to requests that still need action.
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
-    expect($jiraTemplate)->toContain('a CR run on a ticket with explicit criteria always carries it');
-    expect($jiraTemplate)->toContain('it states none, leave out the heading and everything under it');
+    expect($jiraTemplate)->toContain('or answer and its evidence. Omit satisfied requirements, positive verdicts,');
+    expect($jiraTemplate)->toContain('satisfied, omit the whole section. Omit it too when no criteria are stated.');
     expect($jiraTemplate)->not->toContain('the only route an assignment gap takes into this comment');
 });
 

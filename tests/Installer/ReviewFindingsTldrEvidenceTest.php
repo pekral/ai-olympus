@@ -152,5 +152,5 @@ test('review findings list only what must be resolved and every such point (issu
         ->toContain(
             'Such a point stays in the technical report, under `## Needs verification` and on the `Not verified:` line.',
         )
-        ->toContain('3. **`Review findings` is the second section** — only the points that must be resolved before the merge');
+        ->toContain('3. **`Review findings` lists only the points that still need a change or an answer before the merge**');
 });
