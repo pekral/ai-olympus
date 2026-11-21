@@ -6,6 +6,12 @@ Loaded by `@skills/merge-github-pr/SKILL.md` step 2 (*Pre-checks*). Step numbers
 
 Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review: the `FAST`-tier exemption below and *Merge path* (`references/low-risk-path.md`). A branch proposes a script, and a pull request that edits the tier logic would otherwise grade itself. This is the one owner of the rule.
 
+The same trusted copy derives the **merge scope before any review dispatch**. Fetch the PR head by its full object id into the untouched clone with no destination ref, as item 6 permits.
+
+With the verified base tip and `headRefOid` available, make the canonical effective patch with `git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none <base tip>...<headRefOid>` and pipe it to `classify-risk.sh --merge-scope --diff - --base <base tip> --head <headRefOid>`. The output records the resolved base, exact head, and canonical diff fingerprint; dispatch and the focused record must match all three.
+
+The helper resolves the merge base itself for structural comparisons. Do not check out the PR head, read a working-tree helper, use a two-dot range, or accept a patch supplied by the PR body. A missing object, a mismatched patch, or an incomplete scope output is conservative and selects the full review route.
+
 1. Create the untouched clone of item 6 before any other command of the run uses the repository. Run every command of this section in it.
 2. Run the trusted copy from that clone: `<clone>/skills/_shared/classify-risk.sh` when the default branch ships `skills/`. Never run a copy from the main worktree of the project, from the checked-out branch, from the gated head, or from a review worktree.
    - When the default branch tracks the installed copies instead, run the dependency install and the package install of `TIP` in the clone first, both started in the clone: `skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts --no-plugins"`, then `vendor/bin/ai-olympus install`. The installer writes the copies and records their SHA-256 in the git directory of the clone. Then use `<clone>/.claude/skills/_shared/classify-risk.sh` on Claude Code or `<clone>/.agents/skills/_shared/classify-risk.sh` on Codex.

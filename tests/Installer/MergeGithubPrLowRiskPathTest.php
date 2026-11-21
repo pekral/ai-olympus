@@ -37,7 +37,7 @@ test('the diff is made with text mode in the untouched clone and the base symlin
     expect($path)->toContain(
         'git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none <base tip>...<headRefOid>',
     )
-        ->and($path)->toContain('--merge-risk --base <base tip> --ignore-assignment --diff - --coverage ok --gate green')
+        ->and($path)->toContain('--merge-risk --base <base tip> --head <headRefOid> --ignore-assignment --diff - --coverage ok --gate green')
         ->and($path)->not->toContain('git merge-base')
         ->and($path)->toContain(
             'Run every command of this file in the untouched clone of `references/merge-exemptions.md` *The trusted classifier* item 6, '

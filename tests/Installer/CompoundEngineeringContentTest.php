@@ -165,7 +165,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
-    expect($pullRequest)->toContain('| skills/_shared/classify-risk.sh --merge-risk --diff - --assignment <file>');
+    expect($pullRequest)->toContain('| skills/_shared/classify-risk.sh --merge-risk --diff - --base "$BASE_SHA" --head "$HEAD_SHA" --assignment <file>');
     expect($pullRequest)->toContain('`two-way` means only that the script found no rollback signal; it does not prove that a revert restores the state');
     expect($pullRequest)->toContain('The signals are the ones in the script header, *Merge-risk mode*');
     expect($pullRequest)->toContain(

@@ -191,7 +191,7 @@ test('leonardo records each round on instruction, writes the analysis file in a 
     $leonardo = feedbackFile('agents/leonardo.md');
 
     expect($leonardo)
-        ->toContain('dispatches you in one of three modes')
+        ->toContain('dispatches you in one of four modes')
         ->toContain('- **Feedback analysis mode (recurring defect class)** — `krang` hands you one defect class')
         ->toContain('## Feedback analysis mode (recurring defect class)')
         ->toContain(

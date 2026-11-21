@@ -487,7 +487,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines, and a fence in a list item is bound by a stack of item offsets (issue #589).
         // Re-baselined: an Actionable comments entry may carry the suggested code of its finding, the one code a review shows (issue #654).
         // Re-baselined: the marker family names the `pr-body-overflow` namespace, the upserted pull-request body overflow comment (issue #662).
-        'rules/code-review/general.md' => '6ebae3eba83b9f5f97c3dba4c6cb52c730f0b153fff707a99a56c54f1a7cd0b8',
+        'rules/code-review/general.md' => 'c34d473d19b9df11e0aaa6abe1294c5cb3c802975fc7a034e5744edd40e394e6',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
