@@ -9,11 +9,13 @@ final class InstallerCopyReference
 
     private const REFERENCE_FILE = 'ai-olympus/installed-copies.sha256';
 
-    public static function record(string $root, ?string $skillsSource, ?string $commandsSource): void
+    public static function record(string $root): void
     {
+        $skillsSource = InstallerPath::resolveSkillsSource();
+        $commandsSource = InstallerPath::resolveCommandsSource();
         $gitDirectory = self::resolveGitDirectory($root);
 
-        if ($gitDirectory === null) {
+        if ($gitDirectory === null || ($skillsSource === null && $commandsSource === null)) {
             return;
         }
 

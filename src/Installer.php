@@ -126,7 +126,7 @@ final class Installer
         $root = InstallerPath::resolveProjectRoot();
         $syncCounts = self::runAllSyncs(self::collectSyncPayloads($root, $options->global), $options->force, $options->symlink, $options->prune);
 
-        self::recordCopyReference($root);
+        InstallerCopyReference::record($root);
         $copied = $syncCounts->copied + self::installRootInstructions($root);
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference($options->disableCoAuthorAttribution);
@@ -148,16 +148,6 @@ final class Installer
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
         return 0;
-    }
-
-    private static function recordCopyReference(string $root): void
-    {
-        $skillsSource = InstallerPath::resolveSkillsSource();
-        $commandsSource = InstallerPath::resolveCommandsSource();
-
-        if ($skillsSource !== null || $commandsSource !== null) {
-            InstallerCopyReference::record($root, $skillsSource, $commandsSource);
-        }
     }
 
     private static function installRootInstructions(string $root): int

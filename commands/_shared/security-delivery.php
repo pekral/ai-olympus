@@ -4,6 +4,10 @@ declare(strict_types = 1);
 
 try {
     $record = json_decode((string) stream_get_contents(STDIN), true, flags: JSON_THROW_ON_ERROR);
+    if (!is_array($record)) {
+        exit(3);
+    }
+
     $summary = $record['summary'] ?? null;
 
     if (!is_string($summary) || trim($summary) === '') {

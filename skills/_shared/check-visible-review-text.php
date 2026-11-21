@@ -54,13 +54,21 @@ function visiblePackageScriptNames(string $skillsRoot): array
     }
 
     $files = array_merge(
-        glob($skillsRoot . '/_shared/*') ?: [],
-        glob($skillsRoot . '/*/scripts/*') ?: [],
-        glob($commands . '/_shared/*') ?: [],
-        glob($commands . '/_shared/*/*') ?: [],
+        visibleGlob($skillsRoot . '/_shared/*'),
+        visibleGlob($skillsRoot . '/*/scripts/*'),
+        visibleGlob($commands . '/_shared/*'),
+        visibleGlob($commands . '/_shared/*/*'),
     );
 
     return array_values(array_unique(array_map(basename(...), array_filter($files, is_file(...)))));
+}
+
+/** @return list<string> */
+function visibleGlob(string $pattern): array
+{
+    $paths = glob($pattern);
+
+    return $paths === false ? [] : $paths;
 }
 
 function visibleNormalize(string $token): string
@@ -154,7 +162,7 @@ function visibleMain(): int
         return 1;
     }
 
-    $names = visiblePackageNames($text, array_values($repoPaths ?: []), dirname(__DIR__), $diffText);
+    $names = visiblePackageNames($text, $repoPaths === false ? [] : $repoPaths, dirname(__DIR__), $diffText);
 
     echo json_encode(['valid' => $names === [], 'names' => $names], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
 

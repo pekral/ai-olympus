@@ -147,7 +147,7 @@ test('commands ships exactly the commands the package exposes', function (): voi
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/commands'));
 
     foreach ($iterator as $file) {
-        if ($file->isFile() && $file->getExtension() === 'md') {
+        if ($file instanceof SplFileInfo && $file->isFile() && $file->getExtension() === 'md') {
             $markdown[] = $file->getPathname();
         }
     }
