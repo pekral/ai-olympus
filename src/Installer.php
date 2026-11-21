@@ -51,28 +51,6 @@ final class Installer
     }
 
     /**
-     * @return array<int, string>
-     */
-    public static function publicCommandFiles(string $source): array
-    {
-        return array_values(array_filter(
-            InstallerPruner::listSourceFiles($source),
-            static fn (string $path): bool => dirname($path) === '.' && pathinfo($path, PATHINFO_EXTENSION) === 'md',
-        ));
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public static function commandSupportFiles(string $source): array
-    {
-        return array_values(array_filter(
-            InstallerPruner::listSourceFiles($source),
-            static fn (string $path): bool => str_starts_with($path, '_shared/'),
-        ));
-    }
-
-    /**
      * @param array<int, string> $argv
      */
     private static function runDataCommand(string $command, array $argv): ?int
@@ -280,19 +258,7 @@ final class Installer
             $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root), null];
         }
 
-        $commandsSource = InstallerPath::resolveCommandsSource();
-
-        if ($commandsSource !== null) {
-            $payloads[] = [$commandsSource, InstallerPath::resolveCommandsTargetDirectories($root), self::publicCommandFiles($commandsSource)];
-            $payloads[] = [$commandsSource, InstallerPath::resolveCommandSupportTargetDirectories($root), self::commandSupportFiles($commandsSource)];
-            $payloads[] = [$commandsSource, InstallerPath::resolveCodexCommandsTargetDirectories($root), null];
-
-            if ($global) {
-                foreach (InstallerPath::resolveHomeSkillsDirectories() as $homeSkills) {
-                    $payloads[] = [$commandsSource, [dirname($homeSkills) . '/ai-olympus-commands'], null];
-                }
-            }
-        }
+        $payloads = [...$payloads, ...InstallerCommands::payloads($root, InstallerPath::resolveCommandsSource(), $global)];
 
         $codexAgentsSource = InstallerPath::resolveCodexAgentsSource();
 

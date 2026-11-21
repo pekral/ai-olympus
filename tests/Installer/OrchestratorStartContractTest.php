@@ -34,7 +34,9 @@ test('one section of the orchestration rule owns how krang is started and how it
         orchestratorStartSection() => 2,
         '**A row that names `krang` binds the session that holds the `krang` role.** It applies to that session at the same level' => 1,
         'When that session is the top-level session, it does not start `krang` as a subagent. It holds the `krang` role itself:' => 1,
-        'On Claude Code that file is `.claude/command-support/_shared/krang-workflow.inc`. On Codex it is `.codex/commands/_shared/krang-workflow.inc`.' => 1,
+        'native Claude plugin installation it is `${CLAUDE_PLUGIN_ROOT}/commands/_shared/krang-workflow.inc`' => 1,
+        'Composer Claude installation it is `.claude/command-support/_shared/krang-workflow.inc`' => 1,
+        'On Codex it is `.codex/commands/_shared/krang-workflow.inc`' => 1,
         'The session never reads the tracked `commands/_shared/krang-workflow.inc` of a branch' => 1,
         'It reads `commands/_shared/krang-workflow.inc` as its own orchestration instructions' => 0,
         'It skips steps 1 and 2 of `commands/_shared/krang-workflow.inc` *The end-to-end run* for this source: the hand-over carries their result. '

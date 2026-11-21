@@ -24,18 +24,14 @@ exit:   0 no package name, 1 usage error or unreadable input, 3 package name fou
 TXT;
 
 const VISIBLE_TOKEN = '~[A-Za-z0-9_.@/-]+~';
-const VISIBLE_PACKAGE_PATH = '~^(?:\.(?:claude|codex|agents)/.|skills/[^/]+|rules/[^/]+/|agents/[^/]+\.md$|codex/agents/)~';
-
-final class VisibleInputError extends RuntimeException
-{
-}
+const VISIBLE_PACKAGE_PATH = '~^(?:\.(?:claude|codex|agents)/.|skills/[^/]+|commands/_shared/|rules/[^/]+/|agents/[^/]+\.md$|codex/agents/)~';
 
 function visibleRead(string $source, string $what): string
 {
     $content = $source === '-' ? stream_get_contents(STDIN) : (is_file($source) ? file_get_contents($source) : false);
 
     if (!is_string($content)) {
-        throw new VisibleInputError('cannot read the ' . $what);
+        throw new UnexpectedValueException('cannot read the ' . $what);
     }
 
     return $content;
@@ -46,7 +42,23 @@ function visibleRead(string $source, string $what): string
  */
 function visiblePackageScriptNames(string $skillsRoot): array
 {
-    $files = array_merge(glob($skillsRoot . '/_shared/*') ?: [], glob($skillsRoot . '/*/scripts/*') ?: []);
+    $platform = dirname($skillsRoot);
+    $commands = match (basename($platform)) {
+        '.claude' => $platform . '/command-support',
+        '.agents' => dirname($platform) . '/.codex/commands',
+        default => $platform . '/commands',
+    };
+
+    if (is_dir($platform . '/ai-olympus-commands') && realpath(dirname($platform)) === realpath((string) getenv('HOME'))) {
+        $commands = $platform . '/ai-olympus-commands';
+    }
+
+    $files = array_merge(
+        glob($skillsRoot . '/_shared/*') ?: [],
+        glob($skillsRoot . '/*/scripts/*') ?: [],
+        glob($commands . '/_shared/*') ?: [],
+        glob($commands . '/_shared/*/*') ?: [],
+    );
 
     return array_values(array_unique(array_map(basename(...), array_filter($files, is_file(...)))));
 }
@@ -84,14 +96,8 @@ function visibleHeldByRepository(string $path, array $repoPaths): bool
  */
 function visiblePackageNames(string $text, array $repoPathList, string $skillsRoot, string $diffText = ''): array
 {
-    $diffNames = [];
-
     preg_match_all(VISIBLE_TOKEN, $diffText, $diffMatches);
-
-    foreach ($diffMatches[0] as $diffToken) {
-        $diffNames[visibleNormalize($diffToken)] = true;
-    }
-
+    $diffNames = array_fill_keys(array_map(visibleNormalize(...), $diffMatches[0]), true);
     $repoPaths = array_fill_keys($repoPathList, true);
     $repoBasenames = array_fill_keys(array_map(basename(...), $repoPathList), true);
     $scriptNames = array_fill_keys(visiblePackageScriptNames($skillsRoot), true);
@@ -109,7 +115,7 @@ function visiblePackageNames(string $text, array $repoPathList, string $skillsRo
 
         $basename = basename($name);
         $isPackagePath = preg_match(VISIBLE_PACKAGE_PATH, $name) === 1 && !visibleHeldByRepository($name, $repoPaths);
-        $isPackageScript = $basename !== '' && isset($scriptNames[$basename]) && !isset($repoBasenames[$basename]);
+        $isPackageScript = isset($scriptNames[$basename]) && !isset($repoBasenames[$basename]);
 
         if ($isPackagePath || $isPackageScript) {
             $names[$name] = true;
@@ -119,12 +125,18 @@ function visiblePackageNames(string $text, array $repoPathList, string $skillsRo
     return array_keys($names);
 }
 
+/** @param array<string, mixed>|false $options */
+function visibleOption(array|false $options, string $key): ?string
+{
+    return is_string($options[$key] ?? null) ? $options[$key] : null;
+}
+
 function visibleMain(): int
 {
     $options = getopt('', ['text:', 'repo-paths:', 'diff-text:']);
-    $textSource = is_string($options['text'] ?? null) ? $options['text'] : null;
-    $pathsSource = is_string($options['repo-paths'] ?? null) ? $options['repo-paths'] : null;
-    $diffSource = is_string($options['diff-text'] ?? null) ? $options['diff-text'] : null;
+    $textSource = visibleOption($options, 'text');
+    $pathsSource = visibleOption($options, 'repo-paths');
+    $diffSource = visibleOption($options, 'diff-text');
 
     if ($textSource === null) {
         fwrite(STDERR, VISIBLE_USAGE);
@@ -136,7 +148,7 @@ function visibleMain(): int
         $text = visibleRead($textSource, 'visible text');
         $repoPaths = $pathsSource === null ? [] : preg_split('/\R/', visibleRead($pathsSource, 'repository paths'), flags: PREG_SPLIT_NO_EMPTY);
         $diffText = $diffSource === null ? '' : visibleRead($diffSource, 'diff text');
-    } catch (VisibleInputError $error) {
+    } catch (UnexpectedValueException $error) {
         fwrite(STDERR, 'check-visible-review-text.php: ' . $error->getMessage() . "\n");
 
         return 1;

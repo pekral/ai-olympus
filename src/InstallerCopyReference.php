@@ -28,25 +28,8 @@ final class InstallerCopyReference
             );
         }
 
-        if ($commandsSource !== null) {
-            $lines .= self::recordDirectory(
-                $root,
-                $commandsSource,
-                InstallerPath::resolveCommandsTargetDirectories($root),
-                Installer::publicCommandFiles($commandsSource),
-            );
-            $lines .= self::recordDirectory(
-                $root,
-                $commandsSource,
-                InstallerPath::resolveCommandSupportTargetDirectories($root),
-                Installer::commandSupportFiles($commandsSource),
-            );
-            $lines .= self::recordDirectory(
-                $root,
-                $commandsSource,
-                InstallerPath::resolveCodexCommandsTargetDirectories($root),
-                InstallerPruner::listSourceFiles($commandsSource),
-            );
+        foreach (InstallerCommands::payloads($root, $commandsSource) as [$source, $targets, $files]) {
+            $lines .= self::recordDirectory($root, $source, $targets, $files);
         }
 
         self::write($gitDirectory . '/' . self::REFERENCE_FILE, $lines);

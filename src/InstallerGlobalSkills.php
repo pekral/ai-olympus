@@ -41,17 +41,22 @@ final class InstallerGlobalSkills
             }
 
             $removed = [...$removed, ...self::pruneDirectory($homeSkills, $skillNames)];
-            $support = dirname($homeSkills) . '/ai-olympus-commands';
-
-            if (!is_link(dirname($homeSkills)) && !is_link($support) && is_file($support . '/_shared/skill-entry.inc')) {
-                self::removeEntry($support, dirname($skillsSource) . '/commands');
-            }
+            self::pruneCommandSupport(dirname($homeSkills), dirname($skillsSource) . '/commands');
         }
 
         $removed = array_values(array_unique($removed));
         sort($removed);
 
         return $removed;
+    }
+
+    private static function pruneCommandSupport(string $directory, string $source): void
+    {
+        $support = $directory . '/ai-olympus-commands';
+
+        if (!is_link($directory) && !is_link($support) && is_file($support . '/_shared/skill-entry.inc')) {
+            self::removeEntry($support, $source);
+        }
     }
 
     /**
@@ -127,22 +132,25 @@ final class InstallerGlobalSkills
                 // @codeCoverageIgnoreEnd
             }
 
-            $entryPath = $entry->getPathname();
-
-            if ($entry->isDir() && !$entry->isLink()) {
-                self::rmdirQuietly($entryPath);
-
-                continue;
-            }
-
-            if ($source !== null && !self::matchesSource($entryPath, $source . substr($entryPath, strlen($path)))) {
-                continue;
-            }
-
-            self::unlinkQuietly($entryPath);
+            self::removeChild($entry, $path, $source);
         }
 
         return self::rmdirQuietly($path);
+    }
+
+    private static function removeChild(SplFileInfo $entry, string $parent, ?string $source): void
+    {
+        $path = $entry->getPathname();
+
+        if ($entry->isDir() && !$entry->isLink()) {
+            self::rmdirQuietly($path);
+
+            return;
+        }
+
+        if ($source === null || self::matchesSource($path, $source . substr($path, strlen($parent)))) {
+            self::unlinkQuietly($path);
+        }
     }
 
     private static function matchesSource(string $path, string $source): bool

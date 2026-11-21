@@ -55,7 +55,7 @@ test('a visible text that names a shared script of the package by its path is re
 });
 
 test('a package path written with HTML entities is refused as the name a reader sees', function (): void {
-    $process = runCheckVisibleReviewText('Coverage ran through <code>skills/&#95;shared/run-gate.sh</code>.', ['src/A.php']);
+    $process = runCheckVisibleReviewText('Coverage ran through <code>commands/&#95;shared/run-gate.sh</code>.', ['src/A.php']);
 
     expect($process->getExitCode())->toBe(3)
         ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["commands/_shared/run-gate.sh"]}');
@@ -93,7 +93,10 @@ test('a bare script name of the package is refused, also inside another director
         ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["' . $name . '"]}');
 })->with([
     'shared script' => ['The merge risk comes from `classify-risk.sh`.', 'classify-risk.sh'],
-    'vendor copy' => ['It runs vendor/pekral/ai-olympus/commands/_shared/run-validation.sh.', 'vendor/pekral/ai-olympus/commands/_shared/run-validation.sh'],
+    'vendor copy' => [
+        'It runs vendor/pekral/ai-olympus/commands/_shared/run-validation.sh.',
+        'vendor/pekral/ai-olympus/commands/_shared/run-validation.sh',
+    ],
     'wrapper script with a line' => ['The publish failed in post-inline-review.sh:42.', 'post-inline-review.sh'],
 ]);
 

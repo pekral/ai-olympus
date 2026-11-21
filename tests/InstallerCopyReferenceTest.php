@@ -220,8 +220,14 @@ test('each public command loads a protocol shipped by both the plugin and the in
         [$status] = installedCopyReferenceInstall($root, '--prune');
         expect($status)->toBe(0);
 
+        $layouts = [
+            [$package . '/commands', $package . '/commands'],
+            [$root . '/.claude/commands', $root . '/.claude/command-support'],
+            [$root . '/.codex/commands', $root . '/.codex/commands'],
+        ];
+
         foreach (['do-it', 'prepare-issue-for-merge', 'redesign-page', 'report-code-review', 'test-assignment'] as $name) {
-            foreach ([[$package . '/commands', $package . '/commands'], [$root . '/.claude/commands', $root . '/.claude/command-support'], [$root . '/.codex/commands', $root . '/.codex/commands']] as [$entryRoot, $supportRoot]) {
+            foreach ($layouts as [$entryRoot, $supportRoot]) {
                 $entry = (string) file_get_contents($entryRoot . '/' . $name . '.md');
                 expect(preg_match_all('~`commands/(_shared/[a-z0-9./-]+[.]inc)`~', $entry, $matches))->toBeGreaterThan(0);
 

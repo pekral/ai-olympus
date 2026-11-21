@@ -32,6 +32,6 @@ try {
     }
 
     exit($dates['delivered_date'] >= $dates['head_date'] ? 0 : 3);
-} catch (Exception) {
+} catch (Throwable) {
     exit(3);
 }
