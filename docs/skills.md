@@ -15,7 +15,7 @@ link to read the skill itself.
 | [Testing](#testing) | 10 |
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
-| [Content & writing](#content--writing) | 3 |
+| [Content & writing](#content--writing) | 4 |
 | [Infrastructure & performance](#infrastructure--performance) | 3 |
 | [Refactoring & code quality](#refactoring--code-quality) | 6 |
 | [Analysis & planning](#analysis--planning) | 5 |

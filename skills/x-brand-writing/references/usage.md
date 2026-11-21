@@ -43,40 +43,36 @@ Draft an English launch post. Recommend no asset unless Signal Kite provides one
 
 ## Output rules
 
-Return exactly two variants. Each recommendation points to an existing, verified, shareable host-project path or URL and sits outside the copy-ready text. The same asset may support both variants. A missing suitable asset is stated plainly outside the drafts.
+Return exactly two variants. Each recommendation points to an existing, verified, shareable host-project path or URL and sits outside the copy-ready text. The same asset may support both variants. When the host UI supports Markdown or a native preview, show one shared preview outside the copy-ready text; never invent an attachment. A missing suitable asset is stated plainly outside the drafts.
 
 Use a weighted-length validator when one is available in the host. Otherwise keep each post conservatively short, around 120 non-URL characters or fewer with no more than one URL, and say that weighted validation was not verified. Do not treat an ordinary character count as a weighted result.
 
 ## Sample validation
 
-The samples below are drafts only. They do not publish to X. They use the verified AI Olympus asset `assets/social-preview.png`. This repository has no suitable installed weighted-length validator, so each uses the conservative fallback and its exact weighted length is not verified.
+The samples below are drafts only. They do not publish to X. This repository has no suitable installed weighted-length validator, so each uses the conservative fallback and its exact weighted length is not verified.
 
 ### Product launch brief
 
-Brief: Announce the new `x-brand-writing` skill in English to maintainers who want project-grounded X copy.
+Brief: The host is the fictional project **Signal Kite**. Use only these facts: it helps volunteer coordinators share shift changes, and its latest update adds a printable weekly view. Draft an English launch post. No suitable Signal Kite asset was supplied.
 
 Variant A
 
-Suggested asset: `assets/social-preview.png`
+Suggested asset: no suitable verified Signal Kite asset found.
 
 Weighted count: not verified — no suitable validator was available.
 
 ```text
-x-brand-writing is new in AI Olympus.
-
-It turns project notes and a diff into X drafts for a human to publish.
+Volunteer coordinators using Signal Kite can now print a weekly view of shift changes.
 ```
 
 Variant B
 
-Suggested asset: `assets/social-preview.png`
+Suggested asset: no suitable verified Signal Kite asset found.
 
 Weighted count: not verified — no suitable validator was available.
 
 ```text
-Want X copy that sounds like the project?
-
-x-brand-writing starts with evidence, returns two drafts, and never posts.
+Signal Kite’s latest update adds a printable weekly view for sharing shift changes.
 ```
 
 ### Educational brief
@@ -88,6 +84,8 @@ Both variants are complete two-post threads.
 Variant A
 
 Suggested asset: `assets/social-preview.png`
+
+Preview when the host UI supports it (shared by both variants): ![AI Olympus social preview](../../../assets/social-preview.png)
 
 Weighted count: not verified — no suitable validator was available.
 
@@ -121,6 +119,8 @@ Variant A
 
 Suggested asset: `assets/social-preview.png`
 
+Preview when the host UI supports it (shared by both variants): ![AI Olympus social preview](../../../assets/social-preview.png)
+
 Weighted count: not verified — no suitable validator was available.
 
 ```text
@@ -141,11 +141,31 @@ Posun v psaní pro X: návrh vychází z toho, co projekt obsahuje.
 Workflow odděluje fakta, styl projektu a copy.
 ```
 
-## Preference persistence check
+## Executed preference-isolation validation
 
-1. A user edits a draft to lead with a concrete use case. The skill updates the host's `style.md` without another consent question and records the preference as confirmed only when the feedback makes it explicit.
-2. On the next invocation, the skill reads that same host record before drafting.
-3. The next draft leads with the concrete use case. A factual correction changes the evidence instead and does not become a style preference.
+This validation used an isolated temporary fixture for the fictional host **Harbor Relay**, then removed that fixture. Its fixture brief supplied only these facts: Harbor Relay helps workshop coordinators share tool-loan handoffs, and its latest update adds a printable daily board. It did not read or write a real project's preferences or personal data.
+
+Two separate implicit edits consistently changed openings to name volunteer coordinators and removed exclamation marks, so the saved host record became:
+
+```md
+# X writing preferences
+
+- Confirmed: Open with the named audience or concrete use case. Avoid exclamation marks.
+- Tentative: Prefer a practical closing over a question.
+- Scope: English launch posts for workshop coordinators.
+```
+
+The single ambiguous practical-closing edit remained tentative. The factual correction “the update adds a printable daily board” was excluded from the style record. A new invocation read the saved record without a consent dialog and produced these two drafts:
+
+```text
+Workshop coordinators can now use Harbor Relay’s printable daily board for tool-loan handoffs.
+```
+
+```text
+For workshop coordinators, Harbor Relay now adds a printable daily board for tool-loan handoffs.
+```
+
+Both drafts follow the confirmed audience-first opening and contain no exclamation mark. A separate fictional host had no `.x-brand-writing/style.md` record and did not inherit either preference.
 
 ## Preference record
 
