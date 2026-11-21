@@ -509,11 +509,11 @@ test('Claude Code and Codex install the same rules, skills, and agent instructio
 
         $markers = [
             '.agents/skills/process-code-review/references/review-state.md' => '### The cap round decides automatically',
-            '.codex/commands/_shared/plan-route.sh' => 'printf \'  "loop_model_tier": "%s",\n\' "$loop_model_tier"',
-            '.codex/commands/_shared/review-state.sh' => 'def security_rounds: 2;',
             '.codex/agent-instructions/donatello.md' => '## Fix round — close the whole class of defect',
             '.codex/agent-instructions/krang.md' => '  - **A `CRITICAL` run is escalated from its first dispatch:**',
             '.codex/agent-instructions/splinter.md' => '- `review depth: light` or `review depth: full` from round 2 on.',
+            '.codex/commands/_shared/plan-route.sh' => 'printf \'  "loop_model_tier": "%s",\n\' "$loop_model_tier"',
+            '.codex/commands/_shared/review-state.sh' => 'def security_rounds: 2;',
             '.codex/rules/code-review/review-rounds.md' => '### A light round after a small delta (issue #599)',
             '.codex/rules/compound-engineering/orchestration.md' => '**A `CRITICAL` tier is that evidence, so it escalates from the first dispatch.**',
         ];

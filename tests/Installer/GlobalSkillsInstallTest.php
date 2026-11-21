@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\Installer;
+use Symfony\Component\Process\Process;
 use Tests\Support\StderrCapture;
 
 /**
@@ -129,11 +130,11 @@ test('install rejects --global combined with --prune-global', function (): void 
 });
 
 test('global skill helpers use the matching home payload outside any checkout', function (): void {
-    globalSkillsRunInstall(['--global'], null, function (array $result): void {
+    globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
         foreach (['.agents', '.claude'] as $platform) {
             $scripts = $result['home'] . '/' . $platform . '/skills/_shared';
             $helper = $result['home'] . '/' . $platform . '/ai-olympus-commands/_shared/audit-trail.sh';
-            $process = new \Symfony\Component\Process\Process(
+            $process = new Process(
                 ['bash', '-c', 'source "$1" && resolve_command_helper audit-trail.sh', 'lookup', $scripts . '/resolve-command-helper.sh'],
                 $result['home'],
                 ['HOME' => $result['home']],

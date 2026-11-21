@@ -139,7 +139,9 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
         $payload = (string) file_get_contents($fixture['body']);
 
         expect($process->getExitCode())->toBe(0)
-            ->and((string) file_get_contents($fixture['directory'] . '/publication.audit'))->toContain('|external-write|https://github.com/acme/widgets/pull/42#issuecomment-502|updated (exit 0)')
+            ->and((string) file_get_contents($fixture['directory'] . '/publication.audit'))->toContain(
+                '|external-write|https://github.com/acme/widgets/pull/42#issuecomment-502|updated (exit 0)',
+            )
             // The newest comment carrying this actor's marker is updated in place.
             ->and($calls)->toContain('repos/acme/widgets/issues/comments/502 -X PATCH')
             ->and($calls)->not->toContain('-X POST')

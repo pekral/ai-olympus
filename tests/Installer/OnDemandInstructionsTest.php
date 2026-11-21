@@ -82,7 +82,9 @@ test('krang names each moved part where it used to sit, and the moved part has o
 
         expect($krang)->toContain('`' . $path . '`')
             ->and(packageSource($path))->toContain($sentence)
-            ->and(packageSource($path))->toContain('Extracted from `commands/_shared/krang-workflow.inc` so the orchestrator does not carry it on every run.')
+            ->and(packageSource($path))->toContain(
+                'Extracted from `commands/_shared/krang-workflow.inc` so the orchestrator does not carry it on every run.',
+            )
             ->and($krang)->not->toContain($sentence)
             ->and(substr_count($corpus, $sentence))->toBe(1);
     }
@@ -202,8 +204,11 @@ function onDemandUnresolvedCitations(string $target): array
     return array_values(array_unique($unresolved));
 }
 
-test('every section a file cites in commands/_shared/krang-workflow.inc or rules/code-review/general.md resolves in that file (issue #607)', function (): void {
-    expect(onDemandInstructionCorpus())->toHaveKey('agents/leonardo.md')
-        ->and(onDemandUnresolvedCitations('commands/_shared/krang-workflow.inc'))->toBe([])
-        ->and(onDemandUnresolvedCitations('rules/code-review/general.md'))->toBe([]);
-});
+test(
+    'every section a file cites in commands/_shared/krang-workflow.inc or rules/code-review/general.md resolves in that file (issue #607)',
+    function (): void {
+        expect(onDemandInstructionCorpus())->toHaveKey('agents/leonardo.md')
+            ->and(onDemandUnresolvedCitations('commands/_shared/krang-workflow.inc'))->toBe([])
+            ->and(onDemandUnresolvedCitations('rules/code-review/general.md'))->toBe([]);
+    },
+);

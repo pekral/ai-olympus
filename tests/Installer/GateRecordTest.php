@@ -296,7 +296,9 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     expect($read('skills/process-code-review/SKILL.md'))->toContain('plus the tree and the record path when `run-gate.sh` wrote a record');
     expect(krangContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
     expect(krangContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
-    expect($read('commands/_shared/krang-workflow.inc'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
+    expect($read('commands/_shared/krang-workflow.inc'))->toContain(
+        'Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.',
+    );
     expect($read('commands/_shared/krang-workflow.inc'))->toContain('and `commands/_shared/verify-gate.sh` (the machine gate record check;');
     expect($read('commands/_shared/orchestration/merge-preparation.inc'))->toContain(
         '`0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.',

@@ -52,7 +52,9 @@ test('the root session holds the krang role for every unit and starts no nested 
         ->and($batch)->toContain('The command with several references, or with `--merge`, is that request.')
         ->and($batch)->toContain('**Per-unit state is keyed by the unit slug.**')
         ->and($batch)->toContain('dispatch ledger, audit trail, routing ledger, and review state')
-        ->and($batch)->toContain('**The root session multiplexes the pipelines.** This is the one exception to `commands/_shared/krang-workflow.inc` *Dispatch blocking*.')
+        ->and($batch)->toContain(
+            '**The root session multiplexes the pipelines.** This is the one exception to `commands/_shared/krang-workflow.inc` *Dispatch blocking*.',
+        )
         ->and($batch)->toContain('A blocking dispatch serves one pipeline and would run the units one after the other, so the batch does not use it.')
         ->and($batch)->toContain(
             '*Dispatch blocking* and the turn rule apply with the one batch exception of *The root session multiplexes the pipelines* below.',
@@ -130,7 +132,9 @@ test('raphael serves from the unit worktree, installs through the lock, and runs
         ->and($raphael)->toContain(
             '**A dispatch that names a `Batch unit` worktree and carries the batch *Gate serialisation* block** changes three limits above.',
         )
-        ->and($raphael)->toContain('`commands/_shared/run-gate.sh --exclusive --command "<command>"`; that command is part of your Bash grant for that case')
+        ->and($raphael)->toContain(
+            '`commands/_shared/run-gate.sh --exclusive --command "<command>"`; that command is part of your Bash grant for that case',
+        )
         ->and($raphael)->toContain('`krang` runs at most one `raphael` at a time across the batch');
 
     expect($toml)->toContain('`commands/_shared/run-gate.sh --exclusive --command "<command>"` is part of this role\'s shell grant');

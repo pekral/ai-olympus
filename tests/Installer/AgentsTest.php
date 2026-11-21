@@ -3021,7 +3021,9 @@ test('krang decides each step against the runs in progress through the one plann
     expect($krang)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel steps against the runs in progress* owns the evidence');
     expect($krang)->toContain('On `decision=wait` never dispatch the step.');
     expect($krang)->not->toContain('over the live runs and the project memory');
-    expect((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc'))->toContain('commands/_shared/orchestration/analysis-only-routing.inc');
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc'))->toContain(
+        'commands/_shared/orchestration/analysis-only-routing.inc',
+    );
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/docs/agents.md'))->not->toContain('shared-resource entries of the project memory');
     expect($krang)->toContain('**Decide this step first**');
 
@@ -3084,7 +3086,9 @@ test('the gate worktree runs the pre-push tier only and is removed by krang in R
     expect($rule)->toContain('every fix is made in the unit\'s own tree');
     expect($rule)->toContain('The run records the worktree path in its handoff and stops `Blocked` when `git worktree add` fails');
     expect($rule)->toContain('The run leaves the worktree in place and records its path in its handoff.');
-    expect($rule)->toContain('`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* (`commands/_shared/krang-workflow.inc` step 7)');
+    expect($rule)->toContain(
+        '`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* (`commands/_shared/krang-workflow.inc` step 7)',
+    );
     expect($rule)->toContain('under the clean check and the confirmed-dead probe');
     expect($rule)->toContain('A subagent hands the path back and removes nothing');
     expect($rule)->not->toContain('The run removes the worktree once it is clean');

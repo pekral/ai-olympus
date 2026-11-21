@@ -49,7 +49,9 @@ test('install records the hash of every installed workflow copy in the git direc
         $lines = installedCopyReferenceLines($root . '/.git/ai-olympus/installed-copies.sha256');
 
         expect($exitCode)->toBe(0)
-            ->and($lines['.claude/command-support/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.claude/command-support/_shared/classify-risk.sh'))
+            ->and($lines['.claude/command-support/_shared/classify-risk.sh'])->toBe(
+                hash_file('sha256', $root . '/.claude/command-support/_shared/classify-risk.sh'),
+            )
             ->and($lines['.codex/commands/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.codex/commands/_shared/classify-risk.sh'))
             ->and($lines['.claude/commands/do-it.md'])->toBe(hash_file('sha256', $root . '/.claude/commands/do-it.md'))
             ->and($lines['.claude/skills/code-review/SKILL.md'])->toBe(hash_file('sha256', $root . '/.claude/skills/code-review/SKILL.md'))
@@ -173,7 +175,10 @@ test('an installed classifier verifies and runs its own libraries in a consumer 
 
     try {
         (new Process(['git', 'init', '-q'], $root))->mustRun();
-        (new Process(['git', '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=Fixture', 'commit', '--allow-empty', '-qm', 'fixture'], $root))->mustRun();
+        (new Process(
+            ['git', '-c', 'user.email=fixture@example.invalid', '-c', 'user.name=Fixture', 'commit', '--allow-empty', '-qm', 'fixture'],
+            $root,
+        ))->mustRun();
         $tip = trim((new Process(['git', 'rev-parse', 'HEAD'], $root))->mustRun()->getOutput());
         [$status] = installedCopyReferenceInstall($root, '--prune');
         expect($status)->toBe(0);

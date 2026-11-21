@@ -9,7 +9,7 @@ test('skills contain no team-role names', function (): void {
     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/skills', FilesystemIterator::SKIP_DOTS));
 
     foreach ($files as $file) {
-        if (!$file instanceof SplFileInfo || !in_array($file->getExtension(), ['md', 'sh', 'php', 'jq', 'json'], true)) {
+        if (!$file instanceof SplFileInfo || !in_array($file->getExtension(), ['md', 'sh', 'php', 'jq', 'json'], strict: true)) {
             continue;
         }
 
@@ -40,14 +40,17 @@ test('every public command starts the command-owned root workflow', function ():
     }
 });
 
-test('a merge requires a fresh delivered security assessment for every delegated summary', function (string $summary, ?string $delivery, int $expected): void {
-    $process = new Process(
-        [PHP_BINARY, dirname(__DIR__, 2) . '/commands/_shared/security-delivery.php'],
-        input: json_encode(['summary' => $summary, 'head_date' => '2026-05-28T12:00:00Z', 'delivered_date' => $delivery], JSON_THROW_ON_ERROR),
-    );
-
-    expect($process->run())->toBe($expected);
-})->with([
+test(
+    'a merge requires a fresh delivered security assessment for every delegated summary',
+    function (string $summary, ?string $delivery, int $expected): void {
+        $process = new Process(
+            [PHP_BINARY, dirname(__DIR__, 2) . '/commands/_shared/security-delivery.php'],
+            input: json_encode(['summary' => $summary, 'head_date' => '2026-05-28T12:00:00Z', 'delivered_date' => $delivery], JSON_THROW_ON_ERROR),
+        );
+    
+        expect($process->run())->toBe($expected);
+    },
+)->with([
     ['0 Critical · security: owned by leonardo', null, 3],
     ['0 Critical · security: owned by leonardo', '2026-05-28T11:59:59Z', 3],
     ['0 Critical · security: owned by review', null, 3],

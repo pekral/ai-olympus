@@ -51,6 +51,28 @@ final class Installer
     }
 
     /**
+     * @return array<int, string>
+     */
+    public static function publicCommandFiles(string $source): array
+    {
+        return array_values(array_filter(
+            InstallerPruner::listSourceFiles($source),
+            static fn (string $path): bool => dirname($path) === '.' && pathinfo($path, PATHINFO_EXTENSION) === 'md',
+        ));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function commandSupportFiles(string $source): array
+    {
+        return array_values(array_filter(
+            InstallerPruner::listSourceFiles($source),
+            static fn (string $path): bool => str_starts_with($path, '_shared/'),
+        ));
+    }
+
+    /**
      * @param array<int, string> $argv
      */
     private static function runDataCommand(string $command, array $argv): ?int
@@ -326,7 +348,14 @@ final class Installer
      * @param array<int, string> $targets
      * @param array<int, string>|null $sourceFiles
      */
-    private static function syncDirectories(string $source, array $targets, bool $force, bool $symlink, bool $prune, ?array $sourceFiles = null): SyncCounts
+    private static function syncDirectories(
+        string $source,
+        array $targets,
+        bool $force,
+        bool $symlink,
+        bool $prune,
+        ?array $sourceFiles = null,
+    ): SyncCounts
     {
         $copied = 0;
         $pruned = 0;
@@ -354,28 +383,6 @@ final class Installer
         }
 
         return new SyncCounts(copied: $copied, pruned: $pruned, orphaned: $orphaned, orphanedTargets: $orphanedTargets);
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public static function publicCommandFiles(string $source): array
-    {
-        return array_values(array_filter(
-            InstallerPruner::listSourceFiles($source),
-            static fn (string $path): bool => dirname($path) === '.' && pathinfo($path, PATHINFO_EXTENSION) === 'md',
-        ));
-    }
-
-    /**
-     * @return array<int, string>
-     */
-    public static function commandSupportFiles(string $source): array
-    {
-        return array_values(array_filter(
-            InstallerPruner::listSourceFiles($source),
-            static fn (string $path): bool => str_starts_with($path, '_shared/'),
-        ));
     }
 
 }

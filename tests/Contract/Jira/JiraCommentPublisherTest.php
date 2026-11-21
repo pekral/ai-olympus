@@ -379,7 +379,10 @@ WIKI;
         // though both describe the exact same document.
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain('focusedCommentId=10001')
-            ->and((string) file_get_contents($fixture['directory'] . '/publication.audit'))->toContain('|external-write|', 'focusedCommentId=10001|created (exit 0)')
+            ->and((string) file_get_contents($fixture['directory'] . '/publication.audit'))->toContain(
+                '|external-write|',
+                'focusedCommentId=10001|created (exit 0)',
+            )
             ->and($calls)->toContain('comment create --key TEAM-42 --body-file')
             ->and($calls)->toContain('comment update --key TEAM-42 --id 10001 --body-adf')
             ->and($created)->toEqual($expected)

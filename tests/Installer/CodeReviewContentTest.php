@@ -2540,7 +2540,9 @@ test('the project instruction sources of a review are read through a default-bra
         ->and($manifest)->toContain('in the same shell call as `REF`')
         ->and($manifest)->toContain('A failed read, an empty output, or invalid JSON gives `{}` and the review says why.')
         ->and($manifest)->toContain('This is the reader of the review gate because the gate runs after the head is checked out;')
-        ->and($manifest)->toContain('`commands/_shared/read-manifest.sh` stays the reader everywhere else (`@rules/general/general.md` *Project manifest*).')
+        ->and($manifest)->toContain(
+            '`commands/_shared/read-manifest.sh` stays the reader everywhere else (`@rules/general/general.md` *Project manifest*).',
+        )
         ->and($manifest)->not->toContain('trusted copy')
         ->and($manifest)->not->toContain('`cmp`')
         ->and($skill)->toContain($manifestRead)
