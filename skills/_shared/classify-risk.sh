@@ -1100,12 +1100,12 @@ composer_patch_compatible() {
 # graphs retain their identities and every resolved version change is a patch
 # increase. Composer constraints alone do not prove the resolved graph.
 composer_lock_patch_compatible() {
-  local base="$1" head="$2" base_lock head_lock
-  base_lock="$(git show "${base}:composer.lock" 2>/dev/null)" || return 1
-  head_lock="$(git show "${head}:composer.lock" 2>/dev/null)" || return 1
-  jq -e 'type == "object"' >/dev/null <<<"$base_lock" || return 1
-  jq -e 'type == "object"' >/dev/null <<<"$head_lock" || return 1
-  jq -en --argjson base "$base_lock" --argjson head "$head_lock" '
+  local base="$1" head="$2"
+  git cat-file -e "${base}:composer.lock" 2>/dev/null || return 1
+  git cat-file -e "${head}:composer.lock" 2>/dev/null || return 1
+  jq -en \
+    --slurpfile base <(git show "${base}:composer.lock" 2>/dev/null) \
+    --slurpfile head <(git show "${head}:composer.lock" 2>/dev/null) '
     def package_maps:
       [(.packages // []), (."packages-dev" // [])]
       | map(
@@ -1121,8 +1121,8 @@ composer_lock_patch_compatible() {
       then capture("^v?(?<major>[0-9]+)\\.(?<minor>[0-9]+)\\.(?<patch>[0-9]+)$")
       else null
       end;
-    ($base | package_maps) as $base_packages |
-    ($head | package_maps) as $head_packages |
+    ($base[0] | if type == "object" then . else error("base lock") end | package_maps) as $base_packages |
+    ($head[0] | if type == "object" then . else error("head lock") end | package_maps) as $head_packages |
     all(range(0; 2); . as $group |
       ($base_packages[$group] | keys_unsorted) == ($head_packages[$group] | keys_unsorted)) and
     [range(0; 2) as $group |
@@ -1756,6 +1756,19 @@ TEXT
     cat >"$target"
     printf '%s' "$target"
   }
+  write_large_lock() {
+    local target="$1" first_version="$2" index separator="" version
+    {
+      printf '{"packages":['
+      for ((index = 0; index < 20000; index++)); do
+        version='1.0.0'
+        [[ "$index" -ne 0 ]] || version="$first_version"
+        printf '%s{"name":"vendor/package-%05d","version":"%s"}' "$separator" "$index" "$version"
+        separator=','
+      done
+      printf '],"packages-dev":[]}'
+    } >"$target"
+  }
   local verified=(--coverage ok --gate green --assignment "$tmp/clear.txt")
   local fix migration_drop migration_empty migration_create
   fix="$({
@@ -1904,6 +1917,25 @@ TEXT
   cd "$pipe_repo"
   expect_line 'a project-critical filename containing a pipe takes the conservative scope' 'merge-scope=conservative' \
     --merge-scope --diff "$pipe_diff" --base "$pipe_base" --head "$pipe_head"
+  cd "$tmp"
+
+  local large_lock_repo large_lock_base large_lock_head large_lock_diff
+  large_lock_repo="$tmp/large-lock-repo"
+  mkdir -p "$large_lock_repo"
+  git -C "$large_lock_repo" init -q
+  printf '{"require":{"vendor/package-00000":"^1.0.0"}}\n' >"$large_lock_repo/composer.json"
+  write_large_lock "$large_lock_repo/composer.lock" '1.0.0'
+  git -C "$large_lock_repo" add -A
+  git -C "$large_lock_repo" -c user.name=t -c user.email=t commit -q -m base-lock
+  large_lock_base="$(git -C "$large_lock_repo" rev-parse HEAD)"
+  write_large_lock "$large_lock_repo/composer.lock" '1.0.1'
+  git -C "$large_lock_repo" add composer.lock
+  git -C "$large_lock_repo" -c user.name=t -c user.email=t commit -q -m patch-lock
+  large_lock_head="$(git -C "$large_lock_repo" rev-parse HEAD)"
+  large_lock_diff="$(git -C "$large_lock_repo" diff --no-color --no-ext-diff --no-textconv --text "$large_lock_base...$large_lock_head" | writediff)"
+  cd "$large_lock_repo"
+  expect_line 'a large resolved lock patch remains low risk eligible' 'merge-scope-low-risk-eligible=yes' \
+    --merge-scope --diff "$large_lock_diff" --base "$large_lock_base" --head "$large_lock_head"
   cd "$tmp"
 
   expect_line 'a small tested fix with green checks is low risk' 'merge-risk=low' \
