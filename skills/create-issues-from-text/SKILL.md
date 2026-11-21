@@ -40,7 +40,7 @@ metadata:
 
 ## Guard for a possible vulnerability
 
-This section is the single owner of the guard. `@skills/create-issue/SKILL.md` and `@skills/do-it/SKILL.md` step 5 reference it and do not restate it. `agents/leonardo.md` *Never disclose an unfixed vulnerability on a public tracker* stays the L3 source of the rule.
+This section is the single owner of the guard. `@skills/create-issue/SKILL.md` and `@skills/do-it/SKILL.md` step 5 reference it and do not restate it. `the command workflow` *Never disclose an unfixed vulnerability on a public tracker* stays the L3 source of the rule.
 
 1. Check the visibility of the repository the issue is created in, once per target, with `gh repo view <owner/name> --json isPrivate`. Use the same `<owner/name>` that the create call gets. A result that is not `true`, a check that fails, and a target whose visibility cannot be shown (a tracker that is not GitHub, for example) count as public.
 2. On a public repository, create no issue for an item whose text describes an unfixed vulnerability: a missing or broken security control with an exploit path in code that already exists. Disclosing it on a public tracker is L3. This holds even when *Constraints* say to preserve the original assignment.
@@ -98,6 +98,6 @@ Use this when the assignment bundles **several behaviours that are each delivere
 4. **Link every sub-issue back to the parent (both directions).**
    - In each sub-issue body, reference the parent with `Part of #<parent>` so the relationship is visible from the child. Place the line after the last block of the body, never before the opening text, so *What this is about* stays the first text of the body.
    - In the parent body, keep a checkable task list of the children — `- [ ] #<child>` per sub-issue — under a `## Sub-issues` heading, so the parent shows the full breakdown and progress. Place the heading and the list after the last block of the parent body, never before the opening text.
-5. **Order.** Fill each sub-issue's `## Dependencies` so a resolving run (e.g. `krang`) can pick a dependency-aware order — dependencies before dependents.
+5. **Order.** Fill each sub-issue's `## Dependencies` so a resolving run (e.g. `command`) can pick a dependency-aware order — dependencies before dependents.
 6. **Triage.** Triage the parent only when step 1 created it, and every sub-issue, right after they are created, as step 3 of *Execution* states. An existing tracker item that became the parent is not triaged.
 7. **Output.** Return the `EPIC`-labelled parent URL plus the list of linked sub-issue URLs, the planned resolve order, and the untriaged issues with their reasons.

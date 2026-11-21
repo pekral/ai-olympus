@@ -52,7 +52,7 @@
 #
 # Audit trail:
 #   Each tracker write appends its own line to the run's `.audit` file at the
-#   moment it happens, through `skills/_shared/audit-trail.sh record`: the
+#   moment it happens, through `commands/_shared/audit-trail.sh record`: the
 #   sub-issue creation, the GitHub parent link, each with the real exit status.
 #   A failed attempt leaves a `note` line. The ledger comes from AUDIT_TRAIL_FILE
 #   and AUDIT_TRAIL_ROLE; a missing ledger prints a hint on stderr and never

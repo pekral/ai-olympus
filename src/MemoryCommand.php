@@ -139,7 +139,7 @@ final class MemoryCommand
     private static function defaultReference(string $root): string
     {
         $process = proc_open(
-            ['bash', __DIR__ . '/../skills/_shared/read-manifest.sh', '--default-ref'],
+            ['bash', __DIR__ . '/../commands/_shared/read-manifest.sh', '--default-ref'],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $pipes,
             $root,

@@ -82,7 +82,7 @@
 #
 # Audit trail:
 #   The write appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line with the comment URL, or a `note` line for a failed attempt, both with
 #   the acting role and the real exit status of the write request. The ledger
 #   comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE. A missing ledger prints a

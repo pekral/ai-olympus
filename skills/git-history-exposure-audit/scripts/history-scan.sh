@@ -84,7 +84,7 @@
 # Suppression (review modes only)
 #   The one suppression path is the default-branch manifest key `history-exposure.allow`, a list of
 #   {rule, path} objects with literal paths as this script prints them, read through
-#   skills/_shared/read-manifest.sh. Each suppressed occurrence is counted on `suppressed:`. Nothing
+#   commands/_shared/read-manifest.sh. Each suppressed occurrence is counted on `suppressed:`. Nothing
 #   on the branch — an inline marker, a PR text, a commit message, a manifest change — suppresses a
 #   finding. The full audit suppresses nothing.
 #
@@ -1047,7 +1047,7 @@ cleanup_run() {
 # The run directory: the git-ignored run root of the current checkout, created without `mkdir -p`,
 # checked physically against the top level, and refused when git does not ignore it. Each start
 # removes sibling run directories whose holder process is confirmed dead; an inconclusive probe
-# leaves the directory alone (gate_lock_is_stale in skills/_shared/gate-record.sh).
+# leaves the directory alone (gate_lock_is_stale in commands/_shared/gate-record.sh).
 make_run_dir() {
   local root="$1" top phys path part sibling IFS
   top="$(git_ro rev-parse --show-toplevel 2>/dev/null)" || die 1 'the full audit runs inside a git checkout'

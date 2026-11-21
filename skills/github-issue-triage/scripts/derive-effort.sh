@@ -13,7 +13,7 @@
 #   count  the `count=` line of `skills/_shared/count-assignment.sh --assignment <file>`: the distinct
 #          files the assignment names plus its criteria. That script is the one owner of the method
 #          `files-and-criteria`, which `@skills/do-it/SKILL.md` reads as the duration of an item.
-#   tier   the `tier=` line of `skills/_shared/classify-risk.sh --assignment <file>`, or the value of
+#   tier   the `tier=` line of `commands/_shared/classify-risk.sh --assignment <file>`, or the value of
 #          `--tier` (the caller already ran the classifier).
 #
 # Thresholds

@@ -4,7 +4,7 @@
 # The voice is cosmetic, so every failure falls back to the default and never stops a run.
 #
 # Usage
-#   resolve-voice.sh            read the manifest from the default branch (skills/_shared/read-manifest.sh)
+#   resolve-voice.sh            read the manifest from the default branch (commands/_shared/read-manifest.sh)
 #   resolve-voice.sh --stdin    read the manifest JSON from standard input
 #   resolve-voice.sh --self-test
 #

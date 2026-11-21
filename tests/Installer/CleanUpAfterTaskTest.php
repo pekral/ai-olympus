@@ -14,7 +14,7 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
         ->and($git)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel units*')
         ->and($git)->toContain('`agents/leonardo.md` *Review worktree*')
         ->and($git)->toContain('A worktree locked by another run is unlocked only by its owner, after the confirmed-dead probe')
-        ->and($git)->toContain('`@skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*')
+        ->and($git)->toContain('`@commands/_shared/orchestration/stale-run-recovery.inc` *Stale worktrees*')
         ->and($git)->toContain('A match with the pushed upstream proves only that the branch is pushed.')
         ->and($git)->toContain('`git merge-base --is-ancestor <branch> "origin/$DEFAULT_BRANCH"`, then run `git branch -d`')
         ->and($git)->not->toContain('`git branch -d` when it matches its pushed upstream')
@@ -27,7 +27,7 @@ test('every agent cleans up its temporary files, worktrees, and local branches w
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     expect($merge)->toContain(
         'unlock it first with `git worktree unlock <path>` only when its lock reason names this run\'s own `$PPID`, '
-        . 'otherwise only after the confirmed-dead probe of `skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*; '
+        . 'otherwise only after the confirmed-dead probe of `commands/_shared/orchestration/stale-run-recovery.inc` *Stale worktrees*; '
         . 'a live, EPERM, or unparseable probe leaves it in place and the report names it',
     )
         ->and($merge)->not->toContain('is such a worktree: unlock it first with `git worktree unlock <path>`, and remove it');

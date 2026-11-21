@@ -105,19 +105,19 @@ test('the merge gate checks the gate record only with the verified copy of the r
 
     expect($section)->toContain('never the copy of the checked-out head')
         ->and($section)->toContain(
-            '`skills/_shared/verify-gate.sh skills/_shared/gate-record.sh skills/_shared/project-commands.sh '
-            . 'skills/_shared/read-manifest.sh skills/_shared/gate-lock.sh`',
+            '`commands/_shared/verify-gate.sh commands/_shared/gate-record.sh commands/_shared/project-commands.sh '
+            . 'commands/_shared/read-manifest.sh commands/_shared/gate-lock.sh`',
         )
         ->and($section)->toContain(
-            '`( cd "<checked-out head>" && "<clone>/skills/_shared/verify-gate.sh" --tier full "<headRefOid>" )`',
+            '`( cd "<checked-out head>" && "<clone>/commands/_shared/verify-gate.sh" --tier full "<headRefOid>" )`',
         )
         ->and($section)->toContain('No verified copy accepts no record: handle it like exit `10`')
         ->and(trustedRecordParserSource('skills/merge-github-pr/SKILL.md'))->toContain(
-            'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` '
+            'Run the trusted copy of `commands/_shared/verify-gate.sh --tier full <headRefOid>` '
             . '(`references/trusted-record-parser.md`) on the checked-out head',
         )
         ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))->toContain(
-            'run the trusted copy of `skills/_shared/verify-gate.sh --tier full <head SHA>`',
+            'run the trusted copy of `commands/_shared/verify-gate.sh --tier full <head SHA>`',
         );
 });
 
@@ -211,7 +211,7 @@ test('the fast merge loads the pull request and checks the gate record only with
         . installerDocsSection($skill, '### 2. Security check — one pass, inline')
         . installerDocsSection($skill, '### 3. The gate');
     $loader = '`skills/code-review-github/scripts/load-issue.sh';
-    $verifier = '`skills/_shared/verify-gate.sh';
+    $verifier = '`commands/_shared/verify-gate.sh';
 
     expect($section)->toContain('the path the verifier checks is `skills/code-review-github/scripts/load-issue.sh`')
         ->and($section)->toContain(

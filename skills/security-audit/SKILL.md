@@ -30,7 +30,7 @@ How this differs from its neighbours:
 - The coordinator and bounded read-only worker pattern is the one the `simplification-audit` skill uses (its *Execution* steps 1 to 4): a coverage contract first, one subsystem per worker with a non-overlapping boundary, fresh workers where the host has them and sequential passes where it does not, and the coordinator re-checks every result itself. This skill reuses it and adds reconnaissance, hunting waves, a verification stage, and a budget.
 - `composer security-audit` is this repository's Composer alias for `composer audit` (dependency advisories). It is a different thing in a different namespace and keeps its name.
 
-**Audit profiles are not risk tiers.** The profiles `quick`, `standard`, and `deep` set how deep the audit goes. The risk tiers `FAST`, `STANDARD`, and `CRITICAL` of `skills/_shared/classify-risk.sh` set how much review a change needs. The two never map onto each other, and an audit never reads or sets a risk tier.
+**Audit profiles are not risk tiers.** The profiles `quick`, `standard`, and `deep` set how deep the audit goes. The risk tiers `FAST`, `STANDARD`, and `CRITICAL` of `commands/_shared/classify-risk.sh` set how much review a change needs. The two never map onto each other, and an audit never reads or sets a risk tier.
 
 ---
 

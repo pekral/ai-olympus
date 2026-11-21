@@ -18,7 +18,7 @@ installed directory (.claude/, .codex/, .agents/), and the file name of a packag
   --diff-text   the added and removed lines of the reviewed change, without their +/- marker. A name that
                 one of those lines carries is the reviewed project's own text and stays allowed.
 
-stdout: {"valid": bool, "names": ["skills/_shared/run-gate.sh"]}
+stdout: {"valid": bool, "names": ["commands/_shared/run-gate.sh"]}
 exit:   0 no package name, 1 usage error or unreadable input, 3 package name found
 
 TXT;

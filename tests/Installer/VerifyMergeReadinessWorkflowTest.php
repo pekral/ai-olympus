@@ -296,7 +296,7 @@ test('verify-merge-readiness changes only the assignment and leaves every other 
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $preparation = (string) file_get_contents($packageDir . '/skills/_shared/orchestration/merge-preparation.md');
+    $preparation = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/merge-preparation.inc');
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
     $tracker = (string) file_get_contents($packageDir . '/rules/compound-engineering/tracker.md');
 

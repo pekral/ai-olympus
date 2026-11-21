@@ -2528,7 +2528,7 @@ st_served() {
 }
 
 # A link below a served directory: whatever the change re-points, adds, or edits below it, the review
-# reports the scan-root link that serves the directory (leonardo P1 to P6, splinter a to e).
+# reports the scan-root link that serves the directory (review P1 to P6, independent security review a to e).
 st_served_cases() {
   local r i link target chg name
 

@@ -3,6 +3,8 @@ description: Test one task's pull request against its assignment, prove that not
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [report|fix] [optional test data]
 ---
 
+On Claude Code, resolve `commands/_shared/` below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+
 This session holds the `krang` role in test mode and never starts `krang` as a subagent, per
 `@rules/compound-engineering/orchestration.md`
 *Starting the orchestrator — the top-level role and the nested hand-over*. Run `@skills/test-assignment/SKILL.md` with these arguments:

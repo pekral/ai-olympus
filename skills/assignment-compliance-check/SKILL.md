@@ -46,7 +46,7 @@ Skip generic developer hygiene wishes ("clean code", "tests please"). The check 
 
 ### 2a. Compare every requirement with the product documentation
 Apply `@rules/code-review/general.md` *Published product documentation is a requirement the assignment need not restate* to the requirements themselves, before the diff is read.
-- Resolve the documentation source the project declares: the `product-docs` key of the manifest (`skills/_shared/read-manifest.sh`) or the project's `CLAUDE.md`. When the project declares none, record `no documentation source declared` and skip this step.
+- Resolve the documentation source the project declares: the `product-docs` key of the manifest (`commands/_shared/read-manifest.sh`) or the project's `CLAUDE.md`. When the project declares none, record `no documentation source declared` and skip this step.
 - For every requirement from step 2 that describes user-facing behaviour, search the source and give the requirement one status: `consistent`, `contradicts`, or `not documented`. Record the article URL, the sentence for `contradicts`, and what was searched for `not documented`.
 - Return the statuses to the caller beside the block, never inside it. A `contradicts` row is a documentation mismatch that the calling wrapper publishes per that rule: a Moderate finding on the pull request and a *Clarifying questions* entry on the tracker (on JIRA, inside the bullet of the criterion it concerns). It is not a Critical gap, and it does not change the verdict of this block.
 

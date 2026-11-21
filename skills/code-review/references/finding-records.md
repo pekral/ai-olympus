@@ -2,7 +2,7 @@
 
 This file is the one contract for turning a published code-review report into machine-readable finding records. It is phase 1 of the recurring-defect epic (#185): later phases group the records across pull requests, so the record and its fingerprint must be stable.
 
-The contract adds no review format. It reads the two reports the review already produces: the findings report of a review round, and the report the converged run publishes — on GitHub the hidden record of its pull-request review, earlier the `cr-comment` comment (`templates/review-output.md`, `@rules/code-review/general.md` *One published comment per review run*). The reproducer fields, the severities, and the `Rule`, `Location`, and `Deferred` fields stay exactly as they are. The reviewer (`leonardo`) stays read-only and writes no record.
+The contract adds no review format. It reads the two reports the review already produces: the findings report of a review round, and the report the converged run publishes — on GitHub the hidden record of its pull-request review, earlier the `cr-comment` comment (`templates/review-output.md`, `@rules/code-review/general.md` *One published comment per review run*). The reproducer fields, the severities, and the `Rule`, `Location`, and `Deferred` fields stay exactly as they are. The reviewer (`review`) stays read-only and writes no record.
 
 ## Command
 
@@ -18,7 +18,7 @@ extract-findings.sh --self-test
 
 - Without `--store`, the script prints the extracted records, one JSON object per line.
 - With `--store`, the script merges the records into that JSON Lines file by `id` and replaces the file atomically. It prints one summary line. One writer uses a store at a time.
-- With `--round`, the script reads one round report of the review loop and prints one review-loop record (schema 2, see *Review-loop records* below) per finding identity. It writes nothing. `skills/_shared/review-state.sh` keeps the loop state.
+- With `--round`, the script reads one round report of the review loop and prints one review-loop record (schema 2, see *Review-loop records* below) per finding identity. It writes nothing. `commands/_shared/review-state.sh` keeps the loop state.
 - With `--validate`, the script checks a record file. A file holds records of one schema, and each record is checked against its schema.
 - With `--header`, the script reads one report and writes nothing. It prints `{"revision","time"}`: the `Reviewed revision` and the `Last updated` time in UTC, from the same parse the extraction uses. It refuses with exit `3` every report that the extraction refuses while reading it.
 - Exit `0` is success, `1` a usage error, `2` a missing tool, `3` a malformed or incomplete report or store. After exit `3` nothing is written.
@@ -119,7 +119,7 @@ The record carries what the next phases read, so they need no second extraction:
 - A prevention proposal cites `category`, `cause_key`, `subsystem`, `reproducer`, and `expected_behavior`.
 - Routing by tier reads `severity`.
 
-Phase 1 does not run the extractor from the review loop, store records anywhere by default, or group them. Issue #225 adds the round mode below: the review loop runs it through `skills/_shared/review-state.sh`, and it writes no store record. Phase 4 wires those steps: `skills/_shared/feedback-loop.sh` runs the extractor, and `feedback-loop.md` fixes the store and passes the canonical `nameWithOwner` as `--repo`.
+Phase 1 does not run the extractor from the review loop, store records anywhere by default, or group them. Issue #225 adds the round mode below: the review loop runs it through `commands/_shared/review-state.sh`, and it writes no store record. Phase 4 wires those steps: `commands/_shared/feedback-loop.sh` runs the extractor, and `feedback-loop.md` fixes the store and passes the canonical `nameWithOwner` as `--repo`.
 
 ## Review-loop records (schema 2)
 
@@ -176,11 +176,11 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 - A finding with an `Evidence` field is `new`.
 - A finding under `## Findings` without one is refused: `--round` exits 3 with `Evidence is required; move an unproven point under ## Needs verification`. Store mode still reads it, so reports written before the field existed keep their records.
 - Every entry under `## Needs verification` is `needs-verification`.
-- `confirmed`, `resolved`, and `dismissed` are never read from a report. `skills/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
+- `confirmed`, `resolved`, and `dismissed` are never read from a report. `commands/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
 
 ### Later rounds
 
-`--round` prints every finding of the report it reads and applies no round filter. The later-round rule of `@rules/code-review/general.md` *Later rounds raise only new Critical findings* belongs to the reviewer. `skills/_shared/review-state.sh record` records every finding the round reports.
+`--round` prints every finding of the report it reads and applies no round filter. The later-round rule of `@rules/code-review/general.md` *Later rounds raise only new Critical findings* belongs to the reviewer. `commands/_shared/review-state.sh record` records every finding the round reports.
 
 ### Security relevance
 

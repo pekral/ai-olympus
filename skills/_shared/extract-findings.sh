@@ -27,7 +27,7 @@
 #   --header   read the report and write nothing. Print its `Reviewed revision` and its `Last updated` time
 #              in UTC, from the same parse the extraction uses. A report the parse refuses is refused.
 #   --round    read one round report of the review loop and print one review-loop record (schema 2) per
-#              finding identity. It writes nothing; skills/_shared/review-state.sh keeps the loop state.
+#              finding identity. It writes nothing; commands/_shared/review-state.sh keeps the loop state.
 #   --validate check every line of a record file against the schema of its records and refuse a repeated
 #              identity. A file holds records of one schema: store records (1) or review-loop records (2).
 #

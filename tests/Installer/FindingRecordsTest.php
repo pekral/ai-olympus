@@ -5,7 +5,7 @@ declare(strict_types = 1);
 // Structured review findings (issue #186, phase 1 of #185).
 //
 // Per the project's test-isolation rule a Pest test cannot exec a real .sh, so the behavioural proof
-// lives in the script's own `--self-test` (the precedent is `skills/_shared/check-handoff.sh`). The
+// lives in the script's own `--self-test` (the precedent is `commands/_shared/check-handoff.sh`). The
 // pins below fix the contract that self-test enforces, the wiring that makes it run in the build,
 // and the promise that the existing review output and the review loop stay as they were.
 
@@ -171,7 +171,7 @@ test('the review output and the review loop name no extractor, and no agent need
     // Codex resolves any bare `skills/<path>` script through the adapter, so the helper needs no binding.
     expect((string) file_get_contents($packageDir . '/codex/agents/donatello.toml'))
         ->toContain(
-            'A bare `skills/<path>` reference to a shipped script (for example `skills/_shared/classify-risk.sh`) '
+            'A bare `skills/<path>` reference to a shipped script (for example `commands/_shared/classify-risk.sh`) '
             . 'means the matching file below `.agents/skills/<path>`',
         );
 });

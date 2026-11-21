@@ -26,7 +26,7 @@
 #
 # Audit trail:
 #   The POST appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line with the error reference and the new comment id, or a `note` line for a
 #   failed attempt, both with the acting role and the real exit status. The
 #   ledger comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE; a missing ledger

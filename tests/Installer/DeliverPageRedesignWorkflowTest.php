@@ -55,14 +55,14 @@ test('deliver-page-redesign walks the local instance and never writes to the hos
     expect($skill)->toContain('The host of the URL never receives a write');
     expect($skill)->toContain('run on the local instance of this repository');
     expect($skill)->toContain('Never run them on a shared, staging, or');
-    expect($skill)->toContain('`skills/_shared/browser-drive.sh`');
+    expect($skill)->toContain('`commands/_shared/browser-drive.sh`');
 });
 
 test('the delivery plan carries the review and the browser walkthrough on every tier', function (string $tier): void {
     // The skill promises a converged review and a walkthrough that is never skipped. The planner
     // adds `raphael` on every tier for runtime acceptance but drops `leonardo` on FAST, so the
     // delivery flags must buy both on every tier the classifier can return.
-    $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
+    $planner = dirname(__DIR__, 2) . '/commands/_shared/plan-route.sh';
     $process = new Process([$planner, '--tier', $tier, '--runtime-acceptance', '--thorough', '--tracker', 'no']);
     $process->mustRun();
 

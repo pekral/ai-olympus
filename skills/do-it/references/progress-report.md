@@ -55,7 +55,7 @@ The session scheduler runs the recurring report.
 
 1. When the run starts (step 1 of the skill), create the job with `CronCreate`. The schedule is `*/<minutes> * * * *`. The prompt of the job is: `Emit the progress report of the work queue <queue brief path>, following skills/do-it/references/progress-report.md. Dispatch nothing.`
 2. Record the job id and the interval under `## Progress report`.
-3. A scheduled prompt fires between the turns of the session. The queue runs through the operator batch of `skills/_shared/orchestration/batch-preparation.md`, and its root session ends its turn while every unit waits for a running background dispatch. The job fires during those waits. When the job fires, the session reads the brief and the sources above, emits the report, and goes back to waiting for the dispatches.
+3. A scheduled prompt fires between the turns of the session. The queue runs through the operator batch of `the command contract`, and its root session ends its turn while every unit waits for a running background dispatch. The job fires during those waits. When the job fires, the session reads the brief and the sources above, emits the report, and goes back to waiting for the dispatches.
 4. The job is not the only trigger. The session also emits the report when a unit becomes `Blocked` and when a question for the operator appears (trigger 4 of the Codex list below), so a question never waits for the next firing.
 5. Cancel the job with `CronDelete` on every terminating path (*Ending the report*).
 

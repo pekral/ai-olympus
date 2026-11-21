@@ -44,7 +44,7 @@ test('the code review rule states that a script computes the merge risk and that
 
     expect(substr_count($rule, '**Merge risk — one triage grade for a person who reads many pull requests.**'))->toBe(1)
         ->and($rule)->toContain('`Security assessment:`, `Merge risk:`, `Reviewed revision:`')
-        ->and($rule)->toContain('1. **A script computes the grade, never the reviewer.** Run `skills/_shared/classify-risk.sh --merge-risk')
+        ->and($rule)->toContain('1. **A script computes the grade, never the reviewer.** Run `commands/_shared/classify-risk.sh --merge-risk')
         ->and($rule)->toContain('3. **Production monitoring is never claimed.** When it matters whether a new failure path alerts in production')
         ->and($rule)->toContain('that point goes on the `Not verified:` line with the step that settles it.')
         ->and($rule)->toContain(
@@ -67,9 +67,9 @@ test('the reviewer, the skill, and the wrapper contract render the merge risk li
     expect(mergeRiskSource('agents/leonardo.md'))->toContain(
         '**Merge-risk agenda:** every review you publish carries one triage grade in its header.',
     )
-        ->and(mergeRiskSource('agents/leonardo.md'))->toContain('Compute it with `skills/_shared/classify-risk.sh --merge-risk`, never by judgment')
+        ->and(mergeRiskSource('agents/leonardo.md'))->toContain('Compute it with `commands/_shared/classify-risk.sh --merge-risk`, never by judgment')
         ->and(mergeRiskSource('skills/code-review/SKILL.md'))->toContain(
-            '- **`Merge risk:` header line.** Render it under `Security assessment:` from `skills/_shared/classify-risk.sh --merge-risk`',
+            '- **`Merge risk:` header line.** Render it under `Security assessment:` from `commands/_shared/classify-risk.sh --merge-risk`',
         )
         ->and(mergeRiskSource('skills/code-review-github/references/cr-wrapper-contract.md'))->toContain(
             '- **`Merge risk:` header line.** The posted PR comment always carries it, directly under `Security assessment:`',
@@ -77,7 +77,7 @@ test('the reviewer, the skill, and the wrapper contract render the merge risk li
 });
 
 test('the risk classifier grades the merge risk in its own mode and self-tests every grade and signal', function (): void {
-    $classifier = mergeRiskSource('skills/_shared/classify-risk.sh');
+    $classifier = mergeRiskSource('commands/_shared/classify-risk.sh');
 
     expect($classifier)->toContain('if [[ "${1:-}" == "--merge-risk" ]]; then')
         ->and($classifier)->toContain('classification="$(classify --files - ${pass[@]+"${pass[@]}"} <<<"$files")"')

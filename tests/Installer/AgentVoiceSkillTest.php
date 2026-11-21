@@ -143,7 +143,7 @@ test('every skill that publishes a human-read tracker comment applies the voice'
         'skills/github-issue-triage/references/pending-analysis.md',
         'skills/github-issue-triage/references/backlog-sweep.md',
         'skills/analyze-problem/SKILL.md',
-        'skills/_shared/orchestration/proposal-review.md',
+        'commands/_shared/orchestration/proposal-review.inc',
         'skills/code-review/references/feedback-loop.md',
     ];
 
@@ -200,7 +200,7 @@ test('no line still hands the prose of a human-read tracker comment to the writi
 });
 
 test('the voice reaches a dispatched agent through the brief and the resolver sits in a Bash boundary', function (): void {
-    $krang = agentVoiceSource('agents/krang.md');
+    $krang = agentVoiceSource('commands/_shared/krang-workflow.inc');
 
     expect($krang)->toContain('## Voice             <relaxed/technical>')
         ->and($krang)->toContain('Record `## Voice` in the brief and name it in every dispatch prompt.')
@@ -288,10 +288,10 @@ test('the waiting rule is stated once and every other file points to it', functi
         ->and(agentVoiceFilesContaining('čeká na tvoje rozhodnutí'))->toBe($owner);
 
     foreach ([
-        'agents/krang.md',
+        'commands/_shared/krang-workflow.inc',
         'skills/process-code-review/references/review-state.md',
         'skills/process-code-review/references/round-three-deferral.md',
-        'skills/_shared/orchestration/merge-request.md',
+        'commands/_shared/orchestration/merge-request.inc',
         'docs/agents.md',
     ] as $path) {
         expect(agentVoiceSource($path))->toContain(AGENT_VOICE_WAITING_POINTER);
@@ -305,13 +305,13 @@ test('the waiting rule is stated once and every other file points to it', functi
 test('no human-facing wording says the review loop escalated and the state identifier stays', function (): void {
     expect(agentVoiceFilesContaining('eskalov'))->toBe([dirname(__DIR__, 2) . '/skills/agent-voice/SKILL.md']);
 
-    expect(agentVoiceSource('agents/krang.md'))->not->toContain('**stop and escalate** to the user')
-        ->and(agentVoiceSource('agents/krang.md'))->toContain('**stop and tell the user the work waits for their decision**')
-        ->and(agentVoiceSource('agents/krang.md'))->toContain(
+    expect(agentVoiceSource('commands/_shared/krang-workflow.inc'))->not->toContain('**stop and escalate** to the user')
+        ->and(agentVoiceSource('commands/_shared/krang-workflow.inc'))->toContain('**stop and tell the user the work waits for their decision**')
+        ->and(agentVoiceSource('commands/_shared/krang-workflow.inc'))->toContain(
             '(a fix, a settled finding, or the operator\'s answer in the chat that allows one more review round)',
         )
         ->and(agentVoiceSource('skills/process-code-review/references/round-three-deferral.md'))->not->toContain('escalate to the user')
         ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->not->toContain('| Report the escalation.')
-        ->and(agentVoiceSource('skills/_shared/review-state.sh'))->toContain('"continue", "converged", "deferral-required", "security-round", "escalated"')
+        ->and(agentVoiceSource('commands/_shared/review-state.sh'))->toContain('"continue", "converged", "deferral-required", "security-round", "escalated"')
         ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->toContain('| `escalated` |');
 });

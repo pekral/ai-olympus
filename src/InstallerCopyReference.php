@@ -9,7 +9,7 @@ final class InstallerCopyReference
 
     private const REFERENCE_FILE = 'ai-olympus/installed-copies.sha256';
 
-    public static function record(string $root, string $skillsSource): void
+    public static function record(string $root, ?string $skillsSource, ?string $commandsSource): void
     {
         $gitDirectory = self::resolveGitDirectory($root);
 
@@ -17,16 +17,56 @@ final class InstallerCopyReference
             return;
         }
 
-        $sourceFiles = InstallerPruner::listSourceFiles($skillsSource);
         $lines = '';
 
-        foreach (InstallerPath::resolveSkillsTargetDirectories($root) as $target) {
-            foreach ($sourceFiles as $relativePath) {
-                $lines .= self::referenceLine($root, $skillsSource . '/' . $relativePath, $target . '/' . $relativePath);
-            }
+        if ($skillsSource !== null) {
+            $lines .= self::recordDirectory(
+                $root,
+                $skillsSource,
+                InstallerPath::resolveSkillsTargetDirectories($root),
+                InstallerPruner::listSourceFiles($skillsSource),
+            );
+        }
+
+        if ($commandsSource !== null) {
+            $lines .= self::recordDirectory(
+                $root,
+                $commandsSource,
+                InstallerPath::resolveCommandsTargetDirectories($root),
+                Installer::publicCommandFiles($commandsSource),
+            );
+            $lines .= self::recordDirectory(
+                $root,
+                $commandsSource,
+                InstallerPath::resolveCommandSupportTargetDirectories($root),
+                Installer::commandSupportFiles($commandsSource),
+            );
+            $lines .= self::recordDirectory(
+                $root,
+                $commandsSource,
+                InstallerPath::resolveCodexCommandsTargetDirectories($root),
+                InstallerPruner::listSourceFiles($commandsSource),
+            );
         }
 
         self::write($gitDirectory . '/' . self::REFERENCE_FILE, $lines);
+    }
+
+    /**
+     * @param array<int, string> $targets
+     * @param array<int, string> $sourceFiles
+     */
+    private static function recordDirectory(string $root, string $source, array $targets, array $sourceFiles): string
+    {
+        $lines = '';
+
+        foreach ($targets as $target) {
+            foreach ($sourceFiles as $relativePath) {
+                $lines .= self::referenceLine($root, $source . '/' . $relativePath, $target . '/' . $relativePath);
+            }
+        }
+
+        return $lines;
     }
 
     private static function referenceLine(string $root, string $source, string $installed): string

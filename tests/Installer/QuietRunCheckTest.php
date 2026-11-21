@@ -149,7 +149,7 @@ test('every quiet review path calls the check and reports its result', function 
 
 test('record writes its state only where review-state.sh writes its own, through one shared guard', function (): void {
     $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
-    $reviewState = quietRunCheckSource('skills/_shared/review-state.sh');
+    $reviewState = quietRunCheckSource('commands/_shared/review-state.sh');
     $guard = quietRunCheckSource('skills/_shared/state-path.sh');
 
     expect(substr_count($script, 'problem="$(state_path_problem "$state" create)" || die "$problem" 2'))->toBe(1)

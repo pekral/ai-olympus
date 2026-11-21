@@ -8,21 +8,21 @@ function auditTrailSource(string $relativePath): string
 }
 
 test('the audit-trail helper is an executable bash script with a --self-test entry point that the build runs once', function (): void {
-    $helper = dirname(__DIR__, 2) . '/skills/_shared/audit-trail.sh';
+    $helper = dirname(__DIR__, 2) . '/commands/_shared/audit-trail.sh';
 
     expect(is_executable($helper))->toBeTrue()
-        ->and(auditTrailSource('skills/_shared/audit-trail.sh'))
+        ->and(auditTrailSource('commands/_shared/audit-trail.sh'))
         ->toStartWith('#!/usr/bin/env bash')
         ->toContain('--self-test) self_test ;;');
 
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode(auditTrailSource('composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/audit-trail.sh '))->toBe(1);
+    expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' commands/_shared/audit-trail.sh '))->toBe(1);
 });
 
 test('the helper writes the line shape of the rule: role first, UTC time, class, target, result', function (): void {
-    $source = auditTrailSource('skills/_shared/audit-trail.sh');
+    $source = auditTrailSource('commands/_shared/audit-trail.sh');
     expect($source)
         ->toContain('line="${role}|$(now_utc)|${class}|${target}|${result}"')
         ->toContain('date -u +%Y-%m-%dT%H:%M:%SZ')
@@ -31,7 +31,7 @@ test('the helper writes the line shape of the rule: role first, UTC time, class,
 });
 
 test('the helper takes the exit status from the write command itself, never from a pipe stage', function (): void {
-    $source = auditTrailSource('skills/_shared/audit-trail.sh');
+    $source = auditTrailSource('commands/_shared/audit-trail.sh');
 
     expect($source)
         ->toContain('"$@" >"$out" || rc=$?')
@@ -44,7 +44,7 @@ test('the helper takes the exit status from the write command itself, never from
 });
 
 test('run accepts exactly the write commands the rule names and refuses every other command', function (): void {
-    $source = auditTrailSource('skills/_shared/audit-trail.sh');
+    $source = auditTrailSource('commands/_shared/audit-trail.sh');
     $rule = auditTrailSource('rules/compound-engineering/orchestration.md');
     $section = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
 
@@ -139,7 +139,7 @@ test('each wrapper captures the status of the write before it writes the audit l
 });
 
 test('check-handoff checks the ledger through the helper before the code review sees it', function (): void {
-    $source = auditTrailSource('skills/_shared/check-handoff.sh');
+    $source = auditTrailSource('commands/_shared/check-handoff.sh');
 
     expect($source)
         ->toContain('--audit-file)')
@@ -154,19 +154,19 @@ test('check-handoff checks the ledger through the helper before the code review 
 
 test('donatello and krang name the helper in their Bash boundary and run the check before the hand-off', function (): void {
     $donatello = auditTrailSource('agents/donatello.md');
-    $krang = auditTrailSource('agents/krang.md');
+    $krang = auditTrailSource('commands/_shared/krang-workflow.inc');
 
     expect($donatello)
-        ->toContain('`skills/_shared/audit-trail.sh run -- <write command>`')
-        ->toContain('Before the hand-off run `skills/_shared/audit-trail.sh verify --file')
+        ->toContain('`commands/_shared/audit-trail.sh run -- <write command>`')
+        ->toContain('Before the hand-off run `commands/_shared/audit-trail.sh verify --file')
         ->toContain('*Record the line at the moment of the write*')
         ->toContain('`AUDIT_TRAIL_FILE=<absolute path of the .audit file> AUDIT_TRAIL_ROLE=donatello`');
     expect($donatello)->not->toContain('exported: it appends');
 
     expect($krang)
-        ->toContain('`skills/_shared/audit-trail.sh run -- <write command>`')
+        ->toContain('`commands/_shared/audit-trail.sh run -- <write command>`')
         ->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang`')
-        ->toContain('run `skills/_shared/audit-trail.sh` (`run` only for the `gh` writes above');
+        ->toContain('run `commands/_shared/audit-trail.sh` (`run` only for the `gh` writes above');
 });
 
 test('the changelog records the audit line written at the moment of the write', function (): void {
@@ -186,24 +186,24 @@ test('leonardo runs gh pr ready and the label writes through the helper and appe
     $step = substr($step, 0, (int) strpos($step, "\n", 1));
 
     expect($leonardo)
-        ->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR>`')
-        ->toContain('each only as `skills/_shared/audit-trail.sh run -- <command>`');
+        ->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo commands/_shared/audit-trail.sh run -- gh pr ready <PR>`')
+        ->toContain('each only as `commands/_shared/audit-trail.sh run -- <command>`');
     expect($step)
         ->toContain('Each external write leaves exactly one line, written at the moment of the write by the package and never by hand')
         ->toContain('Append by hand');
     expect($step)->not->toContain('append one line per action you actually performed');
     expect($skill)->toContain(
-        '`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>`',
+        '`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo commands/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>`',
     );
-    expect($signal)->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- <command>`');
+    expect($signal)->toContain('`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo commands/_shared/audit-trail.sh run -- <command>`');
 });
 
 test('krang.md stays under the size limit with the per-call ledger form', function (): void {
-    expect(strlen(auditTrailSource('agents/krang.md')))->toBeLessThanOrEqual(135_000);
+    expect(strlen(auditTrailSource('commands/_shared/krang-workflow.inc')))->toBeLessThanOrEqual(135_000);
 });
 
 test('run refuses a comment path and verify reads only the comments that carry an agent marker', function (): void {
-    $source = auditTrailSource('skills/_shared/audit-trail.sh');
+    $source = auditTrailSource('commands/_shared/audit-trail.sh');
     $rule = auditTrailSource('rules/compound-engineering/orchestration.md');
     $section = installerDocsSection($rule, '## Audit trail for memory reads, outbound requests, and external writes');
 
@@ -234,7 +234,7 @@ test('donatello never forges an external-write line and publishes a comment only
 test('no agent or skill appends by hand a line the package already writes', function (): void {
     $krang = krangContractText();
     $april = auditTrailSource('agents/april.md');
-    $proposal = auditTrailSource('skills/_shared/orchestration/proposal-review.md');
+    $proposal = auditTrailSource('commands/_shared/orchestration/proposal-review.inc');
     $leonardo = auditTrailSource('agents/leonardo.md');
     $leonardoStep4 = substr($leonardo, (int) strpos($leonardo, '4. **Publish the plan artifact as a GitHub issue**'));
     $leonardoStep4 = substr($leonardoStep4, 0, (int) strpos($leonardoStep4, "\n", 1));
@@ -244,13 +244,13 @@ test('no agent or skill appends by hand a line the package already writes', func
     expect($krang)->not->toContain('each write of *Closing a `FAST` run* step 3');
     expect($krang)
         ->toContain('never a write `run` already records, so each write has one line')
-        ->toContain('Run both commands through `skills/_shared/audit-trail.sh run --`, which records their lines.');
+        ->toContain('Run both commands through `commands/_shared/audit-trail.sh run --`, which records their lines.');
     expect($proposal)->not->toContain('`external-write` line of the comment, when one was published');
     expect($proposal)->toContain('Append no line for the comment: `upsert-comment.sh` writes its');
     expect($april)->not->toContain('and an authorized publish or deletion. You never run');
     expect($april)->toContain('writes its own `external-write` line, so you append none for it');
     expect($leonardoStep4)
-        ->toContain('`skills/_shared/audit-trail.sh run -- gh issue create`')
+        ->toContain('`commands/_shared/audit-trail.sh run -- gh issue create`')
         ->toContain('`run` appends the `external-write` line of this issue itself');
     expect($leonardoStep12)->not->toContain('(or, in analysis mode, the plan-artifact issue from step 4)');
     expect($leonardoStep12)->toContain('In analysis mode, `run -- gh issue create` appends the line for the plan-artifact issue from step 4.');
@@ -289,7 +289,7 @@ test('no agent or skill hand-appends the external-write line of a write a wrappe
     $followUp = auditTrailSource('skills/merge-github-pr/references/interactive-testing-follow-up.md');
 
     expect($followUp)->toContain(
-        '`skills/_shared/audit-trail.sh run --`, which appends the `external-write` line of the issue itself; append none by hand',
+        '`commands/_shared/audit-trail.sh run --`, which appends the `external-write` line of the issue itself; append none by hand',
     );
     expect($followUp)->not->toContain('and record an `external-write` line in the run\'s audit ledger');
 });
@@ -300,6 +300,6 @@ test('the consent inventory carries one L2 row for publishing a GitHub release t
 
     expect($inventory)->toContain(
         '| top-level session | Publish a GitHub release (`gh release create`) | L2 | only on the operator\'s explicit request in this run, '
-        . 'only through `skills/_shared/audit-trail.sh run --`, which records the line; every other `gh release` write stays refused |',
+        . 'only through `commands/_shared/audit-trail.sh run --`, which records the line; every other `gh release` write stays refused |',
     );
 });

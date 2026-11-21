@@ -465,7 +465,7 @@ test('every attack run takes the machine lock (issue #608)', function (): void {
 
     expect($section)->toContain(
         'Run every attack, in this step and in step 4, with the project\'s test command '
-            . 'through `skills/_shared/run-gate.sh --exclusive --command "<command>"`',
+            . 'through `commands/_shared/run-gate.sh --exclusive --command "<command>"`',
     );
 });
 
@@ -515,7 +515,7 @@ test('no other file restates the attack steps (issue #608)', function (string $r
 })->with([
     'skills/process-code-review/SKILL.md',
     'agents/donatello.md',
-    'agents/krang.md',
+    'commands/_shared/krang-workflow.inc',
     'agents/leonardo.md',
 ]);
 

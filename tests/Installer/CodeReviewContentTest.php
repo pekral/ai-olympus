@@ -230,7 +230,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
     foreach ([$github, $jira] as $skill) {
         expect($skill)->toContain('Every CR run **posts a new review**');
         expect($skill)->toContain(
-            'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+            'commands/_shared/code-review-github/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
                 . '<reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>',
         );
         expect($skill)->not->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>');
@@ -2540,13 +2540,13 @@ test('the project instruction sources of a review are read through a default-bra
         ->and($manifest)->toContain('in the same shell call as `REF`')
         ->and($manifest)->toContain('A failed read, an empty output, or invalid JSON gives `{}` and the review says why.')
         ->and($manifest)->toContain('This is the reader of the review gate because the gate runs after the head is checked out;')
-        ->and($manifest)->toContain('`skills/_shared/read-manifest.sh` stays the reader everywhere else (`@rules/general/general.md` *Project manifest*).')
+        ->and($manifest)->toContain('`commands/_shared/read-manifest.sh` stays the reader everywhere else (`@rules/general/general.md` *Project manifest*).')
         ->and($manifest)->not->toContain('trusted copy')
         ->and($manifest)->not->toContain('`cmp`')
         ->and($skill)->toContain($manifestRead)
         ->and($skill)->toContain('the project manifest by git ref in the same shell call')
         ->and($skill)->toContain('a failed read, an empty output, or invalid JSON gives `{}` and the review says why')
-        ->and($skill)->not->toContain('trusted copy of `skills/_shared/read-manifest.sh`');
+        ->and($skill)->not->toContain('trusted copy of `commands/_shared/read-manifest.sh`');
 
     // The accepted shape lives with the owner of the resolution, and no consumer restates it.
     $owner = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
@@ -4618,12 +4618,12 @@ test('every code-review report is published as a new comment on each destination
     $contract = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     $severalPullRequests = (string) file_get_contents($packageDir . '/skills/pr-summary/references/several-pull-requests.md');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $rule = codeReviewRuleContents();
     $updateInPlace = '/\b(?:update|updates|updated|rewrites?)\b[^.\n]{0,60}\bin place\b(?! of)/i';
 
-    expect(substr_count($contract, 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+    expect(substr_count($contract, 'commands/_shared/code-review-github/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
         . '<reviewed head SHA> --meta-file'))->toBe(1)
         ->and($contract)->not->toContain('skills/code-review-github/scripts/upsert-comment.sh --create <PR-NUMBER|URL> <body-file>')
         ->and($contract)->toContain('posts it via `skills/code-review-github/scripts/upsert-comment.sh --create` on **each** entry in `closingIssues[]`')
@@ -4757,7 +4757,7 @@ test('a run that only processes the owner answers and lands no change publishes 
 
 dataset('interactive testing exception carriers', [
     'krang' => [
-        'agents/krang.md',
+        'commands/_shared/krang-workflow.inc',
         'A raphael walkthrough that could not run for want of an environment stays out of the review report',
     ],
     'leonardo' => [
@@ -4777,7 +4777,7 @@ dataset('interactive testing exception carriers', [
         'when the walkthrough could not run for want of an environment',
     ],
     'review-only mode' => [
-        'skills/_shared/orchestration/review-only-mode.md',
+        'commands/_shared/orchestration/review-only-mode.inc',
         'The one exception is a raphael walkthrough that could not run for want of an environment',
     ],
     'wrapper contract' => [

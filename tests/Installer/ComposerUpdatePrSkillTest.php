@@ -50,8 +50,8 @@ test('the skill resolves the default branch, stops on a dirty tree, and never st
 test('the skill runs the update chain in order through the machine lock and stops on a failed step', function (): void {
     $skill = composerUpdateSource('skills/composer-update-pr/SKILL.md');
 
-    expect($skill)->toContain('`skills/_shared/run-gate.sh --exclusive --command "composer install"`')
-        ->and($skill)->toContain('`skills/_shared/run-gate.sh --exclusive --command "composer update"`')
+    expect($skill)->toContain('`commands/_shared/run-gate.sh --exclusive --command "composer install"`')
+        ->and($skill)->toContain('`commands/_shared/run-gate.sh --exclusive --command "composer update"`')
         ->and($skill)->toContain('6. `composer bump`')
         ->and($skill)->toContain('A step that exits non-zero stops the run (step 3).')
         ->and($skill)->toContain('Name the step by its number and command, give its exit status, and print the last 40 lines of its output file.')

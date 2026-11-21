@@ -713,7 +713,7 @@ test('a migrated entry packs through pack-context.sh and a query result stays un
     $memory = (string) file_get_contents(__DIR__ . '/../docs/memory/PROJECT_MEMORY.md');
     $root = memoryRepository($memory);
     memoryRun($root, 'migrate');
-    $paths = ['src/GraphIndexer.php', 'agents/krang.md', 'rules/compound-engineering/memory.md', 'skills/_shared/pack-context.sh'];
+    $paths = ['src/GraphIndexer.php', 'commands/_shared/krang-workflow.inc', 'rules/compound-engineering/memory.md', 'commands/_shared/pack-context.sh'];
     [$exitCode, $candidates] = memoryRun(
         $root,
         'query',
@@ -743,7 +743,7 @@ test('a migrated entry packs through pack-context.sh and a query result stays un
         ],
         'task' => ['type' => 'bug', 'description' => '', 'symbols' => [], 'paths' => []],
     ]));
-    $command = 'cd ' . escapeshellarg($root) . ' && bash ' . escapeshellarg(__DIR__ . '/../skills/_shared/pack-context.sh')
+    $command = 'cd ' . escapeshellarg($root) . ' && bash ' . escapeshellarg(__DIR__ . '/../commands/_shared/pack-context.sh')
         . ' pack --request .claude/run/request.json --candidates .claude/run/candidates.json --output .claude/run/package.json 2>&1';
     exec($command, $output, $packExit);
     /** @var array{context: array{learnings: list<array{text: string}>}, metadata: array{estimated_tokens: int}} $package */

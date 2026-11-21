@@ -118,7 +118,7 @@ methods. **If you can't establish the model is owned, the finding is Moderate an
 phrased as "verify", not asserted as a hole.**
 
 > **Tenancy comes from the project manifest.** Read `tenancy` through
-> `skills/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*).
+> `commands/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*).
 > When it is `database`, each tenant owns its own database, and the tenant connection is
 > the tenant boundary. A model on the tenant connection is scoped by that connection, so a
 > missing tenant `where` (`tenant_id`, `account_id`) on it is **not** IDOR — do not report it.

@@ -46,19 +46,19 @@ function runCheckVisibleReviewText(string $text, ?array $repoPaths = null, ?stri
 
 test('a visible text that names a shared script of the package by its path is refused', function (): void {
     $process = runCheckVisibleReviewText(
-        'Coverage ran through `skills/_shared/run-gate.sh --exclusive --command "vendor/bin/pest"`.',
+        'Coverage ran through `commands/_shared/run-gate.sh --exclusive --command "vendor/bin/pest"`.',
         ['src/A.php'],
     );
 
     expect($process->getExitCode())->toBe(3)
-        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["skills/_shared/run-gate.sh"]}');
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["commands/_shared/run-gate.sh"]}');
 });
 
 test('a package path written with HTML entities is refused as the name a reader sees', function (): void {
     $process = runCheckVisibleReviewText('Coverage ran through <code>skills/&#95;shared/run-gate.sh</code>.', ['src/A.php']);
 
     expect($process->getExitCode())->toBe(3)
-        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["skills/_shared/run-gate.sh"]}');
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["commands/_shared/run-gate.sh"]}');
 });
 
 test('the installed package directories of Claude Code and Codex are refused', function (string $name): void {
@@ -93,18 +93,18 @@ test('a bare script name of the package is refused, also inside another director
         ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["' . $name . '"]}');
 })->with([
     'shared script' => ['The merge risk comes from `classify-risk.sh`.', 'classify-risk.sh'],
-    'vendor copy' => ['It runs vendor/pekral/ai-olympus/skills/_shared/run-validation.sh.', 'vendor/pekral/ai-olympus/skills/_shared/run-validation.sh'],
+    'vendor copy' => ['It runs vendor/pekral/ai-olympus/commands/_shared/run-validation.sh.', 'vendor/pekral/ai-olympus/commands/_shared/run-validation.sh'],
     'wrapper script with a line' => ['The publish failed in post-inline-review.sh:42.', 'post-inline-review.sh'],
 ]);
 
 test('every refused name is listed once, in the order of its first use', function (): void {
     $process = runCheckVisibleReviewText(
-        "`classify-risk.sh` and `skills/_shared/run-gate.sh`.\nAgain `classify-risk.sh`.",
+        "`classify-risk.sh` and `commands/_shared/run-gate.sh`.\nAgain `classify-risk.sh`.",
         ['src/A.php'],
     );
 
     expect($process->getExitCode())->toBe(3)
-        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["classify-risk.sh","skills/_shared/run-gate.sh"]}');
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["classify-risk.sh","commands/_shared/run-gate.sh"]}');
 });
 
 test('the reviewed project own commands, paths, and prose stay allowed', function (): void {
@@ -123,12 +123,12 @@ test('the reviewed project own commands, paths, and prose stay allowed', functio
 });
 
 test('a name that the reviewed repository holds is the project own and stays allowed', function (): void {
-    $text = 'This repeats `skills/_shared/run-gate.sh:40`, see `@rules/security/backend.md`, `skills/_shared/` and `classify-risk.sh`.';
+    $text = 'This repeats `commands/_shared/run-gate.sh:40`, see `@rules/security/backend.md`, `skills/_shared/` and `classify-risk.sh`.';
 
     $process = runCheckVisibleReviewText($text, [
         'rules/security/backend.md',
-        'skills/_shared/run-gate.sh',
-        'skills/_shared/classify-risk.sh',
+        'commands/_shared/run-gate.sh',
+        'commands/_shared/classify-risk.sh',
     ]);
 
     expect($process->getExitCode())->toBe(0)
@@ -136,7 +136,7 @@ test('a name that the reviewed repository holds is the project own and stays all
 });
 
 test('a name that a changed line of the reviewed change carries is the project own text, any other name is refused', function (): void {
-    $diffText = "\$path = '.claude/run/state.json';\nrequire 'skills/_shared/run-gate.sh';\n";
+    $diffText = "\$path = '.claude/run/state.json';\nrequire 'commands/_shared/run-gate.sh';\n";
     $text = 'The line writes `.claude/run/state.json` and the step runs `classify-risk.sh`.';
 
     $process = runCheckVisibleReviewText($text, ['src/A.php'], $diffText);
@@ -148,10 +148,10 @@ test('a name that a changed line of the reviewed change carries is the project o
 });
 
 test('without the reviewed repository paths every package name is refused', function (): void {
-    $process = runCheckVisibleReviewText('It runs `skills/_shared/run-gate.sh`.');
+    $process = runCheckVisibleReviewText('It runs `commands/_shared/run-gate.sh`.');
 
     expect($process->getExitCode())->toBe(3)
-        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["skills/_shared/run-gate.sh"]}');
+        ->and(trim($process->getOutput()))->toBe('{"valid":false,"names":["commands/_shared/run-gate.sh"]}');
 });
 
 test('a missing --text is a usage error and an unreadable input is refused', function (): void {

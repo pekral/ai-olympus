@@ -100,7 +100,7 @@ test('raphael carries the Affected parts section in its output and walks the par
 test('the review report renders the Affected parts rows and treats a failed part as a finding only through the reference', function (): void {
     $template = affectedPartsRead('skills/code-review-github/templates/pr-comment-output.md');
     $contract = affectedPartsRead('skills/code-review-github/references/cr-wrapper-contract.md');
-    $krang = affectedPartsRead('agents/krang.md');
+    $krang = affectedPartsRead('commands/_shared/krang-workflow.inc');
     $pointer = '`@skills/interactive-testing/references/affected-parts.md` *Walk and report*';
 
     expect($template)->toContain(

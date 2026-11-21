@@ -37,7 +37,7 @@ function auditScopeVerifyOutput(array $lines, string $issue, string $option = '-
 
     try {
         $process = new Process(
-            [dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'verify', '--file', $ledger['file'], $option, $issue],
+            [dirname(__DIR__, 3) . '/commands/_shared/audit-trail.sh', 'verify', '--file', $ledger['file'], $option, $issue],
             env: [
                 'FAKE_REPO_RC' => $repoRc,
                 'PATH' => $bin . PATH_SEPARATOR . ($path === false ? '/usr/bin:/bin' : $path),

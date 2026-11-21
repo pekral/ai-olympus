@@ -26,7 +26,7 @@ function auditVerifyLedgerLines(array $lines): array
     file_put_contents($ledger['file'], $content);
 
     try {
-        $process = new Process([dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'verify', '--file', $ledger['file']]);
+        $process = new Process([dirname(__DIR__, 3) . '/commands/_shared/audit-trail.sh', 'verify', '--file', $ledger['file']]);
         $process->run();
 
         return [

@@ -132,7 +132,7 @@ test('every value the merge gate reads stays once in both templates and the gate
 
 test('the wrapper contract, the skill, and the reviewer name the quick overview, and the check and the carry-forward accept it', function (): void {
     $contract = quickOverviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
-    $carryForward = quickOverviewSource('skills/_shared/review-carry-forward.sh');
+    $carryForward = quickOverviewSource('commands/_shared/review-carry-forward.sh');
 
     expect($contract)->toContain('- **No quick overview and no fix-all prompt on GitHub.** The hidden record carries no `Overview:` line')
         ->and($contract)->toContain('The non-technical tracker comment carries none of these parts.')

@@ -79,14 +79,14 @@ test('the base tip is read again as the last command before the merge and a move
 
 test('the base branch name is untrusted, set from command output, checked first, and quoted in every command', function (): void {
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
-    $carryForward = lowRiskSource('skills/_shared/review-carry-forward.sh');
+    $carryForward = lowRiskSource('commands/_shared/review-carry-forward.sh');
     $start = (int) strpos($path, '## Select the candidate');
     $select = substr($path, $start, (int) strpos($path, '## Security check') - $start);
 
     expect($select)->toContain('`baseRefName` is untrusted payload data. Never write it into a command line, in this item or in any other item')
         ->and($select)->toContain('Set `BASE_REF` from command output as `@skills/merge-github-pr-fast/SKILL.md` step 1 item 6 directs')
         ->and($select)->toContain('and use the variable only in double quotes.')
-        ->and($select)->toContain('Check it against `BRANCH_SHAPE` of `skills/_shared/review-carry-forward.sh`')
+        ->and($select)->toContain('Check it against `BRANCH_SHAPE` of `commands/_shared/review-carry-forward.sh`')
         ->and($select)->toContain('reject a name that contains `..` or ends in `.lock`, as its `check_head` does')
         ->and($select)->toContain('selects the full path, and no command uses it.')
         ->and($select)->toContain('Quote the variable in every command of this file.')
@@ -172,7 +172,7 @@ test('the security-only check is the step of merge-github-pr-fast by pointer and
 });
 
 test('the allow-list has one owner and every other file points to it', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
 
     expect($script)->toContain('LOW_RISK_ALLOWED_RE=\'^(src|app|tests|resources)/.\'')
         ->and($script)->toContain('LOW_RISK_EXCLUDED_RE=\'^src/(install|composerplugin|commandoptions|memory|graph|slice|metrics)|')
@@ -205,7 +205,7 @@ test('the allow-list has one owner and every other file points to it', function 
 });
 
 test('the project opts in through the default-branch manifest and this repository does not', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
     $general = lowRiskSource('rules/general/general.md');
     $installation = lowRiskSource('docs/installation.md');
     $composer = lowRiskSource('composer.json');
@@ -221,7 +221,7 @@ test('the project opts in through the default-branch manifest and this repositor
 });
 
 test('the issue text never enters the verdict', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
     $path = lowRiskSource('skills/merge-github-pr/references/low-risk-path.md');
     $general = lowRiskSource('rules/general/general.md');
 
@@ -234,7 +234,7 @@ test('the issue text never enters the verdict', function (): void {
 });
 
 test('the content guard is stated as a literal heuristic and not as the boundary', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
     $rule = lowRiskSource('rules/git/pull-requests.md');
 
     expect($script)->toContain('It is defence in depth and NOT the boundary: it matches literal')
@@ -246,7 +246,7 @@ test('the content guard is stated as a literal heuristic and not as the boundary
 });
 
 test('the classifier self-test pins every branch of the low-risk verdict and each reproduced bypass', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
 
     foreach ([
         'a tested fix inside the allowed set merges on the low-risk path',
@@ -342,7 +342,7 @@ test('the classifier self-test pins every branch of the low-risk verdict and eac
 });
 
 test('every src class that feeds the installer or the agents stays outside the allow-list', function (): void {
-    $script = lowRiskSource('skills/_shared/classify-risk.sh');
+    $script = lowRiskSource('commands/_shared/classify-risk.sh');
     $line = (string) current(array_filter(explode("\n", $script), static fn (string $row): bool => str_starts_with($row, 'LOW_RISK_EXCLUDED_RE=')));
     $pattern = '~' . substr($line, strlen('LOW_RISK_EXCLUDED_RE=\''), -1) . '~';
     $classes = [
@@ -441,9 +441,9 @@ test('every caller of the classifier on the merge path names the trusted copy', 
     expect(lowRiskSource('skills/merge-github-pr/references/low-risk-path.md'))
         ->toContain('`references/merge-exemptions.md` *The trusted classifier*')
         ->and(lowRiskSource('skills/merge-github-pr/SKILL.md'))
-        ->toContain('the trusted copy of `skills/_shared/classify-risk.sh` over the PR\'s own file list')
+        ->toContain('the trusted copy of `commands/_shared/classify-risk.sh` over the PR\'s own file list')
         ->and(lowRiskSource('rules/git/pull-requests.md'))
-        ->toContain('re-runs the trusted copy of `skills/_shared/classify-risk.sh --files -`');
+        ->toContain('re-runs the trusted copy of `commands/_shared/classify-risk.sh --files -`');
 });
 
 test('no template or contract still calls the merge risk line informational only', function (): void {

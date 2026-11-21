@@ -18,7 +18,7 @@ function inlineReviewContract(): string
 }
 
 test('the inline review wrapper exists, is executable, and its self-test passes under the system bash', function (): void {
-    $script = dirname(__DIR__, 2) . '/skills/code-review-github/scripts/post-inline-review.sh';
+    $script = dirname(__DIR__, 2) . '/commands/_shared/code-review-github/post-inline-review.sh';
     $process = new Process(['/bin/bash', $script, '--self-test'], timeout: 300);
     $process->run();
 
@@ -34,7 +34,7 @@ test('the build runs the wrapper self-test exactly once', function (): void {
     /** @var array<string, array<int, string>> $scripts */
     $scripts = $composer['scripts'];
 
-    expect(substr_count(implode(' ', $scripts['shell-self-tests']), ' skills/code-review-github/scripts/post-inline-review.sh'))->toBe(1);
+    expect(substr_count(implode(' ', $scripts['shell-self-tests']), ' commands/_shared/code-review-github/post-inline-review.sh'))->toBe(1);
 });
 
 dataset('wrapper self-test scenarios', [
@@ -179,11 +179,11 @@ dataset('wrapper self-test scenarios', [
 ]);
 
 test('the wrapper self-test asserts the scenario', function (string $label): void {
-    expect(inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh'))->toContain($label);
+    expect(inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh'))->toContain($label);
 })->with('wrapper self-test scenarios');
 
 test('the wrapper treats only the value true as a private repository and fails closed to public', function (): void {
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($script)->toContain('gh repo view "$NWO" --json isPrivate --jq .isPrivate')
         ->and($script)->toContain('if [[ "$private_value" == "true" ]]; then')
@@ -193,7 +193,7 @@ test('the wrapper treats only the value true as a private repository and fails c
 });
 
 test('the wrapper writes through the audited path and never from a stale head', function (): void {
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($script)->toContain('bash "$AUDIT_TRAIL" record --target "$review_url" --status 0')
         ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "pull request review on ${NWO}#${NUMBER}" --status "$write_rc"')
@@ -238,7 +238,7 @@ test('the contract publishes one review whose body carries the hidden record and
     expect($section)->toContain('A CR run on GitHub publishes exactly one pull-request review and no pull-request comment')
         ->and($section)->toContain('A round with no finding still posts the review, so the merge gate and the carry-forward always find the round.')
         ->and($section)->toContain(
-            'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+            'commands/_shared/code-review-github/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
                 . '<reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>',
         )
         ->and($section)->toContain('Never write a review with a raw `gh api` call or the GitHub MCP server, and never post '
@@ -331,7 +331,7 @@ test('the agent marker family keeps cr-inline for the threads of an earlier rele
 
     expect($rule)->toContain(
         '`cr-inline` (the inline review comments that an earlier release of '
-        . '`skills/code-review-github/scripts/post-inline-review.sh` posted on the changed lines of a pull request)',
+        . '`commands/_shared/code-review-github/post-inline-review.sh` posted on the changed lines of a pull request)',
     )
         ->and($trust)->toContain('def agent_marker: type == "string" and test("[a-z][a-z0-9-]*:actor=");');
 });
@@ -367,11 +367,11 @@ test('leonardo publishes the review through the wrapper only, with no inline com
 
     expect($leonardo)->toContain(
         'publish the one pull-request review of a round, and resolve the inline thread an earlier release opened for a fixed finding, '
-        . 'only through `skills/code-review-github/scripts/post-inline-review.sh`',
+        . 'only through `commands/_shared/code-review-github/post-inline-review.sh`',
     )
         ->and($leonardo)->toContain(
             'post every finding as an entry of the Actionable comments block of one pull-request review, with no inline comment, '
-            . 'through `skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> '
+            . 'through `commands/_shared/code-review-github/post-inline-review.sh post <PR-NUMBER|URL> '
                 . '--commit-id <reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>`',
         )
         ->and($leonardo)->toContain('That one review is the whole publish: no `cr-comment` pull-request comment is posted.')
@@ -393,7 +393,7 @@ test('the review loop reads an inline thread of an earlier release as the agent 
         ->and($reference)->toContain('A review publishes no inline comment, so only a review of an earlier release opened such a thread.')
         ->and($skill)->toContain('every other comment, a reply included, is a reviewer comment')
         ->and($reference)->toContain('**A thread of the agent\'s own finding is resolved through the wrapper.**')
-        ->and($reference)->toContain('skills/code-review-github/scripts/post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
+        ->and($reference)->toContain('commands/_shared/code-review-github/post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>')
         ->and($reference)->toContain('Give it the ids that `review-state.sh` reports as resolved.')
         ->and($reference)->toContain('is listed under `has_reply` and not resolved');
 });
@@ -434,7 +434,7 @@ test('the github review skill delegates the review to the contract and posts no 
 
 test('the gate and the thread rule bind agent status to the actor and read the other comments of an inline thread', function (): void {
     $contract = inlineReviewSource('skills/code-review-github/references/cr-wrapper-contract.md');
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($contract)->toContain(
         'A `cr-inline` marker counts only on a comment that the current actor wrote; the other comments of an inline thread are reviewer comments',
@@ -446,7 +446,7 @@ test('the gate and the thread rule bind agent status to the actor and read the o
 });
 
 test('the publisher builds a review request with no comments key', function (): void {
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($script)->toContain('{commit_id: $commit, event: "COMMENT", body: $body} as $r')
         ->and($script)->not->toContain('then error("a review carries no inline comment")')
@@ -460,7 +460,7 @@ test('both GitHub wrappers resolve the target and the actor through one shared h
     expect($helper)->toContain('github_target_resolve()')
         ->and($helper)->toContain('github_actor_resolve()');
 
-    foreach (['skills/code-review-github/scripts/upsert-comment.sh', 'skills/code-review-github/scripts/post-inline-review.sh'] as $wrapper) {
+    foreach (['skills/code-review-github/scripts/upsert-comment.sh', 'commands/_shared/code-review-github/post-inline-review.sh'] as $wrapper) {
         $source = inlineReviewSource($wrapper);
 
         expect($source)->toContain('_shared/github-target.sh"')
@@ -472,7 +472,7 @@ test('both GitHub wrappers resolve the target and the actor through one shared h
 });
 
 test('audit-trail verify reads the pull request reviews and review comments, and the wrapper list names the new wrapper', function (): void {
-    $audit = inlineReviewSource('skills/_shared/audit-trail.sh');
+    $audit = inlineReviewSource('commands/_shared/audit-trail.sh');
     $orchestration = inlineReviewSource('rules/compound-engineering/orchestration.md');
 
     expect($audit)->toContain('gh api "$pulls/reviews" --paginate')
@@ -500,7 +500,7 @@ test('a published report with an Inline line resolves nothing by absence, and th
 test(
     'the marker guard runs after the last transformation, covers the rule field, and the review body holds no cr-inline marker',
     function (): void {
-        $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+        $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
         $contract = inlineReviewContract();
 
         expect($script)->toContain('req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule '
@@ -516,7 +516,7 @@ test(
 );
 
 test('the wrapper accepts the finding fields for the hidden record and renders none of their labels', function (): void {
-    $script = inlineReviewSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = inlineReviewSource('commands/_shared/code-review-github/post-inline-review.sh');
     $payload = substr($script, (int) strpos($script, 'IFS= read -r -d \'\' JQ_PAYLOAD'), 4_000);
 
     $keys = [
@@ -563,9 +563,9 @@ test('the readers read a review record and a legacy cr-comment through one jq de
     $trust = inlineReviewSource('skills/_shared/review-trust.jq');
     $header = inlineReviewSource('skills/_shared/cr-header.sh');
     $readers = [
-        'skills/_shared/collect-findings.sh',
-        'skills/_shared/review-carry-forward.sh',
-        'skills/code-review-github/scripts/post-inline-review.sh',
+        'commands/_shared/collect-findings.sh',
+        'commands/_shared/review-carry-forward.sh',
+        'commands/_shared/code-review-github/post-inline-review.sh',
     ];
 
     expect($trust)->toContain('def review_reports:')

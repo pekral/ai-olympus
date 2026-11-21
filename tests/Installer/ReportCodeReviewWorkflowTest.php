@@ -11,7 +11,7 @@ test('report-code-review runs one review-only pass through krang and leonardo', 
     expect($command)->toContain('$ARGUMENTS');
     expect($command)->toContain('review-only mode');
     expect($command)->toContain('$code-review-jira');
-    expect($command)->toContain('`agents/krang.md` *Review-only mode — `/report-code-review`* is the one owner of this run.');
+    expect($command)->toContain('`commands/_shared/krang-workflow.inc` *Review-only mode — `/report-code-review`* is the one owner of this run.');
     expect($command)->toContain('Do not restate, shorten, or
 extend those steps in the dispatch prompt');
     expect($command)->not->toContain('dispatches `raphael`');
@@ -111,7 +111,7 @@ test('report-code-review runs leonardo, splinter, raphael, and casey in one para
         ->toContain('`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → leonardo (publish)`')
         ->toContain('Hold the barrier, then dispatch `leonardo` with `publish: now` and `review_only`');
     expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
-        ->toContain('`agents/krang.md` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
+        ->toContain('`commands/_shared/krang-workflow.inc` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
         ->toContain('A review-only run (`/report-code-review`) is one such round.');
     expect((string) file_get_contents($packageDir . '/agents/casey.md'))->not->toContain('--create');
 });

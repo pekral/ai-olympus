@@ -70,8 +70,8 @@ test('the gate is green CI on the head commit or a passing quality gate on that 
         ->and($skill)->toContain('| Any other, unknown, or ambiguous state | Stop. Ambiguous is not green |')
         ->and($skill)->toContain('@skills/merge-github-pr/SKILL.md` *GitHub Actions billing exception*')
         ->and($skill)->toContain('| No check exists on the pull request | Fallback gate (below) |')
-        ->and($skill)->toContain('skills/_shared/run-gate.sh --tier full')
-        ->and($skill)->toContain('skills/_shared/verify-gate.sh --tier full <gated head>')
+        ->and($skill)->toContain('commands/_shared/run-gate.sh --tier full')
+        ->and($skill)->toContain('commands/_shared/verify-gate.sh --tier full <gated head>')
         ->and($skill)->toContain('This skill never commits the rewrite.');
 });
 

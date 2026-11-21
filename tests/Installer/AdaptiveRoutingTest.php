@@ -12,7 +12,7 @@ declare(strict_types = 1);
 
 test('the deterministic risk classifier is shipped and executable', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/_shared/classify-risk.sh';
+    $script = $packageDir . '/commands/_shared/classify-risk.sh';
 
     expect(is_file($script))->toBeTrue();
     expect(is_executable($script))->toBeTrue();
@@ -25,7 +25,7 @@ test('the deterministic risk classifier is shipped and executable', function ():
 
 test('the classifier emits a tier, a score, and one attributable signal per point', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/classify-risk.sh');
 
     // The whole point of a deterministic router over an LLM one is that the verdict can be argued
     // with. A tier with no printed reason is as unauditable as a model's opinion.
@@ -38,7 +38,7 @@ test('the classifier emits a tier, a score, and one attributable signal per poin
 
 test('classifier self-test covers every routing scenario the contract names', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/classify-risk.sh');
 
     // One label per required scenario. Without the self-test actually asserting these, a mutation
     // to a single regex silently re-routes a whole class of change and nothing notices.
@@ -64,7 +64,7 @@ test('classifier self-test covers every routing scenario the contract names', fu
 
 test('quoted text and a class only named for a migration force no tier', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/classify-risk.sh');
 
     // The assignment mode reads prose without its quoted and example parts, and the diff mode
     // reads the migration signal on the path. The false positives of #564 and #414 stay pinned,
@@ -103,7 +103,7 @@ test('quoted text and a class only named for a migration force no tier', functio
 
 test('a sensitive area forces CRITICAL and a lower override is refused, not applied', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/classify-risk.sh');
 
     // A force an override can silence is not a force — it would let `--fast` route an
     // authorization change past every reviewer the tier exists to summon.
@@ -185,7 +185,7 @@ function routingAgentStages(string $planJson): array
 
 function routingPlan(string $args): string
 {
-    $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
+    $planner = dirname(__DIR__, 2) . '/commands/_shared/plan-route.sh';
 
     return (string) shell_exec('bash ' . escapeshellarg($planner) . ' ' . $args . ' 2>/dev/null');
 }
@@ -260,7 +260,7 @@ test('every agent declares its own model tiers, per platform, in its own definit
         expect($toml)->toContain('- Escalated tier:');
 
         // The bare script paths the classifier is referenced by — `@skills/<path>` never covered those.
-        expect($toml)->toContain('skills/_shared/classify-risk.sh');
+        expect($toml)->toContain('commands/_shared/classify-risk.sh');
     }
 
     // The three roles that derive no new fact must say they never escalate, not leave it open.

@@ -9,7 +9,7 @@
 #   it at the mockups, get one PNG per mockup, and compare the two counts.
 #
 #   It adds no dependency to the project under test. The Playwright runtime is
-#   resolved by `skills/_shared/browser-drive.sh`, which is also what `raphael`
+#   resolved by `commands/_shared/browser-drive.sh`, which is also what `acceptance check`
 #   uses to drive a real browser without installing anything.
 #
 # Usage

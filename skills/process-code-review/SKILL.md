@@ -28,11 +28,11 @@ Only a zero exit permits the flow to continue — every non-zero exit is a hard 
   - If multiple PRs exist, process each independently
 - When the caller names a worktree, run the whole sequence of the next item inside it with `git -C <path>`, never in the shared tree, and skip only the branch switch: the worktree already holds the PR branch, git refuses to check out a branch that another worktree holds, and every later command of the run (fixes, commits, pushes, *Finalization*) runs in that worktree.
   - The fetch, the `git pull --rebase` of the branch's own remote, the rebase onto `origin/$DEFAULT_BRANCH`, the fingerprint comparison, the conflict handling, the `composer install` after a rebase that changed `composer.lock`, and the `git push --force-with-lease` all stay.
-  - Run that `composer install` from inside the worktree through `skills/_shared/run-gate.sh --exclusive --command "composer install"`, so it never overlaps a gate or an install of another worktree.
+  - Run that `composer install` from inside the worktree through `commands/_shared/run-gate.sh --exclusive --command "composer install"`, so it never overlaps a gate or an install of another worktree.
 - Otherwise, before processing a PR, switch to the PR branch and pull latest changes following `@rules/git/general.md` *Pull Policy*, in order: resolve the default branch (`DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's@^origin/@@')"` — never hardcode `origin/main`), `git fetch origin`, `git pull --rebase` to take the PR branch's own remote first, then `git rebase "origin/$DEFAULT_BRANCH"` to bring the default branch in, resolve any conflicts, and `git push --force-with-lease`. Do not `git pull` again after the rebase — it would undo the sync.
 Record the effective-PR-diff fingerprint before and after the rebase using `@rules/code-review/general.md` *Incremental Review Scope — Diff Since the Last Reviewed Revision*. Matching fingerprints mean history-only change and no CR round; differing or missing values require review.
 The resulting head is still gated once at the merge boundary (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*), so no range replay is required here before the `git push --force-with-lease`. Use `git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"` only when a bisectable history is explicitly wanted.
-If the rebase changed `composer.lock`, run `skills/_shared/run-gate.sh --exclusive --command "composer install"` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
+If the rebase changed `composer.lock`, run `commands/_shared/run-gate.sh --exclusive --command "composer install"` immediately so dependencies match the new lockfile. If the rebase surfaces conflicts that cannot be resolved cleanly, stop and report it (the existing merge-conflict constraint).
 
 ### For each PR:
 
@@ -82,7 +82,7 @@ Use these to write a failing test **before** applying the fix, unless the Test H
 
 1. Turn the Faulty Example into a test at the layer of the Test Hint.
 2. Assert the Expected Behavior — the test must fail on the current code.
-3. Make the Suggested Fix change (or the Fix narrative when it is `n/a`); rerun the test, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
+3. Make the Suggested Fix change (or the Fix narrative when it is `n/a`); rerun the test, through `commands/_shared/run-gate.sh --exclusive --command "<command>"`, until it passes.
 
 If a **CR-skill finding** lacks Faulty Example, Expected Behavior, or Test Hint, request a CR rerun rather than guessing. Suggested Fix may legitimately be `n/a` per the CR rules.
 
@@ -117,7 +117,7 @@ In the single CR comment posted during **PR update**, list every pre-existing se
 - If tests are required or missing:
   - Run @skills/create-missing-tests-in-pr/SKILL.md
 - Ensure current changes have 100% coverage **for the changed files only**, using the project's available coverage tooling (per the Coverage gate in `@skills/code-review/SKILL.md`). Do not gate on the full-suite coverage percentage during a CR / review loop iteration.
-- Run only relevant tests for changed files, through `skills/_shared/run-gate.sh --exclusive --command "<command>"`
+- Run only relevant tests for changed files, through `commands/_shared/run-gate.sh --exclusive --command "<command>"`
 - If migrations were added, run `php artisan migrate`
 
 ---
@@ -126,7 +126,7 @@ In the single CR comment posted during **PR update**, list every pre-existing se
 
 This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, or **Completion** until the loop converges. The final report (technical and non-technical) is published only **once**, after convergence.
 
-1. Initialise `iteration = 1` and the loop state: `skills/_shared/review-state.sh init` (`references/review-state.md`: rounds, statuses, troubleshooting). `maxIterations` is the default-branch manifest key `review.max-iterations`, default 3; only the script reads it. The cap round (`iteration == maxIterations`, round 3 by default) is the **deferral boundary**, not a failure line: a run still carrying findings there triages them under step 6 instead of iterating again. A Critical and a security-relevant Moderate stay hard blockers at the cap round, as at round 1 (step 6).
+1. Initialise `iteration = 1` and the loop state: `commands/_shared/review-state.sh init` (`references/review-state.md`: rounds, statuses, troubleshooting). `maxIterations` is the default-branch manifest key `review.max-iterations`, default 3; only the script reads it. The cap round (`iteration == maxIterations`, round 3 by default) is the **deferral boundary**, not a failure line: a run still carrying findings there triages them under step 6 instead of iterating again. A Critical and a security-relevant Moderate stay hard blockers at the cap round, as at round 1 (step 6).
 2. **Run the review inline.** Invoke the appropriate CR wrapper directly in this skill's context — do not dispatch as a subagent. Each iteration re-invokes the CR wrapper inline so it reloads the diff after the latest fix commit:
    - GitHub: `@skills/code-review-github/SKILL.md`
    - JIRA: `@skills/code-review-jira/SKILL.md`
@@ -139,7 +139,7 @@ This is a **blocking loop**. Do not advance to **Finalization**, **PR update**, 
 
    > The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, and **no Moderate finding remains undeferred** — every Moderate is either fixed in the loop or, at the cap round only, filed as a tracker sub-issue under step 6. A Moderate that meets the **S1–S3** security carve-out of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)* is **never** deferrable and blocks until it is fixed.
 
-   When `splinter` runs, the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount`, and none is deferrable.
+   When `independent security review` runs, the Critical and Moderate findings of the independent `independent security review` security view count in `criticalCount` and `moderateCount`, and none is deferrable.
 
    The condition is compound, not simply `criticalCount == 0`. Before the cap round its third part means `moderateCount == 0`, because nothing is deferrable yet. When the gate holds → **converged**, exit the loop.
 5. Otherwise, when `iteration < maxIterations`, run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again), apply the **Suggested Fix** of each Critical / Moderate finding (including each not-fulfilled reviewer-instruction finding) using the **Reproducer extraction** workflow above, commit the fix, increment `iteration`, and go back to step 2.
@@ -166,8 +166,8 @@ Apply each fix, commit it, push it, and let the next review iteration read the n
 **Precondition:** the Review loop above must have exited **converged** per its step-4 gate — `criticalCount == 0`, `unfulfilledCount == 0`, and no undeferred Moderate. If it stopped at the cap round with a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar, do not proceed — return the remaining findings to the user for manual triage instead.
 
 - **Run the full quality gate now — the branch's gate run happens here.** The loop above deliberately ran no fixers and no checkers, so this is the first point where they execute (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*). Convergence of the loop is a **review** verdict; this is the **build** verdict, and the merge requires both. Run the project's full gate, discovered per `@skills/resolve-issue/references/quality-gates.md` with the manifest `env` exported, on the current head.
-  - **Machine gate record.** Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello` and act on its exit code per that file's *Machine gate record* table. Exit `5` means the project did not opt in: run the gate on the built-in path below, with its commands in that order passed to `skills/_shared/run-gate.sh --exclusive --command "<command>"` (one `--command` per command), so the gate holds the machine gate lock and never runs beside another gate. Exit `3` is a hard stop, like a gate that cannot be run.
-    The gate rewrites tracked files and lands a commit, so it is run by the implementing agent (`donatello`), never by a read-only orchestrator or reviewer — `agents/donatello.md` *Bash boundary* permits the gate command for exactly this step.
+  - **Machine gate record.** Run the gate through `commands/_shared/run-gate.sh --tier full --actor implementation work` and act on its exit code per that file's *Machine gate record* table. Exit `5` means the project did not opt in: run the gate on the built-in path below, with its commands in that order passed to `commands/_shared/run-gate.sh --exclusive --command "<command>"` (one `--command` per command), so the gate holds the machine gate lock and never runs beside another gate. Exit `3` is a hard stop, like a gate that cannot be run.
+    The gate rewrites tracked files and lands a commit, so it is run by the implementing agent (`implementation work`), never by a read-only orchestrator or reviewer — `the command workflow` *Bash boundary* permits the gate command for exactly this step.
     A call the harness stopped while it waited for the lock is run again, in the background or with the maximum tool timeout, and is never treated as exit `3` (*Waiting for the gate lock* in `@skills/resolve-issue/references/quality-gates.md`).
   - **Green on the first run → nothing more to do here.** Record the command, its result, **and the head SHA it ran on** (`git rev-parse HEAD`) for the `Quality gate:` line of the CR comment — plus, on a `run-gate.sh` run, the `tree` and the `record` path from its output — read that SHA **after** the branch's last commit is pushed, since any commit landing afterwards invalidates the record and forces the merge to run the gate again. The SHA is what lets `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* accept this run instead of repeating it.
   - **Flaky test:** `@skills/resolve-issue/references/quality-gates.md` *A flaky test outside the diff and the assignment is left alone*.
@@ -211,7 +211,7 @@ After the fixes are committed and pushed (Finalization above), mark every review
 Convergence is exactly the moment the PR becomes ready to merge, so this skill owns that signal on the pull request — the Draft → ready transition per `@rules/git/pull-requests.md` *Draft pull requests*. It never writes a status on the source tracker item (`@rules/compound-engineering/tracker.md` *No status write once the code review has started*):
 
 - Skip this step for a pull request whose body carries the marker `<!-- ai-olympus:contribution-policy=human-description -->` (`references/ready-to-merge-signal.md`).
-- Because this step runs only after the **Review loop converged** (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate), mark the PR ready for review now: `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>` (the helper appends the audit line itself and still runs the write when no ledger is set), and label it `ready to merge` (`references/ready-to-merge-signal.md` *Pull-request label*); its label commands run in the same per-call `run` form. Both are PR state changes, not code changes.
+- Because this step runs only after the **Review loop converged** (step 4's gate: `criticalCount == 0`, `unfulfilledCount == 0`, no undeferred Moderate), mark the PR ready for review now: `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=<command-selected-role> commands/_shared/audit-trail.sh run -- gh pr ready <PR-NUMBER|URL>` (the helper appends the audit line itself and still runs the write when no ledger is set), and label it `ready to merge` (`references/ready-to-merge-signal.md` *Pull-request label*); its label commands run in the same per-call `run` form. Both are PR state changes, not code changes.
 - Do **this only on a converged loop.** If the loop stopped at the cap round without converging, the PR stays a Draft — never promote a PR that still carries a Critical, a security-relevant Moderate, or a Moderate that failed the filing bar. A Moderate deferred into a sub-issue is not such a finding: it is resolved for this PR and recorded in the tracker.
 - A PR that was already non-draft stays non-draft; `gh pr ready` is idempotent. If `gh pr ready` is unavailable, fall back to the GitHub MCP server's mark-ready operation.
 
@@ -237,7 +237,7 @@ Convergence is exactly the moment the PR becomes ready to merge, so this skill o
   - follow-up tracker issues filed for deferred points (URLs), or the unfiled points listed as blockers when issue creation was blocked
   - Moderate findings deferred at the cap round with the sub-issue URL each was filed as, or `none` when the loop converged before the deferral boundary (`references/round-three-deferral.md`)
   - loop iteration count and convergence status (`counts`, any `escalation_reason`, worded per `@skills/agent-voice/SKILL.md`), the review scope the final publish carried (`full PR` on a single-iteration run, `delta since <SHA>` otherwise)
-  - `report: not-published (no-orchestrator)` when the run ended with no `april` reporting step and the source is a tracker — this skill publishes no post-convergence report, it only refuses to leave a missing one silent
+  - `report: not-published (no-orchestrator)` when the run ended with no `reporting flow` reporting step and the source is a tracker — this skill publishes no post-convergence report, it only refuses to leave a missing one silent
   - remaining blockers (if any — should be empty when convergence was reached)
 
 ---

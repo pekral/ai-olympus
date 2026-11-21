@@ -140,7 +140,7 @@ test('the parallel planner reads its limit from the default-branch manifest and 
 
 test('both helpers carry a self-test that the shell self-test gate runs', function (): void {
     $composer = (string) file_get_contents(dirname(__DIR__, 2) . '/composer.json');
-    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh');
+    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/plan-parallel.sh');
 
     foreach (['plan-parallel', 'order-work-queue'] as $helper) {
         expect(is_executable(dirname(__DIR__, 2) . '/skills/_shared/' . $helper . '.sh'))->toBeTrue()
@@ -164,7 +164,7 @@ test('both helpers carry a self-test that the shell self-test gate runs', functi
 test('the manifest row owns the one limit of concurrent pipelines and every other file only names the key', function (): void {
     $manifest = normalizedPackageSource('rules/general/general.md');
     $concurrency = normalizedPackageSource('rules/compound-engineering/concurrency.md');
-    $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
 
     expect($manifest)->toContain('| `parallel.max-units` | int | The one limit of units that run at the same time.')
@@ -172,7 +172,7 @@ test('the manifest row owns the one limit of concurrent pipelines and every othe
         ->and($manifest)->toContain('Absent: 2 for `plan-parallel.sh` and 3 for the cap of the batch file.')
         ->and($manifest)->toContain('The machine-wide gate lock stays one heavy job at a time.')
         ->and($concurrency)->toContain(
-            'The limit is the manifest key `parallel.max-units`, which `plan-parallel.sh` reads through `skills/_shared/read-manifest.sh`.',
+            'The limit is the manifest key `parallel.max-units`, which `plan-parallel.sh` reads through `commands/_shared/read-manifest.sh`.',
         )
         ->and($concurrency)->toContain('The row of *Project manifest* in `@rules/general/general.md` owns its range and defaults.')
         ->and($concurrency)->not->toContain('An absent key gives **2**.')
@@ -185,7 +185,7 @@ test('the manifest row owns the one limit of concurrent pipelines and every othe
 test('a test run of the diff takes the machine lock everywhere, so the batch section needs no condition of its own', function (): void {
     $concurrency = normalizedPackageSource('rules/compound-engineering/concurrency.md');
     $donatello = normalizedPackageSource('agents/donatello.md');
-    $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
 
     expect($concurrency)->toContain(
         'A diff-targeted check (Pest, Rector, or PHPStan on a path list, the validation manifest) takes it too',
@@ -216,7 +216,7 @@ test('the skill reuses an existing issue, creates a flat issue only for the rest
 test('the skill orders and batches only through the two helpers and publishes no number without a method', function (): void {
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
 
-    expect($skill)->toContain('Order and batch only through `skills/_shared/order-work-queue.sh` and `skills/_shared/plan-parallel.sh`.')
+    expect($skill)->toContain('Order and batch only through `skills/_shared/order-work-queue.sh` and `commands/_shared/plan-parallel.sh`.')
         ->and($skill)->toContain('Never order or overlap items by your own judgement.')
         ->and($skill)->toContain('Publish no number that this run did not derive by a stated method.')
         ->and($skill)->toContain('Method `files-and-criteria`')
@@ -225,9 +225,9 @@ test('the skill orders and batches only through the two helpers and publishes no
 
 test('the queue runs through the one batch mechanism, in worktrees when they are allowed and one unit at a time otherwise', function (): void {
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
-    $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
 
-    expect($skill)->toContain('Execute the queue as *A `/do-it` queue as the batch* of `skills/_shared/orchestration/batch-preparation.md` states.')
+    expect($skill)->toContain('Execute the queue as *A `/do-it` queue as the batch* of `commands/_shared/orchestration/batch-preparation.inc` states.')
         ->and($skill)->toContain('Start the units of a batch with `mode.<k>=parallel` together, in the background.')
         ->and($skill)->toContain('this skill adds no second mechanism and no second concurrency limit')
         ->and($skill)->not->toContain('blocking calls in one message')
@@ -259,11 +259,11 @@ test('the communication plan names who hands what to whom through which channel 
 test('the run reads the shared memory only through the existing protocols', function (): void {
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
 
-    expect($skill)->toContain('Run `skills/_shared/gate-context.sh` on the instructions.')
+    expect($skill)->toContain('Run `commands/_shared/gate-context.sh` on the instructions.')
         ->and($skill)->toContain('request one Context Package from `shredder`')
         ->and($skill)->toContain('Read the code-review memory only when a review round opens a Critical finding')
         ->and($skill)->toContain('The queue run reads no memory at its start.')
-        ->and($skill)->toContain('the startup sweep of `skills/_shared/orchestration/stale-run-recovery.md`');
+        ->and($skill)->toContain('the startup sweep of `commands/_shared/orchestration/stale-run-recovery.inc`');
 });
 
 test(
@@ -280,7 +280,7 @@ test(
             ->and($skill)->toContain('The root session implements, reviews, and tests nothing.')
             ->and($skill)->toContain(
                 'Run every gate, dependency install, full test suite, and test run of the diff through '
-                . '`skills/_shared/run-gate.sh` or `skills/_shared/run-validation.sh --exclusive`.',
+                . '`commands/_shared/run-gate.sh` or `commands/_shared/run-validation.sh --exclusive`.',
             );
     },
 );
@@ -374,7 +374,7 @@ test('every quote from an issue in the queue brief sits inside a fenced text blo
 });
 
 test('a Base branch is checked before it enters a dispatch and again by donatello, with the checks of the batch file reused', function (): void {
-    $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
     $donatello = normalizedPackageSource('agents/donatello.md');
     $brief = normalizedPackageSource('skills/do-it/references/queue-brief.md');
 
@@ -384,7 +384,7 @@ test('a Base branch is checked before it enters a dispatch and again by donatell
     )
         ->and($batch)->toContain('`Blocked: unsafe base branch`')
         ->and($donatello)->toContain(
-            'only after it passes the two checks of `skills/_shared/orchestration/batch-preparation.md` '
+            'only after it passes the two checks of `commands/_shared/orchestration/batch-preparation.inc` '
             . '*Steps of the root session* step 1 (the pattern, then `git check-ref-format --branch`)',
         )
         ->and($donatello)->toContain('`git ls-remote --exit-code --heads origin "<Base branch>"` finds it')
@@ -404,12 +404,12 @@ test('the skill writes only the issues of its items, triages only those, and the
 });
 
 test('the Bash boundary of krang says what both helpers read and stays under the instruction size guard', function (): void {
-    $krang = normalizedPackageSource('agents/krang.md');
+    $krang = normalizedPackageSource('commands/_shared/krang-workflow.inc');
 
-    expect($krang)->toContain('`skills/_shared/plan-parallel.sh` (which units may overlap; reads stdin and the default-branch manifest, writes nothing)')
+    expect($krang)->toContain('`commands/_shared/plan-parallel.sh` (which units may overlap; reads stdin and the default-branch manifest, writes nothing)')
         ->and($krang)->toContain('`skills/_shared/order-work-queue.sh` (queue order; reads stdin, writes nothing)')
         ->and($krang)->not->toContain('both reading stdin only')
-        ->and(strlen((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md')))->toBeLessThan(135_000);
+        ->and(strlen((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc')))->toBeLessThan(135_000);
 });
 
 test('the Codex entry point carries the name of the command and the wording says a converged, promoted pull request', function (): void {
@@ -429,7 +429,7 @@ test('the Codex entry point carries the name of the command and the wording says
 test(
     'the start point of a stacked queue unit is stated once, in item 4 of the batch file, and the agent-impl rule does not name do-it',
     function (): void {
-        $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+        $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
         $concurrency = normalizedPackageSource('rules/compound-engineering/concurrency.md');
         $donatello = normalizedPackageSource('agents/donatello.md');
         preg_match('/## Parallel units(.*?)## Parallel steps against the runs in progress/s', $concurrency, $parallelUnits);
@@ -441,7 +441,7 @@ test(
             ->and($parallelUnits[1] ?? '')->not->toBe('')
             ->and($parallelUnits[1] ?? '')->not->toContain('do-it')
             ->and($parallelUnits[1] ?? '')->not->toContain('<Base branch>')
-            ->and($donatello)->toContain('`skills/_shared/orchestration/batch-preparation.md` *A `/do-it` queue as the batch* item 4')
+            ->and($donatello)->toContain('`commands/_shared/orchestration/batch-preparation.inc` *A `/do-it` queue as the batch* item 4')
             ->and(substr_count($batch, 'switch -c "<branch>" "origin/<Base branch>"'))->toBe(1);
     },
 );
@@ -490,7 +490,7 @@ test('a candidate issue whose body carries an agent marker is never trusted, wha
 
 test('a Blocked item is no unit: the queue runs only the items that have an issue and keeps the blocker in the unit status', function (): void {
     $skill = normalizedPackageSource('skills/do-it/SKILL.md');
-    $batch = normalizedPackageSource('skills/_shared/orchestration/batch-preparation.md');
+    $batch = normalizedPackageSource('commands/_shared/orchestration/batch-preparation.inc');
 
     expect($skill)->toContain('1. For each item that is not `Blocked`, in queue order, run the unit as that file states')
         ->and($batch)->toContain(

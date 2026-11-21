@@ -21,7 +21,7 @@ metadata:
 
 ## Use when
 - A review finding about where logic is placed keeps coming back, for example a query in a controller or a `DB::` call in an Action.
-- The output of `skills/_shared/propose-prevention.sh` names a layer-placement defect class, and its mechanism is an architecture test (`@skills/code-review/references/prevention-proposal.md` level 1).
+- The output of `commands/_shared/propose-prevention.sh` names a layer-placement defect class, and its mechanism is an architecture test (`@skills/code-review/references/prevention-proposal.md` level 1).
 - The user asks to "enforce the architecture", "guard the layers", or "add architecture tests".
 
 ---
@@ -73,7 +73,7 @@ The shape is an illustration of the call chain. Confirm each method against `ven
 
    | Tool | Command |
    |---|---|
-   | Pest architecture testing | `skills/_shared/run-gate.sh --exclusive --command "vendor/bin/pest --group=arch"` |
+   | Pest architecture testing | `commands/_shared/run-gate.sh --exclusive --command "vendor/bin/pest --group=arch"` |
    | deptrac | `vendor/bin/deptrac analyse` |
    | PHPArkitect | `vendor/bin/phparkitect check` |
 

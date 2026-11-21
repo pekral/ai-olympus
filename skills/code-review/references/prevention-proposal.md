@@ -6,7 +6,7 @@ A proposal is a tracker issue that names the strongest practical mechanism again
 
 ## Command
 
-`skills/_shared/propose-prevention.sh` is the only implementation. It is a plain shell script that needs `jq`, so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding. It reuses `skills/_shared/extract-findings.sh --validate` for the store check and duplicates nothing of the earlier phases.
+`commands/_shared/propose-prevention.sh` is the only implementation. It is a plain shell script that needs `jq`, so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding. It reuses `skills/_shared/extract-findings.sh --validate` for the store check and duplicates nothing of the earlier phases.
 
 ```text
 propose-prevention.sh --report <file|-> --store <file> --analysis <file> --out <file>
@@ -101,7 +101,7 @@ Filing a tracker issue is a write that other people see. The steps below run onl
 
 1. Run `skills/_shared/assert-current-repo.sh <class.repo>`. Stop on any non-zero exit, and file nothing: steps 3 to 5 act on the current checkout, so they must not run in a checkout of another repository. Exit `4` is a different repository and exit `5` is an ownership that cannot be proven.
 2. Run `propose-prevention.sh` with `--out` set to a file in the scratch directory. Stop when the status is `none`. File nothing and say the reason.
-3. Run `skills/_shared/feedback-loop.sh lookup --key <key>`. It searches the tracker of `class.repo` for the marker words (`repo:<owner>/<name> is:issue in:body "prevention-proposal"`), reads every page of the result, and runs `propose-prevention.sh --find` on it. The number of proposals in the repository therefore never blocks the lookup. A search that GitHub cuts at 1000 results is refused with exit `3`.
+3. Run `commands/_shared/feedback-loop.sh lookup --key <key>`. It searches the tracker of `class.repo` for the marker words (`repo:<owner>/<name> is:issue in:body "prevention-proposal"`), reads every page of the result, and runs `propose-prevention.sh --find` on it. The number of proposals in the repository therefore never blocks the lookup. A search that GitHub cuts at 1000 results is refused with exit `3`.
 4. When the action is `create`, file the body file unchanged through `@skills/create-issue/SKILL.md`. The first line of the file is the title. That skill assigns the issue to the current user and selects one existing label under `@rules/compound-engineering/tracker.md` *Label tracker issues, and keep the labels true*. Phase 3 adds no label and no second issue-creation path.
 5. When the action is `update`, publish the body file with `skills/code-review-github/scripts/upsert-comment.sh <url> <body-file> prevention-proposal`, where `<url>` is the `url` that the `--find` line prints. A bare number resolves against the current git remote, so it never replaces the `url`. The helper replaces this actor's earlier comment of that namespace on the issue. The issue body, its labels, and its state stay as a human left them. A closed proposal is reported to the human and is never reopened by the run.
 6. Read the issue or the comment back through the tracker loader and confirm it landed. Delete the scratch files.
@@ -121,6 +121,6 @@ Without an approval nothing is implemented. The proposal states it. The script w
 
 ## What this phase leaves to later phases
 
-- Phase 4 (#189) assigned the roles in `feedback-loop.md`: `krang` runs the analysis and files the proposal, `leonardo` writes the analysis file, and the filing is **L1** for `krang` in a feedback-analysis run that the user asked for (`@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*).
-- A canonical `repo` value is the `nameWithOwner` that `skills/_shared/feedback-loop.sh` resolves before it writes a record.
-- Only `skills/_shared/feedback-loop.sh` and the feedback-analysis run of `krang` call the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.
+- Phase 4 (#189) assigned the roles in `feedback-loop.md`: `command` runs the analysis and files the proposal, `review` writes the analysis file, and the filing is **L1** for `command` in a feedback-analysis run that the user asked for (`@rules/compound-engineering/orchestration.md` *Externally-visible actions & consent levels*).
+- A canonical `repo` value is the `nameWithOwner` that `commands/_shared/feedback-loop.sh` resolves before it writes a record.
+- Only `commands/_shared/feedback-loop.sh` and the feedback-analysis run of `command` call the proposal. A missing `jq`, a failed proposal, or a refused analysis changes nothing for a pull request.

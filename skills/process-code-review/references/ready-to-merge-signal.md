@@ -9,12 +9,12 @@ It runs at exactly one moment: the Review loop converged (`skills/process-code-r
 The write is unconditional, idempotent, and verified. A zero exit code is not evidence: an external write can be silently blocked in auto-mode.
 
 ### Pull-request label
-Run every `gh label` and `gh pr edit` command below, and `gh pr ready` in the revert, as `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo skills/_shared/audit-trail.sh run -- <command>`: the helper appends the one audit line of the write (`@rules/compound-engineering/orchestration.md` *Record the line at the moment of the write*), and the agent appends none by hand.
+Run every `gh label` and `gh pr edit` command below, and `gh pr ready` in the revert, as `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=<command-selected-role> commands/_shared/audit-trail.sh run -- <command>`: the helper appends the one audit line of the write (`@rules/compound-engineering/orchestration.md` *Record the line at the moment of the write*), and the agent appends none by hand.
 
 The pull request is on GitHub whatever the source tracker is, so this write runs for a GitHub, a JIRA, and a Bugsnag source, and also when there is no source tracker item.
 1. **Create the label when the repository lacks it**, then ignore the "already exists" outcome on every later run: `gh label create "ready to merge" --description "The code review converged; the PR is waiting to be merged" --color 1d76db`.
 2. **Apply it to the pull request:** `gh pr edit <PR-NUMBER|URL> --add-label "ready to merge"`.
-3. **Refresh the `## Merge risk` heading** of the pull-request body as `@skills/resolve-issue/references/pull-request.md` *Merge risk* → *Refresh after the gate* states, with the write that the `gh pr edit --body-file` exception of `agents/leonardo.md` *Bash boundary* names, run as the `audit-trail.sh run --` command above. Skip it when the body carries no such heading.
+3. **Refresh the `## Merge risk` heading** of the pull-request body as `@skills/resolve-issue/references/pull-request.md` *Merge risk* → *Refresh after the gate* states, with the write that the `gh pr edit --body-file` exception of `the command workflow` *Bash boundary* names, run as the `audit-trail.sh run --` command above. Skip it when the body carries no such heading.
 4. **Re-read and verify the label landed** via `skills/code-review-github/scripts/load-issue.sh <PR-URL>`. When it did not land, report the failed write in the completion report; the PR stays promoted.
 
 ### Revert when the review re-opens

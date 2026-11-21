@@ -258,7 +258,7 @@ function codeTestingTestBlocks(string $source): array
 
 /**
  * An empty audit ledger in its own temporary directory, with the environment that points a package
- * wrapper at it (`skills/_shared/audit-trail.sh`).
+ * wrapper at it (`commands/_shared/audit-trail.sh`).
  *
  * @return array{directory: string, env: array<string, string>, file: string}
  */
@@ -852,7 +852,7 @@ function ruleScopingConsumerAppTreePaths(): array
  * puts the rules scoped to their own path, which is what an agent reads when a skill names them.
  * Two more are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
- * every consuming project (per this package's own `agents/krang.md` *Shared task brief*), and
+ * every consuming project (per this package's own `commands/_shared/krang-workflow.inc` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
  * directory that walk skips. They live here for the same reason the rest of this corpus does.
  *
@@ -956,7 +956,7 @@ function ruleExtensionFrontmatter(string $path): string
  */
 /**
  * The whole `krang` orchestration contract: its base prompt plus the rare
- * procedures extracted into `skills/_shared/orchestration/`.
+ * procedures extracted into `commands/_shared/orchestration/`.
  *
  * Those procedures were moved out so the orchestrator stops carrying ~30 KB of
  * crash-recovery and merge-preparation detail on every ordinary run (progressive
@@ -968,9 +968,9 @@ function ruleExtensionFrontmatter(string $path): string
 function krangContractText(): string
 {
     $packageDir = dirname(__DIR__);
-    $text = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $text = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
 
-    $references = glob($packageDir . '/skills/_shared/orchestration/*.md');
+    $references = glob($packageDir . '/commands/_shared/orchestration/*.inc');
 
     foreach ($references === false ? [] : $references as $reference) {
         $text .= "\n" . (string) file_get_contents($reference);

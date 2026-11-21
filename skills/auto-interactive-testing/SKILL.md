@@ -48,7 +48,7 @@ metadata:
 
 For every linked defect issue that is still open, and one at a time:
 
-1. Run the defect through the `krang` role (`agents/krang.md`) with the full merge chain. This session holds that role itself and never starts `krang` as a subagent, per `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
+1. Run the defect through the `command` role (`the command workflow`) with the full merge chain. This session holds that role itself and never starts `command` as a subagent, per `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*: implement it through `@skills/resolve-issue/SKILL.md`, run the review loop to convergence, then merge it through `@skills/merge-github-pr/SKILL.md`.
 2. Put these facts in the shared brief, so every dispatch of the chain carries them:
    - the defect URL and the interactive-testing issue that found it,
    - the environment facts the project memory records, for example a sandbox that blocks the database or the browser tests, and a known CI billing condition,

@@ -41,7 +41,8 @@ The installer writes, for Claude Code and Codex:
 - `.claude/rules` and `.codex/rules` — the rule library
 - `.claude/skills` and `.agents/skills` — the skills, in the project only
 - `.claude/agents`, `.codex/agents`, and `.codex/agent-instructions` — the nine agents and their Codex adapters
-- `.claude/commands` — the five Claude Code slash commands; Codex uses the matching skills below
+- `.claude/commands` — the five Claude Code slash commands; their shared support is in `.claude/command-support`
+- `.codex/commands` — command contracts loaded by the Codex root instructions, not native slash commands
 - `AGENTS.md` in the project root, unless one already exists
 
 `--global` additionally writes the skills to `~/.claude/skills` and `~/.agents/skills`. Every other switch, the installer flow, and the distribution contents are in [`docs/installation.md`](docs/installation.md).
@@ -94,7 +95,7 @@ The installer puts the same 74 skills, including their scripts and references, i
 To resolve an issue through the full pipeline, ask the root session to take the `krang` role and spawn the specialists itself:
 
 ```text
-Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123
+Follow .codex/commands/_shared/krang-workflow.inc as krang and resolve https://github.com/owner/repo/issues/123
 ```
 
 With several references, or with the optional `--merge` flag, the same command prepares a batch: the session holds the `krang` role for every issue and runs one pipeline for each in its own git worktree, at most 3 at a time. Without `--merge` it stops before merge; with it, each unit rebases onto the latest default branch and merges through `merge-github-pr` with every gate unchanged.
@@ -134,11 +135,11 @@ A batch unit first tries `gh pr update-branch --rebase` to reach the latest defa
 | Rules | Project standards for PHP, Laravel, security, SQL, APIs, tests, git, and code review | `.claude/rules`, `.codex/rules` |
 | Skills | Reusable workflows, from `resolve-issue` to `security-review` | `.claude/skills`, `.agents/skills` |
 | Agents | Shared role definitions with Codex TOML adapters | `.claude/agents`, `.codex/agents`, `.codex/agent-instructions` |
-| Commands | `/do-it`, `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` | `.claude/commands` |
+| Commands | `/do-it`, `/prepare-issue-for-merge`, `/redesign-page`, `/report-code-review`, `/test-assignment` | `.claude/commands` (support: `.claude/command-support`); `.codex/commands` |
 
-The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. The five slash commands are installed for Claude Code only. Codex reaches their workflows through the skill names listed in [Quick start](#quick-start).
+The Markdown files in `.codex/rules` are an instruction library, **not native Codex command-approval rules**: the root `AGENTS.md` tells Codex which of them to read. The five slash commands are installed for Claude Code only. Codex loads the matching command contracts before it invokes the corresponding skill.
 
-The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. On a pull request from a branch of the same repository, a converged code review with no blocking finding counts as the approval, because GitHub does not let the author approve their own pull request. A pull request from a fork still needs a GitHub approval. One opt-in path replaces the review and the CI wait. A project sets `merge.low-risk-path: true` and `risk.critical-paths` in its manifest; then, when the default-branch copy of `skills/_shared/classify-risk.sh --merge-risk` answers `low-risk-merge=yes` for the exact head (a `FAST` diff of regular application source and test files inside the allow-list in that script header, none of them critical for the project), `merge-github-pr` reads the diff in one security-only check, then merges on a green full quality gate of that head. Without the opt-in every merge keeps the review and green CI.
+The workflows require tests for the changed behaviour and zero Critical and no undeferred Moderate review findings before merge. On a pull request from a branch of the same repository, a converged code review with no blocking finding counts as the approval, because GitHub does not let the author approve their own pull request. A pull request from a fork still needs a GitHub approval. One opt-in path replaces the review and the CI wait. A project sets `merge.low-risk-path: true` and `risk.critical-paths` in its manifest; then, when the default-branch copy of `commands/_shared/classify-risk.sh --merge-risk` answers `low-risk-merge=yes` for the exact head (a `FAST` diff of regular application source and test files inside the allow-list in that script header, none of them critical for the project), `merge-github-pr` reads the diff in one security-only check, then merges on a green full quality gate of that head. Without the opt-in every merge keeps the review and green CI.
 
 Three rules shape the Laravel work, all in `rules/laravel/laravel.md` *Carbon and Framework Helpers*. Date and time code uses Carbon or a Laravel date helper (`now()`, `today()`, the `Date` facade, an Eloquent date cast) instead of `date()`, `strtotime()`, or `new DateTime(...)`. String, array, and collection work reuses `Str`, `Arr`, `Collection`, `Number`, and `data_get()` before any hand-written code. New code first reuses an existing project concept. When no concept fits, it uses a framework helper or a framework class. Examples are the `Http` client with `retry()`, `Cache::remember()`, `Cache::lock()`, `RateLimiter`, `Pipeline`, `Process`, a Notification, and a Policy. Only when neither fits does the agent write new code. A hand-written equivalent of a framework helper or a framework class is a Moderate code-review finding. When your project installs `laravel/pao`, the rules read its compact JSON output of Pest, PHPUnit, Paratest, PHPStan, Rector, and Artisan, and trust only the process exit code.
 
@@ -162,7 +163,7 @@ Role boundaries, the handoff contract, and the avatar assets are in [`docs/agent
 
 ### Adaptive routing — how much pipeline a task gets
 
-Every `krang` run classifies the task with `skills/_shared/classify-risk.sh`, a deterministic shell script, and picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline. A sensitive area such as authentication, secrets, payments, or migrations forces `CRITICAL`, while tests, static analysis, CI, and the pre-merge quality gate run at every tier. The tiers are roles rather than model names, so Codex / OpenAI sessions route identically. Ask for thorough mode (`--thorough`) to run the complete pipeline regardless of the classification. See [Adaptive routing](docs/workflows.md#adaptive-routing--how-much-pipeline-a-task-gets) for the tier table and overrides.
+Every `krang` run classifies the task with `commands/_shared/classify-risk.sh`, a deterministic shell script, and picks a `FAST`, `STANDARD`, or `CRITICAL` pipeline. A sensitive area such as authentication, secrets, payments, or migrations forces `CRITICAL`, while tests, static analysis, CI, and the pre-merge quality gate run at every tier. The tiers are roles rather than model names, so Codex / OpenAI sessions route identically. Ask for thorough mode (`--thorough`) to run the complete pipeline regardless of the classification. See [Adaptive routing](docs/workflows.md#adaptive-routing--how-much-pipeline-a-task-gets) for the tier table and overrides.
 
 ### What a code review checks
 
@@ -172,7 +173,7 @@ From the second round of a review-and-fix loop, `leonardo` raises only new Criti
 
 ### Safety guards
 
-- **One heavy job at a time.** Every gate run, dependency install, full test suite, and targeted check (Pest, Rector, or PHPStan on a path list) holds one machine-wide lock in `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus` (`AI_OLYMPUS_LOCK_DIR` moves it), shared by every project and worktree of the account. Agents take it through `skills/_shared/run-gate.sh`, and `skills/_shared/run-validation.sh` holds it itself.
+- **One heavy job at a time.** Every gate run, dependency install, full test suite, and targeted check (Pest, Rector, or PHPStan on a path list) holds one machine-wide lock in `${XDG_CACHE_HOME:-$HOME/.cache}/ai-olympus` (`AI_OLYMPUS_LOCK_DIR` moves it), shared by every project and worktree of the account. Agents take it through `commands/_shared/run-gate.sh`, and `commands/_shared/run-validation.sh` holds it itself.
 - **No unfixed vulnerability on a public tracker.** `create-issue`, `create-issues-from-text`, and `/do-it` check the visibility of the target repository before they create an issue. On a public repository, or when the visibility cannot be shown, they withhold an item that describes an unfixed vulnerability and report it to you with the private routes (GitHub private vulnerability reporting and a draft security advisory). A deferred pre-existing security item of `resolve-issue` goes through the same guard (`skills/create-issues-from-text/SKILL.md` *Guard for a possible vulnerability*).
 
 ### Code-review memory

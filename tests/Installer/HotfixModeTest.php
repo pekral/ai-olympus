@@ -80,8 +80,8 @@ test('the executors carry the mode: implementer, review loop, and route plan', f
     $packageDir = dirname(__DIR__, 2);
     $gates = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/quality-gates.md');
     $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
-    $planner = (string) file_get_contents($packageDir . '/skills/_shared/plan-route.sh');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $planner = (string) file_get_contents($packageDir . '/commands/_shared/plan-route.sh');
+    $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
     // One home for every gate behaviour both skills share. Knowing the bug is gone survives there;
@@ -126,7 +126,7 @@ function hotfixPlanStageLabels(string $json): array
 
 function hotfixPlanJson(string $args): string
 {
-    $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
+    $planner = dirname(__DIR__, 2) . '/commands/_shared/plan-route.sh';
 
     return (string) shell_exec('bash ' . escapeshellarg($planner) . ' ' . $args . ' 2>/dev/null');
 }

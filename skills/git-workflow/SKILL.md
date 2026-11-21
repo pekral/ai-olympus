@@ -82,7 +82,7 @@ git rebase --exec '<the project gate>' "origin/$DEFAULT_BRANCH"   # optional; st
 ```
 If the rebase changed `composer.lock` (the default branch updated dependencies), reinstall before continuing so the installed packages match the new lockfile:
 ```bash
-skills/_shared/run-gate.sh --exclusive --command "composer install"   # run only when composer.lock actually changed
+commands/_shared/run-gate.sh --exclusive --command "composer install"   # run only when composer.lock actually changed
 ```
 The default branch itself is exempt — pull it directly with `git pull`. Read-only review skills are exempt too: they `git pull` only to read the diff and never rebase.
 
@@ -99,7 +99,7 @@ A conflict is a question about **intent**, not a formatting problem. Both sides 
 
 **3. Resolve each hunk.** Preserve both intents wherever they are compatible. Where they genuinely conflict, keep the one matching the merge's stated goal and record the trade-off in the merge commit body. **Never invent new behaviour in a conflict resolution** — a merge commit is the worst place to introduce a change nobody reviewed, because reviewers read the diff against each parent and a third behaviour appears in neither.
 
-**4. Run the tests covering the conflicted code.** Use the project's own test command, discovered per `@skills/resolve-issue/references/quality-gates.md`, and run it through `skills/_shared/run-gate.sh --exclusive --command "<command>"`. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart. The full gate runs once at the merge boundary (see *Hooks* below).
+**4. Run the tests covering the conflicted code.** Use the project's own test command, discovered per `@skills/resolve-issue/references/quality-gates.md`, and run it through `commands/_shared/run-gate.sh --exclusive --command "<command>"`. A conflict resolved to something that compiles is not the same as one resolved correctly; the tests are what tell the two apart. The full gate runs once at the merge boundary (see *Hooks* below).
 
 **5. Finish.** Stage and continue (`git commit` for a merge, `git rebase --continue` for a rebase, repeating until every commit is replayed).
 

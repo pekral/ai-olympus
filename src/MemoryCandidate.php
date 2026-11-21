@@ -19,7 +19,7 @@ final readonly class MemoryCandidate implements JsonSerializable
     }
 
     /**
-     * Builds the candidate text under the 500-character limit of `skills/_shared/pack-context.sh`.
+     * Builds the candidate text under the 500-character limit of `commands/_shared/pack-context.sh`.
      * The lesson and the rule come first. A text that is still too long loses the example, then the evidence, then a cut at a word boundary.
      */
     public static function fromEntry(MemoryEntry $entry, bool $withExample): self

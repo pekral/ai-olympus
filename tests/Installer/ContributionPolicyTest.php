@@ -90,7 +90,7 @@ test('every step that generates text or promotes the pull request applies the ru
         'skills/resolve-issue/SKILL.md',
         'skills/pr-summary/SKILL.md',
         'skills/process-code-review/references/ready-to-merge-signal.md',
-        'skills/_shared/orchestration/fast-run.md',
+        'commands/_shared/orchestration/fast-run.inc',
     ];
 
     foreach ($applyingSteps as $path) {
@@ -109,7 +109,7 @@ test('every step that generates text or promotes the pull request applies the ru
     $promotingSteps = [
         'skills/process-code-review/references/ready-to-merge-signal.md',
         'agents/leonardo.md',
-        'skills/_shared/orchestration/fast-run.md',
+        'commands/_shared/orchestration/fast-run.inc',
     ];
 
     foreach ($promotingSteps as $path) {

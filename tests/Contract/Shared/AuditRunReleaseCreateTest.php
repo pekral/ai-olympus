@@ -29,7 +29,7 @@ function auditRunReleaseOutcome(array $command, int $ghExit = 0): array
 
     try {
         $process = new Process(
-            [dirname(__DIR__, 3) . '/skills/_shared/audit-trail.sh', 'run', '--', ...$command],
+            [dirname(__DIR__, 3) . '/commands/_shared/audit-trail.sh', 'run', '--', ...$command],
             env: [
                 ...$ledger['env'],
                 'FAKE_GH_EXIT' => (string) $ghExit,

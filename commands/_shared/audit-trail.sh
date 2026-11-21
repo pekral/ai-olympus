@@ -1,0 +1,1488 @@
+#!/usr/bin/env bash
+# audit-trail.sh — write and check the run's audit trail (`.claude/run/<source-slug>.audit`).
+#
+# Why this exists
+#   `rules/compound-engineering/orchestration.md` *Audit trail* asks every agent to append one
+#   line per external write. An agent that writes the line by hand forgets it, writes it with an
+#   extra leading field, takes the exit status from a `tail` pipe stage, or writes it long after
+#   the action with a reconstructed time. Each of those costs a review round. This script moves
+#   the line to the moment of the write: the package's write wrappers and `run` below append it
+#   themselves, with the real clock time, the acting role, and the real exit status of the write.
+#
+# Usage
+#   audit-trail.sh append --class <class> --target <text> --result <text> [--role R] [--file F]
+#       Append one raw line. <class> is memory-read, outbound-request, external-write, or note.
+#   audit-trail.sh record --target <text> --status <exit status> [--detail <text>] [--role R] [--file F]
+#       Append the line for one write attempt: status 0 is an `external-write` line, any other
+#       status is a `note` line whose target is the attempt and whose result carries the exit status
+#       and says the remote state was not verified (a failed write may have changed the remote).
+#   audit-trail.sh run [--target <text>] [--role R] [--file F] -- <write command...>
+#       Run one write command, then `record` its own exit status. The command's stdout, stderr,
+#       and exit status pass through unchanged. Allowed commands: `git push`,
+#       `gh pr create|ready|edit|close|merge|update-branch|reopen`,
+#       `gh issue create|edit|close|reopen`, `gh label create|edit|delete`, and `gh release create`
+#       (the tag and the release URL it prints are the target; any other `gh release` command is refused).
+#       `close` and `reopen` with `-c` or `--comment` are refused: they post a comment. A comment goes through
+#       `upsert-comment.sh` only: it adds the agent marker, and a comment without one reads as the
+#       operator's own.
+#   audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
+#       Check the file's line shape and compare the writes it can observe with the ledger.
+#   audit-trail.sh --self-test
+#
+# Inputs
+#   --file / AUDIT_TRAIL_FILE   the run's `.audit` file. Without it no line is written and a hint
+#                               goes to stderr; the write itself is never blocked by it.
+#   --role / AUDIT_TRAIL_ROLE   the acting agent, the FIRST field of the line (`donatello`).
+#
+# Line shape (one line per event, appended at the moment of the action)
+#   <role>|<UTC ISO-8601>|<class>|<target>|<result>
+#
+# verify checks
+#   - every line has exactly five fields, a role first, an ISO-8601 time second, and a class third;
+#     a malformed line that a later `note` line names (`line <N>` or the line's own text) is resolved;
+#   - with --branch, the remote head of the branch appears in an `external-write` line;
+#   - with --pr, the pull request's URL appears in an `external-write` line;
+#   - with --pr or --issue, every comment of the current GitHub account that carries an agent marker
+#     (`<!-- <namespace>:actor=`) and was made since the first ledger line has an `external-write` line.
+#     A comment without a marker is the operator's own and is skipped. With --pr the same holds for every
+#     pull-request review and every review comment of the account that carries an agent marker: an
+#     `external-write` line must name `pullrequestreview-<id>` of the review;
+#   - with --pr or --issue, every label the account added (`+label <name>`) or removed (`-label <name>`)
+#     since the first ledger line is named by an `external-write` line that names the same issue. A label
+#     event carries no marker, so an unrecorded one is `not verified:`, never a problem;
+#   - a later `note` line whose target is `comment <id>` or `label <name>` resolves that comment or label;
+#   - the ledger alone shows which label writes belong to an issue the run created: a `linked:` line names
+#     the issue, the line of its creation, and the label writes of the later lines that name exactly that
+#     one issue by its URL; a `standalone:` line names every other label write. Both are information, never
+#     a problem, and no ledger line is rewritten to show the link.
+#   A check that needs the network and cannot run prints `not verified: …` and never fails verify.
+#
+# Output (stdout of verify): `problem: …`, `not verified: …`, `linked: …`, and `standalone: …` lines, then `audit trail ok: …` when there is no problem.
+#
+# Exit codes
+#   0   written / verified (for `run`: the write command's own exit status, 0 included)
+#   1   usage error (not for `run`, which passes the command's status through)
+#   3   verify found a problem
+#   64  `run` refuses a command that is not an allowed write
+#   Any other status of `run` is the status of the write command.
+set -euo pipefail
+
+PROG="${0##*/}"
+CLASSES='memory-read outbound-request external-write note'
+ISO_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})$'
+ROLE_RE='^[a-z][a-z0-9-]*$'
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: audit-trail.sh append --class <class> --target <text> --result <text> [--role R] [--file F]
+       audit-trail.sh record --target <text> --status <n> [--detail <text>] [--role R] [--file F]
+       audit-trail.sh run [--target <text>] [--role R] [--file F] -- <write command...>
+       audit-trail.sh verify --file F [--branch B] [--pr N|URL] [--issue N|URL] [--remote R]
+       audit-trail.sh --self-test
+
+AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE supply --file and --role when they are not given.
+EOF
+}
+
+now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+
+# One field: no separator, no line break, no credential in a URL, bounded length.
+clean_field() {
+  printf '%s' "$1" \
+    | tr '\r\n\t' '   ' \
+    | tr '|' '/' \
+    | tr -d '\000-\010\013\014\016-\037\177' \
+    | sed -E -e 's#://[^/@ ]*@#://#g' -e 's/^ +//' -e 's/ +$//' \
+    | cut -c1-300
+}
+
+HELD_LOCK=""
+release_lock() {
+  if [[ -n "$HELD_LOCK" ]]; then
+    rmdir "$HELD_LOCK" 2>/dev/null || true
+    HELD_LOCK=""
+  fi
+}
+
+# The per-file append lock of `commands/_shared/krang-workflow.inc` *Shared task brief*: mkdir, bounded wait, stale reclaim.
+append_line() {
+  local file="$1" role="$2" class="$3" target="$4" result="$5" line tries=0
+  line="${role}|$(now_utc)|${class}|${target}|${result}"
+  until mkdir "${file}.lock" 2>/dev/null; do
+    sleep 0.2
+    tries=$((tries + 1))
+    [[ "$tries" -gt 50 ]] && rm -rf "${file}.lock"
+  done
+  HELD_LOCK="${file}.lock"
+  trap release_lock EXIT
+  printf '%s\n' "$line" >>"$file"
+  release_lock
+}
+
+# Resolve --file and --role; return 1 (with a hint) when the ledger is not configured.
+resolve_ledger() {
+  local file="$1" role="$2" for_what="$3"
+  FILE="${file:-${AUDIT_TRAIL_FILE:-}}"
+  ROLE="${role:-${AUDIT_TRAIL_ROLE:-}}"
+  if [[ -z "$FILE" || -z "$ROLE" ]]; then
+    echo "$PROG: AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE are not both set; no audit line written for: $for_what" >&2
+    return 1
+  fi
+  if [[ ! "$ROLE" =~ $ROLE_RE ]]; then
+    echo "$PROG: role must match $ROLE_RE" >&2
+    return 1
+  fi
+  if [[ "$FILE" != *.audit || ! -d "$(dirname "$FILE")" ]]; then
+    echo "$PROG: the audit file (--file or AUDIT_TRAIL_FILE) must be an *.audit file in an existing directory" >&2
+    return 1
+  fi
+  return 0
+}
+
+class_is_valid() { [[ " $CLASSES " == *" $1 "* ]]; }
+
+cmd_append() {
+  local class="" target="" result="" role="" file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --class) [[ $# -ge 2 ]] || { usage; return 1; }; class="$2"; shift 2 ;;
+    --target) [[ $# -ge 2 ]] || { usage; return 1; }; target="$2"; shift 2 ;;
+    --result) [[ $# -ge 2 ]] || { usage; return 1; }; result="$2"; shift 2 ;;
+    --role) [[ $# -ge 2 ]] || { usage; return 1; }; role="$2"; shift 2 ;;
+    --file) [[ $# -ge 2 ]] || { usage; return 1; }; file="$2"; shift 2 ;;
+    *) usage; return 1 ;;
+    esac
+  done
+  class_is_valid "$class" || { echo "$PROG: unknown class: $(clean_field "$class")" >&2; return 1; }
+  target="$(clean_field "$target")"
+  result="$(clean_field "$result")"
+  [[ -n "$target" && -n "$result" ]] || { echo "$PROG: --target and --result must not be empty" >&2; return 1; }
+  resolve_ledger "$file" "$role" "$class $target" || return 1
+  append_line "$FILE" "$ROLE" "$class" "$target" "$result"
+}
+
+cmd_record() {
+  local target="" status="" detail="" role="" file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --target) [[ $# -ge 2 ]] || { usage; return 1; }; target="$2"; shift 2 ;;
+    --status) [[ $# -ge 2 ]] || { usage; return 1; }; status="$2"; shift 2 ;;
+    --detail) [[ $# -ge 2 ]] || { usage; return 1; }; detail="$2"; shift 2 ;;
+    --role) [[ $# -ge 2 ]] || { usage; return 1; }; role="$2"; shift 2 ;;
+    --file) [[ $# -ge 2 ]] || { usage; return 1; }; file="$2"; shift 2 ;;
+    *) usage; return 1 ;;
+    esac
+  done
+  [[ "$status" =~ ^[0-9]+$ ]] || { echo "$PROG: --status must be a number" >&2; return 1; }
+  target="$(clean_field "$target")"
+  detail="$(clean_field "$detail")"
+  [[ -n "$target" ]] || { echo "$PROG: --target must not be empty" >&2; return 1; }
+  resolve_ledger "$file" "$role" "$target" || return 1
+  if [[ "$status" -eq 0 ]]; then
+    append_line "$FILE" "$ROLE" external-write "$target" "${detail:-ok} (exit 0)"
+  else
+    append_line "$FILE" "$ROLE" note "$target" "write failed (exit $status)${detail:+; $detail}; the remote state was not verified"
+  fi
+}
+
+# The positional arguments of `git push <args>` (the remote, then the refspecs), one per line.
+push_positionals() {
+  local skip=0 end=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      -o | --push-option | --repo) skip=1; continue ;;
+      -*) continue ;;
+      esac
+    fi
+    printf '%s\n' "$arg"
+  done
+}
+
+# The abbreviated commit a `git push <args>` publishes; empty when it cannot be resolved.
+pushed_head() {
+  local -a rev=(git) args=("${@:2}") pos=()
+  local arg src
+  if [[ "${args[0]:-}" == "-C" ]]; then
+    rev+=(-C "${args[1]:-.}")
+    args=("${args[@]:2}")
+  fi
+  args=("${args[@]:1}")
+  for arg in ${args[@]+"${args[@]}"}; do
+    # Pushes that name no single source commit: nothing to resolve.
+    case "$arg" in --all | --mirror | --tags | --delete | -d) return 0 ;; esac
+  done
+  while IFS= read -r arg; do pos+=("$arg"); done < <(push_positionals ${args[@]+"${args[@]}"})
+  src="HEAD"
+  if [[ "${#pos[@]}" -ge 2 ]]; then
+    src="${pos[1]#+}"
+    src="${src%%:*}"
+  fi
+  [[ -n "$src" && "$src" != -* ]] || return 0
+  "${rev[@]}" rev-parse --short=12 --verify --quiet "${src}^{commit}" 2>/dev/null || true
+}
+
+# The label changes of a `gh pr|issue edit` command as " +label <name>" / " -label <name>", so the
+# ledger line names them and `verify` can match a labeled / unlabeled event to it.
+label_changes() {
+  local out="" prev="" arg value label
+  for arg in "$@"; do
+    value=""
+    case "$arg" in
+    --add-label=*) value="+${arg#--add-label=}" ;;
+    --remove-label=*) value="-${arg#--remove-label=}" ;;
+    *)
+      case "$prev" in
+      --add-label) value="+$arg" ;;
+      --remove-label) value="-$arg" ;;
+      esac
+      ;;
+    esac
+    prev="$arg"
+    [[ -n "$value" ]] || continue
+    while IFS= read -r label; do
+      [[ -z "$label" ]] || out="$out ${value:0:1}label $label"
+    done < <(tr ',' '\n' <<<"${value:1}")
+  done
+  printf '%s' "$out"
+}
+
+# 0 when the arguments of a `gh pr|issue close|reopen` carry `-c`, `--comment`, or `--comment=<text>`, also inside a
+# bundle of short options (`-dc`). That option posts a comment, and a comment posted this way carries no agent
+# marker, so `run` refuses it like `gh issue comment`.
+close_has_comment() {
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+    --comment | --comment=*) return 0 ;;
+    --*) ;;
+    -*c*) [[ "$arg" =~ ^-[A-Za-z]*c ]] && return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# Every issue or pull request that a `gh pr|issue edit` names, as " <number or URL>" for each: an edit can
+# name several, and each one is part of the write. Only a positional argument counts. An option takes the
+# next word as its value unless it is a known flag without a value or carries its value after `=`, so the
+# value of a title, a milestone, or a relation option (`--parent`, `--add-blocked-by`) is never read as an
+# issue. After `--` every word is positional.
+edit_refs() {
+  local out="" skip=0 end=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      --remove-milestone | -h | --help) continue ;;
+      -*=*) continue ;;
+      -*) skip=1; continue ;;
+      esac
+    fi
+    if [[ "$arg" =~ ^#?[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then
+      out="$out ${arg#\#}"
+    fi
+  done
+  printf '%s' "$out"
+}
+
+# The one issue or pull request that a `gh pr|issue <command>` other than `edit` names: its first argument.
+first_ref() {
+  local arg="${1:-}"
+  if [[ "$arg" =~ ^[0-9]+$ || "$arg" =~ ^https://[^[:space:]]+$ ]]; then printf ' %s' "$arg"; fi
+}
+
+# The tag that a `gh release create` names, as " <tag>", or nothing when no safe tag is named: the first
+# positional argument. An option takes the next word as its value unless it is a known flag without a value
+# (`--latest` is one: `--latest[=true|false]`) or carries its value after `=` or stuck to the short letter,
+# so the value of a title, a notes file, or a target is never read as the tag. A lone `-` and every word after `--` are positional. Words after the tag are asset files and are not part of the target.
+release_tag() {
+  local skip=0 end=0 arg
+  for arg in "$@"; do
+    if [[ "$skip" -eq 1 ]]; then
+      skip=0
+      continue
+    fi
+    if [[ "$end" -eq 0 ]]; then
+      case "$arg" in
+      --) end=1; continue ;;
+      --draft | --prerelease | --latest | --generate-notes | --verify-tag | --notes-from-tag | --fail-on-no-commits | -h | --help) continue ;;
+      -*=*) continue ;;
+      --*) skip=1; continue ;;
+      -) ;;
+      -*)
+        # A short option takes the next word only when its last letter takes a value and the word ends there:
+        # `-t Title`, `-dt Title`. `-tTitle`, `-dtTitle`, and `-Rowner/repo` carry their value.
+        if [[ "$arg" =~ ^-[dp]*[tnFR]$ ]]; then skip=1; fi
+        continue
+        ;;
+      esac
+    fi
+    if [[ "$arg" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then printf ' %s' "$arg"; fi
+    return 0
+  done
+}
+
+# Describe an allowed write command in a bounded, secret-free target; return 1 when it is not allowed.
+describe_command() {
+  local -a argv=("$@")
+  local tool="${argv[0]:-}" sub1 sub2 arg
+  if [[ "$tool" == git && "${argv[1]:-}" == "-C" ]]; then
+    argv=("git" "${argv[@]:3}")
+  fi
+  sub1="${argv[1]:-}"
+  sub2="${argv[2]:-}"
+  case "$tool $sub1" in
+  "git push")
+    local out="git push" count=0 name
+    for arg in "${argv[@]:2}"; do
+      if [[ "$arg" == --* ]]; then
+        name="${arg%%=*}"
+        # An option that makes git run a program is no write: refuse it, and every abbreviation git accepts.
+        if [[ "${#name}" -gt 2 && ("--receive-pack" == "$name"* || "--exec" == "$name"* || "--upload-pack" == "$name"*) ]]; then
+          return 1
+        fi
+      fi
+      # A `ext::<command>` remote runs a program too.
+      [[ "$arg" == *::* ]] && return 1
+    done
+    while IFS= read -r arg; do
+      [[ "$arg" =~ ^[A-Za-z0-9._/:@+-]+$ && "$count" -lt 2 ]] || continue
+      out="$out $arg"
+      count=$((count + 1))
+    done < <(push_positionals "${argv[@]:2}")
+    printf '%s' "$out"
+    ;;
+  "gh pr")
+    [[ " create ready edit close merge update-branch reopen " == *" $sub2 "* ]] || return 1
+    if [[ "$sub2" == close || "$sub2" == reopen ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
+    printf 'gh pr %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
+    ;;
+  "gh issue")
+    [[ " create edit close reopen " == *" $sub2 "* ]] || return 1
+    if [[ "$sub2" == close || "$sub2" == reopen ]] && close_has_comment "${argv[@]:3}"; then return 1; fi
+    printf 'gh issue %s%s%s' "$sub2" "$(if [[ "$sub2" == edit ]]; then edit_refs "${argv[@]:3}"; else first_ref "${argv[3]:-}"; fi)" "$(label_changes "${argv[@]:3}")"
+    ;;
+  "gh label")
+    [[ " create edit delete " == *" $sub2 "* ]] || return 1
+    printf 'gh label %s' "$sub2"
+    ;;
+  "gh release")
+    # Only the creation of a release is a write of the ledger. An edit, a deletion, and an upload stay refused.
+    [[ "$sub2" == create ]] || return 1
+    printf 'gh release create%s' "$(release_tag "${argv[@]:3}")"
+    ;;
+  *) return 1 ;;
+  esac
+}
+
+cmd_run() {
+  local target="" role="" file=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --target) [[ $# -ge 2 ]] || { usage; return 1; }; target="$2"; shift 2 ;;
+    --role) [[ $# -ge 2 ]] || { usage; return 1; }; role="$2"; shift 2 ;;
+    --file) [[ $# -ge 2 ]] || { usage; return 1; }; file="$2"; shift 2 ;;
+    --) shift; break ;;
+    *) usage; return 1 ;;
+    esac
+  done
+  [[ $# -gt 0 ]] || { usage; return 1; }
+
+  local described
+  if ! described="$(describe_command "$@")"; then
+    echo "$PROG: refusing a command that is not an allowed write: $(clean_field "$1 ${2:-} ${3:-}")" >&2
+    return 64
+  fi
+
+  local out rc=0
+  out="$(mktemp)"
+  # The command's own exit status: no pipe stage sits between it and `$?`.
+  "$@" >"$out" || rc=$?
+  cat -- "$out"
+
+  local url head="" detail=""
+  url="$(awk 'match($0, /https:\/\/[^ \t]+/) { print substr($0, RSTART, RLENGTH); exit }' "$out")"
+  # An edit prints the URL of each issue or pull request it changed: the line names all of them.
+  if [[ "$described" == "gh issue edit"* || "$described" == "gh pr edit"* ]]; then
+    url="$(awk '{ if (match($0, /https:\/\/[^ \t]+/)) { printf "%s%s", sep, substr($0, RSTART, RLENGTH); sep = " " } }' "$out")"
+  fi
+  rm -f "$out"
+  if [[ "$rc" -eq 0 && "$described" == "git push"* ]]; then
+    head="$(pushed_head "$@")"
+    [[ -z "$head" ]] || detail="head $head"
+  fi
+  [[ -z "$target" ]] && target="$described${url:+ -> $url}"
+  [[ -n "$target" ]] || target="$described"
+  cmd_record --target "$target" --status "$rc" --detail "$detail" --role "$role" --file "$file" || true
+  return "$rc"
+}
+
+# The agent comments and the label changes the current GitHub account made on one pull request or
+# issue since <since>, each one a line "kind<TAB>id-or-label<TAB>time". A comment counts only when its
+# body carries an agent marker (`<!-- <namespace>:actor=`): the account is shared with the operator,
+# and a comment without a marker is the operator's own (`rules/code-review/general.md` *Authorship
+# trust*). With a fourth argument, the pull request base (`repos/<o>/<r>/pulls/<n>`), it also lists the
+# reviews and the review comments of the account that carry an agent marker, as "review<TAB>review id<TAB>time"
+# (a review comment is listed under the review it belongs to). Return 1 when a read fails.
+observe_item_writes() {
+  local base="$1" login="$2" since="$3" pulls="${4:-}" out
+  out="$(gh api "$base/comments" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .created_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
+  awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "comment\t%s\t%s\n", $3, $2 }' <<<"$out"
+  if [[ -n "$pulls" ]]; then
+    out="$(gh api "$pulls/reviews" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .submitted_at, (.id | tostring)] | @tsv' 2>/dev/null)" || return 1
+    awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "review\t%s\t%s\n", $3, $2 }' <<<"$out"
+    out="$(gh api "$pulls/comments" --paginate --jq '.[] | select((.body // "") | test("<!-- [a-z][a-z0-9-]*:actor=")) | [.user.login, .created_at, (.pull_request_review_id | tostring)] | @tsv' 2>/dev/null)" || return 1
+    awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "review\t%s\t%s\n", $3, $2 }' <<<"$out"
+  fi
+  out="$(gh api "$base/timeline" --paginate --jq '.[] | select(.event == "labeled" or .event == "unlabeled") | [.actor.login, .created_at, .event, .label.name] | @tsv' 2>/dev/null)" || return 1
+  awk -F'\t' -v login="$login" -v since="$since" '$1 == login && $2 >= since { printf "%s\t%s\t%s\n", $3, $4, $2 }' <<<"$out"
+}
+
+# The label writes and the issue creations of a ledger, one record per line, tab-separated:
+#   created<TAB>line<TAB>issue URL
+#   edit<TAB>line<TAB>issue|pr<TAB>numbers and URLs the command names<TAB>URL it printed<TAB>label changes
+# The label changes are separated by the control character \037, which a ledger field never carries. A
+# creation is an `external-write` line of `gh issue create ... -> <issue URL>`, where the URL ends the field,
+# or one whose target is an issue URL and whose result says `created` (a wrapper that files an issue). A
+# label write is an `external-write` line of `gh issue|pr edit` with a `+label` or `-label` token.
+label_ledger_records() {
+  awk -F'|' '
+    function labels_of(head,   rest, sign, name, out) {
+      rest = " " head
+      out = ""
+      while (match(rest, / [+-]label /)) {
+        sign = substr(rest, RSTART + 1, 1)
+        rest = substr(rest, RSTART + RLENGTH)
+        name = match(rest, / [+-]label /) ? substr(rest, 1, RSTART - 1) : rest
+        out = out (out == "" ? "" : "\037") sign "label " name
+      }
+      return out
+    }
+    NF == 5 && $3 == "external-write" {
+      target = $4
+      gsub(/[\t\r]/, " ", target)
+      if (target ~ /^gh issue create( |$)/ && match(target, / -> https?:\/\/[^ ]+\/issues\/[0-9]+$/)) {
+        printf "created\t%d\t%s\n", NR, substr(target, RSTART + 4)
+        next
+      }
+      if (target ~ /^https?:\/\/[^ ]+\/issues\/[0-9]+$/ && $5 ~ /created/) {
+        printf "created\t%d\t%s\n", NR, target
+        next
+      }
+      if (target !~ /^gh (issue|pr) edit /) next
+      head = target
+      destination = ""
+      printed = ""
+      arrow = index(target, " -> ")
+      if (arrow > 0) {
+        head = substr(target, 1, arrow - 1)
+        printed = substr(target, arrow + 4)
+        destination = printed
+        sub(/ .*/, "", destination)
+        if (destination !~ /^https?:\/\/[^ ]+\/(issues|pull)\/[0-9]+$/) destination = ""
+      }
+      changes = labels_of(head)
+      if (changes == "") next
+      before = (match(" " head, / [+-]label /) ? substr(" " head, 1, RSTART - 1) : head)
+      count = split(before, word, " ")
+      refs = ""
+      for (i = 4; i <= count; i++) {
+        if (word[i] ~ /^[0-9]+$/ || word[i] ~ /^https?:\/\//) refs = refs (refs == "" ? "" : " ") word[i]
+      }
+      # Every further URL that the command printed is one more issue it edited.
+      extras = split(printed, shown, " ")
+      for (i = 2; i <= extras; i++) {
+        if (shown[i] ~ /^https?:\/\// && index(" " refs " ", " " shown[i] " ") == 0) refs = refs (refs == "" ? "" : " ") shown[i]
+      }
+      printf "edit\t%d\t%s\t%s\t%s\t%s\n", NR, word[2], refs, destination, changes
+    }
+  ' "$1"
+}
+
+# 0 when `$label_records` (the records of `label_ledger_records`) holds a write of that label change on the
+# item under check (`$3` its number, `$4` its `<owner>/<repo>`, empty for a bare number): "+label <name>" for
+# labeled and "-label <name>" for unlabeled. A write names the item by an issue or pull-request URL with the
+# same repository, or by the number it carries; the URL the command printed stands for its first number.
+label_recorded() {
+  LABEL_SIGN="$1" LABEL_NAME="$2" ITEM_NUMBER="$3" ITEM_REPO="$4" awk -F'\t' '
+    BEGIN {
+      needle = ENVIRON["LABEL_SIGN"] "label " ENVIRON["LABEL_NAME"]
+      number = ENVIRON["ITEM_NUMBER"]
+      repository = ENVIRON["ITEM_REPO"]
+    }
+    function repository_of(url,   rest, part) {
+      if (!match(url, /^https?:\/\/[^\/]+\/[^\/]+\/[^\/]+\/(issues|pull)\//)) return ""
+      rest = url
+      sub(/^https?:\/\/[^\/]+\//, "", rest)
+      split(rest, part, "/")
+      return part[1] "/" part[2]
+    }
+    function url_matches(url) {
+      return url ~ ("/(issues|pull)/" number "$") && (repository == "" || index(url, "/" repository "/") > 0)
+    }
+    function names_item(   count, ref, i, owner) {
+      count = split($4, ref, " ")
+      if (count == 0) return url_matches($5)
+      owner = repository_of($5)
+      for (i = 1; i <= count && owner == ""; i++) if (ref[i] ~ /^https?:/) owner = repository_of(ref[i])
+      for (i = 1; i <= count; i++) {
+        if (ref[i] ~ /^https?:/) { if (url_matches(ref[i])) return 1 }
+        else if (i == 1 && $5 != "") { if (url_matches($5)) return 1 }
+        else if (ref[i] == number && (repository == "" || owner == repository)) return 1
+      }
+      return 0
+    }
+    $1 == "edit" {
+      count = split($6, change, "\037")
+      for (i = 1; i <= count; i++) {
+        if (change[i] == needle && names_item()) found = 1
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' <<<"$label_records"
+}
+
+# 0 when a later `note` line names that write: its target is exactly the text given (`comment <id>`, `label <name>`).
+note_names() {
+  local named
+  for named in ${note_target[@]+"${note_target[@]}"}; do
+    [[ "$named" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Compare those writes with the ledger: an agent comment with no ledger line is a problem; a label
+# change with none is not verified, because a label event cannot be told from the operator's own.
+# Reads and writes the caller's `problems`, `notes`, `writes`, `note_target`, `since`, and `login` variables.
+observe_item() {
+  local item="$1" is_pr="${2:-}" base pulls="" kind id when observed sign name seen_reviews=" " item_number item_repo=""
+  if [[ "$item" =~ ^https://[^/]+/([^/]+)/([^/]+)/(pull|issues)/([0-9]+) ]]; then
+    base="repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/issues/${BASH_REMATCH[4]}"
+    item_number="${BASH_REMATCH[4]}"
+    item_repo="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+  elif [[ "$item" =~ ^[0-9]+$ ]]; then
+    base="repos/{owner}/{repo}/issues/$item"
+    item_number="$item"
+    item_repo="$current_repo"
+    if [[ -z "$item_repo" ]]; then
+      # A repository that matches no URL: no label change of this item counts as recorded.
+      item_repo="?"
+      notes+=("the current repository could not be read; run 'gh repo view' and name the repository of $(clean_field "$item"): no label change of that item counts as recorded")
+    fi
+  else
+    notes+=("the item $(clean_field "$item") is not a number or a GitHub URL; its comments and labels were not compared with the ledger")
+    return 0
+  fi
+  if [[ "$is_pr" == pr ]]; then
+    pulls="${base%/issues/*}/pulls/${base##*/}"
+  fi
+  if ! observed="$(observe_item_writes "$base" "$login" "$since" "$pulls")"; then
+    notes+=("the comments or the timeline of $(clean_field "$item") could not be read; run 'gh api $base/comments' and 'gh api $base/timeline' (and for a pull request 'gh api ${pulls:-$base}/reviews' and 'gh api ${pulls:-$base}/comments') and compare them with the ledger")
+    return 0
+  fi
+  while IFS=$'\t' read -r kind id when; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+    review)
+      [[ "$seen_reviews" != *" $id "* ]] || continue
+      seen_reviews="$seen_reviews$id "
+      grep -Fq -- "pullrequestreview-$id" <<<"$writes" || note_names "review $id" || problems+=("review $id of $login on $(clean_field "$item") (made $when) carries an agent marker and has no external-write line naming pullrequestreview-$id; append the line when this run wrote it, or a note line with the target 'review $id' when it did not")
+      ;;
+    comment)
+      grep -Fq -- "issuecomment-$id" <<<"$writes" || note_names "comment $id" || problems+=("comment $id of $login on $(clean_field "$item") (created $when) carries an agent marker and has no external-write line; append the line when this run wrote it, or a note line with the target 'comment $id' when it did not")
+      ;;
+    *)
+      sign="+"
+      [[ "$kind" == unlabeled ]] && sign="-"
+      name="$(clean_field "$id")"
+      label_recorded "$sign" "$name" "$item_number" "$item_repo" || note_names "label $name" || notes+=("label '$name' $kind by $login on $(clean_field "$item") (at $when) has no external-write line, and a label event carries no agent marker, so it cannot be told from the operator's own; when this run made it, run the write through audit-trail.sh run, otherwise append a note line with the target 'label $name'")
+      ;;
+    esac
+  done <<<"$observed"
+}
+
+# Show which label writes of the ledger belong to an issue the run itself created. A label write is linked
+# when it names exactly one issue and that issue is, by its URL, a created issue of an earlier line. Every
+# other label write is shown on its own: a write on another issue or pull request, one that comes before the
+# creation, one that names a bare number, and one that names more than one issue. The ledger is only read:
+# the link is part of the output of `verify`, never a change to a line. One line per created issue that has a
+# linked label write, then one line per label write on its own, each "linked: ..." or "standalone: ...".
+label_write_links() {
+  label_ledger_records "$1" | awk -F'\t' '
+    $1 == "created" {
+      if (!($3 in created)) { created[$3] = $2; order[++orders] = $3 }
+      next
+    }
+    $1 == "edit" {
+      count = split($4, ref, " ")
+      exact = $5
+      if (count == 1 && ref[1] ~ /^https?:/ && (exact == "" || exact == ref[1])) exact = ref[1]
+      else if (count > 1 || (count == 1 && ref[1] !~ /^https?:/ && exact == "")) exact = ""
+      changes = $6
+      gsub(/\037/, "; ", changes)
+      if (count <= 1 && $3 == "issue" && exact in created && created[exact] < $2) {
+        lines[exact] = lines[exact] (lines[exact] == "" ? "" : ", ") $2
+        written[exact] = written[exact] (written[exact] == "" ? "" : "; ") changes
+        next
+      }
+      reference = $5
+      if (count > 1) { reference = ref[1]; for (i = 2; i <= count; i++) reference = reference ", " ref[i]; reference = $3 " " reference }
+      else if (reference == "" && count == 1) reference = ($3 " " ref[1])
+      else if (reference == "") reference = $3 " of an unnamed target"
+      alone[++alones] = "standalone: label write on " reference " (line " $2 ") is not part of an issue this run created: " changes
+    }
+    END {
+      for (i = 1; i <= orders; i++) {
+        url = order[i]
+        if (url in written) {
+          print "linked: " url " was created by this run (line " created[url] "); label writes on line(s) " lines[url] " belong to its creation and triage: " written[url]
+        }
+      }
+      for (i = 1; i <= alones; i++) print alone[i]
+    }
+  '
+}
+
+cmd_verify() {
+  local file="" branch="" pr="" issue="" remote="origin"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --file) [[ $# -ge 2 ]] || { usage; return 1; }; file="$2"; shift 2 ;;
+    --issue) [[ $# -ge 2 ]] || { usage; return 1; }; issue="$2"; shift 2 ;;
+    --branch) [[ $# -ge 2 ]] || { usage; return 1; }; branch="$2"; shift 2 ;;
+    --pr) [[ $# -ge 2 ]] || { usage; return 1; }; pr="$2"; shift 2 ;;
+    --remote) [[ $# -ge 2 ]] || { usage; return 1; }; remote="$2"; shift 2 ;;
+    *) usage; return 1 ;;
+    esac
+  done
+  file="${file:-${AUDIT_TRAIL_FILE:-}}"
+  [[ -n "$file" ]] || { usage; return 1; }
+  if [[ ! -r "$file" ]]; then
+    echo "problem: the audit file (--file or AUDIT_TRAIL_FILE) is not readable"
+    return 3
+  fi
+
+  local -a problems=() notes=() bad_no=() bad_msg=() bad_raw=() note_no=() note_target=()
+  local line lineno=0 nf f1 f2 f3 f4 f5 lines=0 msg
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lineno=$((lineno + 1))
+    [[ -n "${line//[[:space:]]/}" ]] || continue
+    lines=$((lines + 1))
+    nf="$(awk -F'|' '{ print NF }' <<<"$line")"
+    IFS='|' read -r f1 f2 f3 f4 f5 <<<"$line"
+    msg=""
+    if [[ "$f1" =~ $ISO_RE ]]; then
+      msg="starts with a time, so the role field is missing or a field was added before it (shape: role|time|class|target|result)"
+    elif [[ "$nf" -ne 5 ]]; then
+      msg="has $nf fields, expected 5 (shape: role|time|class|target|result)"
+    elif [[ ! "$f1" =~ $ROLE_RE ]]; then
+      msg="first field is not a role: $(clean_field "$f1")"
+    elif [[ ! "$f2" =~ $ISO_RE ]]; then
+      msg="second field is not an ISO-8601 time: $(clean_field "$f2")"
+    elif ! class_is_valid "$f3"; then
+      msg="third field is not one of memory-read / outbound-request / external-write / note: $(clean_field "$f3")"
+    elif [[ -z "${f4// }" || -z "${f5// }" ]]; then
+      msg="target or result field is empty"
+    elif [[ "$f3" == note ]]; then
+      note_no+=("$lineno")
+      note_target+=("$f4")
+    fi
+    if [[ -n "$msg" ]]; then
+      bad_no+=("$lineno")
+      bad_msg+=("$msg")
+      bad_raw+=("$(clean_field "$line")")
+    fi
+  done <"$file"
+
+  local i j resolved
+  for ((i = 0; i < ${#bad_no[@]}; i++)); do
+    resolved=0
+    for ((j = 0; j < ${#note_no[@]}; j++)); do
+      [[ "${note_no[$j]}" -gt "${bad_no[$i]}" ]] || continue
+      if [[ "${note_target[$j]}" =~ line[[:space:]]+${bad_no[$i]}([^0-9]|$) || "${note_target[$j]}" == *"${bad_raw[$i]}"* ]]; then
+        resolved=1
+        break
+      fi
+    done
+    [[ "$resolved" -eq 1 ]] || problems+=("line ${bad_no[$i]} ${bad_msg[$i]}")
+  done
+
+  local writes label_records
+  writes="$(awk -F'|' 'NF == 5 && $3 == "external-write"' "$file")"
+  label_records="$(label_ledger_records "$file")"
+
+  if [[ -n "$branch" ]]; then
+    local head
+    head="$(git ls-remote "$remote" "refs/heads/$branch" 2>/dev/null | awk '{ print $1; exit }' || true)"
+    if [[ -z "$head" ]]; then
+      notes+=("the remote head of $remote/$branch could not be read; run 'git ls-remote $remote refs/heads/$branch' and compare it with the ledger")
+    elif ! grep -Fq -- "${head:0:7}" <<<"$writes"; then
+      problems+=("remote branch $branch is at ${head:0:12}, and no external-write line names that commit; append it, or run the push through audit-trail.sh run")
+    fi
+  fi
+
+  if [[ -n "$pr" ]]; then
+    local pr_url
+    pr_url="$(gh pr view "$pr" --json url --jq .url 2>/dev/null || true)"
+    if [[ ! "$pr_url" =~ /pull/([0-9]+)$ ]]; then
+      notes+=("the pull request $(clean_field "$pr") could not be read; run 'gh pr view' and compare its URL with the ledger")
+    elif ! grep -Fq -- "/pull/${BASH_REMATCH[1]}" <<<"$writes"; then
+      problems+=("pull request $pr_url has no external-write line; append it, or run the write through audit-trail.sh run")
+    fi
+  fi
+
+  if [[ -n "$pr" || -n "$issue" ]]; then
+    local since login current_repo
+    since="$(awk -F'|' 'NF == 5 && $2 ~ /Z$/ { print $2; exit }' "$file")"
+    login="$(gh api user --jq .login 2>/dev/null || true)"
+    current_repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
+    [[ "$current_repo" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || current_repo=""
+    if [[ -z "$since" || -z "$login" ]]; then
+      notes+=("the comments and the label changes of the account could not be compared with the ledger (no ledger time, or the account login could not be read)")
+    else
+      [[ -z "$pr" ]] || observe_item "$pr" pr
+      [[ -z "$issue" ]] || observe_item "$issue"
+    fi
+  fi
+
+  local item
+  for item in ${notes[@]+"${notes[@]}"}; do
+    printf 'not verified: %s\n' "$item"
+  done
+  while IFS= read -r item; do
+    [[ -z "$item" ]] || printf '%s\n' "$item"
+  done < <(label_write_links "$file" | tr '\r\t' '  ' | tr -d '\000-\010\013\014\016-\037\177')
+  if [[ "${#problems[@]}" -gt 0 ]]; then
+    for item in "${problems[@]}"; do
+      printf 'problem: %s\n' "$item"
+    done
+    return 3
+  fi
+  printf 'audit trail ok: %s line(s)\n' "$lines"
+}
+
+self_test() {
+  local failures=0 script tmp
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
+  tmp="$(mktemp -d)"
+  # shellcheck disable=SC2064
+  trap "rm -rf '$tmp'" EXIT
+  local ledger="$tmp/run.audit"
+  : >"$ledger"
+
+  ok() { printf 'ok    %s\n' "$1"; }
+  bad() { printf 'FAIL  %s\n' "$1" >&2; failures=$((failures + 1)); }
+  expect_eq() { if [[ "$2" == "$3" ]]; then ok "$1"; else bad "$1 (expected '$3', got '$2')"; fi; }
+  last_line() { tail -n 1 "$ledger"; }
+  line_count() { wc -l <"$ledger" | tr -d ' '; }
+  field() { awk -F'|' -v n="$1" '{ print $n }' <<<"$2"; }
+
+  export AUDIT_TRAIL_FILE="$ledger" AUDIT_TRAIL_ROLE=donatello
+
+  # --- append: shape, role first, real clock time -------------------------------------------
+  "$script" append --class external-write --target 'PR https://example.test/o/r/pull/1' --result 'created'
+  local l
+  l="$(last_line)"
+  expect_eq 'append writes five fields' "$(awk -F'|' '{ print NF }' <<<"$l")" 5
+  expect_eq 'the role is the FIRST field' "$(field 1 "$l")" donatello
+  if [[ "$(field 2 "$l")" =~ $ISO_RE ]]; then ok 'the second field is a UTC ISO-8601 time'; else bad 'the second field is not a time'; fi
+  expect_eq 'the third field is the class' "$(field 3 "$l")" external-write
+
+  "$script" append --class external-write --target $'a|b\nc' --result 'x|y'
+  l="$(last_line)"
+  expect_eq 'a separator or newline in a field never adds a field' "$(awk -F'|' '{ print NF }' <<<"$l")" 5
+  expect_eq 'a newline in a field never adds a line' "$(line_count)" 2
+
+  local rc=0
+  "$script" append --class git-push --target t --result r 2>/dev/null || rc=$?
+  expect_eq 'an unknown class is a usage error' "$rc" 1
+  expect_eq 'an unknown class writes no line' "$(line_count)" 2
+
+  # --- record: the real exit status ---------------------------------------------------------
+  "$script" record --target 'gh pr update-branch 7' --status 0
+  l="$(last_line)"
+  expect_eq 'record status 0 is an external-write line' "$(field 3 "$l")" external-write
+  "$script" record --target 'gh pr update-branch 7' --status 1 --detail 'merge conflict'
+  l="$(last_line)"
+  expect_eq 'record with a failed status is a note line' "$(field 3 "$l")" note
+  expect_eq 'the failed note names the attempt as its target' "$(field 4 "$l")" 'gh pr update-branch 7'
+  if [[ "$(field 5 "$l")" == *'(exit 1)'*'merge conflict'* ]]; then ok 'the failed note carries the exit status and the detail'; else bad 'the failed note lacks the exit status'; fi
+  if [[ "$(field 5 "$l")" == *'the remote state was not verified' && "$l" != *'no action performed'* ]]; then ok 'the failed note never claims that nothing happened'; else bad "the failed note claims or omits: $l"; fi
+
+  # --- unset ledger: hint, no file, no block --------------------------------------------------
+  rc=0
+  (unset AUDIT_TRAIL_FILE; "$script" record --target t --status 0 2>"$tmp/hint") || rc=$?
+  expect_eq 'an unset ledger makes record exit 1 with a hint' "$rc" 1
+  if grep -q 'no audit line written' "$tmp/hint"; then ok 'an unset ledger prints a hint'; else bad 'an unset ledger printed no hint'; fi
+
+  # --- run: fake gh, real git ---------------------------------------------------------------
+  mkdir "$tmp/bin"
+  cat >"$tmp/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-} ${2:-}" == "release create" ]]; then
+  echo "https://example.test/o/r/releases/tag/v0.6.0"
+else
+  echo "https://example.test/o/r/pull/9"
+fi
+exit "${FAKE_GH_EXIT:-0}"
+EOF
+  chmod +x "$tmp/bin/gh"
+  local before out option
+  before="$(line_count)"
+  out="$(PATH="$tmp/bin:$PATH" "$script" run -- gh pr create --title x)"
+  expect_eq 'run passes the command stdout through' "$out" 'https://example.test/o/r/pull/9'
+  l="$(last_line)"
+  expect_eq 'run records one line per write' "$(line_count)" "$((before + 1))"
+  expect_eq 'run records a successful write as external-write' "$(field 3 "$l")" external-write
+  if [[ "$(field 4 "$l")" == 'gh pr create -> https://example.test/o/r/pull/9' ]]; then ok 'run names the created pull request URL'; else bad "run target: $(field 4 "$l")"; fi
+
+  PATH="$tmp/bin:$PATH" "$script" run -- gh pr edit 9 --add-label 'ready to merge' --remove-label=stale >/dev/null
+  l="$(last_line)"
+  expect_eq 'run names the label changes of an edit' "$(field 4 "$l")" 'gh pr edit 9 +label ready to merge -label stale -> https://example.test/o/r/pull/9'
+
+  rc=0
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=5 "$script" run -- gh pr ready 9 >/dev/null 2>&1 || rc=$?
+  expect_eq 'run exits with the write command status, not a pipe status' "$rc" 5
+  l="$(last_line)"
+  expect_eq 'run records a failed write as a note line' "$(field 3 "$l")" note
+  expect_eq 'the failed write names its own target' "$(field 4 "$l")" 'gh pr ready 9 -> https://example.test/o/r/pull/9'
+  if [[ "$(field 5 "$l")" == 'write failed (exit 5);'* ]]; then ok 'the failed write names its own exit status'; else bad "failed note: $(field 5 "$l")"; fi
+
+  before="$(line_count)"
+  rc=0
+  "$script" run -- curl https://example.test >/dev/null 2>&1 || rc=$?
+  expect_eq 'run refuses a command that is not an allowed write' "$rc" 64
+  expect_eq 'a refused command writes no line' "$(line_count)" "$before"
+  local refused
+  for refused in 'gh pr comment 5 --body x' 'gh pr review 5 --approve' 'gh issue comment 5 --body x' \
+    'gh issue close 5 --comment x' 'gh issue close 5 -c x' 'gh pr close 5 --comment=x' 'gh pr close 5 -dc x' 'gh pr close 5 -cx' \
+    'gh issue reopen 5 --comment x' 'gh pr reopen 5 -c x' 'gh pr reopen 5 --comment=x'; do
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run refuses '$refused' with exit 64: a comment goes through upsert-comment.sh" "$rc" 64
+    expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
+  done
+
+  for refused in 'gh issue close 5 --reason completed' 'gh pr close 5 --delete-branch' 'gh issue reopen 5' 'gh pr reopen 5' 'gh pr merge 5 --body x --subject y'; do
+    before="$(line_count)"
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run still allows '$refused': it posts no comment" "$rc" 0
+    expect_eq "an allowed '$refused' writes one line" "$(line_count)" "$((before + 1))"
+  done
+
+  # --- run: publishing a GitHub release is a write of the ledger; every other release command is not ---
+  before="$(line_count)"
+  out="$(PATH="$tmp/bin:$PATH" "$script" run -- gh release create v0.6.0 --title 'Release v0.6.0' --notes 'some | notes')"
+  expect_eq 'a release creation passes the command stdout through' "$out" 'https://example.test/o/r/releases/tag/v0.6.0'
+  l="$(last_line)"
+  expect_eq 'a release creation writes one line' "$(line_count)" "$((before + 1))"
+  expect_eq 'a release creation is recorded as external-write' "$(field 3 "$l")" external-write
+  expect_eq 'a release creation names the tag and the release URL it printed' "$(field 4 "$l")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  expect_eq 'a release creation line has five fields' "$(awk -F'|' '{ print NF }' <<<"$l")" 5
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create --draft -p --title 'Release v0.6.0' --notes-file notes.md --target master v0.6.0 dist.zip >/dev/null
+  expect_eq 'a release creation reads its tag past options and their values' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create -dp --latest=false -- v0.6.0 >/dev/null
+  expect_eq 'a release creation reads its tag past a bundle of short flags and after --' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  local release_case
+  for release_case in '--latest v0.6.0 dist.zip' '--latest=false v0.6.0 a.zip' '-tTitle v0.6.0' '-Rowner/repo v0.6.0 a.zip' '-dtTitle v0.6.0 notes.txt' '-dt Title v0.6.0' \
+    '-nText v0.6.0 a.zip' '-Ffile.md v0.6.0 a.zip' '-n Text -F file.md --latest v0.6.0 a.zip' '--latest --draft v0.6.0 a.zip' \
+    '-dpt Title v0.6.0 a.zip' '--target master --notes-start-tag v0.5.0 --discussion-category General v0.6.0 a.zip'; do
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- gh release create $release_case >/dev/null
+    expect_eq "a release creation names the tag for '$release_case'" "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  done
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create - v0.6.0 a.zip >/dev/null
+  expect_eq 'a lone - is a positional word, the first one, so it is the tag' "$(field 4 "$(last_line)")" 'gh release create - -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create - v0.6.0 a.zip >/dev/null 2>&1 || true
+  expect_eq 'a failed release creation with a lone - names that word, as the command does' "$(field 4 "$(last_line)")" 'gh release create - -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create --latest v0.6.0 dist.zip >/dev/null 2>&1 || true
+  expect_eq 'a failed release creation after --latest names the tag, never an asset file' "$(field 4 "$(last_line)")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  PATH="$tmp/bin:$PATH" "$script" run -- gh release create --generate-notes --title 'a b' >/dev/null
+  expect_eq 'a release creation with no tag names no tag' "$(field 4 "$(last_line)")" 'gh release create -> https://example.test/o/r/releases/tag/v0.6.0'
+  before="$(line_count)"
+  rc=0
+  PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=1 "$script" run -- gh release create v0.6.0 >/dev/null 2>&1 || rc=$?
+  expect_eq 'a failed release creation exits with the command status' "$rc" 1
+  l="$(last_line)"
+  expect_eq 'a failed release creation is recorded as a note line' "$(field 3 "$l")" note
+  expect_eq 'a failed release creation names its tag' "$(field 4 "$l")" 'gh release create v0.6.0 -> https://example.test/o/r/releases/tag/v0.6.0'
+  before="$(line_count)"
+  for refused in 'gh release edit v0.6.0 --draft=false' 'gh release delete v0.6.0 --yes' 'gh release upload v0.6.0 dist.zip' \
+    'gh release delete-asset v0.6.0 dist.zip' 'gh release download v0.6.0' 'gh release list' 'gh release view v0.6.0' 'gh release'; do
+    rc=0
+    # shellcheck disable=SC2086
+    PATH="$tmp/bin:$PATH" "$script" run -- $refused >/dev/null 2>&1 || rc=$?
+    expect_eq "run refuses '$refused' with exit 64: only a release creation is a write of the ledger" "$rc" 64
+    expect_eq "a refused '$refused' writes no line" "$(line_count)" "$before"
+  done
+
+  rc=0
+  (unset AUDIT_TRAIL_FILE; PATH="$tmp/bin:$PATH" FAKE_GH_EXIT=3 "$script" run -- gh pr merge 9 >/dev/null 2>&1) || rc=$?
+  expect_eq 'run never blocks or masks a write when the ledger is unset' "$rc" 3
+
+  # --- run: git push on a real bare remote ---------------------------------------------------
+  local remote="$tmp/remote.git" work="$tmp/work"
+  git init -q --bare "$remote"
+  git init -q "$work"
+  (
+    cd "$work"
+    git config user.email t@example.test
+    git config user.name t
+    git checkout -q -b feature
+    git commit -q --allow-empty -m one
+    git remote add origin "$remote"
+    "$script" run -- git push -q origin feature
+  )
+  l="$(last_line)"
+  local head
+  head="$(git -C "$work" rev-parse HEAD)"
+  if [[ "$(field 5 "$l")" == *"head ${head:0:12}"* ]]; then ok 'a push line names the pushed head commit'; else bad "push line: $l"; fi
+  expect_eq 'a push line names the push, never a branch-less target' "$(field 4 "$l")" 'git push origin feature'
+
+  # --- run: a push that names a commit other than HEAD, and a push with no commit ----------------
+  (
+    cd "$work"
+    git commit -q --allow-empty -m two
+    "$script" run -- git push -q origin HEAD~1:refs/heads/older
+  )
+  l="$(last_line)"
+  local older
+  older="$(git -C "$work" rev-parse HEAD~1)"
+  if [[ "$(field 5 "$l")" == *"head ${older:0:12}"* ]]; then ok 'a push line names the commit of the refspec source, not HEAD'; else bad "refspec push line: $l"; fi
+  (
+    cd "$work"
+    "$script" run -- git push -q origin :refs/heads/older
+  )
+  l="$(last_line)"
+  if [[ "$(field 5 "$l")" != *head* ]]; then ok 'a branch deletion names no head commit'; else bad "deletion push line: $l"; fi
+  (
+    cd "$work"
+    git reset -q --hard HEAD~1
+  )
+
+  # --- run: a push that fails after it updated one ref never claims that nothing happened ---------
+  local work2="$tmp/work2"
+  git init -q "$work2"
+  (
+    cd "$work2"
+    git config user.email t@example.test
+    git config user.name t
+    git checkout -q -b base
+    git commit -q --allow-empty -m base
+    git remote add origin "$remote"
+    git push -q origin base:refs/heads/rej
+    git checkout -q --orphan other
+    git commit -q --allow-empty -m other
+    git checkout -q -b okpart base
+    git commit -q --allow-empty -m okpart
+    rc=0
+    "$script" run -- git push -q origin other:refs/heads/rej okpart:refs/heads/okpart >/dev/null 2>&1 || rc=$?
+    exit "$rc"
+  ) && rc=0 || rc=$?
+  expect_eq 'a partial push keeps the exit status of git' "$rc" 1
+  l="$(last_line)"
+  expect_eq 'a partial push leaves a note line' "$(field 3 "$l")" note
+  expect_eq 'a partial push names the push as its target' "$(field 4 "$l")" 'git push origin other:refs/heads/rej'
+  if [[ "$l" != *'no action performed'* && "$(field 5 "$l")" == 'write failed (exit 1); the remote state was not verified' ]]; then
+    ok 'a partial push does not claim that no action was performed'
+  else
+    bad "partial push line: $l"
+  fi
+  if [[ -n "$(git -C "$work2" ls-remote origin refs/heads/okpart)" ]]; then ok 'the partial push really updated a ref'; else bad 'the partial push updated no ref'; fi
+
+  # --- run: an option that makes git run a program is refused ------------------------------------
+  local pwn="$tmp/pwned"
+  for option in "--receive-pack=touch $pwn" "--exec=touch $pwn" "--upload-pack=touch $pwn" "--receive=touch $pwn" '--rec'; do
+    before="$(line_count)"
+    rc=0
+    (cd "$work" && "$script" run -- git push "$option" origin feature >/dev/null 2>&1) || rc=$?
+    expect_eq "run refuses git push $option with exit 64" "$rc" 64
+    expect_eq "a refused git push $option writes no line" "$(line_count)" "$before"
+  done
+  rc=0
+  (cd "$work" && "$script" run -- git push "ext::touch $pwn" feature >/dev/null 2>&1) || rc=$?
+  expect_eq 'run refuses an ext:: remote with exit 64' "$rc" 64
+  if [[ ! -e "$pwn" ]]; then ok 'no refused push ran its program'; else bad 'a refused push ran its program'; fi
+
+  # --- an environment value never reaches an output ----------------------------------------------
+  local marker="${tmp}/MARKER-must-not-print"
+  rc=0
+  AUDIT_TRAIL_FILE="$marker" "$script" record --target t --status 0 >"$tmp/leak.out" 2>"$tmp/leak.err" || rc=$?
+  expect_eq 'a bad AUDIT_TRAIL_FILE makes record exit 1' "$rc" 1
+  AUDIT_TRAIL_FILE="$marker" "$script" verify >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  AUDIT_TRAIL_FILE="${marker}.audit" "$script" append --class note --target t --result r >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  AUDIT_TRAIL_FILE="${marker}.audit" "$script" verify >>"$tmp/leak.out" 2>>"$tmp/leak.err" || true
+  if ! grep -q 'MARKER-must-not-print' "$tmp/leak.out" "$tmp/leak.err"; then ok 'no message prints the value of AUDIT_TRAIL_FILE'; else bad 'a message printed the value of AUDIT_TRAIL_FILE'; fi
+  if grep -q 'must be an \*.audit file' "$tmp/leak.err"; then ok 'the bad-file message is fixed text'; else bad 'the bad-file message is missing'; fi
+
+  # --- verify -----------------------------------------------------------------------------
+  rc=0
+  "$script" verify --file "$ledger" >/dev/null || rc=$?
+  expect_eq 'verify accepts the lines the script wrote' "$rc" 0
+
+  if (cd "$work" && "$script" verify --file "$ledger" --branch feature --remote "$remote" >/dev/null); then
+    ok 'verify accepts a remote head that the ledger names'
+  else
+    bad 'verify rejected a named remote head'
+  fi
+
+  if (
+    cd "$work"
+    git commit -q --allow-empty -m two
+    git push -q origin feature
+    rc=0
+    "$script" verify --file "$ledger" --branch feature --remote "$remote" >"$tmp/verify.out" || rc=$?
+    [[ "$rc" -eq 3 ]] && grep -q 'no external-write line names that commit' "$tmp/verify.out"
+  ); then
+    ok 'verify reports a push the ledger does not name'
+  else
+    bad 'verify missed an unrecorded push'
+  fi
+
+  local bad_ledger="$tmp/bad.audit"
+  cat >"$bad_ledger" <<'EOF'
+donatello|2026-11-11T10:00:00Z|external-write|git push origin feature|ok
+2026-11-11T10:05:00Z|donatello|external-write|git push origin feature|ok
+donatello|2026-11-11T10:06:00Z|git-push|origin feature|ok
+krang|-|gather|delivered|2026-11-11T10:07:00Z
+donatello|2026-11-11T10:08:00Z|external-write|gh pr create|ok|extra
+EOF
+  rc=0
+  "$script" verify --file "$bad_ledger" >"$tmp/bad.out" || rc=$?
+  expect_eq 'verify rejects malformed lines' "$rc" 3
+  if grep -q 'line 2 starts with a time' "$tmp/bad.out"; then ok 'verify names a leading extra field'; else bad 'verify missed the extra leading field'; fi
+  if grep -q 'line 3 third field is not one of' "$tmp/bad.out"; then ok 'verify names a malformed class such as git-push'; else bad 'verify missed the malformed class'; fi
+  if grep -q 'line 4 ' "$tmp/bad.out"; then ok 'verify names a dispatch-ledger line'; else bad 'verify missed the dispatch-ledger line'; fi
+  if grep -q 'line 5 has 6 fields' "$tmp/bad.out"; then ok 'verify names a line with extra fields'; else bad 'verify missed the six-field line'; fi
+
+  printf 'donatello|2026-11-11T10:09:00Z|note|line 2 and line 3 and line 4 and line 5|corrected by the lines below\n' >>"$bad_ledger"
+  rc=0
+  "$script" verify --file "$bad_ledger" >"$tmp/bad.out" || rc=$?
+  expect_eq 'a later note that names a malformed line resolves it' "$rc" 0
+
+  rc=0
+  "$script" verify --file "$tmp/missing.audit" >/dev/null || rc=$?
+  expect_eq 'verify reports an unreadable file' "$rc" 3
+
+  # --- verify: the agent comments and the label changes of the account --------------------------
+  if command -v jq >/dev/null 2>&1; then
+    local obs="$tmp/obs.audit"
+    cat >"$obs" <<'OBS'
+donatello|2026-11-11T10:00:00Z|external-write|gh pr create -> https://example.test/o/r/pull/5|ok (exit 0)
+donatello|2026-11-11T10:30:00Z|external-write|https://example.test/o/r/issues/5#issuecomment-101|created (exit 0)
+donatello|2026-11-11T10:35:00Z|external-write|https://example.test/o/r/pull/5#pullrequestreview-902|created review with 2 inline comments
+donatello|2026-11-11T10:40:00Z|external-write|gh pr edit 5 +label ready to merge +label other-tag -> https://example.test/o/r/pull/5|ok (exit 0)
+OBS
+    mkdir -p "$tmp/obsbin"
+    cat >"$tmp/obsbin/gh" <<'OBSGH'
+#!/usr/bin/env bash
+if [[ "${FAKE_GH_FAIL:-0}" == 1 && "$*" == *"issues/5/"* ]]; then exit 1; fi
+expr=""
+prev=""
+for arg in "$@"; do
+  [[ "$prev" == --jq ]] && expr="$arg"
+  prev="$arg"
+done
+case "$*" in
+"api user --jq .login") echo bot ;;
+"repo view --json nameWithOwner --jq .nameWithOwner") echo o/r ;;
+*"issues/5/comments"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":101,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":102,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"other"},"created_at":"2026-11-11T11:00:00Z","id":103,"body":"report\n<!-- cr-comment:actor=other -->"},
+  {"user":{"login":"bot"},"created_at":"2000-01-01T00:00:00Z","id":104,"body":"report\n<!-- cr-comment:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":555,"body":"the operator wrote this by hand"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":556,"body":null},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","id":557,"body":"agent report\n<!-- analysis-plan:actor=bot -->"}
+]
+JSON
+  ;;
+*"pulls/5/reviews"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":901,"body":"Code review\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":902,"body":"Code review\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"submitted_at":"2026-11-11T11:00:00Z","id":904,"body":"the operator reviewed by hand"},
+  {"user":{"login":"other"},"submitted_at":"2026-11-11T11:00:00Z","id":905,"body":"Code review\n<!-- cr-inline:actor=other -->"},
+  {"user":{"login":"bot"},"submitted_at":"2000-01-01T00:00:00Z","id":906,"body":"Code review\n<!-- cr-inline:actor=bot -->"}
+]
+JSON
+  ;;
+*"pulls/5/comments"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":903,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":903,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":902,"body":"finding\n<!-- cr-inline:actor=bot -->"},
+  {"user":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","pull_request_review_id":907,"body":"a hand-written inline remark"}
+]
+JSON
+  ;;
+*"issues/5/timeline"*)
+  jq -r "$expr" <<'JSON'
+[
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"ready to merge"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"unlabeled","label":{"name":"ready to merge"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"tag"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"other-tag"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"surprise"}},
+  {"actor":{"login":"bot"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"debug"}},
+  {"actor":{"login":"other"},"created_at":"2026-11-11T11:00:00Z","event":"labeled","label":{"name":"other-label"}},
+  {"actor":{"login":"bot"},"created_at":"2000-01-01T00:00:00Z","event":"labeled","label":{"name":"old-label"}}
+]
+JSON
+  ;;
+*"pr view"*) echo https://example.test/o/r/pull/5 ;;
+esac
+OBSGH
+    chmod +x "$tmp/obsbin/gh"
+    rc=0
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'verify reports an agent comment with no ledger line' "$rc" 3
+    if grep -q '^problem: comment 102 ' "$tmp/obs.out" && grep -q '^problem: comment 557 ' "$tmp/obs.out"; then ok 'verify names an agent comment of the account that has no line'; else bad "verify missed an unrecorded agent comment: $(cat "$tmp/obs.out")"; fi
+    if grep -q '^problem: review 901 ' "$tmp/obs.out" && grep -q '^problem: review 903 ' "$tmp/obs.out"; then ok 'verify names a pull-request review and a review comment of the account that have no line'; else bad "verify missed an unrecorded inline review: $(cat "$tmp/obs.out")"; fi
+    if [[ "$(grep -c '^problem: review 903 ' "$tmp/obs.out")" == 1 ]] && ! grep -q 'review 902 \|review 904 \|review 905 \|review 906 \|review 907 ' "$tmp/obs.out"; then ok 'verify skips a recorded review, an operator review, another actor, a write before the run, and names a review once'; else bad "verify named a review it should skip: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q 'comment 555\|comment 556' "$tmp/obs.out"; then ok 'verify skips a comment of the account that carries no agent marker'; else bad "verify named an operator comment: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q 'comment 101 \|comment 103 \|comment 104 \|other-label\|old-label' "$tmp/obs.out"; then
+      ok 'verify skips a recorded comment, another actor, and a write before the run'
+    else
+      bad "verify named a write it should skip: $(cat "$tmp/obs.out")"
+    fi
+    if grep -q "^not verified: label 'ready to merge' unlabeled " "$tmp/obs.out"; then ok 'an unrecorded removal is not verified although the label was added by a line'; else bad "verify matched unlabeled to a +label line: $(cat "$tmp/obs.out")"; fi
+    if grep -q "^not verified: label 'tag' labeled " "$tmp/obs.out"; then ok 'a label that is only a substring of a recorded label is not verified'; else bad "verify matched a label by substring: $(cat "$tmp/obs.out")"; fi
+    if grep -q "^not verified: label 'surprise' labeled " "$tmp/obs.out"; then ok 'verify names a label change that has no line'; else bad "verify missed the unrecorded label change: $(cat "$tmp/obs.out")"; fi
+    if ! grep -q "label 'ready to merge' labeled\|label 'other-tag' labeled\|^problem: label" "$tmp/obs.out"; then ok 'a recorded label is skipped and a label event is never a problem'; else bad "verify named a recorded label: $(cat "$tmp/obs.out")"; fi
+    printf 'branch-name|2026-11-11T10:50:00Z|external-write|git push origin fix/debug-output|ok (exit 0)\n' >>"$obs"
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || true
+    if grep -q "^not verified: label 'debug' labeled " "$tmp/obs.out"; then ok 'a label that is a substring of another write line is not verified'; else bad 'verify matched a label inside a push line'; fi
+
+    cat >>"$obs" <<'OBS'
+donatello|2026-11-11T12:00:00Z|note|comment 102|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|comment 557|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|review 901|written by another agent, not by this run
+donatello|2026-11-11T12:00:01Z|note|review 903|written by another agent, not by this run
+donatello|2026-11-11T12:00:02Z|note|label surprise|set by the operator, not by an agent
+donatello|2026-11-11T12:00:03Z|note|label tag|set by the operator, not by an agent
+donatello|2026-11-11T12:00:04Z|note|label ready to merge|removed by the operator, not by an agent
+OBS
+    rc=0
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'a later note that names the comment resolves the problem' "$rc" 0
+    if ! grep -q "comment 102\|comment 557\|label 'surprise'\|label 'tag'\|label 'ready to merge'" "$tmp/obs.out"; then ok 'a later note that names the label resolves it'; else bad "a note did not resolve: $(cat "$tmp/obs.out")"; fi
+
+    rc=0
+    PATH="$tmp/obsbin:$PATH" FAKE_GH_FAIL=1 "$script" verify --file "$obs" --pr 5 >"$tmp/obs.out" || rc=$?
+    expect_eq 'a failed read is no problem' "$rc" 0
+    if grep -q '^not verified: the comments or the timeline' "$tmp/obs.out"; then ok 'a failed read prints not verified'; else bad "a failed read printed: $(cat "$tmp/obs.out")"; fi
+
+    # A label written on another issue is no record of the same label on the issue under check.
+    local scoped="$tmp/scoped.audit"
+    cat >"$scoped" <<'SCOPED'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 8 +label surprise +label tag -> https://example.test/o/r/issues/8|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 5 +label other-tag -> https://example.test/o/r/issues/5|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh pr edit 5 +label ready to merge -> https://example.test/o/r/pull/5|ok (exit 0)
+SCOPED
+    PATH="$tmp/obsbin:$PATH" "$script" verify --file "$scoped" --issue 5 >"$tmp/scoped.out" || true
+    if grep -q "^not verified: label 'surprise' labeled " "$tmp/scoped.out" && grep -q "^not verified: label 'tag' labeled " "$tmp/scoped.out"; then
+      ok 'a label written on another issue does not count as recorded for the issue under check'
+    else
+      bad "verify counted a label of another issue as recorded: $(cat "$tmp/scoped.out")"
+    fi
+    if ! grep -q "label 'other-tag' labeled\|label 'ready to merge' labeled" "$tmp/scoped.out"; then
+      ok 'a label written on the issue under check stays recorded, by its URL or by its number'
+    else
+      bad "verify lost a label of the issue under check: $(cat "$tmp/scoped.out")"
+    fi
+
+    # A bare number names the repository of the current directory, never another repository.
+    mkdir "$tmp/repobin"
+    cat >"$tmp/repobin/gh" <<'REPOGH'
+#!/usr/bin/env bash
+case "$*" in
+"api user --jq .login") echo bot ;;
+"repo view --json nameWithOwner --jq .nameWithOwner") echo o/r ;;
+*"issues/7/timeline"*) printf 'bot\t2026-11-11T11:00:00Z\tlabeled\tbug\n' ;;
+esac
+REPOGH
+    chmod +x "$tmp/repobin/gh"
+    local other="$tmp/other.audit"
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/other/issues/7|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a label written on issue 7 of another repository is no record for issue 7 of this one'; else bad "verify counted another repository: $(cat "$tmp/other.out")"; fi
+    # When the current repository cannot be read, a bare number matches no repository and the read is reported.
+    mkdir "$tmp/norepobin"
+    sed 's/^"repo view --json nameWithOwner --jq .nameWithOwner") echo o\/r ;;$/"repo view"*) exit 1 ;;/' "$tmp/repobin/gh" >"$tmp/norepobin/gh"
+    chmod +x "$tmp/norepobin/gh"
+    local failcase failargs
+    for failcase in '--issue 7' '--pr 7'; do
+      for failargs in 'gh issue edit 7 +label bug -> https://example.test/o/other/issues/7' 'gh issue edit 3 7 +label bug -> https://example.test/o/other/issues/3' 'gh issue edit 7 +label bug -> https://example.test/o/r/issues/7'; do
+        printf 'donatello|2026-11-11T10:00:00Z|external-write|%s|ok (exit 0)\n' "$failargs" >"$other"
+        # shellcheck disable=SC2086
+        PATH="$tmp/norepobin:$PATH" "$script" verify --file "$other" $failcase >"$tmp/other.out" || true
+        if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out" && grep -q "^not verified: the current repository could not be read" "$tmp/other.out"; then
+          ok "an unreadable current repository counts no label as recorded for $failcase: $failargs"
+        else
+          bad "verify $failcase counted a label with no repository: $(cat "$tmp/other.out")"
+        fi
+      done
+    done
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug -> https://example.test/o/r/issues/7|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if ! grep -q "label 'bug'" "$tmp/other.out"; then ok 'a label written on issue 7 of this repository is recorded for a bare issue 7'; else bad "verify lost a label of this repository: $(cat "$tmp/other.out")"; fi
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 7 +label bug|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a label write that names no repository is no record for a bare issue 7'; else bad "verify counted a write with no repository: $(cat "$tmp/other.out")"; fi
+    printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 3 7 +label bug -> https://example.test/o/other/issues/3|ok (exit 0)\n' >"$other"
+    PATH="$tmp/repobin:$PATH" "$script" verify --file "$other" --issue 7 >"$tmp/other.out" || true
+    if grep -q "^not verified: label 'bug' labeled " "$tmp/other.out"; then ok 'a second number of an edit takes the repository of the URL the edit printed'; else bad "verify counted a second number of another repository: $(cat "$tmp/other.out")"; fi
+  else
+    ok 'skipped the comment and label checks of verify: jq is not installed'
+  fi
+
+  # --- verify: a label write on an issue this run created belongs to that issue's creation and triage ---
+  local lnk="$tmp/link.audit"
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 12 +label early -> https://example.test/o/r/issues/12|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue create -> https://example.test/o/r/issues/7|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 7 +label bug +label priority: medium -> https://example.test/o/r/issues/7|ok (exit 0)
+donatello|2026-11-11T10:03:00Z|external-write|gh issue edit 9 +label stale -> https://example.test/o/r/issues/9|ok (exit 0)
+donatello|2026-11-11T10:04:00Z|external-write|gh issue create -> https://example.test/o/r/issues/12|ok (exit 0)
+donatello|2026-11-11T10:05:00Z|external-write|gh issue edit 7 -label bug -> https://example.test/o/r/issues/7|ok (exit 0)
+donatello|2026-11-11T10:06:00Z|external-write|gh pr edit 5 +label ready to merge -> https://example.test/o/r/pull/5|ok (exit 0)
+donatello|2026-11-11T10:07:00Z|external-write|https://example.test/o/r/issues/20|sub-issue created under https://example.test/o/r/issues/1 (exit 0)
+donatello|2026-11-11T10:08:00Z|external-write|gh issue edit 20 +label tech-debt -> https://example.test/o/r/issues/20|ok (exit 0)
+donatello|2026-11-11T10:09:00Z|external-write|gh issue edit 7 --title only -> https://example.test/o/r/issues/7|ok (exit 0)
+LNK
+  local lnk_before
+  lnk_before="$(cksum <"$lnk")"
+  rc=0
+  "$script" verify --file "$lnk" >"$tmp/link.out" || rc=$?
+  expect_eq 'a ledger of label writes on created issues is accepted' "$rc" 0
+  if grep -q '^linked: https://example.test/o/r/issues/7 was created by this run (line 2); label writes on line(s) 3, 6 belong to its creation and triage: +label bug; +label priority: medium; -label bug$' "$tmp/link.out"; then
+    ok 'verify shows the label writes on a created issue as part of its creation and triage'
+  else
+    bad "verify missed the link to a created issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^linked: https://example.test/o/r/issues/20 was created by this run (line 8); label writes on line(s) 9 belong to its creation and triage: +label tech-debt$' "$tmp/link.out"; then
+    ok 'verify links the label writes to an issue that a wrapper created, named by its URL'
+  else
+    bad "verify missed the wrapper-created issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/issues/9 (line 4) is not part of an issue this run created: +label stale$' "$tmp/link.out"; then
+    ok 'a label write on an issue the run did not create is shown on its own'
+  else
+    bad "verify folded a label write on another issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/issues/12 (line 1) is not part of an issue this run created: +label early$' "$tmp/link.out"; then
+    ok 'a label write that comes before the creation of its issue is shown on its own'
+  else
+    bad "verify linked a label write that predates the issue: $(cat "$tmp/link.out")"
+  fi
+  if grep -q '^standalone: label write on https://example.test/o/r/pull/5 (line 7) is not part of an issue this run created: +label ready to merge$' "$tmp/link.out"; then
+    ok 'a label write on a pull request is shown on its own'
+  else
+    bad "verify missed the pull request label write: $(cat "$tmp/link.out")"
+  fi
+  if [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 2 && "$(grep -c '^standalone: ' "$tmp/link.out")" == 3 ]] && ! grep -q 'line(s) 10\|--title' "$tmp/link.out"; then
+    ok 'verify shows each label write once and ignores an edit that changes no label'
+  else
+    bad "verify counted the writes wrongly: $(cat "$tmp/link.out")"
+  fi
+  expect_eq 'verify never rewrites a ledger line to show the link' "$(cksum <"$lnk")" "$lnk_before"
+  if ! grep -q '^problem: \|^not verified: ' "$tmp/link.out"; then ok 'a linked or standalone label write is neither a problem nor not verified'; else bad "verify raised a finding for a label write: $(cat "$tmp/link.out")"; fi
+
+  # A bare issue number names no repository, so it never links to a created issue.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/3|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 3 +label bug|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 3 +label bug -> https://example.test/o/elsewhere/issues/3|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^standalone: label write on issue 3 (line 2) is not part of an issue this run created: +label bug$' "$tmp/link.out" \
+    && grep -q '^standalone: label write on https://example.test/o/elsewhere/issues/3 (line 3) ' "$tmp/link.out" \
+    && ! grep -q '^linked: ' "$tmp/link.out"; then
+    ok 'a bare issue number, and the same number in another repository, link to no created issue'
+  else
+    bad "verify linked an issue by its number: $(cat "$tmp/link.out")"
+  fi
+
+  # A created issue that has no label write prints no linked line.
+  printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/8|ok (exit 0)\n' >"$lnk"
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if [[ "$(cat "$tmp/link.out")" == 'audit trail ok: 1 line(s)' ]]; then ok 'a created issue with no label write prints no linked line'; else bad "verify printed a line for an unlabelled issue: $(cat "$tmp/link.out")"; fi
+
+  # A label write names the created issue only by the URL that ends the creation line.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create follow-up of https://example.test/o/r/issues/99 -> https://example.test/o/r/issues/100|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit 99 +label wontfix -> https://example.test/o/r/issues/99|ok (exit 0)
+donatello|2026-11-11T10:02:00Z|external-write|gh issue edit 100 +label bug -> https://example.test/o/r/issues/100|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^linked: https://example.test/o/r/issues/100 was created by this run (line 1); label writes on line(s) 3 ' "$tmp/link.out" \
+    && grep -q '^standalone: label write on https://example.test/o/r/issues/99 (line 2) ' "$tmp/link.out" \
+    && [[ "$(grep -c '^linked: ' "$tmp/link.out")" == 1 ]]; then
+    ok 'the created issue is the URL that ends the creation line, never another URL of that line'
+  else
+    bad "verify took the wrong URL of a creation line: $(cat "$tmp/link.out")"
+  fi
+
+  # A command that edits several issues is recorded with every issue it names, and links to none.
+  mkdir "$tmp/editbin"
+  cat >"$tmp/editbin/gh" <<'EDITGH'
+#!/usr/bin/env bash
+case "$*" in
+"issue create"*) echo "https://example.test/o/r/issues/100" ;;
+"issue edit 100 7"*) printf 'https://example.test/o/r/issues/7\nhttps://example.test/o/r/issues/100\n' ;;
+"issue edit"*) echo "https://example.test/o/r/issues/100" ;;
+esac
+EDITGH
+  chmod +x "$tmp/editbin/gh"
+  : >"$lnk"
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue create --title t >/dev/null
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue edit 100 7 --add-label deploy-now >/dev/null
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/editbin:$PATH" "$script" run -- gh issue edit --title 5 --add-label solo https://example.test/o/r/issues/100 >/dev/null
+  expect_eq 'run records every issue that an edit names' "$(awk -F'|' 'NR == 2 { print $4 }' "$lnk")" 'gh issue edit 100 7 +label deploy-now -> https://example.test/o/r/issues/7 https://example.test/o/r/issues/100'
+  expect_eq 'run skips the value of an option and records the URL of an issue' "$(awk -F'|' 'NR == 3 { print $4 }' "$lnk")" 'gh issue edit https://example.test/o/r/issues/100 +label solo -> https://example.test/o/r/issues/100'
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^standalone: label write on issue 100, 7, https://example.test/o/r/issues/100 (line 2) ' "$tmp/link.out" \
+    && grep -q '^linked: https://example.test/o/r/issues/100 was created by this run (line 1); label writes on line(s) 3 belong to its creation and triage: +label solo$' "$tmp/link.out"; then
+    ok 'a label write that names two issues is shown on its own, and one that names the created issue is linked'
+  else
+    bad "verify linked a multi-issue edit: $(cat "$tmp/link.out")"
+  fi
+
+  # Only an edit names every issue it changes, and only a positional argument names one.
+  mkdir "$tmp/refbin"
+  cat >"$tmp/refbin/gh" <<'REFGH'
+#!/usr/bin/env bash
+echo "https://example.test/o/r/issues/100"
+REFGH
+  chmod +x "$tmp/refbin/gh"
+  local refcase refwant
+  while IFS='>' read -r refcase refwant; do
+    : >"$lnk"
+    # shellcheck disable=SC2086
+    AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/refbin:$PATH" "$script" run -- $refcase >/dev/null
+    expect_eq "run records '$refcase' as '$refwant'" "$(awk -F'|' '{ print $4 }' "$lnk" | sed 's/ -> .*//')" "$refwant"
+  done <<'REFS'
+gh issue edit 100 --parent 7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --add-sub-issue https://example.test/o/r/issues/7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --add-blocked-by 7 --remove-blocking 8 --add-label bug>gh issue edit 100 +label bug
+gh issue edit 100 --duplicate-of 7 --add-label bug>gh issue edit 100 +label bug
+gh issue edit --add-label bug -- 100 7>gh issue edit 100 7 +label bug
+gh issue close 5 --reason https://example.test/o/r/pull/632>gh issue close 5
+gh pr merge 5 --subject 77>gh pr merge 5
+gh issue create --label 7>gh issue create
+gh pr create --head 5>gh pr create
+REFS
+  : >"$lnk"
+  AUDIT_TRAIL_FILE="$lnk" PATH="$tmp/refbin:$PATH" "$script" run -- gh issue close 5 --reason https://example.test/o/r/pull/632 >/dev/null
+  if ! grep -q 'pull/632' "$lnk"; then ok 'the value of an option of a close names no pull request in the ledger'; else bad "a close line names a pull request through an option: $(cat "$lnk")"; fi
+
+  # The URLs that an edit printed are all part of its line: a second URL is a second issue.
+  cat >"$lnk" <<'LNK'
+donatello|2026-11-11T10:00:00Z|external-write|gh issue create -> https://example.test/o/r/issues/100|ok (exit 0)
+donatello|2026-11-11T10:01:00Z|external-write|gh issue edit https://example.test/o/r/issues/100 +label bug -> https://example.test/o/r/issues/100 https://example.test/o/r/issues/7|ok (exit 0)
+LNK
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q '^standalone: label write on issue https://example.test/o/r/issues/100, https://example.test/o/r/issues/7 (line 2) ' "$tmp/link.out" && ! grep -q '^linked: ' "$tmp/link.out"; then
+    ok 'an edit whose output names a second issue is shown on its own'
+  else
+    bad "verify linked an edit that printed two issues: $(cat "$tmp/link.out")"
+  fi
+
+  # A control character in a label name never reaches the output.
+  printf 'donatello|2026-11-11T10:00:00Z|external-write|gh issue edit 9 +label x\033[2Jy\rz\tw -> https://example.test/o/r/issues/9|ok (exit 0)\n' >"$lnk"
+  "$script" verify --file "$lnk" >"$tmp/link.out" || true
+  if grep -q 'standalone: label write on https://example.test/o/r/issues/9 (line 1) .*: +label x\[2Jy z w$' "$tmp/link.out" \
+    && ! LC_ALL=C grep -q "$(printf '[\001-\011\013-\037\177]')" "$tmp/link.out"; then
+    ok 'a control character, a carriage return, or a tab in a label name never reaches the output'
+  else
+    bad "verify let a control character through: $(od -c "$tmp/link.out" | head -5)"
+  fi
+
+  # --- a package wrapper records its own write: the GitHub comment publisher --------------------
+  if command -v php >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    cat >"$tmp/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+"api user --jq .login") echo bot ;;
+*"/comments --paginate"*) echo '[]' ;;
+*"-X POST"*)
+  cat >/dev/null
+  if [[ "${FAKE_POST_RC:-0}" -ne 0 ]]; then echo '{"message":"boom"}'; exit "$FAKE_POST_RC"; fi
+  echo '{"html_url":"https://github.com/o/r/issues/5#issuecomment-77","id":77}'
+  ;;
+esac
+EOF
+    chmod +x "$tmp/bin/gh"
+    printf 'body\n' >"$tmp/body.md"
+    local upsert
+    upsert="$(cd "$(dirname "$script")/../code-review-github/scripts" && pwd)/upsert-comment.sh"
+    before="$(line_count)"
+    out="$(PATH="$tmp/bin:$PATH" "$upsert" https://github.com/o/r/issues/5 "$tmp/body.md" 2>/dev/null)"
+    expect_eq 'the comment publisher keeps its stdout' "$out" 'https://github.com/o/r/issues/5#issuecomment-77'
+    l="$(last_line)"
+    expect_eq 'the comment publisher leaves exactly one line' "$(line_count)" "$((before + 1))"
+    expect_eq 'the comment publisher line has the role first' "$(field 1 "$l")" donatello
+    expect_eq 'the comment publisher line is an external-write' "$(field 3 "$l")" external-write
+    expect_eq 'the comment publisher line names the comment URL' "$(field 4 "$l")" 'https://github.com/o/r/issues/5#issuecomment-77'
+
+    rc=0
+    PATH="$tmp/bin:$PATH" FAKE_POST_RC=1 "$upsert" https://github.com/o/r/issues/5 "$tmp/body.md" >/dev/null 2>&1 || rc=$?
+    expect_eq 'a failed comment write keeps the publisher exit code 3' "$rc" 3
+    l="$(last_line)"
+    expect_eq 'a failed comment write leaves a note line' "$(field 3 "$l")" note
+    if [[ "$(field 5 "$l")" == *'(exit 1)'* ]]; then ok 'the failed comment write names the request exit status'; else bad "failed comment note: $(field 5 "$l")"; fi
+
+    rc=0
+    out="$(unset AUDIT_TRAIL_FILE; PATH="$tmp/bin:$PATH" "$upsert" https://github.com/o/r/issues/5 "$tmp/body.md" 2>/dev/null)" || rc=$?
+    expect_eq 'the comment publisher works without a ledger' "$rc" 0
+    expect_eq 'the comment publisher stdout is the same without a ledger' "$out" 'https://github.com/o/r/issues/5#issuecomment-77'
+  fi
+
+  # --- concurrent appends never interleave -------------------------------------------------------
+  local par="$tmp/par.audit" n
+  : >"$par"
+  for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+    "$script" append --file "$par" --class external-write --target "t$n" --result ok &
+  done
+  wait
+  expect_eq 'twenty concurrent appends leave twenty lines' "$(wc -l <"$par" | tr -d ' ')" 20
+  rc=0
+  "$script" verify --file "$par" >/dev/null || rc=$?
+  expect_eq 'twenty concurrent appends leave twenty well-formed lines' "$rc" 0
+
+  if [[ "$failures" -gt 0 ]]; then
+    echo "audit-trail self-test: $failures failure(s)" >&2
+    return 4
+  fi
+  echo 'audit-trail self-test: PASS'
+}
+
+main() {
+  case "${1:-}" in
+  --self-test) self_test ;;
+  append) shift; cmd_append "$@" ;;
+  record) shift; cmd_record "$@" ;;
+  run) shift; cmd_run "$@" ;;
+  verify) shift; cmd_verify "$@" ;;
+  *) usage; return 1 ;;
+  esac
+}
+
+main "$@"

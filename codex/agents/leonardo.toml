@@ -12,8 +12,8 @@ Apply these Codex compatibility mappings everywhere in that definition:
 - `.claude/run/` means `.codex/run/`.
 - `@skills/<path>` means the matching file below `.agents/skills/<path>`; invoke a skill as `$skill-name` when appropriate.
 - `@rules/<path>` means the matching file below `.codex/rules/<path>`.
-- A bare `skills/<path>` reference to a shipped script (for example `skills/_shared/classify-risk.sh`) means the matching file below `.agents/skills/<path>`; run it with the session's shell.
-- The deterministic orchestration helpers (`classify-risk.sh`, `plan-route.sh`, `plan-parallel.sh`, `run-validation.sh`, `run-gate.sh`, `verify-gate.sh`, `gate-lock.sh`, `gate-context.sh`, `pack-context.sh`, `check-handoff.sh`, `render-report.sh`, `record-metrics.sh`) live below `.agents/skills/_shared/`; run them with the session's shell. They are platform-neutral by construction — a Codex run routes, validates, reports, and measures exactly as a Claude run does.
+- A bare `skills/<path>` reference to a shipped script (for example `commands/_shared/classify-risk.sh`) means the matching file below `.agents/skills/<path>`; run it with the session's shell.
+- Command-owned routing helpers (`classify-risk.sh`, `plan-route.sh`, `plan-parallel.sh`, `run-gate.sh`, `gate-lock.sh`, `pack-context.sh`, `check-handoff.sh`, and `render-report.sh`) live below `.codex/commands/_shared/`; run them with the session's shell. The remaining validation helpers (`run-validation.sh`, `run-fast-checks.sh`, `verify-gate.sh`, `gate-context.sh`, and `record-metrics.sh`) remain below `.agents/skills/_shared/`. Both sets are platform-neutral by construction — a Codex run routes, validates, reports, and measures exactly as a Claude run does.
 - `agents/<name>.md` means `.codex/agent-instructions/<name>.md`.
 - Claude's Read, Glob, Grep, Bash, WebSearch, and WebFetch names mean the equivalent Codex filesystem, shell, and web tools available in this session.
 - The settle step of `@rules/code-review/review-process.md` *Settle open points before publishing — procedure* runs no URL check when this session's web tool cannot report each redirect hop. The point then stays not verified with that reason.
@@ -21,7 +21,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 
 Model tiers for this role on Codex — this file is where they are declared, not the rules:
 - This role performs the whole code review, including every security lens.
-- Before the implementation it also analyses the issue and audits the security of the proposed solution for every task, in the proposal audit of its *Security analysis mode* (`skills/_shared/orchestration/proposal-review.md`).
+- Before the implementation it also analyses the issue and audits the security of the proposed solution for every task, in the proposal audit of its *Security analysis mode* (`commands/_shared/orchestration/proposal-review.inc`).
 - Default tier: `gpt-6.1-sol` at `high` reasoning effort — the `model` and `model_reasoning_effort` keys above are the binding declaration; this line states the same values so the file cannot disagree with itself.
 - Escalated tier: the strongest model this session can select; when the session cannot switch models for one step, its highest `model_reasoning_effort`.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.

@@ -3,7 +3,7 @@
 declare(strict_types = 1);
 
 test('the fast-checks runner proves every acceptance scenario in its self-test', function (): void {
-    $script = packageSource('skills/_shared/run-fast-checks.sh');
+    $script = packageSource('commands/_shared/run-fast-checks.sh');
 
     foreach ([
         'a manifest without fast-checks runs nothing and exits 5',
@@ -38,15 +38,15 @@ test('the fast-checks runner proves every acceptance scenario in its self-test',
     }
 
     expect($script)->toContain('check "an unacceptable entry refuses the whole run before anything runs: $refusal"');
-    expect(is_executable(dirname(__DIR__, 2) . '/skills/_shared/run-fast-checks.sh'))->toBeTrue();
+    expect(is_executable(dirname(__DIR__, 2) . '/commands/_shared/run-fast-checks.sh'))->toBeTrue();
 
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode(packageSource('composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
-    expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' skills/_shared/run-fast-checks.sh '))->toBe(1);
+    expect(substr_count(implode(' ', $composer['scripts']['shell-self-tests']), ' commands/_shared/run-fast-checks.sh '))->toBe(1);
 });
 
 test('the fast-checks runner reads the default-branch manifest, takes the machine lock, and passes a path only as an argv element', function (): void {
-    $script = packageSource('skills/_shared/run-fast-checks.sh');
+    $script = packageSource('commands/_shared/run-fast-checks.sh');
     $end = strpos($script, 'self_test() {');
     $code = (string) preg_replace('/^\s*#.*$/m', '', $end === false ? $script : substr($script, 0, $end));
 
@@ -71,7 +71,7 @@ test('the pre-push gate runs the fast checks on every repository and keeps ci an
     expect($gates)->toContain('the implementer runs it in three parts:')
         ->and($gates)->toContain('2. **The `fast-checks`, on every repository, on the changed files only.**')
         ->and($gates)->toContain(
-            'The package assumes no tool.' . "\n" . '     - After the fixer changes are committed, run `skills/_shared/run-fast-checks.sh`',
+            'The package assumes no tool.' . "\n" . '     - After the fixer changes are committed, run `commands/_shared/run-fast-checks.sh`',
         )
         ->and($gates)->toContain('A path is always its own argument, never part of a shell string.')
         ->and($gates)->toContain('Exit `0` → push; a passed run leaves no log.')
@@ -90,15 +90,15 @@ test('the pre-push gate runs the fast checks on every repository and keeps ci an
         ->toContain('Absent: no fast check runs before a push, and `krang` proposes the key');
     expect(packageSource('docs/installation.md'))->toContain('| `fast-checks` | `run-fast-checks.sh`, the implementer before each push;');
     expect(packageSource('rules/compound-engineering/concurrency.md'))
-        ->toContain('The pre-push `fast-checks` take it through `skills/_shared/run-fast-checks.sh`.');
+        ->toContain('The pre-push `fast-checks` take it through `commands/_shared/run-fast-checks.sh`.');
 });
 
 test('krang proposes the fast checks the way it proposes the fixers', function (): void {
-    $discovery = packageSource('skills/_shared/orchestration/pr-gate-discovery.md');
-    $script = packageSource('skills/_shared/discover-fixers.sh');
+    $discovery = packageSource('commands/_shared/orchestration/pr-gate-discovery.inc');
+    $script = packageSource('commands/_shared/discover-fixers.sh');
 
     expect($discovery)->toContain('## The fast checks')
-        ->and($discovery)->toContain('- **Step 1** runs `skills/_shared/discover-fixers.sh --key fast-checks`')
+        ->and($discovery)->toContain('- **Step 1** runs `commands/_shared/discover-fixers.sh --key fast-checks`')
         ->and($discovery)->toContain('`composer config --json extra.ai-olympus.fast-checks \'<the commands array>\'`')
         ->and($discovery)->toContain('use the branch `chore/ai-olympus-fast-checks`')
         ->and($discovery)->toContain('A refresh keeps every entry the owner added by hand.');
@@ -116,11 +116,11 @@ test('krang proposes the fast checks the way it proposes the fixers', function (
 });
 
 test('the shared command library is the one executor and the one ref check of the fast checks and the discovery', function (): void {
-    $library = packageSource('skills/_shared/project-commands.sh');
+    $library = packageSource('commands/_shared/project-commands.sh');
 
     expect($library)->toContain('valid_ref() {')
-        ->and(packageSource('skills/_shared/discover-fixers.sh'))->not->toContain('valid_ref() {')
-        ->and(packageSource('skills/_shared/gate-record.sh'))
+        ->and(packageSource('commands/_shared/discover-fixers.sh'))->not->toContain('valid_ref() {')
+        ->and(packageSource('commands/_shared/gate-record.sh'))
         ->toContain('IFS=\'/\' read -r -d \'\' -a parts < <(printf \'%s\\0\' "$path") || true');
 });
 
@@ -132,33 +132,33 @@ test('every list of machine lock wrappers names the fast checks', function (stri
         '`WRAPPER` (`run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`)',
     ],
     'gate-record lock entry' => [
-        'skills/_shared/gate-record.sh',
+        'commands/_shared/gate-record.sh',
         '# The one entry into the machine lock of run-gate.sh, run-validation.sh, and run-fast-checks.sh:',
     ],
     'orchestration machine directory' => [
         'rules/compound-engineering/orchestration.md',
-        '`skills/_shared/run-validation.sh`, and `skills/_shared/run-fast-checks.sh` create and remove it',
+        '`commands/_shared/run-validation.sh`, and `commands/_shared/run-fast-checks.sh` create and remove it',
     ],
     'quality-gates repair conditions' => [
         'skills/resolve-issue/references/quality-gates.md',
         'the holder file names `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`, the live process',
     ],
     'stale-lock-repair report step' => [
-        'skills/_shared/orchestration/stale-lock-repair.md',
+        'commands/_shared/orchestration/stale-lock-repair.inc',
         'the `reason` of a `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` exit `6`',
     ],
     'stale-lock-repair trigger 2' => [
-        'skills/_shared/orchestration/stale-lock-repair.md',
+        'commands/_shared/orchestration/stale-lock-repair.inc',
         'or a `run-gate.sh` or `run-fast-checks.sh` call in its handoff exited `6`.',
     ],
     'stale-lock-repair trigger 4' => [
-        'skills/_shared/orchestration/stale-lock-repair.md',
+        'commands/_shared/orchestration/stale-lock-repair.inc',
         '4. A `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` call that the harness stopped',
     ],
 ]);
 
 test('a stuck fast-check run is a wrapper the lock repair may stop', function (): void {
-    $lock = packageSource('skills/_shared/gate-lock.sh');
+    $lock = packageSource('commands/_shared/gate-lock.sh');
 
     expect($lock)->toContain('[[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh ]] || name="$wrapper"')
         ->and($lock)->toContain('check \'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package\'');
@@ -169,21 +169,21 @@ test('the script of the pre-push step is inside the implementer bash boundary an
     $start = (int) strpos($donatello, '## Bash boundary');
     $boundary = substr($donatello, $start, (int) strpos($donatello, '## Shared task brief') - $start);
 
-    expect($boundary)->toContain('`skills/_shared/run-fast-checks.sh` for the project\'s `fast-checks` before each push')
-        ->and($donatello)->toContain('the `fast-checks` result of `skills/_shared/run-fast-checks.sh`, and the local checks');
+    expect($boundary)->toContain('`commands/_shared/run-fast-checks.sh` for the project\'s `fast-checks` before each push')
+        ->and($donatello)->toContain('the `fast-checks` result of `commands/_shared/run-fast-checks.sh`, and the local checks');
 });
 
 test('claude code and codex both carry the fast checks before a push', function (): void {
     expect(packageSource('agents/donatello.md'))
-        ->toContain('Then run `skills/_shared/run-fast-checks.sh` on every repository: it runs the project\'s `fast-checks` on the changed files');
+        ->toContain('Then run `commands/_shared/run-fast-checks.sh` on every repository: it runs the project\'s `fast-checks` on the changed files');
     expect(packageSource('codex/agents/donatello.toml'))->toContain('`run-validation.sh`, `run-fast-checks.sh`, `run-gate.sh`');
     expect(packageSource('CLAUDE.md'))->toContain(
-        'It then runs the project\'s `fast-checks` on the changed files through `skills/_shared/run-fast-checks.sh`',
+        'It then runs the project\'s `fast-checks` on the changed files through `commands/_shared/run-fast-checks.sh`',
     );
     expect(packageSource('AGENTS.md'))->toContain(
-        'Then run the project\'s `fast-checks` on the changed files through `skills/_shared/run-fast-checks.sh`',
+        'Then run the project\'s `fast-checks` on the changed files through `commands/_shared/run-fast-checks.sh`',
     );
-    expect(packageSource('skills/_shared/orchestration/batch-preparation.md'))
-        ->toContain('- Run the `fast-checks` before a push only as `skills/_shared/run-fast-checks.sh`.');
+    expect(packageSource('commands/_shared/orchestration/batch-preparation.inc'))
+        ->toContain('- Run the `fast-checks` before a push only as `commands/_shared/run-fast-checks.sh`.');
     expect(packageSource('CHANGELOG.md'))->toContain('(#605)');
 });

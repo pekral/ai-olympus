@@ -158,7 +158,7 @@ function reviewLayoutResult(Process $process, string $work): array
 function renderReview(array $walkthroughChanges = [], ?array $findings = null): array
 {
     $work = reviewLayoutPrepareWork($walkthroughChanges, $findings);
-    $script = dirname(__DIR__, 3) . '/skills/code-review-github/scripts/post-inline-review.sh';
+    $script = dirname(__DIR__, 3) . '/commands/_shared/code-review-github/post-inline-review.sh';
     $process = new Process(
         [
             '/bin/bash', $script, 'post', 'https://github.com/o/r/pull/7',

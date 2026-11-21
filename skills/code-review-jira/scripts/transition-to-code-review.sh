@@ -47,7 +47,7 @@
 #
 # Audit trail:
 #   The write appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line, or a `note` line for a failed attempt, both with the acting role and
 #   the real exit status of the write. The ledger comes from AUDIT_TRAIL_FILE
 #   and AUDIT_TRAIL_ROLE; a missing ledger prints a hint on stderr and never
@@ -150,7 +150,7 @@ TRANSITION_RC=0
 TRANSITION_ERR="$(acli jira workitem transition --key "$KEY" --status "$TARGET" --yes 2>&1 >/dev/null)" || TRANSITION_RC=$?
 [[ "$TRANSITION_RC" -eq 0 ]] && TRANSITION_OK=true || TRANSITION_OK=false
 # The audit line is written at the moment of the write, with the real exit status of `acli`
-# (`skills/_shared/audit-trail.sh`; a missing ledger prints a hint and changes nothing else).
+# (`commands/_shared/audit-trail.sh`; a missing ledger prints a hint and changes nothing else).
 bash "$SCRIPT_DIR/../../_shared/audit-trail.sh" record --target "jira transition $KEY to $TARGET" --status "$TRANSITION_RC" || true
 
 # acli can return success for a "looped transition" that performs an action but

@@ -6,9 +6,9 @@ paths:
 
 ## Backlog tier — triage and decomposition, run inline
 
-This section is the normative contract. `agents/krang.md` is its one executor today and references it by name; nothing here is restated there.
+This section is the normative contract. `commands/_shared/krang-workflow.inc` is its one executor today and references it by name; nothing here is restated there.
 
-The backlog tier — what the team works on next, in what order, and at what size — belongs to the orchestrator, which runs it **inline, in its own context**, because no peer agent owns it. It is the **second exception** named in `agents/krang.md` *Delegation model*. It has two modes and only two; the backlog tier is the whole of this exception.
+The backlog tier — what the team works on next, in what order, and at what size — belongs to the orchestrator, which runs it **inline, in its own context**, because no peer agent owns it. It is the **second exception** named in `commands/_shared/krang-workflow.inc` *Delegation model*. It has two modes and only two; the backlog tier is the whole of this exception.
 
 A backlog run **ends at the backlog**. It dispatches no `donatello` and no `leonardo`, opens no pull request, and never carries a decomposed piece onward — each piece re-enters as its own `krang` run, which is the whole reason the subject was split. It takes **no working-tree write-lock** either: it writes to the tracker, never to the tree, so it overlaps freely with a writing run exactly as the analysis-only stop does.
 
@@ -21,7 +21,7 @@ Run `@skills/github-issue-triage/SKILL.md` and let it own the mechanics — the 
 The orchestrator's own job around it is the part the skill does not decide:
 
 - **State the resulting order, and why.** The deliverable is not "labels were applied" — it is a queue a human can act on: the top items in order, each with the one-line reason it holds that position. A priority nobody can trace back to a reason is a priority nobody will follow.
-- **State what can run in parallel.** For the head of the queue, run `skills/_shared/plan-parallel.sh` (*Plan parallel batches* of `skills/_shared/orchestration/multi-source-planning.md` owns the input) and report its batches next to the order. Two issues are listed as parallel only when their named file sets are disjoint, neither depends on the other, neither is `CRITICAL`, and at most the concurrency limit of `parallel.max-units` share a batch. An issue that names no file is reported as sequential, never guessed. The report is advice: it creates no worktree and starts no run.
+- **State what can run in parallel.** For the head of the queue, run `commands/_shared/plan-parallel.sh` (*Plan parallel batches* of `commands/_shared/orchestration/multi-source-planning.inc` owns the input) and report its batches next to the order. Two issues are listed as parallel only when their named file sets are disjoint, neither depends on the other, neither is `CRITICAL`, and at most the concurrency limit of `parallel.max-units` share a batch. An issue that names no file is reported as sequential, never guessed. The report is advice: it creates no worktree and starts no run.
 - **Name what is untriaged and what is stale.** An issue the skill could not classify, and an issue whose priority contradicts its age or its dependencies, are both reported explicitly rather than left to look decided.
 - **Never invent work.** Triage orders what exists; it never opens an issue to fill a gap you noticed. A genuine gap is reported in the handoff, and becomes work only when the user asks for it.
 - **Sweep when the request asks for more than labels.** A request to close the issues already done on the default branch, to keep epics flat, or to move issues under the epic that owns them runs the skill's *Backlog sweep* (`skills/github-issue-triage/references/backlog-sweep.md`). The sweep owns the evidence, the per-issue decision, and the writes; defer to it exactly as to the labelling.
@@ -52,7 +52,7 @@ The orchestrator's step 1 routes here when a resolved subject bundles separable 
 
 Absorbing the backlog tier never widens into the roles the roster deliberately keeps elsewhere — or keeps with nobody:
 
-- **Analyse, diagnose, or design.** Not a backlog decision. A backlog run never analyses, and gaining the backlog tier does not change that. A request to investigate, diagnose, or design is not a backlog decision. The orchestrator answers a general analysis-only request through `skills/_shared/orchestration/proposal-review.md`, which is the orchestrator's analysis exception and not part of the backlog tier, and a security-focused analysis belongs to `leonardo`.
+- **Analyse, diagnose, or design.** Not a backlog decision. A backlog run never analyses, and gaining the backlog tier does not change that. A request to investigate, diagnose, or design is not a backlog decision. The orchestrator answers a general analysis-only request through `commands/_shared/orchestration/proposal-review.inc`, which is the orchestrator's analysis exception and not part of the backlog tier, and a security-focused analysis belongs to `leonardo`.
 - **Implement, test, or open a pull request.** → `donatello`, dispatched through the orchestrator's step 5.
 - **Review anything.** → `leonardo`, the roster's single code-review agent.
 - **Merge.** Merging is always a separate, explicitly requested step through `@skills/merge-github-pr/SKILL.md` — never ad-hoc CLI, and never a side effect of a backlog run.

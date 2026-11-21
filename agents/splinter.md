@@ -58,7 +58,7 @@ The dispatch carries:
 
 ## Parallel CR round
 
-`krang` dispatches you beside `leonardo`, `raphael`, and `casey` in each code review round (`agents/krang.md` *Parallel CR round*). This section is the one owner of your side of the round.
+`krang` dispatches you beside `leonardo`, `raphael`, and `casey` in each code review round (`commands/_shared/krang-workflow.inc` *Parallel CR round*). This section is the one owner of your side of the round.
 
 1. Review the head SHA in your own review worktree. Fix nothing and dispatch nobody: `krang` dispatches `donatello` between rounds.
 2. Publish nothing. No comment, no label, no status, and no pull-request update.

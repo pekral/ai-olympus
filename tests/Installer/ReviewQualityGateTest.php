@@ -8,11 +8,11 @@ function reviewQualityGateFile(string $relativePath): string
 }
 
 test('the review-state helper is shipped, executable, self-testing, and run by the build', function (): void {
-    $script = dirname(__DIR__, 2) . '/skills/_shared/review-state.sh';
+    $script = dirname(__DIR__, 2) . '/commands/_shared/review-state.sh';
 
     expect(is_file($script))->toBeTrue()
         ->and(is_executable($script))->toBeTrue()
-        ->and(reviewQualityGateFile('skills/_shared/review-state.sh'))
+        ->and(reviewQualityGateFile('commands/_shared/review-state.sh'))
         ->toStartWith('#!/usr/bin/env bash')
         ->toContain('set -euo pipefail')
         ->toContain('if [[ "${1:-}" == \'--self-test\' ]]; then');
@@ -20,11 +20,11 @@ test('the review-state helper is shipped, executable, self-testing, and run by t
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode(reviewQualityGateFile('composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/_shared/review-state.sh ');
+    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' commands/_shared/review-state.sh ');
 });
 
 test('the review-state self-test covers the twelve required scenarios of issue #225', function (string $label): void {
-    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))->toContain($label);
+    expect(reviewQualityGateFile('commands/_shared/review-state.sh'))->toContain($label);
 })->with([
     'scenarios 1 and 2: a repeated finding and one on another line keep their identity',
     'scenario 3: two similar but distinct defects stay two findings',
@@ -40,7 +40,7 @@ test('the review-state self-test covers the twelve required scenarios of issue #
 ]);
 
 test('the review-state self-test covers every success criterion of the security plan', function (string $label): void {
-    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))->toContain($label);
+    expect(reviewQualityGateFile('commands/_shared/review-state.sh'))->toContain($label);
 })->with([
     'a working-tree composer.json changes neither the cap nor the threshold',
     'an environment variable does not change the cap',
@@ -117,7 +117,7 @@ test('the extractor and the review state load one shared jq module for the findi
         ->and(substr_count($definitions, 'def status_rank:'))->toBe(1);
     expect($definitions)->not->toStartWith('#!');
 
-    foreach (['skills/_shared/extract-findings.sh' => '"$JQ_COMMON"', 'skills/_shared/review-state.sh' => '"$JQ_STATE"'] as $path => $program) {
+    foreach (['skills/_shared/extract-findings.sh' => '"$JQ_COMMON"', 'commands/_shared/review-state.sh' => '"$JQ_STATE"'] as $path => $program) {
         $script = reviewQualityGateFile($path);
 
         expect($script)
@@ -131,7 +131,7 @@ test('the extractor and the review state load one shared jq module for the findi
 });
 
 test('a blocking finding outside the delta widens the round, and a change after a cap-round convergence escalates', function (): void {
-    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))
+    expect(reviewQualityGateFile('commands/_shared/review-state.sh'))
         ->toContain('def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index([$f.file])) == null;')
         ->toContain('map(select(. != "" and . != ".")) | unique\' "$out.raw" >"$out"')
         ->toContain('(if any(.findings[]; outside_delta($changed[0])) then "open-finding-outside-delta" else empty end) ] as $reasons')
@@ -159,17 +159,17 @@ test('a blocking finding outside the delta widens the round, and a change after 
         ->toContain('A finding under `## Findings` without an `Evidence` field is refused');
     expect($contract)->toContain('A finding whose location names no file counts as outside every delta.');
     expect($contract)->not->toContain('is read as `needs-verification`, so the loop does not count it');
-    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))->not->toContain('$f.file != "."');
+    expect(reviewQualityGateFile('commands/_shared/review-state.sh'))->not->toContain('$f.file != "."');
 
     expect(reviewQualityGateFile('skills/process-code-review/SKILL.md'))
         ->toContain('After a cap-round convergence, `review-state.sh record` refuses it (`cap-spent-after-convergence`): escalate.');
 
-    expect(reviewQualityGateFile('agents/krang.md'))
-        ->toContain('the `skills/_shared/review-state.sh` verdict `escalated`, including `cap-spent-after-convergence`');
+    expect(reviewQualityGateFile('commands/_shared/krang-workflow.inc'))
+        ->toContain('the `commands/_shared/review-state.sh` verdict `escalated`, including `cap-spent-after-convergence`');
 });
 
 test('a dismissal reads the author association from the GitHub loader, never from the caller', function (): void {
-    $script = reviewQualityGateFile('skills/_shared/review-state.sh');
+    $script = reviewQualityGateFile('commands/_shared/review-state.sh');
 
     expect($script)
         ->toContain('LOADER="$HERE/../code-review-github/scripts/load-issue.sh"')
@@ -201,14 +201,14 @@ test('a dismissal reads the author association from the GitHub loader, never fro
 test('the round cap and the blocking threshold come only from the default-branch manifest', function (): void {
     expect(reviewQualityGateFile('rules/general/general.md'))
         ->toContain(
-            '| `review.max-iterations` | int | The round cap of the review-and-fix loop in `skills/_shared/review-state.sh`. '
+            '| `review.max-iterations` | int | The round cap of the review-and-fix loop in `commands/_shared/review-state.sh`. '
             . '1 to 10; any other value falls back to 3. Absent: 3. |',
         )
         ->toContain(
             'It only tightens the convergence gate: every finding with evidence blocks at every severity, and a security finding is never deferred.',
         );
 
-    expect(reviewQualityGateFile('skills/_shared/review-state.sh'))
+    expect(reviewQualityGateFile('commands/_shared/review-state.sh'))
         ->toContain(
             'manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$HERE/read-manifest.sh" >/dev/null || true; manifest=\'{}\'; }',
         )
@@ -227,7 +227,7 @@ test('process-code-review drives its loop through the review state and keeps com
         ->toContain(
             'the `maxIterations` cap (the default-branch manifest key `review.max-iterations`), a finding\'s status, or what this skill may publish',
         )
-        ->toContain('`skills/_shared/review-state.sh init`')
+        ->toContain('`commands/_shared/review-state.sh init`')
         ->toContain('Record the round with `review-state.sh record` (from round 2 on, with the delta\'s changed files).')
         ->toContain('run `review-state.sh scope` on the next delta with `--numstat` (a `full` scope reviews the whole PR diff again')
         ->toContain('Record each landed sub-issue with `review-state.sh defer`, then run `review-state.sh evaluate --final`.')
@@ -260,17 +260,17 @@ test('no file cites a fixed three-round cap any more', function (string $relativ
     expect($content)->not->toContain('Round 3 — the deferral boundary');
 })->with([
     'agents/leonardo.md',
-    'agents/krang.md',
+    'commands/_shared/krang-workflow.inc',
     'docs/agents.md',
     'rules/compound-engineering/orchestration.md',
     'skills/process-code-review/SKILL.md',
-    'skills/_shared/orchestration/dispatch-liveness.md',
+    'commands/_shared/orchestration/dispatch-liveness.inc',
 ]);
 
 test('every former citation of the fixed cap names the manifest key', function (string $relativePath, string $citation): void {
     expect(reviewQualityGateFile($relativePath))->toContain($citation);
 })->with([
-    ['agents/krang.md', '`maxIterations` rounds — the default-branch manifest key `review.max-iterations`, default 3'],
+    ['commands/_shared/krang-workflow.inc', '`maxIterations` rounds — the default-branch manifest key `review.max-iterations`, default 3'],
     ['docs/agents.md', '`maxIterations` from the manifest key `review.max-iterations`, default 3'],
     ['rules/compound-engineering/orchestration.md', '`maxIterations` from the default-branch manifest, default 3'],
     ['rules/git/pull-requests.md', 'at the cap round only (`review.max-iterations`, default 3), deferred into a tracker sub-issue'],
@@ -320,18 +320,18 @@ test('the review requires evidence for every finding and keeps an unverified sec
 });
 
 test('the run metrics store the review-loop counts and codes, never their content', function (): void {
-    expect(reviewQualityGateFile('skills/_shared/record-metrics.sh'))
+    expect(reviewQualityGateFile('commands/_shared/record-metrics.sh'))
         ->toContain('if ! review_json="$("$HERE/review-state.sh" evaluate --state "$value" 2>/dev/null)"; then')
         ->toContain('printf \'ok    %-54s\\n\' \'review-loop counters are stored as counts and codes\'');
 
-    expect(reviewQualityGateFile('agents/krang.md'))
+    expect(reviewQualityGateFile('commands/_shared/krang-workflow.inc'))
         ->toContain('plus `--review-state <path>` for the loop state `leonardo` named in its handoff');
 });
 
 test('leonardo writes only the loop state under the run directory and names it in its handoff', function (): void {
     expect(reviewQualityGateFile('agents/leonardo.md'))
         ->toContain(
-            'run `skills/_shared/review-state.sh` only as `@skills/process-code-review/SKILL.md` *Review loop* directs, '
+            'run `commands/_shared/review-state.sh` only as `@skills/process-code-review/SKILL.md` *Review loop* directs, '
             . 'which writes only the loop state under `.claude/run/review-state/`',
         )
         ->toContain('Name the loop\'s state file in your handoff on every exit, so `krang` records its counts.');

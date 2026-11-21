@@ -35,7 +35,7 @@ test('both review templates name the project own command and keep the package wr
         ->and($source)->toContain('**Quality gate:** {the project\'s gate command as the project runs it, never the package wrapper that ran it}')
         ->and($source)->toContain('Name each step in plain words, never by a script or a path of this package')
         ->and($source)->toContain('*Visible review text names none of the package\'s own tooling*')
-        ->and($source)->not->toContain('`<exact command run — e.g. `skills/_shared/run-gate.sh --exclusive');
+        ->and($source)->not->toContain('`<exact command run — e.g. `commands/_shared/run-gate.sh --exclusive');
 })->with([
     'code-review' => ['skills/code-review/templates/review-output.md'],
     'code-review-github' => ['skills/code-review-github/templates/pr-comment-output.md'],
@@ -55,7 +55,7 @@ test('the review body template and the wrapper contract point to the rule and th
 });
 
 test('the wrapper checks the visible text against the reviewed repository and never the hidden record', function (): void {
-    $script = reviewVisibleTextSource('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = reviewVisibleTextSource('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($script)->toContain('CHECK_VISIBLE="$HERE/../../_shared/check-visible-review-text.php"')
         ->and($script)->toContain('gh api "repos/${NWO}/git/trees/${commit}?recursive=1"')

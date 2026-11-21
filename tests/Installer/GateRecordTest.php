@@ -230,7 +230,7 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
 
     expect($merge)->toContain(
-        'Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>` '
+        'Run the trusted copy of `commands/_shared/verify-gate.sh --tier full <headRefOid>` '
         . '(`references/trusted-record-parser.md`) on the checked-out head',
     );
     expect($merge)->toContain(
@@ -238,7 +238,7 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
     );
     expect($merge)->toContain('Never accept the textual record in its place, and never merge on a non-zero verdict.');
     expect($merge)->toContain('A refusal is never a pass, and the textual record never stands in for it.');
-    expect($merge)->toContain('Run it through `skills/_shared/run-gate.sh --tier full` and act on its exit code');
+    expect($merge)->toContain('Run it through `commands/_shared/run-gate.sh --tier full` and act on its exit code');
     expect($merge)->toContain(
         '- **Any other non-zero exit** — `1`, `2`, or a code the table does not list: handled like `3`. Report the reason and stop.',
     );
@@ -263,14 +263,14 @@ test('the merge and the readiness check keep CI and never merge on a non-zero ve
         '1. the record\'s `commands` hold every command of the tier, and only the last one has a non-zero `exit_code`',
     );
     expect($gates)->toContain(
-        '2. `skills/_shared/verify-gate.sh --tier full <sha>`, run after the gate, reports `fresh_exit_code` `0`',
+        '2. `commands/_shared/verify-gate.sh --tier full <sha>`, run after the gate, reports `fresh_exit_code` `0`',
     );
 
     // The four textual conditions stay for a project without a machine record (backward compatible).
     expect($merge)->toContain('**The record is authentic.**');
 
-    expect($readiness)->toContain('`skills/_shared/verify-gate.sh --tier full <head SHA>` first');
-    expect($readiness)->toContain('`donatello` to run `skills/_shared/run-gate.sh --tier full`, or stops; the PR is never reported');
+    expect($readiness)->toContain('`commands/_shared/verify-gate.sh --tier full <head SHA>` first');
+    expect($readiness)->toContain('`donatello` to run `commands/_shared/run-gate.sh --tier full`, or stops; the PR is never reported');
     expect($readiness)->toContain('Exit `3` stops with the reason, and any other non-zero exit is handled like `3`.');
     expect($readiness)->toContain('Required CI stays a separate condition below.');
 });
@@ -279,8 +279,8 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
 
-    expect($read('agents/donatello.md'))->toContain('The checks run as `skills/_shared/run-gate.sh --tier full --actor donatello`.');
-    expect($read('agents/donatello.md'))->toContain('`skills/_shared/run-gate.sh --exclusive` for the `pr-gate` fixers before each push, `skills');
+    expect($read('agents/donatello.md'))->toContain('The checks run as `commands/_shared/run-gate.sh --tier full --actor donatello`.');
+    expect($read('agents/donatello.md'))->toContain('`commands/_shared/run-gate.sh --exclusive` for the `pr-gate` fixers before each push, `skills');
     expect($read('agents/donatello.md'))->toContain('unless CI on the PR head is green and the push follows no rebase that resolved a conflict');
 
     $gates = $read('skills/resolve-issue/references/quality-gates.md');
@@ -291,19 +291,19 @@ test('every agent and skill in the issue table uses the gate scripts', function 
     expect($read('rules/general/general.md'))->toContain('| `pr-gate` | string[] | The project\'s fixers, and fixers only.');
     expect($read('agents/donatello.md'))->toContain('Exit `3` or `6` → do not push; return `Blocked` with the reason.');
     expect($read('agents/donatello.md'))->toContain('Any other non-zero exit is handled like `3`: do not push.');
-    expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `skills/_shared/run-gate.sh --tier full --actor donatello`');
+    expect($read('skills/process-code-review/SKILL.md'))->toContain('Run the gate through `commands/_shared/run-gate.sh --tier full --actor donatello`');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('Exit `3` is a hard stop, like a gate that cannot be run.');
     expect($read('skills/process-code-review/SKILL.md'))->toContain('plus the tree and the record path when `run-gate.sh` wrote a record');
     expect(krangContractText())->toContain('**Verify before every gate step — never run a tree twice.**');
     expect(krangContractText())->toContain('`gate skipped — record <record path> valid for tree <tree>`');
-    expect($read('agents/krang.md'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
-    expect($read('agents/krang.md'))->toContain('and `skills/_shared/verify-gate.sh` (the machine gate record check;');
-    expect($read('skills/_shared/orchestration/merge-preparation.md'))->toContain(
+    expect($read('commands/_shared/krang-workflow.inc'))->toContain('Exit `3` is a blocker: stop and report the reason. Any other non-zero exit is handled like `3`.');
+    expect($read('commands/_shared/krang-workflow.inc'))->toContain('and `commands/_shared/verify-gate.sh` (the machine gate record check;');
+    expect($read('commands/_shared/orchestration/merge-preparation.inc'))->toContain(
         '`0` skip the dispatch and record `gate skipped — record <path> valid for tree <tree>` in the brief.',
     );
     expect($read('agents/leonardo.md'))->toContain('You never run the gate: when `run-gate.sh` wrote a record, cite its tree and record path');
-    expect($read('skills/_shared/record-metrics.sh'))->toContain('--gate-record)');
-    expect($read('skills/_shared/record-metrics.sh'))->toContain('\'gate durations are summed, never copied\'');
+    expect($read('commands/_shared/record-metrics.sh'))->toContain('--gate-record)');
+    expect($read('commands/_shared/record-metrics.sh'))->toContain('\'gate durations are summed, never copied\'');
     expect($read('rules/git/general.md'))->toContain('**One gate run per tree, shared by every agent.**');
 });
 
@@ -429,14 +429,14 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
 test('every heavy command runs under the machine lock and the rules name the wrapper', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
-    $wrapper = 'skills/_shared/run-gate.sh --exclusive --command "<command>"';
+    $wrapper = 'commands/_shared/run-gate.sh --exclusive --command "<command>"';
 
     // run-validation.sh takes the lock itself, and run-gate.sh --exclusive covers the rest.
-    expect($read('skills/_shared/run-validation.sh'))
+    expect($read('commands/_shared/run-validation.sh'))
         ->toContain('gate_lock_enter "$GATE_LOCK_TIMEOUT"')
         ->toContain('emit locked false "$GATE_REASON"');
 
-    expect($read('skills/_shared/gate-record.sh'))->toContain('gate_lock_timeout() {')->toContain('gate_lock_enter() {');
+    expect($read('commands/_shared/gate-record.sh'))->toContain('gate_lock_timeout() {')->toContain('gate_lock_enter() {');
 
     foreach (['run-gate.sh', 'run-validation.sh'] as $caller) {
         $executable = gateExecutableCode($caller);
@@ -445,7 +445,7 @@ test('every heavy command runs under the machine lock and the rules name the wra
         expect($executable)->not->toContain('gate_lock_acquire');
     }
 
-    expect($read('skills/_shared/gate-record.sh'))->toContain('AI_OLYMPUS_LOCK_HELD_BY');
+    expect($read('commands/_shared/gate-record.sh'))->toContain('AI_OLYMPUS_LOCK_HELD_BY');
 
     $qualityGates = $read('skills/resolve-issue/references/quality-gates.md');
     expect($qualityGates)
@@ -476,16 +476,16 @@ test('every heavy command runs under the machine lock and the rules name the wra
 test('krang checks the machine lock and repairs it only through gate-lock.sh', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $read = static fn (string $path): string => (string) file_get_contents($packageDir . '/' . $path);
-    $krang = $read('agents/krang.md');
-    $reference = $read('skills/_shared/orchestration/stale-lock-repair.md');
+    $krang = $read('commands/_shared/krang-workflow.inc');
+    $reference = $read('commands/_shared/orchestration/stale-lock-repair.inc');
 
     expect($krang)
         ->toContain('Check the machine lock once the brief and its `.audit` ledger exist')
-        ->toContain('load `skills/_shared/orchestration/stale-lock-repair.md`**')
-        ->toContain('run `skills/_shared/gate-lock.sh status|repair`');
+        ->toContain('load `commands/_shared/orchestration/stale-lock-repair.inc`**')
+        ->toContain('run `commands/_shared/gate-lock.sh status|repair`');
     expect($reference)
-        ->toContain('skills/_shared/gate-lock.sh status')
-        ->toContain('skills/_shared/gate-lock.sh repair --audit')
+        ->toContain('commands/_shared/gate-lock.sh status')
+        ->toContain('commands/_shared/gate-lock.sh repair --audit')
         ->toContain('never run `kill` or `pkill`')
         ->toContain('Blocked: the machine lock is held by a process this package did not start')
         ->toContain('never a pipe stage')
@@ -502,7 +502,7 @@ test('krang checks the machine lock and repairs it only through gate-lock.sh', f
         ->toContain('a handoff or a report carries them only inside a fenced `text` block');
     expect($read('skills/resolve-issue/references/quality-gates.md'))
         ->toContain('every `run-validation.sh` call, and every `run-fast-checks.sh` call in a way');
-    expect($read('skills/_shared/run-validation.sh'))->toContain('"invalid" | "locked"');
+    expect($read('commands/_shared/run-validation.sh'))->toContain('"invalid" | "locked"');
 
     $concurrency = $read('rules/compound-engineering/concurrency.md');
     expect($concurrency)
@@ -612,7 +612,7 @@ test('no rule, skill, or agent line tells the reader to run Pest, Rector, or PHP
     $allowed = [
         'agents/donatello.md' => ['"tests": ["vendor/bin/pest', '"static_analysis": ["vendor/bin/phpstan'],
         'skills/resolve-issue/references/bug-diagnosis.md' => ['`git bisect run vendor/bin/pest'],
-        'skills/_shared/orchestration/batch-preparation.md' => ['- Never run a bare `vendor/bin/pest`'],
+        'commands/_shared/orchestration/batch-preparation.inc' => ['- Never run a bare `vendor/bin/pest`'],
         'skills/resolve-issue/references/quality-gates.md' => ['Before you run a gate or coverage command, whichever source supplied it, export'],
     ];
     $violations = gateGuardUnwrapped($packageDir, $tool, $allowed);
@@ -650,7 +650,7 @@ test('no rule, skill, or agent line tells the reader to run a dependency install
         'skills/git-workflow/SKILL.md',
         'agents/raphael.md',
     ] as $file) {
-        expect($read($file))->toContain('skills/_shared/run-gate.sh --exclusive --command "');
+        expect($read($file))->toContain('commands/_shared/run-gate.sh --exclusive --command "');
     }
 });
 
@@ -664,20 +664,20 @@ test('every instruction that runs the tests of a change names the wrapper', func
             'Run affected-area tests (`run-gate.sh --exclusive`) and confirm correctness',
         ],
         'skills/test-driven-development/SKILL.md' => [
-            'Run the test through `skills/_shared/run-gate.sh --exclusive',
-            'Run the relevant tests through `skills/_shared/run-gate.sh --exclusive',
+            'Run the test through `commands/_shared/run-gate.sh --exclusive',
+            'Run the relevant tests through `commands/_shared/run-gate.sh --exclusive',
         ],
-        'skills/create-test/SKILL.md' => ['through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/create-test/SKILL.md' => ['through `commands/_shared/run-gate.sh --exclusive'],
         'skills/process-code-review/SKILL.md' => [
-            'rerun the test, through `skills/_shared/run-gate.sh --exclusive',
-            'Run only relevant tests for changed files, through `skills/_shared/run-gate.sh --exclusive',
+            'rerun the test, through `commands/_shared/run-gate.sh --exclusive',
+            'Run only relevant tests for changed files, through `commands/_shared/run-gate.sh --exclusive',
         ],
-        'skills/process-code-review/references/answering-reviewer-questions.md' => ['a test through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/process-code-review/references/answering-reviewer-questions.md' => ['a test through `commands/_shared/run-gate.sh --exclusive'],
         'skills/laravel-architecture-guard/SKILL.md' => ['run-gate.sh --exclusive --command "vendor/bin/pest --group=arch"'],
-        'skills/resolve-issue/references/security-remediation-checklist.md' => ['through `skills/_shared/run-gate.sh --exclusive'],
+        'skills/resolve-issue/references/security-remediation-checklist.md' => ['through `commands/_shared/run-gate.sh --exclusive'],
         'skills/security-bounty-hunter/SKILL.md' => ['run-gate.sh --exclusive --command "vendor/bin/phpstan analyse --no-progress"'],
-        'rules/code-review/general.md' => ['run that test, through `skills/_shared/run-gate.sh --exclusive'],
-        'rules/code-testing/general.md' => ['always through `skills/_shared/run-gate.sh --exclusive'],
+        'rules/code-review/general.md' => ['run that test, through `commands/_shared/run-gate.sh --exclusive'],
+        'rules/code-testing/general.md' => ['always through `commands/_shared/run-gate.sh --exclusive'],
     ] as $path => $needles) {
         foreach ($needles as $needle) {
             expect($read($path))->toContain($needle);

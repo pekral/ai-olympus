@@ -6,7 +6,7 @@ test('test-assignment runs the assignment test through krang, donatello, raphael
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/commands/test-assignment.md');
     $skill = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');
 

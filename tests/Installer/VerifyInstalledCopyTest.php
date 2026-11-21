@@ -36,7 +36,7 @@ test('the trusted classifier runs only in an untouched clone and verifies agains
         ->and($section)->toContain('defaultBranchRef{target{oid}}')
         ->and($section)->toContain('= "${TIP:?}" ]')
         ->and($section)->toContain('git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root "<clone>" --commit "${TIP:?}"')
-        ->and($section)->toContain('= \'installed-copy-verdict=verified\' ] && "<clone>/skills/_shared/classify-risk.sh"')
+        ->and($section)->toContain('= \'installed-copy-verdict=verified\' ] && "<clone>/commands/_shared/classify-risk.sh"')
         ->and($section)->not->toContain('<main>')
         ->and($section)->toContain('6. **Only an untouched clone gives a trusted copy.**')
         ->and($section)->toContain('So the main worktree of a project never gives one.')
@@ -83,7 +83,7 @@ test('the history scan verifies its installed copies with the shared verifier, n
 
     expect($step)->toContain('`skills/_shared/verify-installed-copy.sh`')
         ->and($step)->toContain('`skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* items 3 to 6')
-        ->and($step)->toContain('`skills/git-history-exposure-audit/scripts/history-scan.sh skills/_shared/read-manifest.sh`')
+        ->and($step)->toContain('`skills/git-history-exposure-audit/scripts/history-scan.sh commands/_shared/read-manifest.sh`')
         ->and($step)->toContain('the untouched clone of `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6')
         ->and($step)->toContain('`Not verified: history exposure — no untouched clone;')
         ->and($step)->not->toContain('<main>')

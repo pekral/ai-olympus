@@ -4,7 +4,7 @@ This file is the one contract for finding the defect classes that recur across i
 
 ## Command
 
-`skills/_shared/analyze-recurrence.sh` is the only implementation. It is a plain shell script that needs `jq`, so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding. It reuses two scripts and duplicates neither: `skills/_shared/extract-findings.sh --validate` checks the record store, and `skills/_shared/read-manifest.sh` reads the settings. `skills/_shared/collect-findings.sh` fills the store (*Collection* below).
+`skills/_shared/analyze-recurrence.sh` is the only implementation. It is a plain shell script that needs `jq`, so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding. It reuses two scripts and duplicates neither: `skills/_shared/extract-findings.sh --validate` checks the record store, and `commands/_shared/read-manifest.sh` reads the settings. `commands/_shared/collect-findings.sh` fills the store (*Collection* below).
 
 ```text
 analyze-recurrence.sh --store <file> [--threshold <n>] [--window-days <days>] [--state <file>]
@@ -19,7 +19,7 @@ analyze-recurrence.sh --self-test
 
 ## Collection
 
-`skills/_shared/collect-findings.sh` reads the review reports published on one pull request and passes each one to the extractor. It adds no parsing of its own.
+`commands/_shared/collect-findings.sh` reads the review reports published on one pull request and passes each one to the extractor. It adds no parsing of its own.
 
 ```text
 collect-findings.sh --pr-url <URL> --store <file>
@@ -76,13 +76,13 @@ One JSON object: `schema`, `threshold`, `window_days`, `valid`, `records`, `proc
 
 ## Analysis never blocks a pull request
 
-The review loop records its rounds and the issue-to-pull-request pipeline runs as before. `@skills/process-code-review/SKILL.md` calls `skills/_shared/feedback-loop.sh` after each round and after the publish, and no step reads the result of the call to decide anything. `@skills/resolve-issue/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, and the merge gate call neither the collection nor the analysis. A missing `jq`, a missing store, a failed collection, or a failed analysis changes nothing for a pull request (`feedback-loop.md` *When the analysis is unavailable*).
+The review loop records its rounds and the issue-to-pull-request pipeline runs as before. `@skills/process-code-review/SKILL.md` calls `commands/_shared/feedback-loop.sh` after each round and after the publish, and no step reads the result of the call to decide anything. `@skills/resolve-issue/SKILL.md`, `@skills/merge-github-pr/SKILL.md`, and the merge gate call neither the collection nor the analysis. A missing `jq`, a missing store, a failed collection, or a failed analysis changes nothing for a pull request (`feedback-loop.md` *When the analysis is unavailable*).
 
 ## What the wiring phase decided
 
 `feedback-loop.md` owns the wiring of phase 4 (#189):
 
-- The collection and the analysis run from `skills/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `krang` runs the analysis when the user asks for it.
+- The collection and the analysis run from `commands/_shared/feedback-loop.sh`. The review loop records each round and the published report, and `command` runs the analysis when the user asks for it.
 - The store is one file for each pull request in a derived, git-ignored directory. `analyze` merges them.
 - The `repo` value is the canonical `nameWithOwner` that GitHub reports, resolved by `feedback-loop.sh` before any record is written.
 - A prevention proposal for a reported class is the subject of `prevention-proposal.md`.

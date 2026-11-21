@@ -56,7 +56,7 @@ test('the convergence gate and the cap-round table stay unchanged by the later-r
 });
 
 test('the scripts record every finding a round reports and the reviewer alone applies the later-round rule (issue #455)', function (): void {
-    $state = laterRoundsFile('skills/_shared/review-state.sh');
+    $state = laterRoundsFile('commands/_shared/review-state.sh');
     $extract = laterRoundsFile('skills/_shared/extract-findings.sh');
 
     expect($state)
@@ -171,7 +171,7 @@ test(
 )->with([
     'conformance gate follow-up' => ['skills/code-review/references/assignment-conformance-gate.md', 'move it to its own issue / PR'],
     'conformance gate move' => ['skills/code-review/references/assignment-conformance-gate.md', 'when it has independent value'],
-    'krang critical pre-existing' => ['agents/krang.md', 'critical pre-existing problems'],
+    'krang critical pre-existing' => ['commands/_shared/krang-workflow.inc', 'critical pre-existing problems'],
     'lens follow-up items' => ['skills/code-review/references/specialized-reviews.md', 'travel in the reviewer\'s handoff as follow-up items'],
     'leonardo critical field' => ['agents/leonardo.md', '**Critical out-of-scope findings:**'],
     'leonardo filed issue' => ['agents/leonardo.md', 'any filed out-of-scope issue'],

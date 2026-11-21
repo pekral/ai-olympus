@@ -589,11 +589,11 @@ STUB
   : >"$SELF_TEST_TMP/edits"
   : >"$SELF_TEST_TMP/run.audit"
   (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
-    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" AUDIT_TRAIL_ROLE=donatello \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" AUDIT_TRAIL_ROLE=<command-selected-role> \
     "$script" --issue 2 >"$SELF_TEST_TMP/out" 2>&1)
   rc=$?
   checks=$((checks + 1))
-  if [[ "$rc" -ne 0 ]] || ! grep -q '^donatello|.*|external-write|.*+label enhancement' "$SELF_TEST_TMP/run.audit"; then
+  if [[ "$rc" -ne 0 ]] || ! grep -q '^implementation work|.*|external-write|.*+label enhancement' "$SELF_TEST_TMP/run.audit"; then
     echo "self-test FAIL: the write of --issue 2 left no audit line with its label tokens" >&2
     failures=$((failures + 1))
   fi

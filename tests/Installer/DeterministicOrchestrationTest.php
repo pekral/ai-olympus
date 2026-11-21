@@ -51,10 +51,10 @@ test('every deterministic orchestration helper is shipped, executable, and self-
 
 test('the validation manifest is executed without a shell and against an allow-list', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
+    $runner = (string) file_get_contents($packageDir . '/commands/_shared/run-validation.sh');
     // The command checks and the executor are shared with the gate scripts (issue #169), so the
     // runner sources them rather than carrying its own copy.
-    $commands = (string) file_get_contents($packageDir . '/skills/_shared/project-commands.sh');
+    $commands = (string) file_get_contents($packageDir . '/commands/_shared/project-commands.sh');
 
     // The manifest is written by an agent whose context carries tracker text anyone can write. A
     // manifest reaching a shell would be arbitrary code execution in the one step no human reviews.
@@ -98,9 +98,9 @@ test('the validation manifest is executed without a shell and against an allow-l
 
 test('the validation runner extends its allow-list only from the default-branch project manifest', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
-    $commands = (string) file_get_contents($packageDir . '/skills/_shared/project-commands.sh');
-    $reader = (string) file_get_contents($packageDir . '/skills/_shared/read-manifest.sh');
+    $runner = (string) file_get_contents($packageDir . '/commands/_shared/run-validation.sh');
+    $commands = (string) file_get_contents($packageDir . '/commands/_shared/project-commands.sh');
+    $reader = (string) file_get_contents($packageDir . '/commands/_shared/read-manifest.sh');
 
     expect($runner)->toContain('load_project_manifest || refuse "$PROJECT_REFUSAL"');
     expect($commands)->toContain('reader="$PROJECT_COMMANDS_DIR/read-manifest.sh"');
@@ -135,7 +135,7 @@ test('the validation runner extends its allow-list only from the default-branch 
 
 test('the validation runner separates a pass, a failure, and an undeterminable scope', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $runner = (string) file_get_contents($packageDir . '/skills/_shared/run-validation.sh');
+    $runner = (string) file_get_contents($packageDir . '/commands/_shared/run-validation.sh');
 
     // The escalate verdict is the contract: it is the script, not the orchestrator's judgment, that
     // decides whether a model is needed.
@@ -153,7 +153,7 @@ test('the validation runner separates a pass, a failure, and an undeterminable s
 
 test('the route planner produces each tier plan deterministically', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $planner = (string) file_get_contents($packageDir . '/skills/_shared/plan-route.sh');
+    $planner = (string) file_get_contents($packageDir . '/commands/_shared/plan-route.sh');
 
     // The routing contract used to be prose the orchestrator re-derived every run. As a plan it is
     // asserted instead of read.
@@ -186,7 +186,7 @@ test('the route planner produces each tier plan deterministically', function ():
 
 test('handoffs are bounded, structured, and keep evidence out of the document', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $validator = (string) file_get_contents($packageDir . '/skills/_shared/check-handoff.sh');
+    $validator = (string) file_get_contents($packageDir . '/commands/_shared/check-handoff.sh');
 
     expect($validator)->toContain('DEFAULT_BUDGET=600');
     expect($validator)->toContain('\'an over-budget handoff is rejected\'');
@@ -200,13 +200,13 @@ test('handoffs are bounded, structured, and keep evidence out of the document', 
 
     // The implementer's own contract points at the validator rather than restating the budget.
     $donatello = (string) file_get_contents($packageDir . '/agents/donatello.md');
-    expect($donatello)->toContain('skills/_shared/check-handoff.sh --role implementation');
+    expect($donatello)->toContain('commands/_shared/check-handoff.sh --role implementation');
     expect($donatello)->toContain('never paste a diff, never paste test output');
 });
 
 test('the routine report is rendered from run data, and april is reserved for real writing', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $renderer = (string) file_get_contents($packageDir . '/skills/_shared/render-report.sh');
+    $renderer = (string) file_get_contents($packageDir . '/commands/_shared/render-report.sh');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $krang = krangContractText();
 
@@ -224,7 +224,7 @@ test('the routine report is rendered from run data, and april is reserved for re
     // april states where the boundary is, and krang routes around it.
     expect($april)->toContain('## When a model is warranted — and when a template is');
     expect($april)->toContain('you are not dispatched for it');
-    expect($krang)->toContain('skills/_shared/render-report.sh');
+    expect($krang)->toContain('commands/_shared/render-report.sh');
     expect($krang)->toContain('**The completion report is rendered, not written by a model, and it goes to the user only.**');
     expect($krang)->toContain('**This is the run\'s one tracker report, and it is final.**');
     expect($krang)->toContain('state `tracker-report: deferred`');
@@ -233,7 +233,7 @@ test('the routine report is rendered from run data, and april is reserved for re
 
 test('metrics are persisted as counts only, outside the repository', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
+    $recorder = (string) file_get_contents($packageDir . '/commands/_shared/record-metrics.sh');
 
     expect($recorder)->toContain('PRIVACY — what is never written');
     expect($recorder)->toContain('AI_OLYMPUS_HOME');
@@ -251,13 +251,13 @@ test('metrics are persisted as counts only, outside the repository', function ()
 test('krang records the run metrics that make the next tuning decision evidence-based', function (): void {
     $krang = krangContractText();
 
-    expect($krang)->toContain('skills/_shared/record-metrics.sh');
+    expect($krang)->toContain('commands/_shared/record-metrics.sh');
     expect($krang)->toContain('It writes counts only — never source, diffs, prompts, tracker text, branch names, or URLs');
     expect($krang)->toContain('ai-olympus stats --last=7d');
 });
 
 test('krang may run the context relevance gate it is told to run first', function (): void {
-    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md');
+    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc');
 
     expect($krang)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/gate-context\.sh`/m');
 });
@@ -283,7 +283,7 @@ test('the deterministic helpers are mapped for Codex, not only for Claude Code',
 
 test('the context relevance gate decides cheaply and defaults to false', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $gate = (string) file_get_contents($packageDir . '/skills/_shared/gate-context.sh');
+    $gate = (string) file_get_contents($packageDir . '/commands/_shared/gate-context.sh');
 
     expect($gate)->toContain('context_required');
     expect($gate)->toContain('confidence');
@@ -316,7 +316,7 @@ test('the context relevance gate decides cheaply and defaults to false', functio
     // One vocabulary for the sensitive domains: the gate and the risk classifier source the same
     // word lists, so a word added for one verdict cannot silently miss the other.
     $vocabulary = (string) file_get_contents($packageDir . '/skills/_shared/domain-vocabulary.sh');
-    $classifier = (string) file_get_contents($packageDir . '/skills/_shared/classify-risk.sh');
+    $classifier = (string) file_get_contents($packageDir . '/commands/_shared/classify-risk.sh');
 
     foreach (['AUTH_RE', 'DATA_PATH_RE', 'DATA_RE', 'QUEUE_RE'] as $name) {
         $definition = '/^' . $name . '=/m';
@@ -329,13 +329,13 @@ test('the context relevance gate decides cheaply and defaults to false', functio
         expect($script)->toContain('. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/domain-vocabulary.sh"');
     }
 
-    $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
+    $recorder = (string) file_get_contents($packageDir . '/commands/_shared/record-metrics.sh');
     expect($recorder)->toContain('\'context gate counters are stored as counts\'');
     expect(krangContractText())->toContain('`--context-gate-executed`, `--context-requested`, `--context-skipped`');
 });
 
 test('the parallel planner pins the rule that lets two units overlap', function (): void {
-    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh');
+    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/plan-parallel.sh');
 
     foreach ([
         'two units with disjoint files run in parallel',
@@ -363,7 +363,7 @@ test('the parallel planner pins the rule that lets two units overlap', function 
 });
 
 test('the parallel planner decides one step against the live runs and the memory, and pins every blocker', function (): void {
-    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/plan-parallel.sh');
+    $planner = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/plan-parallel.sh');
 
     foreach ([
         'a step with no live run starts',

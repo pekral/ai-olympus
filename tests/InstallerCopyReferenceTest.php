@@ -39,7 +39,7 @@ function installedCopyReferenceLines(string $reference): array
     return $lines;
 }
 
-test('install records the hash of every installed skill copy in the git directory, outside the working tree', function (): void {
+test('install records the hash of every installed workflow copy in the git directory, outside the working tree', function (): void {
     $root = installerCreateProjectRoot();
     installerEnsureDirectory($root . '/.git');
 
@@ -48,8 +48,9 @@ test('install records the hash of every installed skill copy in the git director
         $lines = installedCopyReferenceLines($root . '/.git/ai-olympus/installed-copies.sha256');
 
         expect($exitCode)->toBe(0)
-            ->and($lines['.claude/skills/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.claude/skills/_shared/classify-risk.sh'))
-            ->and($lines['.agents/skills/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.agents/skills/_shared/classify-risk.sh'))
+            ->and($lines['.claude/command-support/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.claude/command-support/_shared/classify-risk.sh'))
+            ->and($lines['.codex/commands/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.codex/commands/_shared/classify-risk.sh'))
+            ->and($lines['.claude/commands/do-it.md'])->toBe(hash_file('sha256', $root . '/.claude/commands/do-it.md'))
             ->and($lines)->not->toHaveKey('.claude/skills/code-review/SKILL.md')
             ->and(is_file($root . '/.git/ai-olympus/installed-copies.sha256.tmp'))->toBeFalse();
     } finally {
@@ -60,14 +61,14 @@ test('install records the hash of every installed skill copy in the git director
 test('install records no line for a kept copy that differs from the package source', function (): void {
     $root = installerCreateProjectRoot();
     installerEnsureDirectory($root . '/.git');
-    installerWriteFile($root . '/.claude/skills/_shared/classify-risk.sh', "#!/usr/bin/env bash\necho changed\n");
+    installerWriteFile($root . '/.claude/command-support/_shared/classify-risk.sh', "#!/usr/bin/env bash\necho changed\n");
 
     try {
         installedCopyReferenceInstall($root);
         $lines = installedCopyReferenceLines($root . '/.git/ai-olympus/installed-copies.sha256');
 
-        expect($lines)->not->toHaveKey('.claude/skills/_shared/classify-risk.sh')
-            ->and($lines)->toHaveKey('.agents/skills/_shared/classify-risk.sh');
+        expect($lines)->not->toHaveKey('.claude/command-support/_shared/classify-risk.sh')
+            ->and($lines)->toHaveKey('.codex/commands/_shared/classify-risk.sh');
     } finally {
         installerRemoveDirectory($root);
     }
@@ -96,7 +97,7 @@ test('install replaces the reference of an earlier install', function (): void {
 
         expect(installedCopyReferenceLines($root . '/.git/ai-olympus/installed-copies.sha256'))
             ->not->toHaveKey('.claude/skills/_shared/removed.sh')
-            ->toHaveKey('.claude/skills/_shared/classify-risk.sh');
+            ->toHaveKey('.claude/commands/do-it.md');
     } finally {
         installerRemoveDirectory($root);
     }
@@ -110,7 +111,7 @@ test('a linked worktree records the reference in the git directory its .git file
     try {
         installedCopyReferenceInstall($root);
 
-        expect(installedCopyReferenceLines(str_replace('{root}', $root, $expected)))->toHaveKey('.claude/skills/_shared/classify-risk.sh');
+        expect(installedCopyReferenceLines(str_replace('{root}', $root, $expected)))->toHaveKey('.claude/command-support/_shared/classify-risk.sh');
     } finally {
         installerRemoveDirectory($root);
     }

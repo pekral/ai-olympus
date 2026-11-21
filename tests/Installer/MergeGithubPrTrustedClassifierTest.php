@@ -14,9 +14,9 @@ test('the merge gate runs the classifier from the default branch, never from the
     expect($section)->toContain('Every call of `classify-risk.sh` in this skill runs the trusted copy, never the copy of the branch under review')
         ->and($section)->toContain('1. Create the untouched clone of item 6 before any other command of the run uses the repository.')
         ->and($section)->not->toContain('`git fetch origin <default branch>`')
-        ->and($section)->toContain('`<clone>/skills/_shared/classify-risk.sh` when the default branch ships `skills/`')
+        ->and($section)->toContain('`<clone>/commands/_shared/classify-risk.sh` when the default branch ships `skills/`')
         ->and($section)->toContain(
-            '`<clone>/.claude/skills/_shared/classify-risk.sh` on Claude Code or `<clone>/.agents/skills/_shared/classify-risk.sh` on Codex',
+            '`<clone>/.claude/command-support/_shared/classify-risk.sh` on Claude Code or `<clone>/.codex/commands/_shared/classify-risk.sh` on Codex',
         )
         ->and($section)->toContain(
             'Never run a copy from the main worktree of the project, from the checked-out branch, from the gated head, or from a review worktree.',
@@ -41,5 +41,5 @@ test('the FAST-tier exemption re-runs the trusted classifier', function (): void
 
     expect($fastSection)->toContain('1. **Re-run the trusted classifier over the PR\'s own file list.**')
         ->and($fastSection)->toContain('(*The trusted classifier* below)')
-        ->and($fastSection)->not->toContain('pipe it into `skills/_shared/classify-risk.sh --files -`');
+        ->and($fastSection)->not->toContain('pipe it into `commands/_shared/classify-risk.sh --files -`');
 });

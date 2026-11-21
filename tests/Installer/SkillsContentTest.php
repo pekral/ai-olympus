@@ -1542,7 +1542,7 @@ test('the three build-dedup mechanisms are retired with the repeats they removed
     expect($gates)->toContain('**`security-audit` is never reused by anything.**');
 
     // No brief section survives for a mechanism nothing writes to.
-    foreach (['agents/krang.md', 'agents/donatello.md'] as $relativePath) {
+    foreach (['commands/_shared/krang-workflow.inc', 'agents/donatello.md'] as $relativePath) {
         $body = (string) file_get_contents($packageDir . '/' . $relativePath);
         expect($body)->not->toContain('## Build gate cache');
         expect($body)->not->toContain('## Gate log');
@@ -2139,7 +2139,7 @@ test('a run that produced no post-convergence report says so in its handoff (iss
     expect($resolve)->toContain($marker);
     expect($resolve)->toContain('a machine token, identical in every handoff language');
     expect($resolve)->toContain('This skill publishes no `april` report of its own');
-    expect($resolve)->toContain('`agents/krang.md` step 6a owns the report itself');
+    expect($resolve)->toContain('`commands/_shared/krang-workflow.inc` step 6a owns the report itself');
 
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     expect($process)->toContain($marker);

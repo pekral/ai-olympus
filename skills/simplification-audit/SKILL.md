@@ -110,7 +110,7 @@ Then rank the accepted recommendations by concrete impact, open points, implemen
 
 ## Diff mode (`MODE=cr`) — inside every code review
 
-`@agents/leonardo.md` runs this skill with `MODE=cr` over the current diff of the pull request on every review (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*). This section is the one owner of the diff-mode contract; the reviewer and the lens list reference it and never restate it. In this mode:
+`the command workflow` runs this skill with `MODE=cr` over the current diff of the pull request on every review (`@skills/code-review/references/specialized-reviews.md` *Specialized Reviews*). This section is the one owner of the diff-mode contract; the reviewer and the lens list reference it and never restate it. In this mode:
 
 1. **Scope.** The mode reads the changed lines, and the code they directly call or replace, only to judge the changed lines. Every finding anchors to a changed line. A simplification only in called or replaced code is dropped, never published.
 2. **Dimensions and bar.** Apply the same five dimensions as *Scope* above, the same signals in `references/worker-brief.md`, and the same bar: a finding names a concrete smaller result that is materially useful. *Never force an abstraction* in *Constraints* applies unchanged.

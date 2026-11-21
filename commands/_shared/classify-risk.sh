@@ -1,0 +1,1910 @@
+#!/usr/bin/env bash
+# classify-risk.sh — deterministic execution-tier classifier for the orchestration
+# pipeline: FAST, STANDARD, or CRITICAL.
+#
+# Why this exists
+#   The pipeline used to run the same depth for every task: a README typo paid
+#   for the same agent sessions, the same expensive models, and the same review
+#   passes as an authorization rewrite. The fix is to route by risk — but a
+#   router that asks an LLM "how risky is this?" adds an LLM call to save LLM
+#   calls, and its answer is neither reproducible nor auditable. This script is
+#   the router instead: same input, same tier, every time, with the reason for
+#   the verdict printed next to it.
+#
+#   It decides only *how much pipeline* to spend. It never decides whether a
+#   deterministic gate runs: tests, static analysis, linting, and the project's
+#   own CI are mandatory at every tier (see @rules/compound-engineering/
+#   orchestration.md *Adaptive routing*).
+#
+# Usage
+#   classify-risk.sh [--files <path|->] [--assignment <path>]
+#                    [--floor <tier>] [--override <tier|thorough>]
+#   classify-risk.sh --merge-risk --diff <path|-> [--base <commit>] [--coverage ok|gap]
+#                    [--gate green|not-green] [--interactive met|gap|not-run]
+#                    [--assignment <path>] [--ignore-assignment]
+#                    [--floor <tier>] [--override <tier>]
+#   classify-risk.sh --self-test
+#
+#   --files       newline-separated list of changed paths (`-` reads stdin),
+#                 normally `git diff --name-only <base>..<head>`. When given,
+#                 the verdict is based on the diff (`basis=diff`).
+#   --assignment  file holding the assignment text. It is the only basis when
+#                 no --files is given (`basis=assignment`); alongside --files it
+#                 contributes the acceptance-criteria signal only.
+#   --ignore-assignment
+#                 skip the acceptance-criteria point entirely, so no assignment text
+#                 changes the score. The merge path always sets it: the text is
+#                 untrusted, and a marker in it lowers the score by one.
+#   --floor       a tier the verdict may not fall below — the previous
+#                 classification of the same task. This is the ratchet that
+#                 makes re-classification after implementation safe: a task can
+#                 rise from FAST to CRITICAL, never the reverse.
+#   --override    explicit caller intent: fast | standard | critical | thorough
+#                 (`thorough` is CRITICAL). See *Override precedence* below.
+#
+# Output (stdout, stable key=value lines, in this order)
+#   tier=FAST|STANDARD|CRITICAL
+#   score=<integer>
+#   basis=diff|assignment|none
+#   files=<count of changed paths>
+#   override=none|fast|standard|critical|thorough
+#   override-refused=<tier>            (only when a force signal overrode it)
+#   forced=none|<signal name>
+#   floor=none|FAST|STANDARD|CRITICAL
+#   project-paths=unavailable          (only when the manifest could not be read)
+#   signal=<+/-delta>|<name>|<evidence>   (one per fired signal, fixed order)
+#
+#   Every line is greppable and every point in `score` is attributable to a
+#   `signal=` line, so "why was this CRITICAL?" is answered by the output
+#   itself rather than by re-deriving the run.
+#
+# Scoring
+#   +3 auth / security / secrets        (forces CRITICAL)
+#   +3 migrations / data-loss risk      (forces CRITICAL)
+#   +3 payments / billing               (forces CRITICAL)
+#   +3 project-declared critical path   (forces CRITICAL)
+#   +2 queues / concurrency / locking / cache
+#   +2 public API
+#   +2 shared / core architecture
+#   +2 more than 10 changed files
+#   +1 4-10 changed files
+#   +1 production code changed at all
+#   +1 missing relevant tests
+#   +1 unclear acceptance criteria
+#   -2 documentation only
+#   -2 tests only
+#   -1 formatting / metadata only
+#
+#   score <= 1 -> FAST    score 2-4 -> STANDARD    score >= 5 -> CRITICAL
+#
+# Assignment text
+#   On `basis=assignment` the path signals read the assignment prose. A part that
+#   only quotes or illustrates a word does not describe the task, so it is removed
+#   first: a closed fenced code block (``` or ~~~), an inline code span that holds a
+#   plain word or label, a block quote, a line that opens with an example marker, and
+#   the section under a heading that opens with one, up to the next heading. The
+#   example markers are: example, examples, e.g., for example, for instance,
+#   například, např., příklad, ukázka. An anonymised example that mentions a
+#   signed-in admin then forces nothing. When in doubt the text stays: a fence that
+#   never closes hides nothing, and an inline span that names code or a path (it
+#   holds `/`, `::`, `->`, `(`, `$`, `\`, `_`, or a file extension) stays. The
+#   acceptance-criteria point still reads the whole text. Once a diff exists, the
+#   changed paths decide; the diff forces CRITICAL only on a path that names the
+#   sensitive area, and the assignment tier of the run stays its floor.
+#
+# Material files
+#   The path signals are matched against *material* files only — the changed
+#   paths that are neither documentation nor tests. Without that narrowing a
+#   README under `docs/security/` would force CRITICAL on a typo fix, and a
+#   test-only change would force CRITICAL for naming a file `AuthTest.php`.
+#   The negative "only" signals are what those file classes contribute instead.
+#   The migration signal reads DATA_PATH_RE on a path: a directory named for
+#   migrations in any form, a timestamped migration file name, or a Doctrine
+#   `Version<date>` file, also when git quotes the path. A class only named for a
+#   migration (`InstallerAgentMigration.php`) raises nothing. The assignment prose
+#   keeps the word itself (DATA_RE).
+#
+# Deliberate bias
+#   The patterns are broad on purpose: a false positive costs one tier of extra
+#   review, a false negative ships an unreviewed authorization change. Where the
+#   classification is genuinely uncertain — no assignment text to read — the
+#   unclear-acceptance-criteria point fires, which can only move the tier up.
+#
+#   The `production-code-changed` point is this file's one stated departure from
+#   the table it was specified with. Without it an ordinary five-file feature
+#   that ships its tests and states its criteria scores 1 and routes FAST, which
+#   contradicts the tier definition it belongs to ("STANDARD for normal
+#   application and business logic changes"). One point for touching production
+#   code at all restores that default while leaving the genuinely small change —
+#   one or two files, tests included — at FAST, which is the tier that pays for
+#   this whole mechanism.
+#
+# Project-declared critical paths
+#   A project names the paths that are sensitive for it and invisible to the
+#   generic patterns — a deploy descriptor, a schema snapshot, a shard map — in
+#   its manifest (@rules/general/general.md *Project manifest*):
+#     "risk": { "critical-paths": ["^serverless.*\\.yml$", "^resources/db/"] }
+#   Each entry is an extended regex matched against every changed path as
+#   written, documentation and tests included: the project, not this script,
+#   decides what is sensitive. A match forces CRITICAL like the built-in forces.
+#   The manifest is read through `read-manifest.sh` from the default branch, so
+#   a branch under review cannot remove a path to route itself past review. An
+#   entry that is not a valid regex forces CRITICAL too, and so does a manifest
+#   that declares critical paths but cannot be parsed: a broken escalation rule
+#   fails towards more review, never less. The list can only raise a tier.
+#
+# Override precedence
+#   1. A force signal (auth / data / payments) wins over everything and yields
+#      CRITICAL. A lower --override is reported as `override-refused` rather
+#      than applied: the force exists precisely so a sensitive area cannot be
+#      routed around, and an override that can silence it is not a force.
+#   2. Otherwise an explicit --override is the tier.
+#   3. Otherwise the tier is the higher of the scored tier and --floor.
+#
+# Merge-risk mode (--merge-risk, the first argument)
+#   Grades a pull request low, medium, or high for a human who triages many of
+#   them. The code review renders the grade on its `Merge risk:` header line
+#   (@rules/code-review/general.md *Merge risk*). The grade selects the merge path
+#   (*Low-risk merge* below). It never replaces the `Merge verdict:` line, and it
+#   lifts no merge gate by itself.
+#
+#   --diff         the unified diff, `git diff <base>..<head>` (`-` reads stdin).
+#                  The changed paths are read from it, so --files is refused.
+#   --coverage     ok, or gap: uncovered changed lines, coverage tooling that did
+#                  not run, or a waived coverage gate.
+#   --gate         green, or not-green: the quality gate on the reviewed head.
+#   --interactive  met, gap (a scenario Not met, Partial, Failed, or Blocked), or
+#                  not-run (the default: no walkthrough ran).
+#   --assignment, --floor, --override go to the tier classification unchanged.
+#
+#   impact        the tier and its signal= lines, classified from the same diff.
+#   verification  poor when coverage or the gate is not ok or was not supplied,
+#                 or when a walkthrough scenario was not met. ok otherwise.
+#   rollback      costly when the added lines carry a rollback signal: a
+#                 destructive migration (a drop, a truncate, or a column change
+#                 outside down(), or an empty down()), a persisted-data write,
+#                 an external side effect
+#                 (mail, notification, HTTP client, queue dispatch), or a
+#                 configuration or infrastructure file (INFRA_RE). cheap otherwise.
+#                 A write or side effect counts in a .php file, an SQL write in a
+#                 .php or .sql file. Every changed path counts, including a rename, a
+#                 binary file, and a mode-only change.
+#                 A column change is ->change() or a raw ALTER TABLE statement
+#                 with MODIFY, CHANGE, or ALTER COLUMN, in a migration file.
+#
+#   low     tier FAST, verification ok, rollback cheap
+#   high    tier CRITICAL, and verification poor or rollback costly
+#   medium  everything else
+#
+#   Output: merge-risk=, merge-risk-rule=, verification=, one
+#   verification-signal=<input>|<value> per failed input, rollback=, one
+#   rollback-signal=<signal>|<first file> per signal, low-risk-merge=,
+#   low-risk-merge-rule=, the first low-risk-excluded=<reason>|<path> when there
+#   is one, then the tier block above.
+#
+# Low-risk merge (@skills/merge-github-pr/SKILL.md *Merge path*)
+#   The merge path is selected here. low-risk-merge=yes is the only verdict that
+#   lets a pull request merge without the full code review and without waiting for
+#   CI. The path is OPT-IN and an ALLOW-list: the verdict is yes only when every
+#   condition holds.
+#     0. The project opted in. The default-branch manifest (read-manifest.sh, never the
+#        working tree) sets `merge.low-risk-path: true` AND declares at least one entry of
+#        `risk.critical-paths`. Without both the verdict is no. The project owns which of
+#        its files are critical: a changed path that matches an entry forces the tier
+#        CRITICAL, so it takes the full path.
+#     1. The tier is FAST, verification is ok, and rollback is cheap, graded from the
+#        diff alone. The assignment text never enters this grade (the classification
+#        runs with --ignore-assignment), because the text is untrusted and a marker in
+#        it would lower the score.
+#     2. Every changed path, on both sides of a rename, is inside the allowed set
+#        LOW_RISK_ALLOWED_RE (application source and tests) and matches none of the
+#        exclusions LOW_RISK_EXCLUDED_RE. These two constants are the one list and its
+#        only owner; every other file points here. The allowed set is:
+#          src/**  app/**  tests/**  resources/**
+#        Inside it, the built-in exclusions stay even when a project opts in: the
+#        installer and the sources that feed the agents (src/Install*, src/ComposerPlugin*,
+#        src/CommandOptions*, src/Memory*, src/Graph*, src/Slice*, src/Metrics*), gate
+#        configuration (phpunit.xml*, phpstan.neon*, rector.php, ruleset.xml*, pint.json,
+#        pest.php, bootstrap.php, composer.json, composer.lock, package.json and the
+#        lockfiles), and every instruction source (CLAUDE*.md, AGENTS*.md, GEMINI.md,
+#        copilot-instructions.md, .mcp.json, .gitattributes, and any .claude, .codex,
+#        .agents, .ai, .github, or .claude-plugin directory). Every path outside the allowed
+#        set (rules/**, agents/**, skills/**, codex/**, commands/**, bin/**, docs/**,
+#        .github/**, and the root files) answers no.
+#     3. Every entry is a regular file whose content the diff shows: no mode 120000
+#        (symlink), no mode 160000 (submodule), no mode change, and no `Binary files` or
+#        `GIT binary patch` entry. The check reads the mode lines of each `diff --git` entry.
+#     4. No changed path is the target of a symlink of the BASE tree whose own name is
+#        outside the allowed set or excluded (`--base <commit>` names the base; git ls-tree
+#        lists the links). A link chain is followed; an unreadable base answers no.
+#     5. Every `diff --git` header reads as `a/<old> b/<new>`. A quoted path or a diff made
+#        with --no-prefix answers no: an unreadable path never passes.
+#     6. A literal-token content guard (LOW_RISK_GUARD_RE) rejects an added or removed line
+#        that names .claude, .codex, .agents, a settings.json, or permissions.allow /
+#        permissions.deny. It is defence in depth and NOT the boundary: it matches literal
+#        tokens only, so a path assembled from string parts passes it. The security-only check
+#        of the merge reads the diff and is the control for assembled paths.
+#   The caller makes the diff with
+#   `git diff --no-color --no-ext-diff --no-textconv --text --submodule=short --ignore-submodules=none`,
+#   so a NUL byte or a `-diff` attribute cannot hide a file from this scan, and the submodule
+#   settings of the caller (`diff.submodule`, `diff.ignoreSubmodules`, `ignore` in `.gitmodules`)
+#   cannot hide a gitlink. A `Submodule <path> ...` line, which only a diff made without
+#   `--submodule=short` prints, answers no: an entry the scan cannot read never passes.
+#   low-risk-excluded= names the first path or entry that answered no.
+#
+# Exit codes
+#   0  a classification was produced (this includes every tier — the tier is the
+#      result, never an error condition)
+#   1  usage error (unknown flag, unreadable input, unknown tier name)
+#   2  missing required tool
+set -euo pipefail
+
+PROG="${0##*/}"
+# AUTH_RE, DATA_RE, and QUEUE_RE are shared with gate-context.sh. DATA_PATH_RE is
+# the path form of DATA_RE.
+# shellcheck source=domain-vocabulary.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/domain-vocabulary.sh"
+
+usage() {
+  cat >&2 <<'EOF'
+Usage: classify-risk.sh [--files <path|->] [--assignment <path>]
+                        [--floor <tier>] [--override <tier|thorough>]
+       classify-risk.sh --merge-risk --diff <path|-> [--base <commit>] [--coverage ok|gap]
+                        [--gate green|not-green] [--interactive met|gap|not-run]
+                        [--assignment <path>] [--ignore-assignment]
+                        [--floor <tier>] [--override <tier>]
+       classify-risk.sh --self-test
+
+Prints key=value lines: tier, score, basis, files, override, forced, floor,
+and one signal= line per fired signal. --merge-risk prints merge-risk,
+merge-risk-rule, verification, and rollback lines before them.
+Exit 1 on a usage error.
+EOF
+}
+
+# --- Signal patterns ---------------------------------------------------------
+#
+# All matching is done on the lower-cased path (or lower-cased assignment text),
+# so every pattern here is written in lower case and needs no case folding of
+# its own.
+
+DOC_RE='(^|/)(docs?|documentation)/|\.(md|mdx|markdown|rst|txt|adoc)$|(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
+FORMAT_RE='(^|/)\.(editorconfig|gitignore|gitattributes|prettierrc|eslintrc|styleci)([.-][a-z0-9]+)*$|(^|/)(pint|\.php-cs-fixer)\.[a-z.]+$|(^|/)(ruleset|phpcs)\.xml(\.dist)?$|(^|/)rector\.php$|(^|/)phpstan\.neon(\.dist)?$'
+
+PAY_RE='payment|billing|invoice|subscription|checkout|stripe|paypal|braintree|adyen|gopay|refund|pricing|currency'
+API_RE='(^|/)routes/api|(^|/)api/|api[a-z0-9_-]*controller|openapi|swagger|graphql|\.proto$'
+# INFRA_RE is the configuration and infrastructure part of CORE_RE. The merge-risk
+# mode reads it as a rollback signal, so it is defined once and composed into CORE_RE.
+INFRA_RE='(^|/)config/|\.github/workflows/|dockerfile|docker-compose'
+CORE_RE="$INFRA_RE"'|serviceprovider|(^|/)bootstrap/|(^|/)routes/|kernel\.php$|(^|/)composer\.json$|(^|/)package\.json$|(^|/)providers?/|(^|/)middleware/|(^|/)src/(support|core|foundation)/'
+
+# Markers that prove the assignment states what "done" means. Both project
+# languages are covered: the assignment is written in whatever language the
+# reporter used, and an English-only marker set would score every Czech
+# assignment as unclear. The business-only headings of
+# rules/compound-engineering/assignment.md count only as a heading ('#' or bold
+# before them), so ordinary prose such as "breaks the rules" keeps the point.
+AC_RE='acceptance criteria|acceptance-criteria|expected behaviou?r|expected result|definition of done|akceptačn|očekávan|kritéria|(#|\*\*)[[:space:]]*('"$ASSIGNMENT_BUSINESS_HEADINGS_RE"')|- \[ \]'
+
+# Rollback signals of the merge-risk mode. They are matched against the lower-cased
+# added lines of a unified diff, one line at a time, in documentation and test
+# files never. DATA_PATH_RE (domain-vocabulary.sh) decides which files are migrations.
+# WRITE_RE and EFFECT_RE read PHP calls, so they run on .php files only. SQL_WRITE_RE
+# reads SQL statements, so it runs on .php files (raw DB::statement, DB::update) and
+# .sql files. Other languages carry the same
+# words as plain text (store.dispatch, an echo of "Mail::", a regex in a script).
+# DESTRUCTIVE_RE is the destructive-migration signal: a drop, a truncate, or a column change.
+DESTRUCTIVE_RE='drop(column|columns|ifexists|morphs|timestamps|softdeletes|remembertoken)?[[:space:]]*\(|drop[[:space:]]+(table|column|database|schema)|(^|[^a-z0-9_])truncate([[:space:]]*\(|[[:space:]]+[`"a-z_])|->change[[:space:]]*\(|alter[[:space:]]+table[^;]*[[:space:]](modify|change|alter[[:space:]]+column)[[:space:]]'
+WRITE_RE='->(save|savequietly|update|updatequietly|updateorcreate|updateorinsert|create|createmany|insert|insertorignore|insertgetid|upsert|delete|forcedelete|increment|decrement|sync|attach|detach|restore)[[:space:]]*\(|::(create|insert|upsert|updateorcreate|updateorinsert|firstorcreate|destroy)[[:space:]]*\(|storage::([a-z_]+\([^)]*\)->)?(put|putfile|putfileas|writestream|delete|move|copy|append|prepend)[[:space:]]*\(|file_put_contents[[:space:]]*\('
+SQL_WRITE_RE='insert[[:space:]]+into|update[[:space:]]+[^[:space:]]+[[:space:]]+set[[:space:]]|delete[[:space:]]+from'
+EFFECT_RE='mail::|->notify(now)?[[:space:]]*\(|notification::(send|sendnow)|http::|guzzlehttp|curl_(init|exec)|dispatch(sync|now|afterresponse)?[[:space:]]*\(|queue::(push|pushon|later|bulk)|bus::(dispatch|chain|batch|bulk)|->(queue|later)[[:space:]]*\('
+
+# The low-risk merge allow-list: the one list and its only owner. LOW_RISK_ALLOWED_RE is the
+# closed set of paths that may take the path, LOW_RISK_EXCLUDED_RE the exclusions that still
+# apply inside it, and LOW_RISK_GUARD_RE the content guard. awk reads all three through the
+# environment, and every one is matched against a lower-cased path or line.
+LOW_RISK_ALLOWED_RE='^(src|app|tests|resources)/.'
+LOW_RISK_EXCLUDED_RE='^src/(install|composerplugin|commandoptions|memory|graph|slice|metrics)|(^|/)(\.claude|\.codex|\.agents|\.ai|\.github|\.claude-plugin)(/|$)|(^|/)(phpunit\.xml[^/]*|phpstan\.neon[^/]*|rector\.php|ruleset\.xml[^/]*|pint\.json|pest\.php|bootstrap\.php|composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|\.gitattributes|\.mcp\.json|gemini\.md|copilot-instructions\.md|claude[^/]*\.md|agents[^/]*\.md)$'
+LOW_RISK_GUARD_RE='\.claude|\.codex|\.agents|settings(\.local)?\.json|permissions\.(allow|deny)'
+
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+# Print the lower-cased assignment text without the parts that only quote or
+# illustrate a word (see *Assignment text* above). `strip_assignment_fences`
+# (domain-vocabulary.sh) removes the fenced blocks first and keeps an unclosed fence as text.
+assignment_prose() {
+  printf '%s\n' "$1" | strip_assignment_fences | awk '
+    BEGIN { marker = "^(examples?|e\\.g\\.|for example|for instance|např\\.|například|příklad|ukázka)([^a-z]|$)" }
+    function prose(raw,    line, title, out, rest, span) {
+      if (raw ~ /^[[:space:]]*>/) { return }
+      line = raw
+      sub(/^[[:space:]]*/, "", line)
+      if (match(line, /^#+[[:space:]]/)) {
+        example = 0
+        title = substr(line, RLENGTH + 1)
+        sub(/^[[:space:]*_]*/, "", title)
+        if (title ~ marker) { example = 1; return }
+      }
+      if (example) { return }
+      sub(/^([-*+]|[0-9]+[.)])[[:space:]]+/, "", line)
+      sub(/^[*_]+/, "", line)
+      if (line ~ marker) { return }
+      # Inline code that names code or a path stays; a plain word or label is removed.
+      out = ""
+      rest = raw
+      while (match(rest, /`+[^`]*`+/)) {
+        span = substr(rest, RSTART, RLENGTH)
+        out = out substr(rest, 1, RSTART - 1)
+        if (span ~ /\/|::|->|\(|\$|\\|_|\.[a-z0-9]+([^a-z0-9.]|$)/) { out = out span }
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      print out rest
+    }
+    { prose($0) }
+  '
+}
+
+# Print the project's critical-path regexes, one per line. Returns 2 when the
+# manifest cannot be read at all, and 3 when it cannot be parsed although the
+# default-branch composer.json declares critical paths.
+project_critical_paths() {
+  local reader manifest status=0
+  reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
+  [[ -f "$reader" ]] || return 0
+  command -v git >/dev/null 2>&1 || return 2
+
+  if command -v jq >/dev/null 2>&1; then
+    manifest="$(bash "$reader" 2>/dev/null)" || status=$?
+  else
+    status=2
+  fi
+
+  if [[ "$status" -ne 0 ]]; then
+    if bash "$reader" --raw 2>/dev/null | grep '"critical-paths"' >/dev/null; then
+      return 3
+    fi
+    return 2
+  fi
+
+  printf '%s' "$manifest" | jq -r '(.risk // {}) | if type == "object" then (.["critical-paths"] // []) else [] end | if type == "array" then .[] | tostring else empty end'
+}
+
+# Render untrusted text safely: file paths and assignment text come from a
+# tracker anyone may write to, and they are printed in this script's own
+# verdict. ANSI escapes could rewrite that verdict and bidi overrides could
+# reverse it, so display is restricted to printable ASCII and truncated.
+safe_display() {
+  printf '%s' "$1" | LC_ALL=C tr -cd '[:print:]' | cut -c1-120
+}
+
+TIER_FAST=0
+TIER_STANDARD=1
+TIER_CRITICAL=2
+
+tier_name() {
+  case "$1" in
+  "$TIER_FAST") printf 'FAST' ;;
+  "$TIER_STANDARD") printf 'STANDARD' ;;
+  *) printf 'CRITICAL' ;;
+  esac
+}
+
+tier_rank() {
+  case "$(lower "$1")" in
+  fast) printf '%s' "$TIER_FAST" ;;
+  standard) printf '%s' "$TIER_STANDARD" ;;
+  critical | thorough) printf '%s' "$TIER_CRITICAL" ;;
+  *) return 1 ;;
+  esac
+}
+
+tier_from_score() {
+  local score="$1"
+  if [[ "$score" -le 1 ]]; then
+    printf '%s' "$TIER_FAST"
+  elif [[ "$score" -le 4 ]]; then
+    printf '%s' "$TIER_STANDARD"
+  else
+    printf '%s' "$TIER_CRITICAL"
+  fi
+}
+
+classify() {
+  local files_arg="" assignment_arg="" floor_arg="" override_arg="" ignore_assignment=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --files)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      files_arg="$2"
+      shift 2
+      ;;
+    --assignment)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      assignment_arg="$2"
+      shift 2
+      ;;
+    --floor)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      floor_arg="$2"
+      shift 2
+      ;;
+    --override)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      override_arg="$2"
+      shift 2
+      ;;
+    --ignore-assignment)
+      ignore_assignment=1
+      shift
+      ;;
+    *)
+      echo "$PROG: unknown argument: $(safe_display "$1")" >&2
+      usage
+      return 1
+      ;;
+    esac
+  done
+
+  # --- Read the inputs -------------------------------------------------------
+  local raw_files="" assignment_text="" have_assignment=0
+
+  if [[ -n "$files_arg" ]]; then
+    if [[ "$files_arg" == "-" ]]; then
+      raw_files="$(cat)"
+    elif [[ -r "$files_arg" ]]; then
+      raw_files="$(cat -- "$files_arg")"
+    else
+      echo "$PROG: cannot read file list: $(safe_display "$files_arg")" >&2
+      return 1
+    fi
+  fi
+
+  if [[ -n "$assignment_arg" ]]; then
+    if [[ -r "$assignment_arg" ]]; then
+      assignment_text="$(lower "$(cat -- "$assignment_arg")")"
+      have_assignment=1
+    else
+      echo "$PROG: cannot read assignment: $(safe_display "$assignment_arg")" >&2
+      return 1
+    fi
+  fi
+
+  local floor_rank="" floor_label="none"
+  if [[ -n "$floor_arg" ]]; then
+    if ! floor_rank="$(tier_rank "$floor_arg")"; then
+      echo "$PROG: unknown --floor tier: $(safe_display "$floor_arg")" >&2
+      return 1
+    fi
+    floor_label="$(tier_name "$floor_rank")"
+  fi
+
+  local override_rank="" override_label="none"
+  if [[ -n "$override_arg" ]]; then
+    if ! override_rank="$(tier_rank "$override_arg")"; then
+      echo "$PROG: unknown --override tier: $(safe_display "$override_arg")" >&2
+      return 1
+    fi
+    override_label="$(lower "$override_arg")"
+  fi
+
+  # --- Split the changed paths into material / doc / test --------------------
+  local -a material=() docs=() tests=() formats=() all=()
+  local path lowered
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    all+=("$path")
+    lowered="$(lower "$path")"
+    if [[ "$lowered" =~ $DOC_RE ]]; then
+      docs+=("$path")
+      continue
+    fi
+    if [[ "$lowered" =~ $TEST_RE ]]; then
+      tests+=("$path")
+      continue
+    fi
+    if [[ "$lowered" =~ $FORMAT_RE ]]; then
+      formats+=("$path")
+    fi
+    material+=("$path")
+  done <<<"$raw_files"
+
+  local file_count="${#all[@]}"
+  local basis="none"
+  if [[ "$file_count" -gt 0 ]]; then
+    basis="diff"
+  elif [[ "$have_assignment" -eq 1 ]]; then
+    basis="assignment"
+  fi
+
+  # --- Match the path signals ------------------------------------------------
+  #
+  # On `basis=diff` the haystack is the material paths; on `basis=assignment`
+  # it is the assignment prose, which is all that exists before any code does.
+  local haystack=""
+  if [[ "$basis" == "diff" ]]; then
+    if [[ "${#material[@]}" -gt 0 ]]; then
+      haystack="$(lower "$(printf '%s\n' "${material[@]}")")"
+    fi
+  elif [[ "$basis" == "assignment" ]]; then
+    haystack="$(assignment_prose "$assignment_text")"
+  fi
+
+  local score=0 forced="none"
+  local -a signals=()
+
+  add_signal() {
+    local delta="$1" name="$2" evidence="$3"
+    score=$((score + delta))
+    local sign="+"
+    [[ "$delta" -lt 0 ]] && sign=""
+    signals+=("signal=${sign}${delta}|${name}|${evidence}")
+  }
+
+  # First match wins per haystack line, so the evidence names one concrete path
+  # (or the word in the assignment) rather than the whole input.
+  first_match() {
+    local regex="$1" line
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      if [[ "$line" =~ $regex ]]; then
+        printf '%s' "${BASH_REMATCH[0]}:$(printf '%s' "$line" | cut -c1-60)"
+        return 0
+      fi
+    done <<<"$haystack"
+    return 1
+  }
+
+  local evidence
+  if evidence="$(first_match "$AUTH_RE")"; then
+    add_signal 3 'auth-security-secrets' "$evidence"
+    forced='auth-security-secrets'
+  fi
+  # A changed path is a migration by its directory or file name; prose names it by the word.
+  local data_re="$DATA_RE"
+  [[ "$basis" == "diff" ]] && data_re="$DATA_PATH_RE"
+  if evidence="$(first_match "$data_re")"; then
+    add_signal 3 'migrations-data-loss' "$evidence"
+    [[ "$forced" == "none" ]] && forced='migrations-data-loss'
+  fi
+  if evidence="$(first_match "$PAY_RE")"; then
+    add_signal 3 'payments-billing' "$evidence"
+    [[ "$forced" == "none" ]] && forced='payments-billing'
+  fi
+  local project_paths_state="" project_regexes="" project_regex project_path project_match="" regex_status
+  if [[ "$basis" == "diff" ]]; then
+    local project_status=0
+    project_regexes="$(project_critical_paths)" || project_status=$?
+    if [[ "$project_status" -eq 3 ]]; then
+      project_match='manifest-unreadable'
+      project_regexes=""
+    elif [[ "$project_status" -ne 0 ]]; then
+      project_paths_state='unavailable'
+      project_regexes=""
+    fi
+  fi
+  while IFS= read -r project_regex; do
+    [[ -n "$project_regex" ]] || continue
+    regex_status=0
+    grep -Eq -- "$project_regex" </dev/null 2>/dev/null || regex_status=$?
+    if [[ "$regex_status" -eq 2 ]]; then
+      project_match="invalid-regex:${project_regex}"
+      break
+    fi
+    for project_path in ${all[@]+"${all[@]}"}; do
+      if [[ "$project_path" =~ $project_regex ]]; then
+        project_match="${project_regex}:${project_path}"
+        break 2
+      fi
+    done
+  done <<<"$project_regexes"
+  if [[ -n "$project_match" ]]; then
+    add_signal 3 'project-critical-path' "$(printf '%s' "$project_match" | cut -c1-80)"
+    [[ "$forced" == "none" ]] && forced='project-critical-path'
+  fi
+
+  if evidence="$(first_match "$QUEUE_RE")"; then
+    add_signal 2 'queues-concurrency-locking' "$evidence"
+  fi
+  if evidence="$(first_match "$API_RE")"; then
+    add_signal 2 'public-api' "$evidence"
+  fi
+  if evidence="$(first_match "$CORE_RE")"; then
+    add_signal 2 'shared-core-architecture' "$evidence"
+  fi
+
+  # --- Size, coverage, and clarity ------------------------------------------
+  if [[ "$file_count" -gt 10 ]]; then
+    add_signal 2 'changed-files-many' "$file_count files"
+  elif [[ "$file_count" -ge 4 ]]; then
+    add_signal 1 'changed-files-moderate' "$file_count files"
+  fi
+
+  if [[ "${#material[@]}" -gt 0 ]]; then
+    add_signal 1 'production-code-changed' "${#material[@]} material file(s)"
+  fi
+
+  if [[ "${#material[@]}" -gt 0 && "${#tests[@]}" -eq 0 ]]; then
+    add_signal 1 'missing-relevant-tests' "${#material[@]} material file(s), no test file changed"
+  fi
+
+  # No assignment text is itself unclear: nothing states what done means, so the
+  # point fires and the verdict can only move up.
+  if [[ "$ignore_assignment" -eq 1 ]]; then
+    :
+  elif [[ "$have_assignment" -eq 0 ]]; then
+    add_signal 1 'unclear-acceptance-criteria' 'no assignment text supplied'
+  elif [[ ! "$assignment_text" =~ $AC_RE ]]; then
+    add_signal 1 'unclear-acceptance-criteria' 'assignment states no acceptance criteria'
+  fi
+
+  # --- The "only" reductions -------------------------------------------------
+  if [[ "$file_count" -gt 0 && "${#docs[@]}" -eq "$file_count" ]]; then
+    add_signal -2 'documentation-only' "$file_count documentation file(s)"
+  elif [[ "$file_count" -gt 0 && "${#tests[@]}" -eq "$file_count" ]]; then
+    add_signal -2 'tests-only' "$file_count test file(s)"
+  elif [[ "$file_count" -gt 0 && "${#formats[@]}" -eq "$file_count" ]]; then
+    add_signal -1 'formatting-metadata-only' "$file_count formatting / metadata file(s)"
+  fi
+
+  # --- Resolve the tier ------------------------------------------------------
+  local scored_rank tier_rank_final override_refused=""
+  scored_rank="$(tier_from_score "$score")"
+  tier_rank_final="$scored_rank"
+
+  if [[ -n "$floor_rank" && "$floor_rank" -gt "$tier_rank_final" ]]; then
+    tier_rank_final="$floor_rank"
+  fi
+
+  if [[ "$forced" != "none" ]]; then
+    tier_rank_final="$TIER_CRITICAL"
+    if [[ -n "$override_rank" && "$override_rank" -lt "$TIER_CRITICAL" ]]; then
+      override_refused="$(tier_name "$override_rank")"
+    fi
+  elif [[ -n "$override_rank" ]]; then
+    tier_rank_final="$override_rank"
+  fi
+
+  # --- Emit ------------------------------------------------------------------
+  printf 'tier=%s\n' "$(tier_name "$tier_rank_final")"
+  printf 'score=%s\n' "$score"
+  printf 'basis=%s\n' "$basis"
+  printf 'files=%s\n' "$file_count"
+  printf 'override=%s\n' "$override_label"
+  [[ -n "$override_refused" ]] && printf 'override-refused=%s\n' "$override_refused"
+  printf 'forced=%s\n' "$forced"
+  printf 'floor=%s\n' "$floor_label"
+  [[ -n "$project_paths_state" ]] && printf 'project-paths=%s\n' "$project_paths_state"
+
+  local entry
+  for entry in ${signals[@]+"${signals[@]}"}; do
+    printf '%s\n' "$(safe_display "$entry")"
+  done
+
+  return 0
+}
+
+# Read a `git diff` on stdin. Print `F|<path>` for every changed path and
+# `S|<signal>|<path>` for the first file of each rollback signal found in the
+# added lines. A drop inside a migration's down() is its rollback, not a signal;
+# a down() whose body is empty is the signal itself. A `Schema::` call changes the
+# schema, not the data, so it is never a persisted-data write.
+diff_rollback_scan() {
+  MR_DOC_RE="$DOC_RE" MR_TEST_RE="$TEST_RE" MR_DATA_RE="$DATA_PATH_RE" MR_DESTRUCTIVE_RE="$DESTRUCTIVE_RE" \
+    MR_WRITE_RE="$WRITE_RE" MR_SQL_WRITE_RE="$SQL_WRITE_RE" MR_EFFECT_RE="$EFFECT_RE" awk '
+    function hit(name) {
+      if (!(name in seen)) {
+        seen[name] = 1
+        print "S|" name "|" file
+      }
+    }
+    function count(text, brace,    copy) {
+      copy = text
+      return gsub(brace, "", copy)
+    }
+    # Record the path of the current diff entry. A pure rename, a binary file, and a
+    # mode-only change have no `+++` line, so the `diff --git` header and the
+    # `rename to` line are the sources, and the `+++` line refines them.
+    function setfile(path) {
+      file = path
+      print "F|" file
+      lowered = tolower(file)
+      skip = (lowered ~ ENVIRON["MR_DOC_RE"] || lowered ~ ENVIRON["MR_TEST_RE"])
+      migration = (lowered ~ ENVIRON["MR_DATA_RE"])
+      php = (lowered ~ /\.php$/)
+      sql = (lowered ~ /\.sql$/)
+      method = ""
+      tracking = 0
+    }
+    BEGIN { header = 1 }
+    /^diff / {
+      header = 1
+      file = ""
+      skip = 0
+      migration = 0
+      php = 0
+      sql = 0
+      rest = substr($0, 12)
+      if ($0 ~ /^diff --git / && rest !~ /"/ && (length(rest) - 5) % 2 == 0) {
+        half = (length(rest) - 5) / 2
+        if (substr(rest, 1, 2) == "a/" && substr(rest, half + 4, 2) == "b/" && substr(rest, 3, half) == substr(rest, half + 6)) {
+          setfile(substr(rest, half + 6))
+        }
+      }
+      next
+    }
+    header && /^--- / { old = substr($0, 5); sub(/^a\//, "", old); next }
+    header && /^rename to / { setfile(substr($0, 11)); next }
+    header && /^\+\+\+ / {
+      path = substr($0, 5)
+      if (path == "/dev/null") { path = old } else { sub(/^b\//, "", path) }
+      if (path != file) { setfile(path) }
+      next
+    }
+    /^@@/ { header = 0; next }
+    header || file == "" || skip { next }
+    {
+      kind = substr($0, 1, 1)
+      if (kind != "+" && kind != " ") { next }
+      code = tolower(substr($0, 2))
+      sub(/^[[:space:]]+/, "", code)
+      if (code ~ /^(\/\/|#|\*|\/\*|--)/) { next }
+
+      if (migration) {
+        body = ""
+        if (code ~ /function[[:space:]]+up[[:space:]]*\(/) { method = "up"; tracking = 0 }
+        if (code ~ /function[[:space:]]+down[[:space:]]*\(/) {
+          method = "down"
+          tracking = (kind == "+")
+          depth = 0
+          opened = 0
+          filled = 0
+          body = code
+          sub(/^[^{]*/, "", body)
+        } else if (tracking) {
+          body = code
+        }
+        if (tracking && body != "") {
+          depth += count(body, "\\{") - count(body, "\\}")
+          if (count(body, "\\{") > 0) { opened = 1 }
+          gsub(/[{};[:space:]]/, "", body)
+          if (body != "") { filled = 1 }
+          if (opened && depth <= 0) {
+            tracking = 0
+            if (!filled) { hit("destructive-migration") }
+          }
+        }
+        if (kind == "+" && method != "down" && code ~ ENVIRON["MR_DESTRUCTIVE_RE"]) { hit("destructive-migration") }
+      }
+
+      if (kind != "+") { next }
+      data = code
+      gsub(/schema::[a-z]+/, "", data)
+      gsub(/(^|[^a-z0-9_])(carbon|carbonimmutable|date)::create/, "", data)
+      if (php && data ~ ENVIRON["MR_WRITE_RE"]) { hit("persisted-data-write") }
+      if ((php || sql) && data ~ ENVIRON["MR_SQL_WRITE_RE"]) { hit("persisted-data-write") }
+      if (php && code ~ ENVIRON["MR_EFFECT_RE"]) { hit("external-side-effect") }
+    }
+  '
+}
+
+# Read a unified diff on stdin. Print `N|<entries>` and, for the first entry that fails an
+# allow-list condition, `X|<reason>|<path or header>`. Every path of an entry is checked: the
+# `diff --git` header, the `---` / `+++` lines, and the rename and copy lines.
+low_risk_scan() {
+  LR_ALLOWED_RE="$LOW_RISK_ALLOWED_RE" LR_EXCLUDED_RE="$LOW_RISK_EXCLUDED_RE" LR_GUARD_RE="$LOW_RISK_GUARD_RE" awk '
+    function reject(reason, what) {
+      if (!failed) {
+        failed = 1
+        verdict = "X|" reason "|" what
+      }
+    }
+    function checkpath(path,    lowered) {
+      if (path == "" || path == "/dev/null") { return }
+      got = 1
+      current = path
+      print "P|" path
+      lowered = tolower(path)
+      if (lowered ~ ENVIRON["LR_EXCLUDED_RE"]) { reject("excluded-path", path); return }
+      if (lowered !~ ENVIRON["LR_ALLOWED_RE"]) { reject("outside-allow-list", path) }
+    }
+    function subject() { return (current != "" ? current : header) }
+    function checkmode(mode) {
+      if (mode == "120000" || mode == "160000") { reject("symlink-or-submodule", subject()) }
+    }
+    function endentry() {
+      if (entries > 0 && !got) { reject("unreadable-header", header) }
+    }
+    BEGIN { entries = 0; failed = 0; inhunk = 0 }
+    /^diff / {
+      endentry()
+      entries++
+      header = $0
+      got = 0
+      inhunk = 0
+      current = ""
+      rest = substr($0, 12)
+      if ($0 !~ /^diff --git / || rest !~ /^a\/.* b\//) {
+        reject("unreadable-header", header)
+        got = 1
+        next
+      }
+      if ((length(rest) - 5) % 2 == 0) {
+        half = (length(rest) - 5) / 2
+        if (substr(rest, 1, 2) == "a/" && substr(rest, half + 4, 2) == "b/" && substr(rest, 3, half) == substr(rest, half + 6)) {
+          checkpath(substr(rest, half + 6))
+        }
+      }
+      next
+    }
+    /^Submodule / { reject("symlink-or-submodule", $2); next }
+    entries == 0 { next }
+    !inhunk && (/^Binary files / || /^GIT binary patch/) { reject("binary-entry", subject()); next }
+    !inhunk && /^@@/ { inhunk = 1; next }
+    inhunk {
+      kind = substr($0, 1, 1)
+      if ((kind == "+" || kind == "-") && tolower(substr($0, 2)) ~ ENVIRON["LR_GUARD_RE"]) { reject("agent-configuration-content", subject()) }
+      next
+    }
+    /^--- / { old = substr($0, 5); sub(/^a\//, "", old); checkpath(old); next }
+    /^\+\+\+ / { new = substr($0, 5); sub(/^b\//, "", new); checkpath(new); next }
+    /^rename from / { checkpath(substr($0, 13)); next }
+    /^rename to / { checkpath(substr($0, 11)); next }
+    /^copy from / { checkpath(substr($0, 11)); next }
+    /^copy to / { checkpath(substr($0, 9)); next }
+    /^(old|new) mode / { reject("mode-change", subject()); next }
+    /^(new file|deleted file) mode / { checkmode($NF); next }
+    /^index / { if (NF >= 3) { checkmode($3) }; next }
+    END {
+      endentry()
+      printf "N|%s\n", entries
+      if (failed) { print verdict }
+    }
+  '
+}
+
+# The opt-in of the low-risk merge path. The project turns the path on in the default-branch
+# manifest with `merge.low-risk-path: true` and must also declare `risk.critical-paths`. Print the
+# reason and return 1 when the path is off. The manifest is read through `read-manifest.sh` from the
+# default branch, never from the working tree, so a pull request cannot turn the path on for itself.
+low_risk_opt_in() {
+  local reader manifest enabled count
+  reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-manifest.sh"
+  if [[ ! -f "$reader" ]] || ! command -v jq >/dev/null 2>&1 || ! command -v git >/dev/null 2>&1; then
+    printf 'manifest-unreadable'
+    return 1
+  fi
+  manifest="$(bash "$reader" 2>/dev/null)" || { printf 'manifest-unreadable'; return 1; }
+  enabled="$(jq -r '(.merge // {}) | if type == "object" then (.["low-risk-path"] == true) else false end' <<<"$manifest")" || enabled=""
+  if [[ "$enabled" != "true" ]]; then
+    printf 'not-enabled'
+    return 1
+  fi
+  count="$(jq -r '(.risk // {}) | if type == "object" then ((.["critical-paths"] // []) | if type == "array" then length else 0 end) else 0 end' <<<"$manifest")" || count=0
+  if [[ ! "$count" =~ ^[0-9]+$ || "$count" -eq 0 ]]; then
+    printf 'no-critical-paths'
+    return 1
+  fi
+  return 0
+}
+
+# Read the changed paths on stdin and the symlinks of the BASE tree from `git ls-tree`. Print
+# `X|<reason>|<path>` for the first changed path that is the target of a base symlink whose own name
+# is outside the allowed set or excluded, so a link at an instruction name never lets its target
+# through. A link target is resolved through the other links, and a link chain that does not end
+# answers no. A base tree that cannot be read answers no.
+low_risk_links() {
+  local base="$1" listing line oid path target changed
+  listing="$(git -c core.quotepath=false ls-tree -r "$base" 2>/dev/null)" || { printf 'X|base-unavailable|%s\n' "$base"; return 0; }
+  changed="$(cat)"
+  {
+    while IFS= read -r line; do
+      [[ "$line" == 120000\ blob\ * ]] || continue
+      oid="${line#120000 blob }"
+      oid="${oid%%$'\t'*}"
+      path="${line#*$'\t'}"
+      if [[ "$path" == \"* ]]; then
+        printf 'X\037unreadable-link\037%s\n' "$path"
+        continue
+      fi
+      target="$(git cat-file blob "$oid" 2>/dev/null)" || { printf 'X\037unreadable-link\037%s\n' "$path"; continue; }
+      printf 'L\037%s\037%s\n' "$path" "$target"
+    done <<<"$listing"
+    while IFS= read -r line; do
+      if [[ -n "$line" ]]; then printf 'C\037%s\n' "$line"; fi
+    done <<<"$changed"
+  } | LR_ALLOWED_RE="$LOW_RISK_ALLOWED_RE" LR_EXCLUDED_RE="$LOW_RISK_EXCLUDED_RE" awk -F '\037' '
+    function dirname(p) { sub(/[^\/]*$/, "", p); sub(/\/$/, "", p); return p }
+    function norm(p,    parts, count, i, depth, stack, out) {
+      if (p ~ /^\//) { return "" }
+      count = split(p, parts, "/")
+      depth = 0
+      for (i = 1; i <= count; i++) {
+        if (parts[i] == "" || parts[i] == ".") { continue }
+        if (parts[i] == "..") {
+          if (depth == 0) { return "" }
+          depth--
+          continue
+        }
+        stack[++depth] = parts[i]
+      }
+      out = ""
+      for (i = 1; i <= depth; i++) { out = out (i > 1 ? "/" : "") stack[i] }
+      return out
+    }
+    function resolve(start,    current, guard, parts, count, i, prefix, rest, hit) {
+      current = norm((dirname(start) == "" ? "" : dirname(start) "/") link[start])
+      for (guard = 0; guard < 16; guard++) {
+        if (current == "") { return "" }
+        count = split(current, parts, "/")
+        hit = 0
+        prefix = ""
+        for (i = 1; i <= count; i++) {
+          prefix = prefix (i > 1 ? "/" : "") parts[i]
+          if (prefix in link && prefix != start) {
+            rest = ""
+            for (j = i + 1; j <= count; j++) { rest = rest "/" parts[j] }
+            current = norm((dirname(prefix) == "" ? "" : dirname(prefix) "/") link[prefix] rest)
+            hit = 1
+            break
+          }
+        }
+        if (!hit) { return current }
+      }
+      loop = 1
+      return ""
+    }
+    $1 == "X" { if (verdict == "") { verdict = "X|" $2 "|" $3 } ; next }
+    $1 == "L" { link[$2] = $3; names[++nlinks] = $2; next }
+    $1 == "C" { changed[++nchanged] = $2; next }
+    END {
+      for (n = 1; n <= nlinks && verdict == ""; n++) {
+        name = names[n]
+        lowered = tolower(name)
+        if (lowered ~ ENVIRON["LR_ALLOWED_RE"] && lowered !~ ENVIRON["LR_EXCLUDED_RE"]) { continue }
+        loop = 0
+        target = resolve(name)
+        if (loop) { verdict = "X|symlink-loop|" name; break }
+        if (target == "") { continue }
+        target = tolower(target)
+        for (m = 1; m <= nchanged; m++) {
+          c = tolower(changed[m])
+          if (c == target || index(c, target "/") == 1) { verdict = "X|symlink-target|" changed[m]; break }
+        }
+      }
+      if (verdict != "") { print verdict }
+    }
+  '
+}
+
+# The merge-risk mode: one deterministic low / medium / high grade for a human
+# who triages many pull requests, with every fact behind it printed. The grade
+# selects the merge path (low-risk-merge=). It lifts no merge gate by itself.
+merge_risk() {
+  local diff_arg="" coverage="" gate="" interactive="not-run" base_arg=""
+  local -a pass=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --diff | --base | --coverage | --gate | --interactive | --assignment | --floor | --override)
+      [[ $# -ge 2 ]] || { usage; return 1; }
+      case "$1" in
+      --diff) diff_arg="$2" ;;
+      --base) base_arg="$2" ;;
+      --coverage) coverage="$2" ;;
+      --gate) gate="$2" ;;
+      --interactive) interactive="$2" ;;
+      *) pass+=("$1" "$2") ;;
+      esac
+      shift 2
+      ;;
+    --ignore-assignment)
+      pass+=("$1")
+      shift
+      ;;
+    *)
+      echo "$PROG: unknown argument in --merge-risk mode: $(safe_display "$1")" >&2
+      usage
+      return 1
+      ;;
+    esac
+  done
+
+  [[ -n "$diff_arg" ]] || { echo "$PROG: --merge-risk needs --diff" >&2; usage; return 1; }
+  case "$coverage" in "" | ok | gap) ;; *) echo "$PROG: unknown --coverage value" >&2; return 1 ;; esac
+  case "$gate" in "" | green | not-green) ;; *) echo "$PROG: unknown --gate value" >&2; return 1 ;; esac
+  case "$interactive" in met | gap | not-run) ;; *) echo "$PROG: unknown --interactive value" >&2; return 1 ;; esac
+  if [[ -n "$base_arg" && ! "$base_arg" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+    echo "$PROG: --base takes a commit id of 7 to 64 hex digits" >&2
+    return 1
+  fi
+
+  local diff_text
+  if [[ "$diff_arg" == "-" ]]; then
+    diff_text="$(cat)"
+  elif [[ -r "$diff_arg" ]]; then
+    diff_text="$(cat -- "$diff_arg")"
+  else
+    echo "$PROG: cannot read diff: $(safe_display "$diff_arg")" >&2
+    return 1
+  fi
+
+  local scan files="" line path lowered
+  local -a hits=()
+  scan="$(diff_rollback_scan <<<"$diff_text")"
+  while IFS= read -r line; do
+    case "$line" in
+    F\|*) files+="${line#F|}"$'\n' ;;
+    S\|*) hits+=("${line#S|}") ;;
+    esac
+  done <<<"$scan"
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    lowered="$(lower "$path")"
+    [[ "$lowered" =~ $DOC_RE || "$lowered" =~ $TEST_RE ]] && continue
+    if [[ "$lowered" =~ $INFRA_RE ]]; then
+      hits+=("config-infrastructure|$path")
+      break
+    fi
+  done <<<"$files"
+
+  # The impact is the tier of the same diff, classified by the same function.
+  local classification tier
+  classification="$(classify --files - ${pass[@]+"${pass[@]}"} <<<"$files")" || return 1
+  tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$classification")"
+
+  local -a verification=()
+  case "$coverage" in
+  gap) verification+=('coverage|gap') ;;
+  "") verification+=('coverage|not-supplied') ;;
+  esac
+  case "$gate" in
+  not-green) verification+=('gate|not-green') ;;
+  "") verification+=('gate|not-supplied') ;;
+  esac
+  [[ "$interactive" == "gap" ]] && verification+=('interactive|gap')
+
+  local verified="ok" rollback="cheap" grade
+  [[ "${#verification[@]}" -eq 0 ]] || verified="poor"
+  [[ "${#hits[@]}" -eq 0 ]] || rollback="costly"
+
+  if [[ "$tier" == "FAST" && "$verified" == "ok" && "$rollback" == "cheap" ]]; then
+    grade="low"
+  elif [[ "$tier" == "CRITICAL" && ("$verified" == "poor" || "$rollback" == "costly") ]]; then
+    grade="high"
+  else
+    grade="medium"
+  fi
+
+  printf 'merge-risk=%s\n' "$grade"
+  printf 'merge-risk-rule=%s: tier %s, verification %s, rollback %s\n' "$grade" "$tier" "$verified" "$rollback"
+  printf 'verification=%s\n' "$verified"
+  local entry name
+  for entry in ${verification[@]+"${verification[@]}"}; do
+    printf 'verification-signal=%s\n' "$entry"
+  done
+  printf 'rollback=%s\n' "$rollback"
+  for name in destructive-migration persisted-data-write external-side-effect config-infrastructure; do
+    for entry in ${hits[@]+"${hits[@]}"}; do
+      [[ "${entry%%|*}" == "$name" ]] && printf 'rollback-signal=%s\n' "$(safe_display "$entry")"
+    done
+  done
+
+  local low_scan low_entries=0 low_failure="" low_risk="no" low_rule low_classification low_tier opt_in_reason="" low_files="" link_failure=""
+  if opt_in_reason="$(low_risk_opt_in)"; then
+    opt_in_reason=""
+    low_scan="$(low_risk_scan <<<"$diff_text")"
+    while IFS= read -r line; do
+      case "$line" in
+      N\|*) low_entries="${line#N|}" ;;
+      P\|*) low_files+="${line#P|}"$'\n' ;;
+      X\|*) [[ -n "$low_failure" ]] || low_failure="${line#X|}" ;;
+      esac
+    done <<<"$low_scan"
+    low_files+="$files"
+    low_files="$(awk 'NF && !seen[$0]++' <<<"$low_files")"
+
+    if [[ -z "$low_failure" && -n "$base_arg" ]]; then
+      link_failure="$(low_risk_links "$base_arg" <<<"$low_files")"
+      [[ -z "$link_failure" ]] || low_failure="${link_failure#X|}"
+    fi
+
+    low_classification="$(classify --files - --ignore-assignment <<<"$low_files")" || return 1
+    low_tier="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$low_classification")"
+  else
+    low_tier="not-evaluated"
+  fi
+
+  if [[ -n "$opt_in_reason" ]]; then
+    low_rule="no: $opt_in_reason"
+  elif [[ -n "$low_failure" ]]; then
+    low_rule="no: ${low_failure%%|*}"
+  elif [[ -z "$base_arg" ]]; then
+    low_rule='no: base-unavailable'
+  elif [[ "$low_entries" -eq 0 ]]; then
+    low_rule='no: the diff has no entry'
+  elif [[ "$low_tier" != "FAST" ]]; then
+    low_rule="no: tier $low_tier from the diff alone"
+  elif [[ "$verified" != "ok" ]]; then
+    low_rule='no: verification poor'
+  elif [[ "$rollback" != "cheap" ]]; then
+    low_rule='no: rollback costly'
+  else
+    low_risk="yes"
+    low_rule='yes: opted in, tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list'
+  fi
+  printf 'low-risk-merge=%s\n' "$low_risk"
+  printf 'low-risk-merge-rule=%s\n' "$low_rule"
+  [[ -z "$low_failure" ]] || printf 'low-risk-excluded=%s\n' "$(safe_display "$low_failure")"
+  printf '%s\n' "$classification"
+  return 0
+}
+
+# Global, not local: the EXIT trap fires after the function's locals are gone,
+# and reading an unset local under `set -u` would abort the cleanup.
+SELF_TEST_TMP=""
+# Reached only through `trap cleanup_self_test EXIT`. ShellCheck's reachability pass does not
+# credit a trap as an invocation (SC2317, and SC2329 in ShellCheck 0.11), so both are suppressed.
+# shellcheck disable=SC2317,SC2329
+cleanup_self_test() {
+  [[ -n "$SELF_TEST_TMP" ]] && rm -rf "$SELF_TEST_TMP"
+  return 0
+}
+
+self_test() {
+  local failures=0 script
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
+  SELF_TEST_TMP="$(mktemp -d)"
+  trap cleanup_self_test EXIT
+
+  local tmp="$SELF_TEST_TMP"
+
+  # Outside any checkout, so the manifest of the repository running the
+  # self-test cannot change a built-in verdict.
+  cd "$tmp"
+
+  # An assignment that does state its acceptance criteria, so the clarity point
+  # does not fire and each scenario below measures what it means to measure.
+  printf 'Acceptance criteria:\n- the button saves the form\n' >"$tmp/clear.txt"
+  printf 'Please make it better somehow.\n' >"$tmp/vague.txt"
+
+  writefiles() {
+    local target="$tmp/files-$RANDOM$RANDOM.txt"
+    printf '%s\n' "$@" >"$target"
+    printf '%s' "$target"
+  }
+
+  # Assert the tier AND, where it matters, the attribution — a right tier
+  # reached through the wrong signal is a bug that changes verdict on the next
+  # input.
+  expect_tier() {
+    local label="$1" expected="$2"
+    shift 2
+    local out actual
+    if ! out="$("$script" "$@" 2>&1)"; then
+      printf 'FAIL  %-52s script exited non-zero: %s\n' "$label" "$out" >&2
+      failures=$((failures + 1))
+      return 0
+    fi
+    actual="$(awk -F= '$1 == "tier" { print $2; exit }' <<<"$out")"
+    if [[ "$actual" != "$expected" ]]; then
+      printf 'FAIL  %-52s expected %s, got %s\n' "$label" "$expected" "$actual" >&2
+      printf '%s\n' "$out" >&2
+      failures=$((failures + 1))
+      return 0
+    fi
+    printf 'ok    %-52s %s\n' "$label" "$actual"
+  }
+
+  expect_line() {
+    local label="$1" needle="$2"
+    shift 2
+    local out
+    out="$("$script" "$@" 2>&1 || true)"
+    if grep -qF -- "$needle" <<<"$out"; then
+      printf 'ok    %-52s %s\n' "$label" "$needle"
+    else
+      printf 'FAIL  %-52s missing %s\n' "$label" "$needle" >&2
+      printf '%s\n' "$out" >&2
+      failures=$((failures + 1))
+    fi
+  }
+
+  expect_no_line() {
+    local label="$1" needle="$2"
+    shift 2
+    local out
+    out="$("$script" "$@" 2>&1 || true)"
+    if grep -qF -- "$needle" <<<"$out"; then
+      printf 'FAIL  %-52s found %s\n' "$label" "$needle" >&2
+      printf '%s\n' "$out" >&2
+      failures=$((failures + 1))
+    else
+      printf 'ok    %-52s no %s\n' "$label" "$needle"
+    fi
+  }
+
+  expect_exit() {
+    local label="$1" expected="$2"
+    shift 2
+    local actual
+    set +e
+    "$script" "$@" >/dev/null 2>&1
+    actual=$?
+    set -e
+    if [[ "$actual" -eq "$expected" ]]; then
+      printf 'ok    %-52s exit %s\n' "$label" "$actual"
+    else
+      printf 'FAIL  %-52s expected exit %s, got %s\n' "$label" "$expected" "$actual" >&2
+      failures=$((failures + 1))
+    fi
+  }
+
+  # --- The scenarios the routing contract is required to cover ---------------
+
+  # 1. Documentation-only change: a README typo must not buy a review pass.
+  expect_tier 'README typo is FAST' FAST \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt"
+
+  # A doc file whose path contains a sensitive word must stay FAST: the path
+  # signals read material files only, and a document is not material.
+  expect_tier 'security doc is still FAST' FAST \
+    --files "$(writefiles 'docs/security/threat-model.md')" --assignment "$tmp/clear.txt"
+
+  # 2. Tests-only change.
+  expect_tier 'tests-only change is FAST' FAST \
+    --files "$(writefiles 'tests/Unit/InvoiceTest.php' 'tests/Unit/OrderTest.php')" \
+    --assignment "$tmp/clear.txt"
+
+  # 3. Small isolated bug fix that ships its test.
+  expect_tier 'small fix with its test is FAST' FAST \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" \
+    --assignment "$tmp/clear.txt"
+
+  # An authorization middleware is often named for what it authorizes rather
+  # than for authorization itself — `EnsureUserIsAdmin` carries neither "auth"
+  # nor "authorize", and matched nothing until `admin` was added.
+  expect_line 'authorization middleware named for its role' 'forced=auth-security-secrets' \
+    --files "$(writefiles 'app/Http/Middleware/EnsureUserIsAdmin.php')" --assignment "$tmp/clear.txt"
+
+  # 4. Normal business-logic feature.
+  expect_tier 'ordinary feature is STANDARD' STANDARD \
+    --files "$(writefiles \
+      'app/Actions/Order/CreateOrder.php' \
+      'app/Dto/Order/OrderData.php' \
+      'app/Models/Order.php' \
+      'resources/views/order/create.blade.php' \
+      'tests/Feature/CreateOrderTest.php')" \
+    --assignment "$tmp/clear.txt"
+
+  # 5. Security-sensitive change: authorization middleware forces CRITICAL even
+  #    though its own score is far below the CRITICAL threshold.
+  expect_tier 'authorization middleware is CRITICAL' CRITICAL \
+    --files "$(writefiles 'app/Http/Middleware/EnsureUserIsAdmin.php' 'tests/Feature/AdminAccessTest.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_line 'the force names its own signal' 'forced=auth-security-secrets' \
+    --files "$(writefiles 'app/Http/Middleware/EnsureUserIsAdmin.php')" --assignment "$tmp/clear.txt"
+
+  expect_tier 'a migration is CRITICAL' CRITICAL \
+    --files "$(writefiles 'database/migrations/2026_01_01_drop_legacy_column.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_tier 'a payment path is CRITICAL' CRITICAL \
+    --files "$(writefiles 'app/Services/Billing/StripeCharge.php')" --assignment "$tmp/clear.txt"
+
+  # 6. Post-implementation escalation: the task began as a FAST docs change and
+  #    the diff turned out to touch authentication across a dozen files.
+  local grown
+  grown="$(writefiles \
+    'app/Http/Middleware/Authenticate.php' 'app/Models/User.php' 'app/Actions/A.php' \
+    'app/Actions/B.php' 'app/Actions/C.php' 'app/Actions/D.php' 'app/Actions/E.php' \
+    'app/Actions/F.php' 'app/Actions/G.php' 'app/Actions/H.php' 'app/Actions/I.php' \
+    'app/Actions/J.php')"
+  expect_tier 'grown diff re-classifies to CRITICAL' CRITICAL \
+    --files "$grown" --assignment "$tmp/clear.txt" --floor fast
+
+  # The ratchet: a later, smaller diff never drops below the tier already paid
+  # for, or an escalation could be undone by a follow-up commit.
+  expect_tier 'floor is never lowered by a later small diff' STANDARD \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt" --floor standard
+
+  # 7. Explicit overrides.
+  expect_tier '--thorough forces the full pipeline' CRITICAL \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt" --override thorough
+  expect_tier '--critical escalates a FAST change' CRITICAL \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt" --override critical
+  expect_tier '--standard applies when nothing forces' STANDARD \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt" --override standard
+  expect_tier '--fast applies when nothing forces' FAST \
+    --files "$(writefiles 'app/A.php' 'app/B.php' 'app/C.php' 'app/D.php' 'app/E.php')" \
+    --assignment "$tmp/clear.txt" --override fast
+
+  # A downgrade override never silences a sensitive-area force.
+  expect_tier '--fast is refused on an auth change' CRITICAL \
+    --files "$(writefiles 'app/Http/Middleware/Authenticate.php')" \
+    --assignment "$tmp/clear.txt" --override fast
+  expect_line 'a refused override is recorded' 'override-refused=FAST' \
+    --files "$(writefiles 'app/Http/Middleware/Authenticate.php')" \
+    --assignment "$tmp/clear.txt" --override fast
+
+  # --- Pre-implementation classification, before a diff exists ---------------
+  local authtext="$tmp/auth-assignment.txt"
+  printf 'Acceptance criteria: the login form must reject an expired password reset token.\n' >"$authtext"
+  expect_tier 'assignment text alone can force CRITICAL' CRITICAL --assignment "$authtext"
+  expect_line 'assignment-only classification says so' 'basis=assignment' --assignment "$authtext"
+
+  # Quoted or example text illustrates a word, it does not describe the task. Each
+  # text below states its criteria and names a sensitive word only inside such a part.
+  local quoted="$tmp/quoted.txt"
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+- the greeting uses the declined name
+```php
+$token = Auth::user()->secret;
+```
+TEXT
+  expect_line 'an auth word inside a fenced code block forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n~~~\nmigration secret\n~~~\n' >"$quoted"
+  expect_line 'a tilde fence hides its words as well' 'forced=none' --assignment "$quoted"
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+- rename the `auth-security-secrets` label in the report
+TEXT
+  expect_line 'an auth word inside inline code forces nothing' 'forced=none' --assignment "$quoted"
+  # The #564 false positive: an anonymised example quoted the words "signed-in admin".
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n> Only a signed-in admin sees the page.\n' >"$quoted"
+  expect_line 'an admin word inside a block quote forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n- e.g. a password reset mail\nFor example: the login form.\n' >"$quoted"
+  expect_line 'an auth word on an example line forces nothing' 'forced=none' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- the greeting uses the declined name\n### Example\nThe admin rotates the secret token.\n## Scope\n- the greeting only\n' >"$quoted"
+  expect_line 'an auth word under an example heading forces nothing' 'forced=none' --assignment "$quoted"
+  expect_tier 'an assignment with only quoted sensitive words is not CRITICAL' FAST --assignment "$quoted"
+
+  # Fail-safe: prose outside the quoted part still forces, and a closed fence ends the skip.
+  cat >"$quoted" <<'TEXT'
+Acceptance criteria:
+```
+example
+```
+- the login form rejects an expired token
+TEXT
+  expect_line 'prose after a closed fence still forces auth' 'forced=auth-security-secrets' --assignment "$quoted"
+  printf 'Acceptance criteria:\n### Example\nadmin\n## Rules\n- only a signed-in admin sees the page\n' >"$quoted"
+  expect_line 'a heading ends the example section' 'forced=auth-security-secrets' --assignment "$quoted"
+  printf 'Acceptance criteria:\n- add a migration that drops the legacy column\n' >"$quoted"
+  expect_line 'a migration named in prose still forces data' 'forced=migrations-data-loss' --assignment "$quoted"
+  # A fence that never closes (a pasted stack trace) hides nothing after it.
+  printf 'Acceptance criteria:\n```\nstack trace\n\n- [ ] the login form rejects an expired password reset token\n' >"$quoted"
+  expect_line 'an unclosed fence hides nothing' 'forced=auth-security-secrets' --assignment "$quoted"
+  # Inline code that names code or a path is the task itself, not a quoted word.
+  cat >"$quoted" <<'TEXT'
+Only the owner may delete an order.
+Call `Gate::authorize('delete', $order)` in `OrderController::destroy`.
+Acceptance criteria:
+- a non-owner gets 403 on delete
+TEXT
+  expect_line 'inline code that names code still forces auth' 'forced=auth-security-secrets' --assignment "$quoted"
+  # Any heading that is not an example heading ends the example section.
+  printf '# Example of the bug\n## Technical Solution\n- add an authorization check to the invoice controller\n## Acceptance criteria\n- [ ] the invoice is saved\n' >"$quoted"
+  expect_line 'a deeper heading ends an example section' 'forced=auth-security-secrets' --assignment "$quoted"
+
+  # The migration signal on a diff reads the migration directory and the migration file
+  # name, never the word alone. The #414 false positive was a class named for migrating
+  # installed agent files.
+  expect_line 'a class named Migration outside the migration paths forces nothing' 'forced=none' \
+    --files "$(writefiles 'src/InstallerAgentMigration.php' 'tests/Unit/InstallerAgentMigrationTest.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_line 'a timestamped migration file outside a migrations directory forces data' \
+    'forced=migrations-data-loss' \
+    --files "$(writefiles 'modules/orders/database/2026_01_01_000000_create_orders_table.php')" \
+    --assignment "$tmp/clear.txt"
+  expect_line 'a file in a migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'db/migration/V2__add_index.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a Doctrine migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'app/DoctrineMigrations/Version20260101120000.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a compound migration directory forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles 'database/tenant-migrations/create_users.php')" --assignment "$tmp/clear.txt"
+  expect_line 'a git-quoted migration path forces data' 'forced=migrations-data-loss' \
+    --files "$(writefiles '"migrations/Version20260101120000\303\251.php"')" --assignment "$tmp/clear.txt"
+
+  # --- Clarity and coverage signals ------------------------------------------
+  expect_line 'a vague assignment scores the clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/vague.txt"
+  printf 'The new import breaks the rules we agreed on, please fix it.\n' >"$tmp/prose-rules.txt"
+  expect_line 'prose that mentions the rules keeps the clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/prose-rules.txt"
+  printf '## What this is about\nA greeting needs the declined name.\n\n## What the user must be able to do\nThe admin edits a name.\n\n## The rules\nA name has at most 50 characters.\n' >"$tmp/business.txt"
+  printf '## Pravidla\nJméno má nejvýše 50 znaků.\n' >"$tmp/business-cs.txt"
+  expect_no_line 'a Czech rules heading scores no clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/business-cs.txt"
+  expect_no_line 'a business-only assignment scores no clarity point' 'unclear-acceptance-criteria' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/business.txt"
+  expect_line 'a source change with no test is flagged' 'missing-relevant-tests' \
+    --files "$(writefiles 'src/Formatter.php')" --assignment "$tmp/clear.txt"
+  # Without this point an ordinary feature that ships its tests scored 1 and
+  # routed FAST, which is the tier definition's own counter-example.
+  expect_line 'touching production code scores a point' 'production-code-changed' \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/clear.txt"
+  expect_line 'every point is attributable to a signal line' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'README.md' 'docs/agents.md')" --assignment "$tmp/clear.txt"
+
+  # --- Project-declared critical paths ---------------------------------------
+  manifest_repo() {
+    local dir="$1" json="$2"
+    mkdir -p "$dir"
+    git -C "$dir" init -q
+    printf '%s\n' "$json" >"$dir/composer.json"
+    git -C "$dir" add -A
+    git -C "$dir" -c user.name=t -c user.email=t@t commit -q -m manifest
+    git -C "$dir" update-ref refs/remotes/origin/master HEAD
+    git -C "$dir" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
+  }
+
+  expect_tier 'without a manifest a deploy descriptor is STANDARD' STANDARD \
+    --files "$(writefiles 'serverless-bref2.yml')" --assignment "$tmp/clear.txt"
+
+  manifest_repo "$tmp/project" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["^serverless.*\\.yml$", "^resources/db/"] } } } }'
+  cd "$tmp/project"
+  expect_tier 'a project critical path is CRITICAL' CRITICAL \
+    --files "$(writefiles 'serverless-bref2.yml')" --assignment "$tmp/clear.txt"
+  expect_line 'the project force names its own signal' 'forced=project-critical-path' \
+    --files "$(writefiles 'serverless-bref2.yml' 'README.md')" --assignment "$tmp/clear.txt"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "risk": { "critical-paths": [] } } } }' >"$tmp/project/composer.json"
+  expect_tier 'the working tree cannot remove a project critical path' CRITICAL \
+    --files "$(writefiles 'serverless-bref2.yml')" --assignment "$tmp/clear.txt"
+
+  manifest_repo "$tmp/broken" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["(["] } } } }'
+  cd "$tmp/broken"
+  expect_tier 'an invalid project regex fails towards CRITICAL' CRITICAL \
+    --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/clear.txt"
+  manifest_repo "$tmp/unparsable" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["^serverless"] } } }, }'
+  cd "$tmp/unparsable"
+  expect_tier 'an unparsable manifest with critical paths fails towards CRITICAL' CRITICAL \
+    --files "$(writefiles 'serverless.yml')" --assignment "$tmp/clear.txt"
+  expect_line 'the unparsable manifest names its own signal' 'project-critical-path|manifest-unreadable' \
+    --files "$(writefiles 'serverless.yml')" --assignment "$tmp/clear.txt"
+  cd "$tmp"
+
+  # --- Merge-risk mode -------------------------------------------------------
+  # `newfile <path> <added line>...` prints the git diff that adds one new file.
+  newfile() {
+    local file="$1"
+    shift
+    printf 'diff --git a/%s b/%s\nnew file mode 100644\n--- /dev/null\n+++ b/%s\n@@ -0,0 +1,%s @@\n' \
+      "$file" "$file" "$file" "$#"
+    printf '+%s\n' "$@"
+  }
+  writediff() {
+    local target="$tmp/diff-$RANDOM$RANDOM.diff"
+    cat >"$target"
+    printf '%s' "$target"
+  }
+  local verified=(--coverage ok --gate green --assignment "$tmp/clear.txt")
+  local fix migration_drop migration_empty migration_create
+  fix="$({
+    newfile 'src/Formatter.php' '<?php' "return trim(\$value);"
+    newfile 'tests/Unit/FormatterTest.php' 'Order::create(["id" => 1]);' "Mail::to(\$user)->send(new Welcome());"
+  } | writediff)"
+  migration_drop="$(newfile 'database/migrations/2026_01_01_drop_legacy.php' \
+    'public function up(): void' '{' "    Schema::table(\"orders\", function (Blueprint \$table) {" \
+    "        \$table->dropColumn(\"legacy\");" '    });' '}' | writediff)"
+  migration_empty="$(newfile 'database/migrations/2026_01_01_add_note.php' \
+    'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"note\"));" '}' \
+    'public function down(): void' '{' '    // irreversible' '}' | writediff)"
+  migration_create="$(newfile 'database/migrations/2026_01_01_create_orders.php' \
+    'public function up(): void' '{' "    Schema::create(\"orders\", function (Blueprint \$table) {" "        \$table->id();" '    });' '}' \
+    'public function down(): void' '{' '    Schema::dropIfExists("orders");' '}' | writediff)"
+
+  expect_line 'a small tested fix with green checks is low risk' 'merge-risk=low' \
+    --merge-risk --diff "$fix" "${verified[@]}"
+  expect_line 'the grade prints the rule that decided it' \
+    'merge-risk-rule=low: tier FAST, verification ok, rollback cheap' --merge-risk --diff "$fix" "${verified[@]}"
+  expect_line 'a write in a test file is no rollback signal' 'rollback=cheap' \
+    --merge-risk --diff "$fix" "${verified[@]}"
+  expect_line 'a destructive migration with poor verification is high risk' 'merge-risk=high' \
+    --merge-risk --diff "$migration_drop" --coverage gap --gate green --assignment "$tmp/clear.txt"
+  expect_line 'a dropColumn in up() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_drop_legacy.php' \
+    --merge-risk --diff "$migration_drop" "${verified[@]}"
+  expect_line 'an empty down() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_add_note.php' \
+    --merge-risk --diff "$migration_empty" "${verified[@]}"
+  expect_line 'a ->change() column change in up() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_shrink_name.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_shrink_name.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\", 20)->change());" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("restore");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw ALTER TABLE MODIFY in up() is a destructive migration' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_narrow_total.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_narrow_total.php' \
+      'public function up(): void' '{' "    DB::statement('ALTER TABLE orders MODIFY total INT');" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("restore");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a ->change() inside down() is the rollback, not a signal' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_widen_name.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\", 20)->nullable());" '}' \
+      'public function down(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"name\")->change());" '}' | writediff)" "${verified[@]}"
+  expect_line 'a drop inside down() is the rollback, not a signal' 'rollback=cheap' \
+    --merge-risk --diff "$migration_create" "${verified[@]}"
+  # The rollback scan reads migrations by DATA_PATH_RE: a class only named for a migration
+  # is no migration, while a timestamped file and a Doctrine directory are.
+  expect_line 'an empty down() outside a migration path is no signal' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'src/InstallerAgentMigration.php' \
+      'public function up(): void' '{' "    \$this->copy();" '}' \
+      'public function down(): void' '{' '}' | writediff)" "${verified[@]}"
+  expect_line 'an empty down() in a timestamped migration file is a signal' \
+    'rollback-signal=destructive-migration|modules/orders/database/2026_01_01_000000_add_note.php' \
+    --merge-risk --diff "$(newfile 'modules/orders/database/2026_01_01_000000_add_note.php' \
+      'public function up(): void' '{' "    Schema::table(\"orders\", fn (Blueprint \$table) => \$table->string(\"note\"));" '}' \
+      'public function down(): void' '{' '}' | writediff)" "${verified[@]}"
+  expect_line 'a destructive Doctrine migration is a signal' \
+    'rollback-signal=destructive-migration|app/DoctrineMigrations/Version20260101120000.php' \
+    --merge-risk --diff "$(newfile 'app/DoctrineMigrations/Version20260101120000.php' \
+      "public function up(Schema \$schema): void" '{' "    \$this->addSql('DROP TABLE users');" '}' \
+      "public function down(Schema \$schema): void" '{' '}' | writediff)" "${verified[@]}"
+  expect_line 'a verified CRITICAL change that is cheap to roll back is medium risk' 'merge-risk=medium' \
+    --merge-risk --diff "$migration_create" "${verified[@]}"
+  expect_line 'the tier block of the same diff follows the grade' 'forced=migrations-data-loss' \
+    --merge-risk --diff "$migration_create" "${verified[@]}"
+  expect_line 'a persisted-data write makes rollback costly' \
+    'rollback-signal=persisted-data-write|app/Actions/Order/CloseOrder.php' \
+    --merge-risk --diff "$(newfile 'app/Actions/Order/CloseOrder.php' "\$order->update([\"closed\" => true]);" | writediff)" "${verified[@]}"
+  expect_line 'a queue dispatch is an external side effect' \
+    'rollback-signal=external-side-effect|app/Actions/Order/SendInvoice.php' \
+    --merge-risk --diff "$(newfile 'app/Actions/Order/SendInvoice.php' "SendInvoiceJob::dispatch(\$orderId);" | writediff)" "${verified[@]}"
+  expect_line 'a mail send is an external side effect' \
+    'rollback-signal=external-side-effect|app/Actions/User/Welcome.php' \
+    --merge-risk --diff "$(newfile 'app/Actions/User/Welcome.php' "Mail::to(\$user)->send(new WelcomeMail());" | writediff)" "${verified[@]}"
+  expect_line 'a configuration file makes rollback costly' 'rollback-signal=config-infrastructure|config/queue.php' \
+    --merge-risk --diff "$(newfile 'config/queue.php' "'default' => 'sqs'," | writediff)" "${verified[@]}"
+  expect_line 'a FAST change with costly rollback is medium risk' 'merge-risk=medium' \
+    --merge-risk --diff "$({
+      newfile 'src/Store.php' "\$record->save();"
+      newfile 'tests/Unit/StoreTest.php' 'expect(true)->toBeTrue();'
+    } | writediff)" "${verified[@]}"
+  expect_line 'a coverage result that was not supplied is poor verification' 'verification-signal=coverage|not-supplied' \
+    --merge-risk --diff "$fix" --gate green --assignment "$tmp/clear.txt"
+  expect_line 'a red quality gate is poor verification' 'verification-signal=gate|not-green' \
+    --merge-risk --diff "$fix" --coverage ok --gate not-green --assignment "$tmp/clear.txt"
+  expect_line 'a walkthrough scenario that was not met is poor verification' 'verification-signal=interactive|gap' \
+    --merge-risk --diff "$fix" "${verified[@]}" --interactive gap
+  expect_line 'untrusted diff paths are rendered safely' 'rollback-signal=persisted-data-write|app/[2JEvil.php' \
+    --merge-risk --diff "$(newfile "$(printf 'app/\033[2JEvil.php')" "\$model->delete();" | writediff)" "${verified[@]}"
+  # A header-only entry of a diff carries no `+++` line: a pure rename, a binary
+  # file, and a mode-only change still reach the impact tier and the rollback signals.
+  renamediff() {
+    printf 'diff --git a/%s b/%s\nsimilarity index 100%%\nrename from %s\nrename to %s\n' "$1" "$2" "$1" "$2"
+  }
+  expect_line 'a pure-renamed migration forces CRITICAL like --files' 'forced=migrations-data-loss' \
+    --merge-risk --diff "$(renamediff 'database/migrations/2026_01_01_old.php' 'database/migrations/2026_01_02_new.php' | writediff)" "${verified[@]}"
+  expect_line 'a pure-renamed migration is graded CRITICAL' 'tier=CRITICAL' \
+    --merge-risk --diff "$(renamediff 'database/migrations/2026_01_01_old.php' 'database/migrations/2026_01_02_new.php' | writediff)" "${verified[@]}"
+  expect_line 'a binary file in config/ is a configuration change' 'rollback-signal=config-infrastructure|config/logo.png' \
+    --merge-risk --diff "$(printf 'diff --git a/config/logo.png b/config/logo.png\nindex 1111111..2222222 100644\nBinary files a/config/logo.png and b/config/logo.png differ\n' | writediff)" "${verified[@]}"
+  expect_line 'a mode-only change in config/ is a configuration change' 'rollback-signal=config-infrastructure|config/queue.php' \
+    --merge-risk --diff "$(printf 'diff --git a/config/queue.php b/config/queue.php\nold mode 100644\nnew mode 100755\n' | writediff)" "${verified[@]}"
+  expect_line 'a rename with edits reports the new path' 'forced=migrations-data-loss' \
+    --merge-risk --diff "$(printf 'diff --git a/db/a.php b/database/migrations/2026_01_02_new.php\nrename from db/a.php\nrename to database/migrations/2026_01_02_new.php\n--- a/db/a.php\n+++ b/database/migrations/2026_01_02_new.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)" "${verified[@]}"
+
+  # Text that only looks like a write or a side effect is no rollback signal.
+  expect_line 'a JavaScript store.dispatch is no side effect' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'resources/js/store.js' 'store.dispatch(action);' | writediff)" "${verified[@]}"
+  expect_line 'Carbon::create is no persisted-data write' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'src/Clock.php' 'return Carbon::create(2026, 1, 1);' | writediff)" "${verified[@]}"
+  expect_line 'a Model::create is still a persisted-data write' 'rollback-signal=persisted-data-write|src/Orders.php' \
+    --merge-risk --diff "$(newfile 'src/Orders.php' "return Order::create(\$data);" | writediff)" "${verified[@]}"
+  expect_line 'a shell string that names Mail:: is no side effect' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'scripts/check.sh' 'echo "Mail:: usage found"' | writediff)" "${verified[@]}"
+  expect_line 'a regex text in a shell script is no write' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'skills/_shared/scan.sh' "WRITE_RE='->(save|update)[[:space:]]*\\('" "x='insert into'" "y='delete from'" | writediff)" "${verified[@]}"
+  expect_line 'a column named truncated is no destructive migration' 'rollback=cheap' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_add_flag.php' \
+      'public function up(): void' '{' "    Schema::table(\"posts\", fn (Blueprint \$table) => \$table->boolean(\"truncated\"));" '}' \
+      'public function down(): void' '{' '    Schema::dropIfExists("posts");' '}' | writediff)" "${verified[@]}"
+  expect_line 'a truncate call in a migration is destructive' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_wipe.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_wipe.php' \
+      'public function up(): void' '{' '    DB::table("posts")->truncate();' '}' | writediff)" "${verified[@]}"
+  expect_line 'truncate table in a SQL file is destructive' \
+    'rollback-signal=destructive-migration|db/wipe.sql' \
+    --merge-risk --diff "$(newfile 'db/wipe.sql' 'TRUNCATE TABLE posts;' | writediff)" "${verified[@]}"
+  expect_line 'a delete from in a SQL file is a persisted-data write' \
+    'rollback-signal=persisted-data-write|db/cleanup.sql' \
+    --merge-risk --diff "$(newfile 'db/cleanup.sql' 'DELETE FROM posts WHERE id = 1;' | writediff)" "${verified[@]}"
+  # Raw SQL inside a PHP file (a migration, a repository) is a persisted-data write
+  # and a destructive migration like the same statement in a .sql file.
+  expect_line 'a raw DELETE FROM in a migration is a persisted-data write' \
+    'rollback-signal=persisted-data-write|database/migrations/2026_01_01_purge.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_purge.php' \
+      'public function up(): void' '{' "    DB::statement('DELETE FROM users WHERE inactive = 1');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw UPDATE through DB::unprepared in a migration is costly' 'rollback=costly' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_reset.php' \
+      'public function up(): void' '{' "    DB::unprepared('UPDATE users SET active = 0');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a TRUNCATE users statement in a migration is destructive' \
+    'rollback-signal=destructive-migration|database/migrations/2026_01_01_wipe_users.php' \
+    --merge-risk --diff "$(newfile 'database/migrations/2026_01_01_wipe_users.php' \
+      'public function up(): void' '{' "    DB::statement('TRUNCATE users');" '}' | writediff)" "${verified[@]}"
+  expect_line 'a raw DB::update in a repository is a persisted-data write' \
+    'rollback-signal=persisted-data-write|app/Repositories/UserRepository.php' \
+    --merge-risk --diff "$(newfile 'app/Repositories/UserRepository.php' "return DB::update('update users set active = 0');" | writediff)" "${verified[@]}"
+  expect_line 'a raw DB::delete in a repository is a persisted-data write' \
+    'rollback-signal=persisted-data-write|app/Repositories/OrderRepository.php' \
+    --merge-risk --diff "$(newfile 'app/Repositories/OrderRepository.php' "return DB::delete('delete from orders where id = 1');" | writediff)" "${verified[@]}"
+
+  expect_line 'a diff on stdin is accepted' 'merge-risk=low' --merge-risk --diff - "${verified[@]}" <"$fix"
+
+  # The low-risk merge verdict is an allow-list: yes needs a FAST tier from the diff alone, ok
+  # verification, a cheap rollback, and every path inside the allowed set.
+  # `fixat <path>` is the tested fix of `$fix`, with its production file at <path>.
+  fixat() {
+    {
+      newfile "$1" '<?php' "return trim(\$value);"
+      newfile 'tests/Unit/FormatterTest.php' "\$this->assertSame('a', trim(' a'));"
+    } | writediff
+  }
+  # The low-risk verdict needs a project that opted in through the default-branch manifest. The scratch
+  # repository holds the manifest, and a base tree with symlinks at instruction names.
+  local lr="$tmp/lowrisk" lr_base
+  mkdir -p "$lr/src" "$lr/resources/ai/guidelines"
+  printf 'guide\n' >"$lr/src/guide.md"
+  printf 'core\n' >"$lr/resources/ai/guidelines/core.md"
+  printf 'hop\n' >"$lr/resources/ai/hop.md"
+  ln -s src/guide.md "$lr/CLAUDE.md"
+  ln -s resources/ai "$lr/.ai"
+  ln -s src/hop "$lr/AGENTS.md"
+  ln -s ../resources/ai/hop.md "$lr/src/hop"
+  manifest_repo "$lr" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/", "(^|/)secrets/"] } } } }'
+  lr_base="$(git -C "$lr" rev-parse HEAD)"
+  cd "$lr"
+  local lowrisk=(--merge-risk --base "$lr_base" --ignore-assignment --coverage ok --gate green)
+  expect_line 'a tested fix inside the allowed set merges on the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$fix"
+  expect_line 'the low-risk verdict states its rule' \
+    'low-risk-merge-rule=yes: opted in, tier FAST from the diff alone, verification ok, rollback cheap, every path inside the allow-list' \
+    "${lowrisk[@]}" --diff "$fix"
+  expect_line 'a tests-only change takes the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(newfile 'tests/Unit/OrderTest.php' "\$this->assertTrue(true);" | writediff)"
+  local allowed_path
+  for allowed_path in 'src/Formatter.php' 'app/Actions/Format.php' 'resources/js/format.js' 'tests/Unit/Format/FormatTest.php' \
+    'src/skills/Formatter.php' 'app/rules/Formatter.php' 'src/agents/Formatter.php' 'src/Claude.php' 'src/MyAgents.php' \
+    'src/ai/Formatter.php' 'src/codex/Formatter.php' 'tests/x y/Formatter.php'; do
+    expect_line "an ordinary file $allowed_path stays on the low-risk path" 'low-risk-merge=yes' \
+      "${lowrisk[@]}" --diff "$(fixat "$allowed_path")"
+  done
+  local blocked_path
+  for blocked_path in 'rules/git/general.php' 'agents/krang.php' 'commands/_shared/classify-risk.sh' 'codex/agents/a.php' \
+    '.ai/guidelines/core.php' '.claude/settings.php' '.codex/config.php' '.github/workflows/ci.php' '.github/actions/setup/action.yml' \
+    'commands/do-it.md' '.agents/skills/x/SKILL.md' 'bin/ai-olympus' '.claude-plugin/marketplace.json' '.mcp.json' \
+    'CLAUDE.md' 'AGENTS.md' 'CLAUDE.local.md' 'AGENTS.override.md' 'GEMINI.md' '.github/copilot-instructions.md' \
+    'docs/x y/CLAUDE.md' 'packages/my app/AGENTS.md' 'docs/agent-guide.md' 'docs/guide.md' 'README.md' 'Rules/Git/General.php' \
+    'phpunit.xml' 'phpstan.neon' 'rector.php' 'ruleset.xml' 'pint.json' 'composer.json' 'composer.lock' 'package.json' '.gitattributes'; do
+    expect_line "a path outside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
+      "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+    expect_line "the outside path $blocked_path is named" 'low-risk-excluded=' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+  done
+  for blocked_path in 'src/InstallerProjectSettings.php' 'src/ComposerPlugin.php' 'src/InstallerFileCopier.php' 'tests/Pest.php' \
+    'tests/phpunit.xml.dist' 'src/phpstan.neon' 'tests/x y/CLAUDE.md' 'src/.claude/a.php' 'tests/Fixtures/.github/x.php' 'app/Agents.md' \
+    'resources/CLAUDE.md' 'src/composer.json' 'tests/bootstrap.php' 'src/gemini.md' 'resources/package.json' 'tests/rector.php' \
+    'tests/.ai/rule.php' 'src/.agents/skill.php' 'src/InstallOptions.php' 'src/InstallSummary.php' 'src/CommandOptions.php' 'src/MemoryStore.php' \
+    'src/GraphQuery.php' 'src/SliceBuilder.php' 'src/MetricsRecorder.php' 'src/.gitattributes' 'tests/.gitattributes'; do
+    expect_line "an excluded path inside the allowed set ($blocked_path) takes the full path" 'low-risk-merge=no' \
+      "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+    expect_line "the exclusion $blocked_path is named" 'low-risk-excluded=excluded-path|' "${lowrisk[@]}" --diff "$(fixat "$blocked_path")"
+  done
+  expect_line 'the outside-allow-list reason is stated' 'low-risk-merge-rule=no: outside-allow-list' \
+    "${lowrisk[@]}" --diff "$(fixat 'docs/guide.md')"
+  expect_line 'a changed classifier on the pull request takes the full path' 'low-risk-excluded=outside-allow-list|commands/_shared/classify-risk.sh' \
+    "${lowrisk[@]}" --diff "$(fixat 'commands/_shared/classify-risk.sh')"
+  expect_line 'an excluded path beside an ordinary one takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$({ cat "$fix"; newfile '.mcp.json' '{}'; } | writediff)"
+  expect_line 'a rename out of the allowed set takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/Old.php' 'rules/New.php' | writediff)"
+  expect_line 'a rename into the allowed set from an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(renamediff 'skills/Old.php' 'src/New.php' | writediff)"
+  expect_line 'a rename with a space on both sides reads its rename lines' 'low-risk-excluded=outside-allow-list|rules/x y/New.php' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/x y/Old.php' 'rules/x y/New.php' | writediff)"
+  expect_line 'a symlink inside the allowed set takes the full path' 'low-risk-excluded=symlink-or-submodule|src/link' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/link b/src/link\nnew file mode 120000\nindex 0000000..1111111\n--- /dev/null\n+++ b/src/link\n@@ -0,0 +1 @@\n+../CLAUDE.md\n\\ No newline at end of file\n' | writediff)"
+  expect_line 'a symlink at an excluded directory name takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.ai b/.ai\nnew file mode 120000\nindex 0000000..1111111\n--- /dev/null\n+++ b/.ai\n@@ -0,0 +1 @@\n+docs/ai\n\\ No newline at end of file\n' | writediff)"
+  expect_line 'a submodule bump inside the allowed set takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/vendored b/src/vendored\nindex 1111111..2222222 160000\n--- a/src/vendored\n+++ b/src/vendored\n@@ -1 +1 @@\n-Subproject commit 1111111111111111111111111111111111111111\n+Subproject commit 2222222222222222222222222222222222222222\n' | writediff)"
+  expect_line 'a submodule at an excluded directory name takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.claude b/.claude\nindex 1111111..2222222 160000\n--- a/.claude\n+++ b/.claude\n@@ -1 +1 @@\n-Subproject commit 1111111111111111111111111111111111111111\n+Subproject commit 2222222222222222222222222222222222222222\n' | writediff)"
+  expect_line 'a mode change inside the allowed set takes the full path' 'low-risk-excluded=mode-change|src/run.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/run.php b/src/run.php\nold mode 100644\nnew mode 100755\n' | writediff)"
+  expect_line 'a mode-only change on an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/skills/run.sh b/skills/run.sh\nold mode 100644\nnew mode 100755\n' | writediff)"
+  expect_line 'a binary file in an excluded path takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/.claude/logo.png b/.claude/logo.png\nBinary files a/.claude/logo.png and b/.claude/logo.png differ\n' | writediff)"
+  expect_line 'an added line that writes agent configuration takes the full path' 'low-risk-excluded=agent-configuration-content|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(newfile 'src/Helper.php' '<?php' "file_put_contents('.claude/settings.json', \$json);" | writediff)"
+  expect_line 'a removed line that wrote agent configuration takes the full path' 'low-risk-excluded=agent-configuration-content|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/Helper.php b/src/Helper.php\n--- a/src/Helper.php\n+++ b/src/Helper.php\n@@ -1 +1 @@\n-return permissions.allow;\n+return 1;\n' | writediff)"
+  expect_line 'a quoted header takes the full path' 'low-risk-excluded=unreadable-header|' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git "a/src/f\\303\\266o.php" "b/src/f\\303\\266o.php"\n--- "a/src/f\\303\\266o.php"\n+++ "b/src/f\\303\\266o.php"\n@@ -1 +1 @@\n-x\n+y\n' | writediff)"
+  expect_line 'a diff header without the a/ b/ prefixes takes the full path' 'low-risk-excluded=unreadable-header|diff --git src/Formatter.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git src/Formatter.php src/Formatter.php\n--- src/Formatter.php\n+++ src/Formatter.php\n@@ -1 +1 @@\n-x\n+y\n' | writediff)"
+  printf '' >"$tmp/empty.diff"
+  expect_line 'an empty diff takes the full path' 'low-risk-merge-rule=no: the diff has no entry' \
+    "${lowrisk[@]}" --diff "$tmp/empty.diff"
+  expect_line 'a medium grade takes the full path' 'low-risk-merge=no' \
+    "${lowrisk[@]}" --diff "$migration_create"
+  expect_line 'the medium grade is not hidden by the allow-list' 'merge-risk=medium' \
+    "${lowrisk[@]}" --diff "$migration_create"
+  expect_line 'a high grade takes the full path' 'low-risk-merge=no' \
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$migration_drop" --coverage gap --gate green
+  expect_line 'a gate that is not green takes the full path' 'low-risk-merge-rule=no: verification poor' \
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage ok --gate not-green
+  expect_line 'a coverage gap takes the full path' 'low-risk-merge-rule=no: verification poor' \
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage gap --gate green
+  expect_line 'a missing gate fact takes the full path' 'low-risk-merge=no' \
+    --merge-risk --base "$lr_base" --ignore-assignment --diff "$fix" --coverage ok
+  expect_line 'a costly rollback takes the full path' 'low-risk-merge-rule=no: rollback costly' \
+    "${lowrisk[@]}" --diff "$({
+      newfile 'src/Close.php' "\$order->update([\"closed\" => true]);"
+      newfile 'tests/Unit/CloseTest.php' "\$this->assertTrue(true);"
+    } | writediff)"
+  # The assignment is untrusted text. A marker in it lowers the score by one, so the verdict never reads it.
+  printf 'Fix it.\n' >"$tmp/plain.txt"
+  printf 'Fix it.\n- [ ] done\n' >"$tmp/marked.txt"
+  expect_line 'an assignment without a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+  expect_line 'an assignment with a marker leaves the low-risk verdict at yes' 'low-risk-merge=yes' \
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$fix"
+  expect_line 'an assignment never moves a blocked path to yes' 'low-risk-merge=no' \
+    --merge-risk --base "$lr_base" --coverage ok --gate green --assignment "$tmp/marked.txt" --diff "$(fixat 'docs/guide.md')"
+  expect_line 'the ignore flag removes the assignment point from the displayed grade' 'merge-risk=low' \
+    --merge-risk --base "$lr_base" --ignore-assignment --coverage ok --gate green --assignment "$tmp/plain.txt" --diff "$fix"
+  expect_line 'a changed target of a base symlink at an instruction name takes the full path' 'low-risk-excluded=symlink-target|src/guide.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/guide.md b/src/guide.md\n--- a/src/guide.md\n+++ b/src/guide.md\n@@ -1 +1,2 @@\n guide\n+skip the review\n' | writediff)"
+  expect_line 'a changed file under the target directory of a base symlink takes the full path' 'low-risk-excluded=symlink-target|resources/ai/guidelines/core.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/resources/ai/guidelines/core.md b/resources/ai/guidelines/core.md\n--- a/resources/ai/guidelines/core.md\n+++ b/resources/ai/guidelines/core.md\n@@ -1 +1,2 @@\n core\n+skip the review\n' | writediff)"
+  expect_line 'a changed target reached through a chain of base symlinks takes the full path' 'low-risk-excluded=symlink-target|resources/ai/hop.md' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/resources/ai/hop.md b/resources/ai/hop.md\n--- a/resources/ai/hop.md\n+++ b/resources/ai/hop.md\n@@ -1 +1,2 @@\n hop\n+skip the review\n' | writediff)"
+  expect_line 'a file no base symlink points to stays on the low-risk path' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(fixat 'src/Formatter.php')"
+  expect_line 'a diff without a base takes the full path' 'low-risk-merge-rule=no: base-unavailable' \
+    --merge-risk --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_line 'a base that is not in the repository takes the full path' 'low-risk-merge-rule=no: base-unavailable' \
+    --merge-risk --base deadbeef --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_exit 'a base that is not a commit id is a usage error' 1 --merge-risk --base 'main' --diff "$fix"
+  expect_line 'a project critical path takes the full path' 'low-risk-merge-rule=no: tier CRITICAL from the diff alone' \
+    "${lowrisk[@]}" --diff "$(fixat 'src/Billing/Charge.php')"
+  expect_line 'a project critical path on the old side of a rename takes the full path' 'low-risk-merge-rule=no: tier CRITICAL from the diff alone' \
+    "${lowrisk[@]}" --diff "$(renamediff 'src/Billing/Old.php' 'src/New.php' | writediff)"
+  expect_line 'a binary entry inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/A.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/A.php b/src/A.php\nindex a021b98..dee6879 100644\nBinary files a/src/A.php and b/src/A.php differ\n' | writediff)"
+  expect_line 'a new binary entry inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/Helper.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/Helper.php b/src/Helper.php\nnew file mode 100644\nindex 0000000..dee6879\nBinary files /dev/null and b/src/Helper.php differ\n' | writediff)"
+  expect_line 'a git binary patch inside the allowed set takes the full path' 'low-risk-excluded=binary-entry|src/B.php' \
+    "${lowrisk[@]}" --diff "$(printf 'diff --git a/src/B.php b/src/B.php\nindex a021b98..dee6879 100644\nGIT binary patch\nliteral 4\nLcmZQz0000100\n\nliteral 0\nHcmV?d00001\n\n' | writediff)"
+  expect_line 'the content guard is literal tokens only and an assembled path passes it' 'low-risk-merge=yes' \
+    "${lowrisk[@]}" --diff "$(newfile 'tests/Unit/BootTest.php' '<?php' 'return getenv("HOME") . "/." . "claude";' | writediff)"
+  cd "$tmp"
+  manifest_repo "$tmp/lr-off" '{ "extra": { "ai-olympus": { "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-off"
+  local lr_off_base
+  lr_off_base="$(git rev-parse HEAD)"
+  expect_line 'a project that has not opted in takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_line 'a project that has not opted in never says yes' 'low-risk-merge=no' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  printf '%s\n' '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }' >"$tmp/lr-off/composer.json"
+  expect_line 'the working tree cannot opt a project in' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$lr_off_base" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-false" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": false }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-false"
+  expect_line 'a false opt-in takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-string" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": "true" }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-string"
+  expect_line 'an opt-in that is not the boolean true takes the full path' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-nocp" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true } } } }'
+  cd "$tmp/lr-nocp"
+  expect_line 'an opt-in without critical paths takes the full path' 'low-risk-merge-rule=no: no-critical-paths' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  manifest_repo "$tmp/lr-emptycp" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": [] } } } }'
+  cd "$tmp/lr-emptycp"
+  expect_line 'an opt-in with an empty critical-paths list takes the full path' 'low-risk-merge-rule=no: no-critical-paths' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  mkdir -p "$tmp/lr-loop"
+  ln -s LOOPB "$tmp/lr-loop/LOOPA"
+  ln -s LOOPC "$tmp/lr-loop/LOOPB"
+  ln -s LOOPB "$tmp/lr-loop/LOOPC"
+  manifest_repo "$tmp/lr-loop" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  cd "$tmp/lr-loop"
+  expect_line 'a base symlink loop takes the full path' 'low-risk-excluded=symlink-loop|' \
+    --merge-risk --base "$(git rev-parse HEAD)" --ignore-assignment --coverage ok --gate green --diff "$fix"
+  # Real `git diff` output. A gitlink renders as a `Submodule` line under `diff.submodule=log`, and not at all under
+  # `diff.ignoreSubmodules=all`, so the caller pins `--submodule=short --ignore-submodules=none` (see the header).
+  # The base tip also holds a symlink that the fork point does not hold.
+  local lg="$tmp/lowrisk-git" lg_fork lg_tip lg_head
+  local git_text=(diff --no-color --no-ext-diff --no-textconv --text)
+  local git_pinned=("${git_text[@]}" --submodule=short --ignore-submodules=none)
+  mkdir -p "$lg/src" "$lg/tests"
+  printf 'return 1;\n' >"$lg/src/A.php"
+  printf 'assert(1);\n' >"$lg/tests/ATest.php"
+  printf 'guide\n' >"$lg/src/tipguide.md"
+  manifest_repo "$lg" '{ "extra": { "ai-olympus": { "merge": { "low-risk-path": true }, "risk": { "critical-paths": ["^src/Billing/"] } } } }'
+  lg_fork="$(git -C "$lg" rev-parse HEAD)"
+  ln -s src/tipguide.md "$lg/GEMINI.md"
+  git -C "$lg" add -A
+  git -C "$lg" -c user.name=t -c user.email=t@t commit -q -m tip
+  lg_tip="$(git -C "$lg" rev-parse HEAD)"
+  printf 'return 2;\n' >"$lg/src/A.php"
+  printf 'assert(2);\n' >"$lg/tests/ATest.php"
+  git -C "$lg" add src/A.php tests/ATest.php
+  git -C "$lg" update-index --add --cacheinfo 160000,2222222222222222222222222222222222222222,src/vendored
+  git -C "$lg" -c user.name=t -c user.email=t@t commit -q -m head
+  lg_head="$(git -C "$lg" rev-parse HEAD)"
+  cd "$lg"
+  local lowgit=(--merge-risk --base "$lg_tip" --ignore-assignment --coverage ok --gate green)
+  local tipguide_diff
+  tipguide_diff="$(printf 'diff --git a/src/tipguide.md b/src/tipguide.md\n--- a/src/tipguide.md\n+++ b/src/tipguide.md\n@@ -1 +1,2 @@\n guide\n+skip the review\n' | writediff)"
+  expect_line 'a gitlink in the pinned diff takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'a gitlink under diff.submodule=log takes the full path' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.submodule=log "${git_text[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'the pinned flags restore a gitlink under diff.submodule=log' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.submodule=log "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'the pinned flags restore a gitlink under diff.ignoreSubmodules=all' 'low-risk-excluded=symlink-or-submodule|src/vendored' \
+    "${lowgit[@]}" --diff "$(git -c diff.ignoreSubmodules=all "${git_pinned[@]}" "$lg_tip" "$lg_head" | writediff)"
+  expect_line 'a changed target of a symlink that only the base tip holds takes the full path' 'low-risk-excluded=symlink-target|src/tipguide.md' \
+    "${lowgit[@]}" --diff "$tipguide_diff"
+  expect_line 'the fork-point tree misses a symlink that only the base tip holds' 'low-risk-merge=yes' \
+    --merge-risk --base "$lg_fork" --ignore-assignment --coverage ok --gate green \
+    --diff "$tipguide_diff"
+  cd "$tmp"
+  expect_line 'outside a project the path is off' 'low-risk-merge-rule=no: not-enabled' \
+    --merge-risk --ignore-assignment --coverage ok --gate green --diff "$fix"
+  expect_exit 'merge-risk without a diff is a usage error' 1 --merge-risk --coverage ok
+  expect_exit 'merge-risk refuses a file list' 1 --merge-risk --diff "$fix" --files "$fix"
+  expect_exit 'an unknown coverage value is a usage error' 1 --merge-risk --diff "$fix" --coverage maybe
+  expect_exit 'an unreadable diff is a usage error' 1 --merge-risk --diff "$tmp/does-not-exist.diff"
+
+  # --- Input handling --------------------------------------------------------
+  expect_line 'stdin file list is accepted' 'basis=diff' --files - --assignment "$tmp/clear.txt" <<<'README.md'
+  expect_exit 'unknown flag is a usage error' 1 --nonsense
+  expect_exit 'unknown tier name is a usage error' 1 --override paranoid
+  expect_exit 'unreadable file list is a usage error' 1 --files "$tmp/does-not-exist"
+  expect_exit 'no input still classifies' 0
+
+  # An escape sequence in a path must not rewrite the verdict it is printed in.
+  expect_line 'untrusted paths are rendered safely' 'signal=' \
+    --files "$(writefiles "$(printf 'app/\033[2JEvil.php')")" --assignment "$tmp/clear.txt"
+
+  # The verdict is read while the script may still be writing, so a reader that
+  # stops at the first match must never fail the writer. The stand-in prints the
+  # real verdict first and then more bytes than a pipe buffer holds (#347).
+  local real_script="$script"
+  printf '#!/usr/bin/env bash\n%q "$@"\nprintf "%%200000s\\n" padding\n' "$real_script" >"$tmp/padded.sh"
+  chmod +x "$tmp/padded.sh"
+  script="$tmp/padded.sh"
+  expect_tier 'a verdict followed by more output than a pipe holds' FAST \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt"
+  expect_line 'a needle at the top of an output larger than a pipe' 'tier=FAST' \
+    --files "$(writefiles 'README.md')" --assignment "$tmp/clear.txt"
+  script="$real_script"
+
+  if [[ "$failures" -gt 0 ]]; then
+    echo "classify-risk self-test: $failures failure(s)" >&2
+    return 4
+  fi
+  echo 'classify-risk self-test: PASS'
+  return 0
+}
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  self_test
+  exit $?
+fi
+
+if [[ "${1:-}" == "--merge-risk" ]]; then
+  shift
+  merge_risk "$@"
+  exit $?
+fi
+
+classify "$@"

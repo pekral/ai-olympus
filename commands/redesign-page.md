@@ -3,6 +3,8 @@ description: Redesign one application page from its URL — previews for approva
 argument-hint: [page URL]
 ---
 
+On Claude Code, resolve `commands/_shared/` below `.claude/command-support/`; on Codex, resolve it below `.codex/commands/`.
+
 Run `@skills/deliver-page-redesign/SKILL.md` with this page URL. Resolve and capture the page in
 this session, get the redesign previews approved by me, then delegate the delivery route to the
 `krang` role as the skill describes. This session holds that role itself and

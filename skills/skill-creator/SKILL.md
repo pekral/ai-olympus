@@ -13,6 +13,11 @@ metadata:
 - Do not modify other skills, rules, or production code
 - Do not duplicate an existing skill — extend or refactor instead
 - Never add behavior beyond what the requested skill needs
+- Keep a skill role-neutral: it names no roster member, selects no specialist, and contains no
+  dispatch or lifecycle-coordination protocol. A skill returns its bounded result to its caller.
+  Put a user-facing lifecycle or specialist-selection change in `commands/`, whose shared support
+  is a non-Markdown file below `commands/_shared/` so plugin discovery cannot expose it as a
+  public command.
 
 ---
 
@@ -74,7 +79,7 @@ The rules that make the split work, each one load-bearing:
 - **Progressive disclosure.** Keep the `SKILL.md` body under 500 lines (this repo's `skill-check.config.json` enforces the same limit) and move detail into a sibling file rather than growing the body. A referenced file costs nothing until it is read.
 - **References stay one level deep.** Every supporting file links directly from `SKILL.md`. A file that is only reachable through another file gets partially read (`head -100`) instead of read whole.
 - **Say whether a script is executed or read.** *"Run `skills/<slug>/scripts/validate.sh`"* and *"see `skills/<slug>/scripts/validate.sh` for the algorithm"* are different instructions; execution is the default because it is cheaper and more reliable than regenerating the logic.
-- **Ship the scripts the workflow needs.** For each shell step collected above, reuse a `skills/_shared/*.sh` helper or a script of another skill first. Write `skills/<slug>/scripts/<name>.sh` only for a step that is deterministic and is multi-command, parsed by the agent, or repeated. A single short command stays inline in `SKILL.md`. The script is executable (git mode `100755`) and starts with `#!/usr/bin/env bash`, a header comment that states its purpose and usage, and `set -euo pipefail`, as in `skills/_shared/assert-current-repo.sh`. Add a test that runs it under `tests/Contract/**` or `tests/Installer/**`, as `tests/Contract/Shared/ReadManifestUnreadableTest.php` does for `skills/_shared/read-manifest.sh`.
+- **Ship the scripts the workflow needs.** For each shell step collected above, reuse a `skills/_shared/*.sh` helper or a script of another skill first. Write `skills/<slug>/scripts/<name>.sh` only for a step that is deterministic and is multi-command, parsed by the agent, or repeated. A single short command stays inline in `SKILL.md`. The script is executable (git mode `100755`) and starts with `#!/usr/bin/env bash`, a header comment that states its purpose and usage, and `set -euo pipefail`, as in `skills/_shared/assert-current-repo.sh`. Add a test that runs it under `tests/Contract/**` or `tests/Installer/**`, as `tests/Contract/Shared/ReadManifestUnreadableTest.php` does for `commands/_shared/read-manifest.sh`.
 - **Reference a script by its repository path.** Write `skills/<slug>/scripts/<name>.sh` and say that it is executed. The installer copies `skills/**` to `.claude/skills/` and `.agents/skills/`, and `AGENTS.md` maps the bare path to `.agents/skills/` on Codex, so one form works on both platforms.
 - **Name files for their content and forward-slash every path.** `references/finance.md`, never `docs/file2.md`; `scripts/helper.sh`, never `scripts\helper.sh`.
 - **A reference file over 100 lines opens with a table of contents**, so a partial read still shows the full scope.

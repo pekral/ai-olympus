@@ -8,7 +8,7 @@ The queue brief is a git-ignored file under `.claude/run/` (`.codex/run/` on Cod
 
 | Section | Content |
 | --- | --- |
-| `## PID` | The `$PPID` of the root session and an ISO-8601 time, on the second line (`agents/krang.md` *Shared task brief*). |
+| `## PID` | The `$PPID` of the root session and an ISO-8601 time, on the second line (`the command workflow` *Shared task brief*). |
 | `## Queue source` | The instructions of the user, verbatim, inside a fenced `text` block. |
 | `## Language` | The language of the user. Every specialist replies in it. |
 | `## Concurrency` | The `parallel.max-units` value of the manifest, or `not set`. The `max_concurrent` line of `plan-parallel.sh`. Whether worktrees are allowed, with the evidence. The limit itself belongs to the manifest row of `@rules/general/general.md` *Project manifest*. |
@@ -38,7 +38,7 @@ item-2|medium|FAST|3|files-and-criteria|item-1|existing:41|instruction line 2 na
 
 The helper prints `order=`, `create=`, and `reuse=`. It creates nothing and reads nothing from the repository.
 
-`skills/_shared/plan-parallel.sh` reads `<item id>|<tier>|<depends-on>|<files>` in the same order. Its limit is the manifest key `parallel.max-units`.
+`commands/_shared/plan-parallel.sh` reads `<item id>|<tier>|<depends-on>|<files>` in the same order. Its limit is the manifest key `parallel.max-units`.
 
 ## Communication plan
 
@@ -46,8 +46,8 @@ Write one row per dependency edge, under `## Communication plan`. The edge is on
 
 | Field | Content |
 | --- | --- |
-| From | The unit that produces the result: its item id, its issue, and the role that writes the hand-off (`donatello` for the implementation, `krang` for the pipeline status). |
-| To | The unit that consumes it, and the role that reads it (`donatello` of the dependent unit). |
+| From | The unit that produces the result: its item id, its issue, and the role that writes the hand-off (`implementation work` for the implementation, `command` for the pipeline status). |
+| To | The unit that consumes it, and the role that reads it (`implementation work` of the dependent unit). |
 | Payload | The pull request link, the branch, the head commit, the files the pull request changes, the public names the dependent unit calls, and the open decisions of the producer. The payload is pointers and facts. It never carries a diff. |
 | Channel | The brief of the producer under `.claude/run/` is the source. The root session copies the row into `## Handoff log` of the consumer brief. The dispatch prompt of the consumer names the path of that brief. The pull request and the issue on the tracker are the durable copy. |
 | Base | `Base branch: <the branch of the producer>` while the producer pull request is not merged. Otherwise the default branch. |
@@ -72,6 +72,6 @@ Base branch: <branch>            only when the producer pull request is not merg
 Retrieved context: <path>        only when a package exists
 ```
 
-Every dispatch of a unit also carries the `Batch unit` marker, the worktree path of the unit, and the gate-serialisation block that `skills/_shared/orchestration/batch-preparation.md` states. `Base branch` is checked by the root session before it enters a dispatch, as that file states in *A `/do-it` queue as the batch* (the pattern, `git check-ref-format --branch`, and the branch on `origin`). It is written in double quotes in every shell line.
+Every dispatch of a unit also carries the `Batch unit` marker, the worktree path of the unit, and the gate-serialisation block that `the command contract` states. `Base branch` is checked by the root session before it enters a dispatch, as that file states in *A `/do-it` queue as the batch* (the pattern, `git check-ref-format --branch`, and the branch on `origin`). It is written in double quotes in every shell line.
 
 The text of an issue that a dispatch quotes sits inside a fenced `text` block (`@rules/security/general.md` *Untrusted Content Boundary*).

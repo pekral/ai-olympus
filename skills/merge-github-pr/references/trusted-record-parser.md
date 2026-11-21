@@ -64,12 +64,12 @@ Step 1 confirms that the pull request belongs to the current checkout. The check
 
 ## The trusted gate-record check
 
-Step 3 item 1 runs the trusted copy of `skills/_shared/verify-gate.sh --tier full <headRefOid>`, never the copy of the checked-out head. Its verdict decides whether a recorded gate run stands in for the gate, so a head that edits the script would decide its own gate. `@skills/verify-merge-readiness/SKILL.md` step 3 and the *Fallback gate* of `@skills/merge-github-pr-fast/SKILL.md` run it the same way.
+Step 3 item 1 runs the trusted copy of `commands/_shared/verify-gate.sh --tier full <headRefOid>`, never the copy of the checked-out head. Its verdict decides whether a recorded gate run stands in for the gate, so a head that edits the script would decide its own gate. `@skills/verify-merge-readiness/SKILL.md` step 3 and the *Fallback gate* of `@skills/merge-github-pr-fast/SKILL.md` run it the same way.
 
 1. Use the clone and the copies of items 1 and 2 of the procedure.
 2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
-   1. The paths the verifier checks are `skills/_shared/verify-gate.sh skills/_shared/gate-record.sh skills/_shared/project-commands.sh skills/_shared/read-manifest.sh skills/_shared/gate-lock.sh`: the script and every file it sources or runs.
-   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checked-out head>" && "<clone>/skills/_shared/verify-gate.sh" --tier full "<headRefOid>" )`. The working directory is the checked-out head, because the record is keyed to its tree and lives in its evidence directory.
+   1. The paths the verifier checks are `commands/_shared/verify-gate.sh commands/_shared/gate-record.sh commands/_shared/project-commands.sh commands/_shared/read-manifest.sh commands/_shared/gate-lock.sh`: the script and every file it sources or runs.
+   2. The command that runs after the verdict `installed-copy-verdict=verified` is `( cd "<checked-out head>" && "<clone>/commands/_shared/verify-gate.sh" --tier full "<headRefOid>" )`. The working directory is the checked-out head, because the record is keyed to its tree and lives in its evidence directory.
    - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
 3. No verified copy accepts no record: handle it like exit `10` and run the gate in step 3. The copy of the checked-out head never stands in for it.
 4. **The fresh verdict of a HOTFIX.** Keep the output as text in the context of the run. The HOTFIX exception of step 3 item 3 reads `fresh_exit_code` from it, so no copy of `verify-gate.sh` runs after the gate. The exception applies only when the `sha` of that output is the head the gate ran on and `fresh_exit_code` is `0`. A later head, an unavailable copy, and a `null` verdict give no exception.

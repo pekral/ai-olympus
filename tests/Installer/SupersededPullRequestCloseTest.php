@@ -27,7 +27,7 @@ test('the consent table names krang as the only agent that closes a superseded p
         ->and($row)->toContain('the one owner of the `-vN` path')
         ->and($row)->toContain('L1 inside an orchestrated run that already owns the work unit')
         ->and($row)->toContain('The comment goes through `upsert-comment.sh` (`agent-note`)')
-        ->and($row)->toContain('the close through `skills/_shared/audit-trail.sh run --`')
+        ->and($row)->toContain('the close through `commands/_shared/audit-trail.sh run --`')
         ->and($row)->toContain('It is the only agent that closes a superseded pull request, and it closes no other pull request');
 });
 
@@ -50,15 +50,15 @@ test('donatello never closes a pull request and hands the superseded number back
 });
 
 test('the -vN path has one owner, and the other files point to it', function (): void {
-    $batch = packageSource('skills/_shared/orchestration/batch-preparation.md');
-    $krang = packageSource('agents/krang.md');
+    $batch = packageSource('commands/_shared/orchestration/batch-preparation.inc');
+    $krang = packageSource('commands/_shared/krang-workflow.inc');
     $orchestration = packageSource('rules/compound-engineering/orchestration.md');
 
     expect($batch)->toContain('**The close belongs to the root session.**')
         ->and($batch)->toContain('This is the one description of the `-vN` path, and every other file points here.')
         ->and($batch)->toContain('It never closes a pull request.')
         ->and($batch)->toContain(
-            'AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- gh pr close <replaced number>',
+            'AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang commands/_shared/audit-trail.sh run -- gh pr close <replaced number>',
         )
         ->and($batch)->toContain('A new pull request that is not open leaves the replaced one open.')
         ->and($batch)->toContain(
@@ -104,7 +104,7 @@ test('the -vN path applies only on a repository without ci, and with ci donatell
         ->and($pushRow)->toContain('without CI the `<branch>-vN` path applies instead');
     expect($updateRow)->toContain('On a conflict, `donatello` force-pushes the branch with CI, or pushes `<branch>-vN` without CI')
         ->and($updateRow)->not->toContain('A conflict is never forced');
-    expect(packageSource('agents/krang.md'))
+    expect(packageSource('commands/_shared/krang-workflow.inc'))
         ->toContain('(a repository without CI only; with CI the rebased branch stays in its own pull request)');
     expect(packageSource('agents/donatello.md'))
         ->toContain('When the `-vN` path replaces a pull request on a repository without CI,');

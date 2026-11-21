@@ -26,7 +26,7 @@ test('blast-radius-analysis sets its depth by the existing tier and escalates on
     expect($skill)->toContain('| `FAST` | No standalone report.');
     expect($skill)->toContain('| `STANDARD` | Direct callers and consumers of every changed symbol');
     expect($skill)->toContain('| `CRITICAL` | `STANDARD`, plus one further hop for every shared symbol');
-    expect($skill)->toContain('skills/_shared/classify-risk.sh --files <the paths> --floor <the current tier>');
+    expect($skill)->toContain('commands/_shared/classify-risk.sh --files <the paths> --floor <the current tier>');
     expect($skill)->toContain('The number of files is never a depth signal.');
 });
 

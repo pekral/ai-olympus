@@ -105,7 +105,7 @@ test('the JIRA rule fetches into a new folder, reads only its manifest, and audi
         ->and($section)->not->toContain('with `mkdir -p` first')
         ->and($section)->toContain('Run `skills/code-review-jira/scripts/download-attachments.sh <KEY> --dest <folder>`.')
         ->and($section)->toContain(
-            '`skills/_shared/audit-trail.sh append --class outbound-request --target "<attachmentSite>" '
+            '`commands/_shared/audit-trail.sh append --class outbound-request --target "<attachmentSite>" '
             . '--result "JIRA attachments of <KEY>: exit <code>"`',
         )
         ->and($section)->toContain('`<attachmentSite>` is the `attachmentSite` field of the same `load-issue.sh` output')

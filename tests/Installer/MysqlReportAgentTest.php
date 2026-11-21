@@ -31,7 +31,7 @@ test('the casey report is advisory and never gates convergence or the merge (iss
 
 test('krang dispatches casey in every parallel cr round, and casey stops on PostgreSQL (issue #180)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
     expect($krang)->toContain('- **Database report (`casey`) — advisory, in every round.**')
@@ -97,7 +97,7 @@ test('the casey NoSQL trigger runs in every project and has one owner (criterion
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
-    $krang = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
 
     expect($reference)->toContain('- **NoSQL part.** The diff changes NoSQL access, in every project, whatever the SQL engine resolved to.')
         ->and($reference)->toContain('a diff can fire one, two, or all three.')
@@ -184,7 +184,7 @@ function caseyReportSurfaceFiles(): array
     return [
         'agents/casey.md',
         'codex/agents/casey.toml',
-        'agents/krang.md',
+        'commands/_shared/krang-workflow.inc',
         'agents/leonardo.md',
         'skills/code-review/references/specialized-reviews.md',
         'skills/code-review-github/templates/pr-comment-output.md',
