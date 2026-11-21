@@ -137,8 +137,10 @@ function jiraSummaryGroupedShapeViolations(array $lines, bool $criteriaUnmet): a
         }
     }
 
-    if ($issueLevel !== ($criteriaUnmet ? 1 : 0)) {
-        $violations[] = sprintf('sections: %d issue-level h2 sections, expected %d', $issueLevel, $criteriaUnmet ? 1 : 0);
+    $expectedIssueSections = (int) $criteriaUnmet;
+
+    if ($issueLevel !== $expectedIssueSections) {
+        $violations[] = sprintf('sections: %d issue-level h2 sections, expected %d', $issueLevel, $expectedIssueSections);
     }
 
     foreach ($groups as $group) {
