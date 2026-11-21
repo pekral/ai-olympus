@@ -1,5 +1,14 @@
 # X brand writing usage
 
+## Table of contents
+
+- [Install and invoke](#install-and-invoke)
+- [Prompt patterns](#prompt-patterns)
+- [Output rules](#output-rules)
+- [Sample validation](#sample-validation)
+- [Executed preference-isolation validation](#executed-preference-isolation-validation)
+- [Preference record](#preference-record)
+
 ## Install and invoke
 
 Install this folder with the rest of the package. In a host project, the installer places it in both skill locations:
