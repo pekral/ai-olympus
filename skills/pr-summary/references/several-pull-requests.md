@@ -8,7 +8,7 @@ Apply it when the issue the comment is published on links more than one pull req
 
 Render these once, above the groups, because they describe the issue and not one pull request:
 
-1. The assignment verdict: `Acceptance criteria` on JIRA when the assignment states explicit criteria, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
+1. The assignment verdict: `Acceptance criteria` on JIRA only for requirements that still need action, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
 2. The author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
 3. The closing links line, which lists every pull request, and the JIRA footer.
 
@@ -17,7 +17,7 @@ Render these once, above the groups, because they describe the issue and not one
 Everything that retells one pull request:
 
 - `Review findings`, with each question that closes a finding bullet, and the author mention a review-only run adds (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). The new and already-reported groups of `SKILL.md` *Review-only run* sit inside each pull request's group.
-- `What changed`, `How to test`, and `Impact after deployment`, wherever the target renders them.
+- `TL;DR` on JIRA; `What changed` and `How to test` on GitHub and Bugsnag.
 - A clarifying question or a reviewer remark that concerns this pull request only.
 
 A question that no pull request owns stays at the issue level, as the closing sentence of its criterion bullet.

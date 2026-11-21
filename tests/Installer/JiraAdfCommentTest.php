@@ -208,7 +208,7 @@ test('april runs three publication checks before a JIRA comment counts as publis
     expect($april)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
     expect($april)->toContain('**Remove each hit — never annotate it**');
     expect($april)->toContain(
-        'shorten `What changed` first, then merge `Impact after deployment` bullets, never an `Acceptance criteria` or a `Review findings` bullet',
+        'shorten the combined `TL;DR` paragraph first, never an `Acceptance criteria` or a `Review findings` bullet',
     );
 
     // 2. ADF publication.

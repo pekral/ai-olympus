@@ -487,7 +487,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines, and a fence in a list item is bound by a stack of item offsets (issue #589).
         // Re-baselined: an Actionable comments entry may carry the suggested code of its finding, the one code a review shows (issue #654).
         // Re-baselined: the marker family names the `pr-body-overflow` namespace, the upserted pull-request body overflow comment (issue #662).
-        'rules/code-review/general.md' => '3cf5cd196d55e91c49739b2f694b47a8663b97ff02a1760c227cb723023347e2',
+        'rules/code-review/general.md' => '6ebae3eba83b9f5f97c3dba4c6cb52c730f0b153fff707a99a56c54f1a7cd0b8',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -612,7 +612,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        'rules/reports/general.md' => 'b48c4bb6610e3b71394e038b3fb9ea0fa7a0676699e3f59c628811f3b14291e9',
+        'rules/reports/general.md' => 'e08225a3b9d2622d4df173884035befa39521364b2298c4f1435e311c31f5aca',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
