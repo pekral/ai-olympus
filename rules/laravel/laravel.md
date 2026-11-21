@@ -28,12 +28,14 @@ paths:
 - Validation rule traits (see the **Validation** section below) are one specific worked example of this rule, not the only allowed category.
 
 ## Validation
-- Use FormRequest classes for controller input validation.
+- **Prefer request-level validation for HTTP input.** Put required fields, types, formats, ranges, and request-specific checks in the endpoint's FormRequest. Laravel must validate them before the controller calls an Action.
+- Controllers pass only validated values or a DTO built from them. Do not defer HTTP input validation to an Action or a Data Validator called by it.
+- Keep domain invariants that depend on execution-time state in the domain flow. Non-HTTP entry points (jobs, commands, listeners) still validate their own input through Data Validators.
 - Store all validation rules as reusable traits in `app/Concerns/` (e.g. `GitHubIssueNumbersValidationRules`, `JiraIssueKeysValidationRules`). Keep this approach consistent across the entire application.
 - All non-FormRequest validation logic must be encapsulated in dedicated Data Validator classes (default location `app/DataValidators/{Domain}/`, but follow the project's existing convention). Data Validators must use validation rules from traits in `app/Concerns/` — never define rule arrays inline.
 - Use custom Rule classes in `app/Rules/` for complex or reusable validation.
 - Before adding validation logic, check `app/Rules/` for an existing custom Rule. If none exists and the logic is non-trivial or reusable, create a new custom Rule class and use it.
-- Never inline `Validator::make()`, throw `ValidationException`, or use imperative guard clauses (e.g. `if (!in_array(...)) throw new InvalidArgumentException(...)`) directly in Actions, Services, Facades, controllers, jobs, commands, listeners, or Livewire components — extract into a Data Validator using validation traits from `app/Concerns/`.
+- Never inline `Validator::make()`, throw `ValidationException`, or use imperative guard clauses (e.g. `if (!in_array(...)) throw new InvalidArgumentException(...)`) directly in Actions, Services, Facades, controllers, jobs, commands, listeners, or Livewire components — move HTTP input checks into the FormRequest; use a Data Validator for non-HTTP input and domain invariants. Reuse validation traits from `app/Concerns/`.
 - When `pekral/arch-app-services` is installed, Data Validators must use the `DataValidator` trait and call `$this->validate()` — see `@rules/laravel/architecture.md` for details.
 
 ## DTOs

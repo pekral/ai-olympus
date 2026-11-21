@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 📖 **Changed**: Laravel rules prefer HTTP input validation in the endpoint's FormRequest before an Action runs. Data Validators remain for non-HTTP input and execution-time domain invariants. Architecture review checks follow the same boundary.
+
 - 🐛 **Fixed**: code review explicitly permits native PHP enums in queued-job constructors and payload properties, without requiring a scalar conversion. Serializer incompatibilities and removed or renamed cases still receive compatibility checks. Per operator feedback on ECOMAIL-7394.
 - 🐛 **Fixed**: JIRA code-review reports omit satisfied requirements, positive completion verdicts, and repaired parts of an open finding. Only remaining requests for changes or answers are listed. The former change and deployment-impact sections now form one `TL;DR` paragraph, capped at 600 characters. The JIRA comment validator accepts `--criteria unmet|none` so a fully satisfied assignment has no criteria section.
 

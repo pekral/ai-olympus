@@ -238,7 +238,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: *Database and Eloquent* points to the CR *N+1 queries* walk.
         // Re-baselined: a query condition applied in two or more places is a local scope on the model.
         // Re-baselined: *Carbon and Framework Helpers* reuses the classes the framework ships and states the reuse order.
-        'rules/laravel/laravel.md' => '0054019e050ebecda247633ffc8b468db4713b36f1e57cffe1da5e991682a823',
+        'rules/laravel/laravel.md' => 'e9aa8c0431b3eef12115843b0ac90a0be5e7a153318340e8613c61d1abd2449c',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -425,7 +425,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: an Enum carries no data transformation, and a Data Builder method is never `static`.
         // Re-baselined: an Enum may hold a dependency-free conversion over its own cases (issue #652).
         // Re-baselined: a raw-body pass-through endpoint may keep the generic `Illuminate\Http\Request` under four conditions (issue #653).
-        'rules/laravel/architecture.md' => '595ad61ae5158a2d00d834da420da604fbe142b2f6633787b0b9be4bb47d61fb',
+        'rules/laravel/architecture.md' => 'fc7ae75bd72a04efa9ecc8d0d4bdbec515d952e0feccee2ba31102d6db1aeb36',
         // Re-baselined: a modified `Scan` is re-justified in the PR description only, because a
         // PHP comment carries only `@` annotations. Nothing else in the file moved.
         // Re-baselined: the file gained `## Local Scopes on DynamoDB Models`.
