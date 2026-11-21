@@ -41,6 +41,11 @@ final class InstallerGlobalSkills
             }
 
             $removed = [...$removed, ...self::pruneDirectory($homeSkills, $skillNames)];
+            $support = dirname($homeSkills) . '/ai-olympus-commands';
+
+            if (!is_link(dirname($homeSkills)) && !is_link($support) && is_file($support . '/_shared/skill-entry.inc')) {
+                self::removeEntry($support, dirname($skillsSource) . '/commands');
+            }
         }
 
         $removed = array_values(array_unique($removed));
@@ -98,7 +103,7 @@ final class InstallerGlobalSkills
         return $leftReal !== false && $leftReal === $rightReal;
     }
 
-    private static function removeEntry(string $path): bool
+    private static function removeEntry(string $path, ?string $source = null): bool
     {
         // A symlinked install is removed as the link itself — never followed, so the target
         // tree it points at (a checkout elsewhere on disk) survives.
@@ -130,10 +135,29 @@ final class InstallerGlobalSkills
                 continue;
             }
 
+            if ($source !== null && !self::matchesSource($entryPath, $source . substr($entryPath, strlen($path)))) {
+                continue;
+            }
+
             self::unlinkQuietly($entryPath);
         }
 
         return self::rmdirQuietly($path);
+    }
+
+    private static function matchesSource(string $path, string $source): bool
+    {
+        if (!is_file($source) || !is_file($path)) {
+            return false;
+        }
+
+        if (is_link($path)) {
+            return realpath($path) === realpath($source);
+        }
+
+        $reference = hash_file('sha256', $source);
+
+        return $reference !== false && hash_file('sha256', $path) === $reference;
     }
 
     private static function unlinkQuietly(string $path): bool

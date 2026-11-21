@@ -3,8 +3,20 @@
 # Resolve relative to this library, independently of the operator's current checkout.
 command_skill_root() {
   local shared root candidate
-  shared="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)" || return 1
+  # A symlink install links individual source files. Resolve this already-loaded library first.
+  local origin="${BASH_SOURCE[0]}" target
+  while [[ -L "$origin" ]]; do
+    target="$(readlink "$origin")" || return 1
+    case "$target" in
+      /*) origin="$target" ;;
+      *) origin="$(dirname -- "$origin")/$target" ;;
+    esac
+  done
+  shared="$(cd -- "$(dirname -- "$origin")" && pwd -P)" || return 1
   case "$shared" in
+    */.claude/ai-olympus-commands/_shared|*/.agents/ai-olympus-commands/_shared)
+      candidate="${shared%/ai-olympus-commands/_shared}/skills"
+      ;;
     */.claude/command-support/_shared)
       root="${shared%/.claude/command-support/_shared}"
       candidate="$root/.claude/skills"

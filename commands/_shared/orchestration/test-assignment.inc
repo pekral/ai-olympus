@@ -33,7 +33,7 @@ The root session holds the `krang` role. Validate the source, take the working-t
 ### 7. Finish by mode
 
 - `report` mode: dispatch `april` in *Test report mode* (`agents/april.md`). It publishes the technical report on the pull request, rendered from `skills/test-assignment/templates/test-report-pr.md`, and the plain-language summary on the source issue through `@skills/pr-summary/SKILL.md`.
-- `fix` mode: send every `Not met` row and every failure caused by this pull request to `donatello`. Then continue with `@skills/verify-merge-readiness/SKILL.md` from its step 2. The review loop, the exact-head gate, and the source-issue TL;DR run there, with the evidence of steps 2 to 6 in the brief. Stop before merge.
+- `fix` mode: send every `Not met` row and every failure caused by this pull request to `donatello`. Then continue with `commands/_shared/orchestration/verify-merge-readiness.inc` from its step 2. The review loop, the exact-head gate, and the source-issue TL;DR run there, with the evidence of steps 2 to 6 in the brief. Stop before merge.
 - Run *Run cleanup* (`commands/_shared/krang-workflow.inc`) on every terminating path.
 
 

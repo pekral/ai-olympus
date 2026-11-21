@@ -127,3 +127,20 @@ test('install rejects --global combined with --prune-global', function (): void 
         expect(is_dir($result['root'] . '/.claude/skills'))->toBeFalse();
     });
 });
+
+test('global skill helpers use the matching home payload outside any checkout', function (): void {
+    globalSkillsRunInstall(['--global'], null, function (array $result): void {
+        foreach (['.agents', '.claude'] as $platform) {
+            $scripts = $result['home'] . '/' . $platform . '/skills/_shared';
+            $helper = $result['home'] . '/' . $platform . '/ai-olympus-commands/_shared/audit-trail.sh';
+            $process = new \Symfony\Component\Process\Process(
+                ['bash', '-c', 'source "$1" && resolve_command_helper audit-trail.sh', 'lookup', $scripts . '/resolve-command-helper.sh'],
+                $result['home'],
+                ['HOME' => $result['home']],
+            );
+
+            expect($process->mustRun()->getOutput())->toBe($helper . "\n")
+                ->and(is_file($helper))->toBeTrue();
+        }
+    });
+});

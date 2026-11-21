@@ -264,6 +264,12 @@ final class Installer
             $payloads[] = [$commandsSource, InstallerPath::resolveCommandsTargetDirectories($root), self::publicCommandFiles($commandsSource)];
             $payloads[] = [$commandsSource, InstallerPath::resolveCommandSupportTargetDirectories($root), self::commandSupportFiles($commandsSource)];
             $payloads[] = [$commandsSource, InstallerPath::resolveCodexCommandsTargetDirectories($root), null];
+
+            if ($global) {
+                foreach (InstallerPath::resolveHomeSkillsDirectories() as $homeSkills) {
+                    $payloads[] = [$commandsSource, [dirname($homeSkills) . '/ai-olympus-commands'], null];
+                }
+            }
         }
 
         $codexAgentsSource = InstallerPath::resolveCodexAgentsSource();

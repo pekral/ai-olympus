@@ -169,6 +169,8 @@ Skills go to the project's `.claude/skills` and `.agents/skills` and nowhere els
 
 So a copy in `~/.claude/skills` wins over the project's own copy, in **every** project on the machine. Install globally and each checkout silently runs whatever version the home directory happens to hold, rather than the version it has checked out — the two drift apart the moment one project upgrades the package and another does not, and nothing in the session surfaces which one won.
 
+Global skills load their private command support from `~/.claude/ai-olympus-commands` and `~/.agents/ai-olympus-commands`. The installer manages those package directories with `--global` and removes them with `--prune-global`.
+
 Keeping the install local ties each project to its own `composer.lock`. Pass `--global` when you genuinely want one shared set across projects that do not carry the package themselves; it installs to both locations, and the home copy then takes precedence.
 
 Upgrading from a version that always installed globally (every release before this flag existed) leaves the old home copies behind, and those keep shadowing the project. Clear them once:
