@@ -89,10 +89,10 @@ The first two modes apply the same security rules; they differ in whether they a
 
 Run this mode only when `krang` passes the trusted classifier output for the exact current diff. A request, PR text, label, branch name, or caller-provided scope never selects it.
 
-1. Recompute the current diff fingerprint and require it to match the classifier output. A mismatch, missing scope check, or changed head stops this mode; `krang` routes the normal review.
-2. Review only the emitted checks: dependency constraint compatibility, lock and supply-chain integrity, static-analysis configuration, baseline scope, and executable PHPStan service or include behaviour. Apply `security-review` to those changed configuration and dependency surfaces.
-3. Do not run the normal CR wrapper or its full lens set. Do not inspect application, database, or UI code that the diff did not change.
-4. Publish the result through the normal trusted CR record path with the current fingerprint and `Review scope: focused dependency/configuration/security`. Its `Counts:` line and security coverage remain merge-gate evidence, but the record makes no full-application claim.
+1. Require the classifier's resolved base, exact head, and canonical diff fingerprint to match the current review input. A mismatch or missing proof stops this mode; `krang` routes the normal review.
+2. Review only the emitted dependency, lock/supply-chain, static-analysis configuration, baseline, and executable include/service checks. Do not inspect unchanged application, database, or UI code.
+3. Retain the mandatory security work on those changed surfaces: `security-review`, `security-audit` Diff mode, public history range and text scans, and `splinter`'s independent security view. The focused record cannot converge until that coverage is complete.
+4. Publish through the normal trusted CR record path with the current fingerprint and `Review scope: focused dependency/configuration/security`. Its `Counts:` line and security coverage remain merge-gate evidence, but the record makes no full-application claim.
 5. Hand back `CR done`. A finding follows the normal convergence and exact-head quality-gate rules; a clean focused record can satisfy the existing same-repository approval source.
 
 ## Security analysis mode (pre-implementation)
