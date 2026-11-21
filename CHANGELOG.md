@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- ✨ **Added**: the `x-brand-writing` skill drafts exactly two distinct, evidence-based X post or thread variants for the host project. It applies the installed project voice when available, recommends an existing host asset for each variant, keeps optional style preferences in the host project, and never publishes to X.
+
 - 📖 **Changed**: Laravel rules prefer HTTP input validation in the endpoint's FormRequest before an Action runs. Data Validators remain for non-HTTP input and execution-time domain invariants. Architecture review checks follow the same boundary.
 
 - 🐛 **Fixed**: code review explicitly permits native PHP enums in queued-job constructors and payload properties, without requiring a scalar conversion. Serializer incompatibilities and removed or renamed cases still receive compatibility checks. Per operator feedback on ECOMAIL-7394.
