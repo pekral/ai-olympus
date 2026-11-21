@@ -39,7 +39,7 @@ The step is done when the main idea, supported facts, language, and an asset res
 
 1. On an AI Olympus host, load `agent-voice` as the constraint above directs. On a standalone installation, use the embedded fallback.
 2. If `<host-project-root>/.x-brand-writing/style.md` exists, read its compact preferences. The current brief overrides it.
-3. Apply only explicit style feedback. Treat a one-off edit as tentative until the user confirms it. Treat factual corrections as evidence corrections, never style preferences.
+3. Classify feedback before applying it. Explicit style feedback confirms a preference immediately. Two or more consistent implicit stylistic edits confirm it and are saved automatically without another consent question. Record a single ambiguous edit as tentative. Treat factual or topic corrections as evidence corrections, never style preferences.
 4. After a user edit or explicit feedback, write or update only `<host-project-root>/.x-brand-writing/style.md`. Save confirmed preferences immediately, record an uncertain single edit as tentative, and keep audience or scope notes and evidence paths or URLs. Exclude full drafts, private content, and global preferences. If the write fails, report it outside the drafts.
 5. When the user asks to change or forget a preference, update or remove the named entry after confirming the target host project. Report the result outside the drafts.
 
@@ -60,7 +60,8 @@ The step is done when two variants serve the same verified brief without repeati
 1. Write the two variants in the resolved language. Keep every standalone post within the weighted 280-character limit, using the conservative fallback from *Constraints* when a suitable validator is unavailable. Apply the same limit to each post in a thread.
 2. Run the installed weighted validator when available. Otherwise report `Weighted count: not verified — no suitable validator was available.` outside the drafts. Never replace this with a claim based on character count.
 3. Re-read each variant against the evidence. Remove unsupported claims, generic hype, and repeated ideas.
-4. Read [references/usage.md](references/usage.md) when the user needs installation guidance, prompt patterns, sample briefs, or the exact output shape.
+4. When the host UI supports a Markdown or native preview, show one preview of the verified shareable asset outside the copy-ready text. Reuse that preview for both variants when the asset is shared. Never invent an attachment or preview an unsuitable asset.
+5. Read [references/usage.md](references/usage.md) when the user needs installation guidance, prompt patterns, sample briefs, or the exact output shape.
 
 The step is done when there are exactly two verified, copy-ready variants and an asset recommendation for each.
 
@@ -71,12 +72,14 @@ Return this shape in the user's language:
 ```text
 Variant A
 Suggested asset: <verified, shareable host-project path or URL, or no suitable verified asset found>
+Preview: <Markdown/native preview only when the host UI supports it and the asset is suitable>
 Weighted count: <validator result, or not verified status>
 
 <copy-ready standalone post, or a complete thread with each post in its own copy block>
 
 Variant B
 Suggested asset: <verified, shareable host-project path or URL, or no suitable verified asset found>
+Preview: <Markdown/native preview only when the host UI supports it and the asset is suitable>
 Weighted count: <validator result, or not verified status>
 
 <copy-ready standalone post, or a complete thread with each post in its own copy block>
@@ -91,7 +94,7 @@ The labels, asset recommendations, validation status, and notes stay outside the
 - Each claim comes from supplied or inspected host-project evidence.
 - The drafts present the host project, in the requested language and selected voice.
 - Exactly two distinct variants are complete, copy-ready, and unnumbered inside their text.
-- Every variant has a verified existing asset recommendation or an explicit absence notice outside its copy.
+- Every variant has a verified existing asset recommendation or an explicit absence notice outside its copy; a supported host UI may show one shared preview outside the copy.
 - Each post has a weighted-length result from a suitable validator, or an honest not-verified status with a conservative length fallback.
 - Style preferences remain scoped to the host project, are saved after user feedback, and can be changed or forgotten.
 - Nothing has been authenticated, published, scheduled, or generated for X.
