@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 🔧 **Changed**: a standalone merge now derives its review scope from the trusted, exact triple-dot diff before `krang` dispatches a reviewer. A patch limited to a patch-level existing Composer dependency upgrade and PHPStan configuration or baseline metadata receives a focused dependency/configuration/security review instead of an application, database, or UI review. The classifier compares the supplied patch with the exact base and head, reads `composer.json` from both trees, fails closed on a malformed, binary, mode, symlink, mixed, or incomplete input, and keeps major or otherwise incompatible dependency changes out of the lowest merge-risk category. The focused record still satisfies the normal review and approval evidence only for its own current fingerprint; CI, supply-chain checks, security checks, and the exact-head quality gate remain required.
+
 - 📖 **Changed**: Laravel rules prefer HTTP input validation in the endpoint's FormRequest before an Action runs. Data Validators remain for non-HTTP input and execution-time domain invariants. Architecture review checks follow the same boundary.
 
 - 🐛 **Fixed**: code review explicitly permits native PHP enums in queued-job constructors and payload properties, without requiring a scalar conversion. Serializer incompatibilities and removed or renamed cases still receive compatibility checks. Per operator feedback on ECOMAIL-7394.

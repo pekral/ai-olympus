@@ -107,6 +107,35 @@ test('the risk classifier grades the merge risk in its own mode and self-tests e
     }
 });
 
+test('the merge classifier derives a focused tooling scope from the actual patch before routing review', function (): void {
+    $classifier = mergeRiskSource('skills/_shared/classify-risk.sh');
+
+    expect($classifier)->toContain('merge_scope()')
+        ->and($classifier)->toContain('composer_constraints_only()')
+        ->and($classifier)->toContain('composer_patch_compatible()')
+        ->and($classifier)->toContain('merge-scope-role=leonardo:focused-dependency-config-security')
+        ->and($classifier)->toContain('merge-scope-full-application-review=no')
+        ->and($classifier)->toContain('merge-scope-reason=composer-structure-unverified')
+        ->and($classifier)->toContain('mixed runtime code takes the conservative scope')
+        ->and($classifier)->toContain('a supplied diff cannot hide a runtime file from its head')
+        ->and($classifier)->toContain('a supplied diff cannot hide composer scripts from its head')
+        ->and($classifier)->toContain('a partial composer hunk is never focused')
+        ->and($classifier)->toContain('a mode-only tooling diff is never focused')
+        ->and($classifier)->toContain('verified tooling scope has low merge risk')
+        ->and($classifier)->toContain('an incompatible dependency upgrade is not low merge risk');
+});
+
+test('krang and leonardo consume focused tooling scope without claiming an application review', function (): void {
+    expect(mergeRiskSource('skills/_shared/orchestration/merge-request.md'))
+        ->toContain('classify-risk.sh --merge-scope --diff - --base <base tip> --head <headRefOid>')
+        ->and(mergeRiskSource('agents/leonardo.md'))->toContain('## Focused tooling merge mode')
+        ->and(mergeRiskSource('agents/leonardo.md'))->toContain('focused-dependency-config-security')
+        ->and(mergeRiskSource('agents/leonardo.md'))->toContain('Do not run the normal CR wrapper or its full lens set.')
+        ->and(mergeRiskSource('skills/code-review-github/SKILL.md'))->toContain('**Focused tooling merge dispatch.**')
+        ->and(mergeRiskSource('skills/code-review-github/SKILL.md'))->toContain('do not enter this normal wrapper or its always-run review set')
+        ->and(mergeRiskSource('skills/merge-github-pr/SKILL.md'))->toContain('Actual-diff review scope comes first.');
+});
+
 test('no merge risk label is defined anywhere in the package', function (string $directory): void {
     $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/' . $directory, FilesystemIterator::SKIP_DOTS));
     $labelled = [];
