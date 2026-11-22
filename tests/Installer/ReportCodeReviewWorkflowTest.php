@@ -29,7 +29,7 @@ extend those steps in the dispatch prompt');
     );
     expect($leonardo)->not->toContain('never to pass `--create`');
     expect($leonardo)->toContain('When the dispatch carries `tracker-report: deferred`, pass it to `process-code-review`');
-    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('When the caller passed `tracker-report: deferred`, pass it to the wrapper too');
     expect((string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md'))
         ->toContain('With `tracker-report: deferred`, skip this section and the linked-GitHub-issue mirror below');
@@ -110,7 +110,7 @@ test('report-code-review runs leonardo, splinter, raphael, and casey in one para
     expect($krang)
         ->toContain('`leonardo ∥ splinter ∥ raphael ∥ casey (review-only) → leonardo (publish)`')
         ->toContain('Hold the barrier, then dispatch `leonardo` with `publish: now` and `review_only`');
-    expect((string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc'))
         ->toContain('`commands/_shared/krang-workflow.inc` dispatches `casey` in every *Parallel CR round*, beside `leonardo` and `raphael`')
         ->toContain('A review-only run (`/report-code-review`) is one such round.');
     expect((string) file_get_contents($packageDir . '/agents/casey.md'))->not->toContain('--create');

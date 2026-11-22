@@ -125,7 +125,7 @@ test('the read-only limit sits inside the block a worker is actually handed', fu
 
 test('the read-only guarantee is checked against a baseline the audit actually records', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/simplification-audit.inc');
     $template = (string) file_get_contents($packageDir . '/skills/simplification-audit/templates/audit-report.md');
 
     expect($skill)->toContain('Record the pre-audit `git status --short` output in the report\'s `## Scope` block');
@@ -199,7 +199,7 @@ test('every rule and sibling file simplification-audit references resolves to a 
 
 test('the audit ranks hot spots by change frequency only when the user named no area', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/simplification-audit.inc');
     $template = (string) file_get_contents($packageDir . '/skills/simplification-audit/templates/audit-report.md');
 
     expect($skill)->toContain('**Hot-spot scoping — only when the request names no area.**');
@@ -214,7 +214,7 @@ test('the audit ranks hot spots by change frequency only when the user named no 
 test('the worker brief carries the deletion test and the one-adapter seam rule without restating the interface threshold', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $brief = (string) file_get_contents($packageDir . '/skills/simplification-audit/references/worker-brief.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/simplification-audit/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/simplification-audit.inc');
 
     preg_match_all('/^>.*$/m', $brief, $quotedLines);
     $quotedBlock = implode("\n", $quotedLines[0]);

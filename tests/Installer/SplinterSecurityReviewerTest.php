@@ -163,7 +163,7 @@ test('splinter limits its Bash boundary to its own worktree and an independent a
 test('the convergence gate counts the splinter findings and never defers a security finding (issue #379)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount`')
         ->and((string) file_get_contents($packageDir . '/rules/code-review/general.md'))
         ->toContain('**A second, independent view runs in every round.**')

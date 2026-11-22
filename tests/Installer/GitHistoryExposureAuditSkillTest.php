@@ -164,7 +164,7 @@ test('review mode is an always-run security lens on a public repository wherever
         ->toContain('All four lenses are exempt from the gate in full');
     expect(historyExposureSource('skills/code-review/SKILL.md'))
         ->toContain('`git-history-exposure-audit` in its *Review mode* on a public repository, `api-review`) one at a time');
-    expect(historyExposureSource('skills/code-review/references/specialized-reviews.md'))
+    expect(historyExposureSource('commands/_shared/orchestration/specialized-reviews.inc'))
         ->toContain(
             '- @skills/git-history-exposure-audit/SKILL.md in its *Review mode* — '
             . '**always run when the reviewed repository is public on GitHub, never skipped there**',

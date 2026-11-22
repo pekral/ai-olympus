@@ -16,7 +16,7 @@ test('casey ships on both platforms as a read-only agent (issue #180)', function
 
 test('the casey report is advisory and never gates convergence or the merge (issue #180)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
 
     expect($reference)->toContain('- **Database report — the `casey` agent.**')
@@ -43,7 +43,7 @@ test('krang dispatches casey in every parallel cr round, and casey stops on Post
 
 test('no review runs mysql-problem-solver inline, and a caller that cannot dispatch casey says so (issue #180)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
     $leonardo = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $wrapper = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
 
@@ -95,7 +95,7 @@ test('the casey report shape has one owner and the roster surfaces name casey (i
 
 test('the casey NoSQL trigger runs in every project and has one owner (criterion 5)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
     $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
 
@@ -122,7 +122,7 @@ test('the casey NoSQL trigger runs in every project and has one owner (criterion
 
 test('casey analyses a PostgreSQL query plan from a local instance only, and postgres-patterns keeps the feature shape (criterion 9)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
     $casey = (string) file_get_contents($packageDir . '/agents/casey.md');
     $postgres = (string) file_get_contents($packageDir . '/skills/postgres-patterns/SKILL.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
@@ -166,7 +166,7 @@ test('the database report heading is renamed on every surface while the mysql-re
 test('redis-patterns has one scope per caller and the cache lens keeps KEYS and per-command loops (round 2)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $redis = (string) file_get_contents($packageDir . '/skills/redis-patterns/SKILL.md');
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($redis)->toContain('> **Scope — one per caller.**')
         ->and($redis)->toContain('and `KEYS *` or per-command loops where `SCAN` or a pipeline belongs. These findings stay blocking review findings.')

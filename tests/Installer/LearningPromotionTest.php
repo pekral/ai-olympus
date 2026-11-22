@@ -200,7 +200,7 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
 });
 
 test('the contract is written once and names the states, the facts, the history, and the limits', function (): void {
-    expect(promotionFile('skills/code-review/references/learning-promotion.md'))
+    expect(promotionFile('commands/_shared/orchestration/learning-promotion.inc'))
         ->toStartWith('# Learning promotion — from a repeated learning to permanent knowledge, with a human in between')
         ->toContain('`commands/_shared/promote-learning.sh` is the only implementation.')
         ->toContain(

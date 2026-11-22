@@ -311,9 +311,9 @@ test('no human-facing wording says the review loop escalated and the state ident
             '(a fix, a settled finding, or the operator\'s answer in the chat that allows one more review round)',
         )
         ->and(agentVoiceSource('skills/process-code-review/references/round-three-deferral.md'))->not->toContain('escalate to the user')
-        ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->not->toContain('| Report the escalation.')
+        ->and(agentVoiceSource('commands/_shared/orchestration/review-review-state.inc'))->not->toContain('| Report the escalation.')
         ->and(agentVoiceSource('commands/_shared/review-state.sh'))->toContain(
             '"continue", "converged", "deferral-required", "security-round", "escalated"',
         )
-        ->and(agentVoiceSource('skills/process-code-review/references/review-state.md'))->toContain('| `escalated` |');
+        ->and(agentVoiceSource('commands/_shared/orchestration/review-review-state.inc'))->toContain('| `escalated` |');
 });

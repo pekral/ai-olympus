@@ -13,19 +13,19 @@ use Pekral\AiOlympus\Installer;
 function onDemandKrangParts(): array
 {
     return [
-        'context-retrieval.md' => '**Write the request** to `${BRIEF%.md}.context-request.json` with `jq`',
-        'critical-pre-review-validation.md' => '**Only on a final tier of `CRITICAL` run the pre-review validation**',
-        'fast-run.md' => 'You close it instead, and only in this exact shape:',
-        'feedback-analysis-mode.md' => 'It is an analysis-only run: you take no write-lock, open no pull request, and never dispatch `donatello`.',
-        'hotfix-routing.md' => 'Carry the mode and the declaring account into the `leonardo` dispatch and into the `donatello` dispatch',
-        'implementation-blocked.md' => '**stop and escalate that blocker to the user with its remediation**',
-        'merge-request.md' => '**An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.**',
-        'multi-source-planning.md' => 'Each input line is `<source-slug>|<tier>|<depends-on>|<files>`.',
-        'post-convergence-skip.md' => '**Skip it exactly when all four conditions hold at once:**',
-        'pre-implementation-routing.md' => '**This branch is not gated on the tier**',
-        'reporting-exceptions.md' => '**Non-duplication is not an escape hatch.**',
-        'review-only-mode.md' => '2. **Check whether the newest trusted review still holds, before any dispatch.**',
-        'security-findings-outside-assignment.md' => '- **Judge the item yourself** from its `file:line`, its exploit path, and what it claims',
+        'context-retrieval.inc' => '**Write the request** to `${BRIEF%.md}.context-request.json` with `jq`',
+        'critical-pre-review-validation.inc' => '**Only on a final tier of `CRITICAL` run the pre-review validation**',
+        'fast-run.inc' => 'You close it instead, and only in this exact shape:',
+        'feedback-analysis-mode.inc' => 'It is an analysis-only run: you take no write-lock, open no pull request, and never dispatch `donatello`.',
+        'hotfix-routing.inc' => 'Carry the mode and the declaring account into the `leonardo` dispatch and into the `donatello` dispatch',
+        'implementation-blocked.inc' => '**stop and escalate that blocker to the user with its remediation**',
+        'merge-request.inc' => '**An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.**',
+        'multi-source-planning.inc' => 'Each input line is `<source-slug>|<tier>|<depends-on>|<files>`.',
+        'post-convergence-skip.inc' => '**Skip it exactly when all four conditions hold at once:**',
+        'pre-implementation-routing.inc' => '**This branch is not gated on the tier**',
+        'reporting-exceptions.inc' => '**Non-duplication is not an escape hatch.**',
+        'review-only-mode.inc' => '2. **Check whether the newest trusted review still holds, before any dispatch.**',
+        'security-findings-outside-assignment.inc' => '- **Judge the item yourself** from its `file:line`, its exploit path, and what it claims',
     ];
 }
 

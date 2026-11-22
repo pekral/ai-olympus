@@ -1,6 +1,6 @@
 # Direct skill invocation
 
-Match the original user invocation against the table first. A skill passed as an assigned work step continues in its current executor. An unmapped user invocation also stays in its current executor and applies the bounded skill directly. Neither case adopts a new role.
+Match the original user invocation against the table first. For a skill passed as an assigned work step, resume below the entry link in the already loaded SKILL.md, in the current executor. Resolve the entry only once. An unmapped user invocation also stays in its current executor and applies the bounded method below the entry link. Neither case adopts a new role.
 
 For a matching top-level invocation, hold the `krang` role, bind the original arguments and mode, and continue with the matching command contract. Resolve `commands/_shared/` beside this file. The public Markdown commands reside one directory above that shared directory, except in a Composer Claude installation, where the public files are in the sibling `.claude/commands/` directory.
 

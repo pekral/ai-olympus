@@ -12,7 +12,7 @@
     "agents/donatello.md": [
         "skills/resolve-issue/templates/pull-request-body.md"
     ],
-    "agents/krang.md": [
+    "commands/_shared/krang-workflow.inc": [
         "skills/_shared/templates/superseded-pr-pointer.md",
         "skills/_shared/templates/proposal-review-comment.md",
         "skills/_shared/templates/memory-entry-written.md"
@@ -22,10 +22,10 @@
         "skills/security-threat-analysis/templates/remediation-plan-issue.md",
         "skills/code-review-github/templates/review-body.md"
     ],
-    "skills/_shared/orchestration/batch-preparation.md": [
+    "commands/_shared/orchestration/batch-preparation.inc": [
         "skills/_shared/templates/superseded-pr-pointer.md"
     ],
-    "skills/_shared/orchestration/proposal-review.md": [
+    "commands/_shared/orchestration/proposal-review.inc": [
         "skills/_shared/templates/proposal-review-comment.md"
     ],
     "skills/analyze-problem/SKILL.md": [
@@ -56,7 +56,7 @@
         "skills/code-review-jira/templates/github-output.md",
         "skills/pr-summary/templates/pr-summary-jira.md"
     ],
-    "skills/code-review/references/feedback-loop.md": [
+    "commands/_shared/orchestration/feedback-loop.inc": [
         "skills/_shared/templates/memory-entry-written.md",
         "skills/code-review/templates/prevention-proposal.md"
     ],
@@ -92,11 +92,11 @@
         "skills/pr-summary/templates/pr-summary-jira.md",
         "skills/pr-summary/templates/pr-summary-bugsnag.md"
     ],
-    "skills/process-code-review/SKILL.md": [
+    "commands/_shared/orchestration/process-code-review.inc": [
         "skills/code-review-github/templates/pr-comment-output.md",
         "skills/resolve-issue/templates/pull-request-body.md"
     ],
-    "skills/process-code-review/references/round-three-deferral.md": [
+    "commands/_shared/orchestration/review-round-three-deferral.inc": [
         "skills/_shared/templates/follow-up-issue.md"
     ],
     "skills/resolve-issue/SKILL.md": [

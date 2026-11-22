@@ -54,7 +54,7 @@ test('install records the hash of every installed workflow copy in the git direc
             )
             ->and($lines['.codex/commands/_shared/classify-risk.sh'])->toBe(hash_file('sha256', $root . '/.codex/commands/_shared/classify-risk.sh'))
             ->and($lines['.claude/commands/do-it.md'])->toBe(hash_file('sha256', $root . '/.claude/commands/do-it.md'))
-            ->and($lines['.claude/skills/code-review/SKILL.md'])->toBe(hash_file('sha256', $root . '/.claude/skills/code-review/SKILL.md'))
+            ->and($lines)->not->toHaveKey('.claude/skills/code-review/SKILL.md')
             ->and(is_file($root . '/.git/ai-olympus/installed-copies.sha256.tmp'))->toBeFalse();
     } finally {
         installerRemoveDirectory($root);
@@ -213,7 +213,7 @@ test('an installed classifier verifies and runs its own libraries in a consumer 
 ]);
 
 test('each public command loads a protocol shipped by both the plugin and the installer', function (): void {
-    $package = dirname(__DIR__, 2);
+    $package = dirname(__DIR__);
     $root = installerCreateProjectRoot();
 
     try {

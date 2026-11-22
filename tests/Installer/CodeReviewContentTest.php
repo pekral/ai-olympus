@@ -241,7 +241,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
         expect($skill)->not->toContain('Replying to code review from');
     }
 
-    $processCodeReview = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $processCodeReview = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     // One comment per review run: the `cr-status` namespace is retired, so the skill publishes
     // nothing itself — it assembles the body and lets Completion drive the wrapper's single
     // `cr-comment` publish through the helper.
@@ -276,7 +276,7 @@ test('CR skills publish through the publish helper — GitHub and JIRA both post
 
 test('process-code-review enforces a convergence loop with quiet iterations and a single final publish', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $process = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     $github = crContractText('skills/code-review-github/SKILL.md');
     $jira = crContractText('skills/code-review-jira/SKILL.md');
 
@@ -1294,7 +1294,7 @@ test('CR wrappers confirm they already load the first-class assignment sources f
 
 test('process-code-review skips Excluded per assignment entries as non-actionable (issue #17)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
 
     expect($content)->toContain('- **`## Excluded per assignment` entries are not findings (issue #17).**');
     expect($content)->toContain('do **not** add these entries to the checklist, do not extract a reproducer for them');
@@ -2110,7 +2110,7 @@ test('the acceptance-criteria gate runs first and names its no-criteria fallback
 
 test('process-code-review passes no iteration number, because nothing consumes it', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $process = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
 
     // The value existed only for the late-iteration narrowing, which is retired with the Minor bucket.
@@ -2689,7 +2689,7 @@ test('process-code-review passes the reviewed revision and diff fingerprint to e
     $packageDir = dirname(__DIR__, 2);
     $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
     // The subsection lives in the reference the skill points at; the skill keeps the pointer.
-    $loopScope = (string) file_get_contents($packageDir . '/skills/process-code-review/references/review-loop-scope.md');
+    $loopScope = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/review-review-loop-scope.inc');
 
     expect($loopScope)->toContain('#### Incremental review scope (iterations after the first)');
     // The loop is quiet, so no published comment exists to resolve a baseline from.
@@ -2710,7 +2710,7 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
     // PostgreSQL project was reviewed by a lens whose deploy-safety fix (`ALGORITHM` / `LOCK`) the
     // engine cannot parse — while two rule files already redirected that project to
     // `postgres-patterns`, a skill no CR path ever invoked.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Database operations detected in the diff → the engine decides where the query analysis runs.**');
 
@@ -2745,7 +2745,7 @@ test('the CR database lens trigger resolves the engine and branches to one lens 
 });
 
 test('each database engine branch names its own lens and the unresolved case keeps the MySQL default (issue #62)', function (): void {
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     // Issue #180: on MySQL the review runs no inline query lens; the advisory `casey` report owns it.
     expect($contract)->toContain(
@@ -2869,7 +2869,7 @@ test('every CR wrapper and template renders the Database Analysis section for ei
 
     // The rule that mandates the entry names the templates that define the line, so neither side can
     // drift without the other failing.
-    expect(crContractText('skills/code-review/SKILL.md'))->toContain(
+    expect(packageSource('commands/_shared/orchestration/specialized-reviews.inc'))->toContain(
         'on the conditional `Not verified:` header line both render templates define '
         . '(`skills/code-review/templates/review-output.md`, `skills/code-review-github/templates/pr-comment-output.md`)',
     );
@@ -2887,7 +2887,7 @@ test('a Blade or Livewire diff triggers all three frontend lenses (issue #60)', 
     // Before this trigger existed the CR ran 14 skills and none of them read frontend code, so a
     // diff that only touched Blade or Livewire was reviewed without a single frontend lens while
     // three matching skills shipped in the package that no CR path ever invoked.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Frontend surface detected in the diff → all three frontend lenses run.**');
 
@@ -2918,7 +2918,7 @@ test('every frontend-trigger outcome lands in exactly one branch (issue #60)', f
     // The sibling DB trigger shipped without a branch for a recognised but unnamed driver, so that
     // case fired no branch at all. The same shape here is a frontend diff on a project the lenses
     // cannot read — it must resolve to a named, silent skip rather than falling through.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('- **Project is not Laravel → skip all three, silently.**');
     expect($contract)->toContain('`laravel/framework` is absent from `composer.json` `require`');
@@ -2956,7 +2956,7 @@ test('frontend-lens findings use the existing severity buckets and add no output
     // touching a single render template — the failure mode the DB trigger hit when it defined a
     // summary-line slot no template rendered.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('Fold the findings of all three lenses into the standard **Critical / Moderate** buckets of `## Findings`');
     // Anchored on this trigger's own copy, and count-bearing. Issue #61 added a second trigger
@@ -2996,7 +2996,7 @@ test('the three frontend lenses each own one surface of a frontend diff (issue #
     // The walk already reads every *.blade.php on the diff. Without a stated boundary a region
     // with an inline wire:loading state is reported twice — once as an extraction proposal by the
     // walk and once as a state finding by frontend-patterns — over one line of markup.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     // The retired layout-splitting walk is no longer an owner, so the gating names only the lenses.
     expect($contract)->not->toContain('The walk *Livewire / Blade layout splitting*');
@@ -3038,7 +3038,7 @@ test('the layout-splitting walk is retired and the three frontend lenses are una
     expect($rule)->toContain('**The three frontend lenses run as usual.**');
 
     // The lenses themselves still run on a frontend diff.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
     expect($contract)->toContain('frontend-patterns');
     expect($contract)->toContain('frontend-a11y');
     expect($contract)->toContain('design-system');
@@ -3049,7 +3049,7 @@ test('a cache or rate-limit diff triggers the redis-patterns lens (issue #61)', 
     // that checks a single thing — that no object is stored — while `skills/redis-patterns` shipped
     // in the package and no CR path ever invoked it. TTL, key collision, stampede, and lock
     // handling had no lens at all.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Cache, lock, or rate-limit surface detected in the diff → the cache lens runs.**');
 
@@ -3077,7 +3077,7 @@ test('every cache-trigger outcome lands in exactly one branch and adds no output
     // The sibling DB trigger shipped without a branch for a recognised but unnamed driver, so that
     // case fired no branch at all. Here the equivalent gap is a project on a non-Redis cache store.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('- **The cache store narrows the findings; it never gates the lens.**');
     expect($contract)->toContain('never raise a finding whose fix is to adopt Redis or a Redis-only feature');
@@ -3135,7 +3135,7 @@ test('every cache-trigger outcome lands in exactly one branch and adds no output
 test('the cache lens is gated against the Object caching bullet on both sides (issue #61)', function (): void {
     // A boundary written on one side only is a boundary the other side never reads. The bullet
     // lives in the rule file, the lens in the skill reference, so both have to state it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**That bullet owns the shape of the cached value**');
     expect($contract)->toContain('**The lens owns how the call behaves**');
@@ -3182,7 +3182,7 @@ test('a MySQL schema-feature diff triggers the mysql-patterns lens (issue #61)',
     // `mysql-problem-solver` answers "is this query fast", never "is this schema feature built
     // right". Upserts, JSON columns, full-text indexes, partitions, read/write splitting and
     // deadlock handling had no lens, while skills/mysql-patterns shipped and no CR path ran it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**MySQL schema-feature surface detected in the diff → the schema-pattern lens runs.**');
 
@@ -3207,7 +3207,7 @@ test('a MySQL schema-feature diff triggers the mysql-patterns lens (issue #61)',
 test('the schema-pattern lens reuses the one engine resolution and covers every outcome (issue #61)', function (): void {
     // Issue #62 put a deterministic engine resolution into this same file. A second, independent
     // detection here could disagree with it, so the trigger must read that answer instead.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '**This lens hangs on the one engine resolution the DB-lens trigger above defines — '
@@ -3281,7 +3281,7 @@ test('the schema-pattern lens reuses the one engine resolution and covers every 
 test('the schema-pattern lens does not re-open the mutually exclusive engine branch (issue #61)', function (): void {
     // #62's "never both lenses" sentence is about the two engine lenses. Read as covering this one
     // it would forbid the very pairing this issue asks for, so the boundary is stated explicitly.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('- **This lens is not a fourth engine branch.**');
     expect($contract)->toContain('The *Never analyse one diff through two engines* rule above does not reach it.');
@@ -3298,7 +3298,7 @@ test('the schema-pattern lens does not re-open the mutually exclusive engine bra
 test('the schema-pattern lens is gated against mysql-problem-solver on both sides (issue #61)', function (): void {
     // A boundary written on one side only is a boundary the other side never reads.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**That report owns the rest of the performance of a query and its plan**');
     expect($contract)->toContain('keep running on every engine and keep gating');
@@ -3394,7 +3394,7 @@ test('a Docker or compose diff triggers the docker-patterns lens (issue #63)', f
     // Before this trigger existed, a diff changing a Dockerfile or a compose file passed code
     // review with no lens at all: the CR skill set reads application code, API, database, and
     // application security, while skills/docker-patterns shipped and no CR path ever invoked it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Container build or runtime surface detected in the diff → the container lens runs.**');
 
@@ -3427,7 +3427,7 @@ test('every container-trigger outcome lands in exactly one branch and adds no ou
     // Sibling triggers shipped with a case that fired no branch at all. Here the equivalent gap is
     // a project whose compose file declares none of the services the skill's examples assume.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('- **The project\'s own service set narrows the findings; it never gates the lens.**');
     expect($contract)->toContain('never raise a finding whose fix is to adopt a service the project does not run');
@@ -3483,7 +3483,7 @@ test('every container-trigger outcome lands in exactly one branch and adds no ou
 test('a Vite or asset-build diff triggers the vite-patterns lens (issue #63)', function (): void {
     // A diff changing vite.config.js, a build-bound package.json entry, or an @vite directive had
     // no lens either, while skills/vite-patterns shipped and no CR path ever invoked it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '**Asset build surface detected in the diff → the build lens runs, '
@@ -3514,7 +3514,7 @@ test('the build lens resolves Vite itself and skips silently without it (issue #
     // The issue's edge case: a project that does not use Vite skips without an error. A
     // package.json script change on a Mix or webpack project must not become a Vite finding.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '- **Resolve whether the project builds with Vite, from the first of these sources that answers:**',
@@ -3578,7 +3578,7 @@ test('the container lens is gated against the malicious-code walk on both carrie
     // in two files — the CR half in rules/code-review/review-process.md and the rule half in
     // rules/security/backend.md — so both have to carry it, and so does the trigger.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**That walk owns what a line fetches, trusts, and hides**');
     expect($contract)->toContain('**The container lens owns the shape of the image and its services**');
@@ -3684,7 +3684,7 @@ test('the container lens is gated against the malicious-code walk on both carrie
 test('the build lens is gated against the three frontend lenses (issue #63)', function (): void {
     // An @vite directive lives in a Blade view, so a diff touching it fires the frontend trigger
     // as well. Without a boundary the same line has two owners and one defect is reported twice.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '**Gating — the build lens against the three frontend lenses, '
@@ -3704,7 +3704,7 @@ test('the three frontend lenses carry their own half of the build-lens boundary 
     // A boundary written on the build lens's side alone is one the frontend side never reads.
     // `frontend-patterns` claims render and network cost, and an `@vite([...])` directive lives in
     // a Blade view, so both triggers fire on that line and both lenses would claim it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     // Carrier one: the frontend trigger block, which speaks for all three lenses at once.
     // Anchored on this block's own sentence and count-bearing — the build lens's own gating
@@ -3741,7 +3741,7 @@ test('a broadcast, streaming, or queue-configuration diff triggers the latency l
     // Before this trigger existed, a diff adding an SSE endpoint or rewriting the queue
     // configuration passed code review with no latency lens at all: skills/latency-critical-systems
     // shipped in the package and no CR path ever invoked it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Latency-critical surface detected in the diff → the latency lens runs.**');
 
@@ -3778,7 +3778,7 @@ test('a broadcast, streaming, or queue-configuration diff triggers the latency l
 test('the latency lens reports a missing measurement and every outcome lands in one branch (issue #64)', function (): void {
     // The skill's own constraint is "measure, do not guess", and a CR runs nothing. Without this
     // branch the lens would either assert a latency figure it never took or stay silent entirely.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '- **Nothing runs during a review, so the lens reports a missing measurement, never a measured one.**',
@@ -3816,7 +3816,7 @@ test('the latency lens reports a missing measurement and every outcome lands in 
 test('a head, robots, sitemap, canonical, or JSON-LD diff triggers the SEO lens (issue #64)', function (): void {
     // A diff changing what a crawler reads had no lens either, while skills/seo shipped in the
     // package and no CR path ever invoked it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain('**Public crawl or indexing surface detected in the diff → the SEO lens runs.**');
 
@@ -3854,7 +3854,7 @@ test('the SEO lens narrows on published surface and adds no output surface (issu
     // A layout the project deliberately keeps out of the index is correct, not a defect, so the
     // narrowing must exist — and it must not become a second detection step.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '- **The surface the project publishes narrows the findings; it never gates the lens.**',
@@ -3900,7 +3900,7 @@ test('the SEO lens narrows on published surface and adds no output surface (issu
 test('a 402 or payment-middleware diff triggers the payment lens on an MPP project (issue #64)', function (): void {
     // A diff touching the HTTP 402 payment flow had no lens either, while
     // skills/machine-payments-protocol shipped and no CR path ever invoked it.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '**MPP payment surface detected in the diff → the payment lens runs, '
@@ -3931,7 +3931,7 @@ test('the payment lens resolves MPP itself and skips silently without it (issue 
     // The issue's edge case: a project that does not use MPP is skipped without an error. A quota
     // `402` on such a project must not become a proposal to adopt the protocol.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect($contract)->toContain(
         '- **Resolve whether the project implements MPP, from the first of these sources that answers:**',
@@ -4003,7 +4003,7 @@ test('the three domain lenses are conditional only, so an ordinary diff fires no
     // diff, and the CR would pay for all three on a change that has nothing for them to read.
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents(
-        $packageDir . '/skills/code-review/references/specialized-reviews.md',
+        $packageDir . '/commands/_shared/orchestration/specialized-reviews.inc',
     );
 
     // Split on the two markers rather than offsetting on strpos(): explode() returns strings, so no
@@ -4043,7 +4043,7 @@ test('the latency lens is gated against the bulk-data walk and the query lens (i
     // bulk-data walk, not to the latency lens. Both owners already read those lines, so without a
     // boundary one loop would be reported three times from three angles.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     // Carrier one: the trigger's own copy.
     expect(substr_count(
@@ -4097,7 +4097,7 @@ test('every carrier of the latency boundary states its dimensions half (issue #6
     $carriers = [
         'rules/code-review/general.md',
         'rules/code-review/core-analysis.md',
-        'skills/code-review/references/specialized-reviews.md',
+        'commands/_shared/orchestration/specialized-reviews.inc',
         'skills/latency-critical-systems/SKILL.md',
         'skills/mysql-problem-solver/SKILL.md',
     ];
@@ -4117,7 +4117,7 @@ test('the SEO lens is gated against the frontend lenses and the build lens (issu
     // A `<head>` change fires the frontend trigger, and an `@vite` directive inside it fires the
     // build trigger. Both sides of that boundary carry it, so neither restates the other.
     $packageDir = dirname(__DIR__, 2);
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     // Carrier one: the SEO trigger's own copy.
     expect(substr_count(
@@ -4149,7 +4149,7 @@ test('the payment lens is gated against the API and security lenses (issue #64)'
     // api-review and security-review both run from the always-run set over the same endpoint. The
     // security half is a hand-over the lens never takes back: a security finding stays with its
     // owner whatever the protocol says about the same middleware.
-    $contract = crContractText('skills/code-review/SKILL.md');
+    $contract = packageSource('commands/_shared/orchestration/specialized-reviews.inc');
 
     expect(substr_count(
         $contract,
@@ -4195,7 +4195,7 @@ test('every shipped skill is either in the CR set or classified as deliberately 
     // `frontend-design-direction`, which the issue's own four lists did not name at all.
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents(
-        $packageDir . '/skills/code-review/references/specialized-reviews.md',
+        $packageDir . '/commands/_shared/orchestration/specialized-reviews.inc',
     );
 
     $parts = explode("\n## Skills deliberately not run\n", $reference);
@@ -4248,7 +4248,7 @@ test('the not-run section classifies by rule, not by inventory (issue #65)', fun
     $packageDir = dirname(__DIR__, 2);
     $section = explode(
         "\n## Skills deliberately not run\n",
-        (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'),
+        (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc'),
     )[1];
 
     expect($section)->toContain('**Read the groups below as a rule, never as an inventory.**');
@@ -4657,7 +4657,7 @@ test('every code-review report is published as a new comment on each destination
 test('no other JIRA publish and no merge-preparation cleanup rewrites or deletes a code-review report (issue #331)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $mergeReadiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $mergeReadiness = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $deleteHelper = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/delete-owned-comment.sh');
     $testerCookbook = (string) file_get_contents($packageDir . '/skills/tester-cookbook/SKILL.md');
     $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');

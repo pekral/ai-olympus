@@ -33,7 +33,7 @@ test('verify-merge-readiness is one shared workflow for Claude Code and Codex', 
 
 test('verify-merge-readiness skips content-identical review rounds but fails closed on changed content', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($skill)->toContain('git diff --binary --full-index --no-color --no-ext-diff --no-renames');
     expect($skill)->toContain('git patch-id --verbatim');
@@ -46,7 +46,7 @@ test('verify-merge-readiness skips content-identical review rounds but fails clo
 
 test('verify-merge-readiness delivers the task first when the issue carries no pull request', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $krang = krangContractText();
     $command = (string) file_get_contents($packageDir . '/commands/prepare-issue-for-merge.md');
 
@@ -62,7 +62,7 @@ test('verify-merge-readiness delivers the task first when the issue carries no p
 
 test('verify-merge-readiness consolidates only owned comments and preserves merge evidence', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $helperPath = $packageDir . '/skills/_shared/delete-owned-github-comment.sh';
     $inventory = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
@@ -279,7 +279,7 @@ test('verify-merge-readiness reads a JIRA issue as the source and resolves its p
     // A JIRA link used to stop the run before delegation, because the input contract named GitHub
     // URLs only, while the publication and cleanup steps already handled a JIRA ticket.
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($skill)->toContain('a JIRA issue key (`PROJ-123`) or a JIRA URL that names one issue key');
     expect($skill)->toContain('`skills/code-review-jira/scripts/gather-issue-context.sh <KEY|URL>`');
@@ -294,7 +294,7 @@ test('verify-merge-readiness reads a JIRA issue as the source and resolves its p
 
 test('verify-merge-readiness changes only the assignment and leaves every other point to a human decision at the merge', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $preparation = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/merge-preparation.inc');
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
@@ -314,7 +314,7 @@ test('verify-merge-readiness changes only the assignment and leaves every other 
 
 test('a merge decision already answered in the assignment or a trusted comment is never asked again', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $testAssignment = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
 

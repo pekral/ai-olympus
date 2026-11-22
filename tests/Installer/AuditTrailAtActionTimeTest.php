@@ -171,7 +171,7 @@ test('the changelog records the audit line written at the moment of the write', 
 
 test('leonardo runs gh pr ready and the label writes through the helper and appends no hand-written line for them', function (): void {
     $leonardo = auditTrailSource('agents/leonardo.md');
-    $skill = auditTrailSource('skills/process-code-review/SKILL.md');
+    $skill = auditTrailSource('commands/_shared/orchestration/process-code-review.inc');
     $signal = auditTrailSource('skills/process-code-review/references/ready-to-merge-signal.md');
     $step = substr($leonardo, (int) strpos($leonardo, '12. **Append your own audit-trail lines.**'));
     $step = substr($step, 0, (int) strpos($step, "\n", 1));

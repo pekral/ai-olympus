@@ -126,7 +126,7 @@ test('the reviewed project own commands, paths, and prose stay allowed', functio
 });
 
 test('a name that the reviewed repository holds is the project own and stays allowed', function (): void {
-    $text = 'This repeats `commands/_shared/run-gate.sh:40`, see `@rules/security/backend.md`, `skills/_shared/` and `classify-risk.sh`.';
+    $text = 'This repeats `commands/_shared/run-gate.sh:40`, see `@rules/security/backend.md`, `commands/_shared/` and `classify-risk.sh`.';
 
     $process = runCheckVisibleReviewText($text, [
         'rules/security/backend.md',

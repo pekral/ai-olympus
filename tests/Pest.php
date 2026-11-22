@@ -954,6 +954,14 @@ function ruleExtensionFrontmatter(string $path): string
  * Reading the delegating file alone would miss a rule stated once in the shared file; reading the
  * shared file alone would miss the tracker-specific half.
  */
+function installedRoleInstructions(string $name): string
+{
+    $definition = packageSource('agents/' . $name . '.md');
+    $workflow = 'commands/_shared/krang-workflow.inc';
+
+    return $name === 'krang' && str_contains($definition, '`' . $workflow . '`') ? packageSource($workflow) : $definition;
+}
+
 /**
  * The whole `krang` orchestration contract: its base prompt plus the rare
  * procedures extracted into `commands/_shared/orchestration/`.
@@ -967,16 +975,22 @@ function ruleExtensionFrontmatter(string $path): string
  */
 function krangContractText(): string
 {
-    $packageDir = dirname(__DIR__);
-    $text = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
+    $pending = ['commands/_shared/krang-workflow.inc'];
+    $protocols = [];
 
-    $references = glob($packageDir . '/commands/_shared/orchestration/*.inc');
+    while ($pending !== []) {
+        $path = array_pop($pending);
 
-    foreach ($references === false ? [] : $references as $reference) {
-        $text .= "\n" . (string) file_get_contents($reference);
+        if (isset($protocols[$path])) {
+            continue;
+        }
+
+        $protocols[$path] = packageSource($path);
+        preg_match_all('~`(commands/_shared/(?:orchestration/)?[a-z0-9-]+\.inc)`~', $protocols[$path], $references);
+        $pending = [...$pending, ...$references[1]];
     }
 
-    return $text;
+    return implode("\n", $protocols);
 }
 
 function crContractText(string $path): string
@@ -1016,7 +1030,7 @@ function packageTextFiles(): array
     // analysed line back as a PHP string — so an absence guard that walks it matches its own
     // assertion and fails on a name the tree no longer carries (issue #231).
     $skipped = ['vendor', 'node_modules', '.git', '.claude', '.codex', '.agents', '.idea', 'build'];
-    $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml', 'toml'];
+    $extensions = ['md', 'mdc', 'inc', 'php', 'sh', 'json', 'yml', 'yaml', 'toml'];
 
     $iterator = new RecursiveIteratorIterator(
         new RecursiveCallbackFilterIterator(

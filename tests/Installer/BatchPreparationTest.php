@@ -15,7 +15,7 @@ function batchPrepPlanStep(string $evidence): string
 
 test('the command accepts several references and an opt-in merge flag and keeps one reference as it was', function (): void {
     $command = packageSource('commands/prepare-issue-for-merge.md');
-    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
+    $skill = packageSource('commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($command)->toContain('[more references] [--merge]')
         ->and($command)->toContain('With exactly one reference and no flag, this session holds the `krang` role')
@@ -240,7 +240,7 @@ test('siblings never block each other in the planner, and the planner shows why'
 
 test('every batch unit is brought to the default branch tip before the readiness check, with or without --merge', function (): void {
     $batch = packageSource('commands/_shared/orchestration/batch-preparation.inc');
-    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
+    $skill = packageSource('commands/_shared/orchestration/verify-merge-readiness.inc');
     $donatello = packageSource('agents/donatello.md');
     $orchestration = packageSource('rules/compound-engineering/orchestration.md');
 
@@ -406,7 +406,7 @@ test('the startup sweep already covers the batch worktree names', function (): v
 
 test('the grant runs every helper for a unit tree in a subshell, so the root session never leaves the shared tree', function (): void {
     $batch = packageSource('commands/_shared/orchestration/batch-preparation.inc');
-    $skill = packageSource('skills/verify-merge-readiness/SKILL.md');
+    $skill = packageSource('commands/_shared/orchestration/verify-merge-readiness.inc');
     $merge = packageSource('skills/merge-github-pr/SKILL.md');
 
     expect($batch)->toContain('`( cd <worktree> && <shared tree>/commands/_shared/verify-gate.sh --tier full <sha> )`')

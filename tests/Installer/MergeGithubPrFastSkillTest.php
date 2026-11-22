@@ -208,5 +208,5 @@ test('the package lists the skill in the README, the skill catalog, the installa
         ->and(mergeFastSource('docs/skills.md'))->toContain('All ' . $count . ' skills this package ships')
         ->and(mergeFastSource('docs/installation.md'))->toContain('| ' . $count . ' skills (`skills/*/SKILL.md`)')
         ->and(mergeFastSource('CHANGELOG.md'))->toContain('the `merge-github-pr-fast` skill merges a hotfix pull request as fast as possible (#406)')
-        ->and(mergeFastSource('skills/code-review/references/specialized-reviews.md'))->toContain('- `merge-github-pr-fast` —');
+        ->and(mergeFastSource('commands/_shared/orchestration/specialized-reviews.inc'))->toContain('- `merge-github-pr-fast` —');
 });

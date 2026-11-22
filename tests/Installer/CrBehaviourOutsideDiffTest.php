@@ -7,7 +7,7 @@ test('the code review reports every untouched part of the application whose beha
     $walk = (string) file_get_contents($packageDir . '/rules/code-review/core-analysis.md');
     $agent = (string) file_get_contents($packageDir . '/agents/leonardo.md');
     $contract = (string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md');
-    $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $loop = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
 
     expect($walk)->toContain('- **Behaviour changed outside the diff — mandatory impact walk.**')

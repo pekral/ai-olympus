@@ -13,7 +13,7 @@ Apply these Codex compatibility mappings everywhere in that definition:
 - `@skills/<path>` means the matching file below `.agents/skills/<path>`; invoke a skill as `$skill-name` when appropriate.
 - `@rules/<path>` means the matching file below `.codex/rules/<path>`.
 - A bare `skills/<path>` reference to a shipped script (for example `skills/page-redesign/scripts/render-previews.sh`) means the matching file below `.agents/skills/<path>`; run it with the session's shell.
-- Command-owned routing and validation helpers (`classify-risk.sh`, `plan-route.sh`, `plan-parallel.sh`, `run-gate.sh`, `gate-lock.sh`, `pack-context.sh`, `check-handoff.sh`, `render-report.sh`, `run-validation.sh`, `run-fast-checks.sh`, `verify-gate.sh`, `gate-context.sh`, and `record-metrics.sh`) live below `.codex/commands/_shared/`; run them with the session's shell. Both sets are platform-neutral by construction — a Codex run routes, validates, reports, and measures exactly as a Claude run does.
+- A bare `commands/<path>` means the matching file below `.codex/commands/<path>`. Command-owned routing and validation helpers (`classify-risk.sh`, `plan-route.sh`, `plan-parallel.sh`, `run-gate.sh`, `gate-lock.sh`, `pack-context.sh`, `check-handoff.sh`, `render-report.sh`, `run-validation.sh`, `run-fast-checks.sh`, `verify-gate.sh`, `gate-context.sh`, and `record-metrics.sh`) live below `.codex/commands/_shared/`; run them with the session's shell. Both sets are platform-neutral by construction — a Codex run routes, validates, reports, and measures exactly as a Claude run does.
 - `agents/<name>.md` means `.codex/agent-instructions/<name>.md`.
 - Claude's Read, Write, Glob, Grep, and Bash names mean the equivalent Codex filesystem and shell tools available in this session.
 

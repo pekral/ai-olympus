@@ -27,7 +27,7 @@ test('every deterministic orchestration helper is shipped, executable, and self-
     ];
 
     foreach ($helpers as $helper) {
-        $script = $packageDir . '/skills/_shared/' . $helper . '.sh';
+        $script = $packageDir . '/commands/_shared/' . $helper . '.sh';
 
         expect(is_file($script))->toBeTrue();
         expect(is_executable($script))->toBeTrue();
@@ -45,7 +45,7 @@ test('every deterministic orchestration helper is shipped, executable, and self-
     $selfTests = implode(' ', $composer['scripts']['shell-self-tests']);
 
     foreach ($helpers as $helper) {
-        expect($selfTests)->toContain(' skills/_shared/' . $helper . '.sh');
+        expect($selfTests)->toContain(' commands/_shared/' . $helper . '.sh');
     }
 });
 
@@ -259,7 +259,7 @@ test('krang records the run metrics that make the next tuning decision evidence-
 test('krang may run the context relevance gate it is told to run first', function (): void {
     $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc');
 
-    expect($krang)->toMatch('/^Bash is granted for one purpose:.*`skills\/_shared\/gate-context\.sh`/m');
+    expect($krang)->toMatch('/^Bash is granted for one purpose:.*`commands\/_shared\/gate-context\.sh`/m');
 });
 
 test('the deterministic helpers are mapped for Codex, not only for Claude Code', function (): void {

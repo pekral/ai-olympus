@@ -31,7 +31,7 @@ test('deliver-page-redesign is one shared workflow for Claude Code and Codex', f
 
 test('deliver-page-redesign routes through the redesign stage and a mandatory interactive walkthrough', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/deliver-page-redesign/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/deliver-page-redesign.inc');
     $command = (string) file_get_contents($packageDir . '/commands/redesign-page.md');
 
     expect($skill)->toContain('passes `--runtime-acceptance`, `--thorough`, and `--tracker no`');

@@ -275,7 +275,7 @@ test('krang writes a memory entry under the same rule on Claude Code and Codex a
 
 test('a memory entry is krang\'s own text, and a superseded entry is never served again (issue #559)', function (): void {
     $memory = codeReviewMemoryFile('rules/compound-engineering/memory.md');
-    $promotion = codeReviewMemoryFile('skills/code-review/references/learning-promotion.md');
+    $promotion = codeReviewMemoryFile('commands/_shared/orchestration/learning-promotion.inc');
 
     expect($memory)->toContain(
         '**The text is `krang`\'s own.** `krang` words every free-text field '

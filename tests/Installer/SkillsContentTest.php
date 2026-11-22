@@ -154,7 +154,7 @@ test('the merge gate reads zero Critical with no undeferred Moderate, coherently
     $packageDir = dirname(__DIR__, 2);
     $git = gitRuleContents();
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $process = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $process = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
 
     // One definition, stated the same way on every surface that gates a merge.
     foreach ([$git, $merge] as $surface) {
@@ -1466,7 +1466,7 @@ test('the quality gate runs once at the merge boundary, not during the branch (i
 
     // The old per-phase / per-iteration gates must be gone from the skills that ran them.
     $resolve = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
-    $loop = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $loop = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     expect($resolve)->toContain('## Quality gates — deferred to the merge boundary');
     expect($resolve)->toContain('**Do not run fixers, checkers, or the full build in this skill.**');
     expect($loop)->toContain('### Quality gates — not run in this loop');
@@ -2063,7 +2063,7 @@ test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag
 
 test('process-code-review writes no tracker status when it opens the PR after the review', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
 
     expect($content)->not->toContain('write that issue\'s review-waiting phase signal now');
     expect($content)->toContain('Write no status on the tracker issue on this path: the PR opens after the code review');
@@ -2072,7 +2072,7 @@ test('process-code-review writes no tracker status when it opens the PR after th
 
 test('process-code-review links the PR to its tracker issue when it opens the PR itself', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
 
     // The Finalization bullet list carried a title rule and a body rule and said nothing about
     // the link, so this second PR-opening path opened unlinked PRs by default.
@@ -2162,7 +2162,7 @@ test('a run that produced no post-convergence report says so in its handoff (iss
 
 test('the round-3 deferral boundary triages every remaining finding into exactly one outcome', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     $reference = (string) file_get_contents($packageDir . '/skills/process-code-review/references/round-three-deferral.md');
     $scriptPath = $packageDir . '/skills/process-code-review/scripts/file-deferred-moderate.sh';
 
@@ -2198,7 +2198,7 @@ test('the round-3 deferral boundary triages every remaining finding into exactly
 
 test('process-code-review labels the converged pull request and writes no tracker status', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc');
     $referencePath = $packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md';
 
     expect(is_file($referencePath))->toBeTrue();

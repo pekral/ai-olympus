@@ -385,7 +385,7 @@ test('leonardo publishes the review through the wrapper only, with no inline com
 });
 
 test('the review loop reads an inline thread of an earlier release as the agent own finding and resolves it through the wrapper', function (): void {
-    $skill = inlineReviewSource('skills/process-code-review/SKILL.md');
+    $skill = inlineReviewSource('commands/_shared/orchestration/process-code-review.inc');
     $reference = inlineReviewSource('skills/process-code-review/references/resolve-reviewer-threads.md');
 
     expect($skill)->toContain('Classify each comment on its own')
@@ -487,13 +487,13 @@ test('a published report with an Inline line resolves nothing by absence, and th
 
     expect($extractor)->toContain('a report with an Inline line resolves no open record by absence')
         ->and($extractor)->toContain('a report whose inline review was not posted still resolves by absence')
-        ->and(inlineReviewSource('skills/code-review/references/feedback-loop.md'))
+        ->and(inlineReviewSource('commands/_shared/orchestration/feedback-loop.inc'))
         ->toContain('resolves no open record in `collect`')
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
         ->toContain('The extractor resolves no record by absence for that legacy comment')
         ->and(inlineReviewSource('skills/code-review/references/finding-records.md'))
         ->toContain('carries no `Inline:` line, so it resolves by absence like any complete report')
-        ->and(inlineReviewSource('skills/code-review/references/feedback-loop.md'))
+        ->and(inlineReviewSource('commands/_shared/orchestration/feedback-loop.inc'))
         ->not->toContain('carries no such line: the findings it no longer lists');
 });
 

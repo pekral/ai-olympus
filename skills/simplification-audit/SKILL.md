@@ -1,12 +1,12 @@
 ---
 name: simplification-audit
-description: "Use when the user explicitly asks for an audit of the codebase or to refactor a part of the codebase, or in `MODE=cr` over the current diff of every code review. Coordinates a bounded, read-only pass over every subsystem in scope and returns ranked simplification recommendations for data structures, state representation, control flow, algorithms, and ownership, without changing a single file."
+description: "Use when the user explicitly asks for an audit of the codebase or to refactor a part of the codebase, or in `MODE=cr` over the current diff of every code review. Provides a bounded, read-only assessment over every subsystem in scope and returns ranked simplification recommendations for data structures, state representation, control flow, algorithms, and ownership, without changing a single file."
 license: MIT
 metadata:
   author: "Petr Král (pekral.cz)"
 ---
 
-For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+Entry contract: from this skill directory, read the file printed by `bash ../_shared/resolve-command-helper.sh --entry`.
 
 ## Constraints
 

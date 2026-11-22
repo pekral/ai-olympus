@@ -127,7 +127,7 @@ test('every command that names krang holds the krang role instead of starting kr
 
     $reportCodeReview = [
         'Never perform a specialist\'s step in this session.' => 1,
-        'When `.claude/command-support/_shared/krang-workflow.inc` is not installed, stop and' => 1,
+        'When the workflow is missing from the resolved command-support directory, stop and' => 1,
         'When `commands/_shared/krang-workflow.inc` is not installed' => 0,
     ];
 
@@ -161,10 +161,10 @@ test('no entry point tells a session to start krang as a subagent', function ():
 
 test('the skills, the docs, the README, and the Codex adapter reference the owner section', function (): void {
     $references = [
-        'skills/verify-merge-readiness/SKILL.md' => 1,
-        'skills/do-it/SKILL.md' => 1,
-        'skills/deliver-page-redesign/SKILL.md' => 1,
-        'skills/auto-interactive-testing/SKILL.md' => 1,
+        'commands/_shared/orchestration/verify-merge-readiness.inc' => 1,
+        'commands/_shared/orchestration/do-it.inc' => 1,
+        'commands/redesign-page.md' => 1,
+        'commands/_shared/orchestration/auto-interactive-testing.inc' => 1,
         'docs/agents.md' => 3,
         'README.md' => 1,
         'codex/agents/krang.toml' => 1,

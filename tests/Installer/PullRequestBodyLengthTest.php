@@ -78,7 +78,7 @@ test('the overflow comment is updated in place, so a changed body never leaves a
 test('the overflow comment is a durable copy that merge preparation never deletes', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $helper = (string) file_get_contents($packageDir . '/skills/_shared/delete-owned-github-comment.sh');
     $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
 

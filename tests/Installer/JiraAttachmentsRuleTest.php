@@ -169,7 +169,7 @@ test('every agent whose skills fetch a JIRA attachment is allowed the fetch on b
         . 'for the issue the run works on';
 
     foreach (['donatello', 'krang', 'leonardo', 'raphael'] as $agent) {
-        $boundary = installerDocsSection((string) file_get_contents($packageDir . '/agents/' . $agent . '.md'), '## Bash boundary');
+        $boundary = installerDocsSection(installedRoleInstructions($agent), '## Bash boundary');
         $codex = (string) file_get_contents($packageDir . '/codex/agents/' . $agent . '.toml');
 
         expect($boundary)->toContain($grant)

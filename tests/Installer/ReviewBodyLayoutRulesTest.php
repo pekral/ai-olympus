@@ -87,7 +87,7 @@ test('the layout has one owner: the Merge Risk block markup is in the template a
         'commands/_shared/code-review-github/post-inline-review.sh',
     ];
     $holders = array_values(array_filter(
-        reviewLayoutPackageFiles('rules', 'skills', 'agents', 'codex'),
+        reviewLayoutPackageFiles('rules', 'skills', 'commands', 'agents', 'codex'),
         static fn (string $path): bool => str_contains(reviewLayoutRepoFile($path), '<summary><strong>Merge Risk:</strong>'),
     ));
     sort($holders);

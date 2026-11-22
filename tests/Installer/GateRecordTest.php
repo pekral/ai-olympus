@@ -11,7 +11,7 @@ declare(strict_types = 1);
 
 function gateScript(string $name): string
 {
-    return (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/' . $name);
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/' . $name);
 }
 
 /**
@@ -227,7 +227,7 @@ test('the trust model is stated where the record is written, read, and documente
 test('the merge and the readiness check keep CI and never merge on a non-zero verdict', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $merge = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $readiness = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($merge)->toContain(
         'Run the trusted copy of `commands/_shared/verify-gate.sh --tier full <headRefOid>` '

@@ -182,7 +182,7 @@ function contentPinFileCorpus(string $loader, string $path): ?array
         return null;
     }
 
-    if ($loader === 'file_get_contents') {
+    if ($loader === 'file_get_contents' || $loader === 'packageSource') {
         return ['name' => $relative, 'text' => (string) file_get_contents($absolute)];
     }
 

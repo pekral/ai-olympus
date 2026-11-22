@@ -74,7 +74,7 @@ test('a fix round closes the whole class of each finding with a test (issue #599
         ->toContain('6. **Push only then.**')
         ->toContain('A finding without those three items is reported as not closed.');
 
-    expect(fewerRoundsFile('skills/process-code-review/SKILL.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('**Close each finding\'s whole class** (`references/close-the-defect-class.md`).')
         ->toContain('- references/close-the-defect-class.md');
     expect(fewerRoundsFile('agents/donatello.md'))
@@ -87,13 +87,13 @@ test('a fix round closes the whole class of each finding with a test (issue #599
 test('no other file restates the class-closing steps (issue #599)', function (string $relativePath): void {
     expect(fewerRoundsFile($relativePath))->not->toContain('Prove the class closed with one test over its variants.');
 })->with([
-    'skills/process-code-review/SKILL.md',
+    'commands/_shared/orchestration/process-code-review.inc',
     'agents/donatello.md',
     'commands/_shared/krang-workflow.inc',
 ]);
 
 test('the cap round decides without the operator and keeps every hard blocker (issue #599)', function (): void {
-    $state = fewerRoundsFile('skills/process-code-review/references/review-state.md');
+    $state = fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($state)
         ->toContain('### The cap round decides automatically')
@@ -109,12 +109,12 @@ test('the cap round decides without the operator and keeps every hard blocker (i
         ->toContain('- **Nothing about the gate changes.** A security finding is never deferred and never dismissed, a Critical is never deferred')
         ->toContain('- **The operator still decides beyond.**');
 
-    expect(fewerRoundsFile('skills/process-code-review/SKILL.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('   - **Critical outside security → hard stop.** Never deferred, never filed as a sub-issue.')
         ->toContain('   - **Security finding (the S1–S3 carve-out, at any severity) → up to two more rounds, fixing only the security findings.**')
         ->toContain('   - **Every other Moderate → deferred automatically as a sub-issue, or blocking.**');
 
-    expect(fewerRoundsFile('skills/process-code-review/references/round-three-deferral.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-round-three-deferral.inc'))
         ->toContain('| **Critical outside security** (including every not-fulfilled reviewer instruction')
         ->toContain(
             '| **Up to two more rounds that fix only the security findings**, each reviewed at full depth, with no operator question.',
@@ -178,7 +178,7 @@ test('a round after a small delta runs only the lenses the delta can affect (iss
         ->toContain('- **The security lenses read the whole PR diff in every round of `full` depth.**')
         ->toContain('A `light` round narrows them to the delta and its callers, and never skips one.');
 
-    expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'))
         ->toContain(
             '| `large-delta` | The delta changes more than 5 files, or more than 100 lines (added plus deleted). 5 files and 100 lines are still small. |',
         )
@@ -241,9 +241,9 @@ test('a security round fixes only the security findings and is reviewed at full 
 })->with([
     'commands/_shared/krang-workflow.inc',
     'agents/donatello.md',
-    'skills/process-code-review/SKILL.md',
-    'skills/process-code-review/references/review-state.md',
-    'skills/process-code-review/references/round-three-deferral.md',
+    'commands/_shared/orchestration/process-code-review.inc',
+    'commands/_shared/orchestration/review-review-state.inc',
+    'commands/_shared/orchestration/review-round-three-deferral.inc',
     'commands/_shared/review-state.sh',
     'rules/git/pull-requests.md',
     'docs/agents.md',
@@ -282,11 +282,11 @@ test('a round past the cap, a light history scan, and a forged review depth neve
 });
 
 test('the delta lists name a rename under both paths, and krang may compute the depth on the leonardo loop state (issue #599)', function (): void {
-    expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'))
         ->toContain('The delta paths are `git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('the delta line counts are `git diff --no-renames --numstat <reviewedRevision>..<head SHA>`')
         ->toContain('When `git rev-parse --verify --quiet <head SHA>^{commit}` fails, run `git fetch origin <head SHA>` first.');
-    expect(fewerRoundsFile('skills/process-code-review/references/review-loop-scope.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-loop-scope.inc'))
         ->toContain('`git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('`git diff --no-renames --numstat <reviewedRevision>..<head SHA>`');
     expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
@@ -307,7 +307,7 @@ test('an escalated loop takes one more round only on the operator\'s own instruc
         ->and($script)->not->toContain('--operator-authorised)')
         ->and($script)->not->toContain('authori[sz]e round');
 
-    $reference = fewerRoundsFile('skills/process-code-review/references/review-state.md');
+    $reference = fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($reference)
         ->toContain(
@@ -405,7 +405,7 @@ test('no review-scope command reads the symbolic HEAD of the tree it runs in (is
 test('the documented delta commands select the depth of the dispatched head from a tree on another branch (issue #599)', function (): void {
     $found = preg_match(
         '/The delta paths are `(git diff [^`]+)`, and the delta line counts are `(git diff [^`]+)`/',
-        fewerRoundsFile('skills/process-code-review/references/review-state.md'),
+        fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'),
         $matches,
     );
     expect($found)->toBe(1);

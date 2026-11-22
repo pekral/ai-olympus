@@ -153,7 +153,7 @@ test('the package lists the skill in the README, the skill catalog, and the code
     expect(composerUpdateSource('README.md'))->toContain($count . ' reusable skills')
         ->and(composerUpdateSource('docs/skills.md'))->toContain('| [`composer-update-pr`](../skills/composer-update-pr/) |')
         ->and(composerUpdateSource('docs/skills.md'))->toContain('All ' . $count . ' skills this package ships')
-        ->and(composerUpdateSource('skills/code-review/references/specialized-reviews.md'))->toContain('- `composer-update-pr` —');
+        ->and(composerUpdateSource('commands/_shared/orchestration/specialized-reviews.inc'))->toContain('- `composer-update-pr` —');
 });
 
 test('lock-diff lists updated, added, and removed packages with the level of each version change', function (): void {

@@ -95,7 +95,7 @@ test('the merge gate loads the pull request only with the verified copy of the l
         ->and(substr_count($exemptions, 'the JSON document loaded in step 1'))->toBe(0)
         ->and(trustedRecordParserSource('skills/merge-github-pr/references/low-risk-path.md'))
         ->toContain('from the payload that the trusted copy of the loader wrote in step 1')
-        ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))
+        ->and(trustedRecordParserSource('commands/_shared/orchestration/verify-merge-readiness.inc'))
         ->toContain('read from the loader document that the trusted copy of the loader wrote in the same call');
 });
 
@@ -116,7 +116,7 @@ test('the merge gate checks the gate record only with the verified copy of the r
             'Run the trusted copy of `commands/_shared/verify-gate.sh --tier full <headRefOid>` '
             . '(`references/trusted-record-parser.md`) on the checked-out head',
         )
-        ->and(trustedRecordParserSource('skills/verify-merge-readiness/SKILL.md'))->toContain(
+        ->and(trustedRecordParserSource('commands/_shared/orchestration/verify-merge-readiness.inc'))->toContain(
             'run the trusted copy of `commands/_shared/verify-gate.sh --tier full <head SHA>`',
         );
 });

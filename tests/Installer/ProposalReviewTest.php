@@ -66,7 +66,7 @@ test('krang runs the proposal review before donatello in the merge-preparation d
 
     expect(normalizedPackageSource('commands/_shared/orchestration/merge-preparation.inc'))
         ->toContain('review of `commands/_shared/orchestration/proposal-review.inc` on every such run');
-    expect(normalizedPackageSource('skills/verify-merge-readiness/SKILL.md'))
+    expect(normalizedPackageSource('commands/_shared/orchestration/verify-merge-readiness.inc'))
         ->toContain('review of `commands/_shared/orchestration/proposal-review.inc`');
     expect(normalizedPackageSource('commands/prepare-issue-for-merge.md'))
         ->toContain('the proposal review of');
@@ -185,7 +185,7 @@ test('the Bugsnag wrapper takes two arguments, so the namespace and --create are
 });
 
 test('the merge-readiness cleanup manifest never deletes the proposal-review comment (round 1, M7)', function (): void {
-    expect(normalizedPackageSource('skills/verify-merge-readiness/SKILL.md'))
+    expect(normalizedPackageSource('commands/_shared/orchestration/verify-merge-readiness.inc'))
         ->toContain('A `proposal-review` comment (`commands/_shared/orchestration/proposal-review.inc` step 6) never enters the manifest.');
 });
 

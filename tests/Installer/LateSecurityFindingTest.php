@@ -47,7 +47,7 @@ test('every variant of a late finding is recorded as a finding of the security v
 });
 
 test('the review-state contract owns the late rule and leonardo points at it (issue #620)', function (): void {
-    expect(lateSecurityFindingFile('skills/process-code-review/references/review-state.md'))
+    expect(lateSecurityFindingFile('commands/_shared/orchestration/review-review-state.inc'))
         ->toContain('**A security finding reported late counts for its round.**')
         ->toContain('`review-state.sh late --state <file> --input <report>`')
         ->toContain('No late finding escalates with `cap-spent-after-convergence`')
@@ -55,7 +55,7 @@ test('the review-state contract owns the late rule and leonardo points at it (is
         ->toContain('**Every finding of a late report is a security finding.**')
         ->toContain('so `krang` passes `review depth: full` to the round that fixes it');
 
-    expect(lateSecurityFindingFile('skills/process-code-review/references/review-state.md'))
+    expect(lateSecurityFindingFile('commands/_shared/orchestration/review-review-state.inc'))
         ->not->toContain('a finding that is not security-relevant, and a `Reviewed revision`');
 
     expect(lateSecurityFindingFile('commands/_shared/krang-workflow.inc'))

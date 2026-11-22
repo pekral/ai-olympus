@@ -129,7 +129,7 @@ test('a guide that links its policy out leaves the policy unknown', function ():
 });
 
 test('the promotion step skips a pull request that carries the outline marker', function (): void {
-    $skill = contributionPolicySource('skills/process-code-review/SKILL.md');
+    $skill = contributionPolicySource('commands/_shared/orchestration/process-code-review.inc');
     $promotion = installerDocsSection($skill, '#### Promote the PR out of Draft');
 
     expect($promotion)->toContain(

@@ -229,7 +229,7 @@ test('the end-of-body convention is stated in the rule and in every path that em
         'skills/pr-summary/templates/pr-summary-bugsnag.md',
         'skills/resolve-issue/references/tracker-follow-up.md',
         'skills/resolve-issue/references/deferred-follow-up.md',
-        'skills/process-code-review/references/round-three-deferral.md',
+        'commands/_shared/orchestration/review-round-three-deferral.inc',
         'commands/_shared/orchestration/proposal-review.inc',
     ] as $path) {
         expect($read($path))->toContain('`=== END OF COMMENT BODY` line');

@@ -146,7 +146,7 @@ test('a blocking finding outside the delta widens the round, and a change after 
         ->toContain('run_case \'round: a finding under Findings without Evidence is refused\' 3 yes')
         ->toContain('run_case \'store mode still reads a finding without Evidence\' 0 no');
 
-    $contract = reviewQualityGateFile('skills/process-code-review/references/review-state.md');
+    $contract = reviewQualityGateFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($contract)
         ->toContain('| `open-finding-outside-delta` | A blocking finding (`new`, `confirmed`, or a security `needs-verification` point) sits in a file')
@@ -221,7 +221,7 @@ test('the round cap and the blocking threshold come only from the default-branch
 });
 
 test('process-code-review drives its loop through the review state and keeps comments away from the cap', function (): void {
-    $skill = reviewQualityGateFile('skills/process-code-review/SKILL.md');
+    $skill = reviewQualityGateFile('commands/_shared/orchestration/process-code-review.inc');
 
     expect($skill)
         ->toContain(
@@ -236,7 +236,7 @@ test('process-code-review drives its loop through the review state and keeps com
 });
 
 test('the loop contract documents a round, the configuration, the statuses, escalation, and troubleshooting', function (): void {
-    $contract = reviewQualityGateFile('skills/process-code-review/references/review-state.md');
+    $contract = reviewQualityGateFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($contract)
         ->toContain('**A round is one review of one head revision, recorded once with `review-state.sh record`.**')
@@ -282,7 +282,7 @@ test('the security lenses read the whole pull request in every round', function 
         ->toContain('is not walked again for new findings by any lens except the security lenses, which read the whole PR diff in every round')
         ->toContain('A narrow delta cannot show a security regression at an untouched call site of a changed function.');
 
-    $loopScope = reviewQualityGateFile('skills/process-code-review/references/review-loop-scope.md');
+    $loopScope = reviewQualityGateFile('commands/_shared/orchestration/review-review-loop-scope.inc');
 
     expect($loopScope)
         ->toContain('- **Pass the delta\'s changed files to the loop state, and widen the round when the delta is not enough.**')

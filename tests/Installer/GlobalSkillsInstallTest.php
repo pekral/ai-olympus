@@ -151,13 +151,13 @@ function checkDiscoveredWorkflow(string $skills, string $public, string $name, s
     $skill = $skills . '/' . $name;
     $instructions = (string) file_get_contents($skill . '/SKILL.md');
     expect($instructions)->toContain('bash ../_shared/resolve-command-helper.sh --entry')
-        ->and($instructions)->toContain('For a bounded work step already in progress, use the method below.');
+        ->and($instructions)->not->toContain('For a bounded work step already in progress');
 
     $resolver = new Process(['bash', '../_shared/resolve-command-helper.sh', '--entry'], $skill);
     $adapter = trim($resolver->mustRun()->getOutput());
     $entry = (string) file_get_contents($adapter);
     expect($entry)->toContain('| `$' . $name . '` | `commands/' . $command . '.md` |')
-        ->and($entry)->toContain('An unmapped user invocation also stays in its current executor');
+        ->and($entry)->toContain('An unmapped user invocation also stays in its current executor', 'resume below the entry link');
 
     $commandText = (string) file_get_contents($public . '/' . $command . '.md');
     expect($commandText)->toContain('commands/_shared/orchestration/' . $protocol . '.inc')
@@ -169,8 +169,13 @@ test('direct workflows continue from the host-discovered project and global skil
     globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
         $root = $result['root'];
         installerWriteFile($root . '/AGENTS.md', 'Custom project instructions.' . PHP_EOL);
+        $previous = (string) file_get_contents(__DIR__ . '/../Fixtures/legacy-skills/do-it-0.5.md');
+        installerWriteFile($root . '/.agents/skills/do-it/SKILL.md', $previous);
+        $customSkill = $root . '/.agents/skills/process-code-review/SKILL.md';
+        installerWriteFile($customSkill, 'Custom review procedure.' . PHP_EOL);
         [$status] = installedCopyReferenceInstall($root);
         expect($status)->toBe(0)->and(file_get_contents($root . '/AGENTS.md'))->toBe('Custom project instructions.' . PHP_EOL);
+        expect(file_get_contents($customSkill))->toBe('Custom review procedure.' . PHP_EOL);
         $source = dirname(__DIR__, 2);
         $layouts = [
             [$source . '/skills', $source . '/commands'],
@@ -187,7 +192,7 @@ test('direct workflows continue from the host-discovered project and global skil
     });
 });
 
-function checkInstalledReviewState(string $directory, string $consumer, int $number): void
+function recordInstalledReviewMetrics(string $directory, string $consumer, int $number): string
 {
     $state = ".codex/run/round-{$number}.json";
     $script = $directory . '/review-state.sh';
@@ -204,7 +209,8 @@ function checkInstalledReviewState(string $directory, string $consumer, int $num
         '--status', 'success', '--review-state', $state, '--store', $store,
     ];
     (new Process($metrics, $consumer))->mustRun();
-    expect((string) file_get_contents($store))->toContain('"iterations":1');
+
+    return (string) file_get_contents($store);
 }
 
 test('review state and derived metrics use the same canonical jq modules in every distribution', function (): void {
@@ -223,7 +229,7 @@ test('review state and derived metrics use the same canonical jq modules in ever
         ];
 
         foreach ($directories as $index => $directory) {
-            checkInstalledReviewState($directory, $root, $index + 1);
+            expect(recordInstalledReviewMetrics($directory, $root, $index + 1))->toContain('"iterations":1');
         }
     });
 });

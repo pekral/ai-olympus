@@ -167,7 +167,7 @@ test('the JIRA publish helper never leaves an unformatted comment behind and for
 test('the merge-readiness TL;DR is published through the helper that matches the source tracker', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $rule = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     foreach ([$april, $skill] as $document) {
@@ -251,7 +251,7 @@ test('a JIRA account mention becomes an ADF mention node', function (): void {
 
 test('the merge-preparation consolidation opens a JIRA comment with its first heading, never with a verdict sentence', function (): void {
     $april = normalizedPackageSource('agents/april.md');
-    $skill = normalizedPackageSource('skills/verify-merge-readiness/SKILL.md');
+    $skill = normalizedPackageSource('commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
         ->and($april)->toContain('On a JIRA ticket the comment opens with its first heading, and the exact blocker is the first `Review findings` bullet.')

@@ -2722,7 +2722,7 @@ test('leonardo points at the not-run section once and never restates its list (i
     // invoke at all - groups 3 and 4 hold skills the run legitimately calls around the review.
     $section = explode(
         "\n## Skills deliberately not run\n",
-        (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'),
+        (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc'),
     )[1];
     $groups = deliberatelyNotRunGroups($section);
 

@@ -276,7 +276,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: comment removal is bounded to the lines the change writes (`rules/compound-engineering/general.md` *The assignment is the scope*).
         // Re-baselined: a data transformation moved out of an Enum goes to a Data Builder even when it is simple and has one caller.
         // Re-baselined: every coverage run goes through `run-gate.sh --exclusive` (issue #409).
-        'rules/php/core-standards.md' => 'fd25f66dc4df4d40ac86b25db17ce55014b29fded61254ce9a1448bff1f3e87e',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/php/core-standards.md' => '7626ae5482e436c6071fd1afc0d3f345f457f94c63486c512278ef34910b9c89',
         // Re-baselined: `## Query Analysis` gained the connection and blast-radius statement a
         // review of a changed query makes, and the per-row exception is justified in the PR
         // description instead of a code comment. Nothing else in the file moved.
@@ -487,7 +488,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a fence outside a list item stays open until its closing line, whatever the indent of its lines, and a fence in a list item is bound by a stack of item offsets (issue #589).
         // Re-baselined: an Actionable comments entry may carry the suggested code of its finding, the one code a review shows (issue #654).
         // Re-baselined: the marker family names the `pr-body-overflow` namespace, the upserted pull-request body overflow comment (issue #662).
-        'rules/code-review/general.md' => '6ebae3eba83b9f5f97c3dba4c6cb52c730f0b153fff707a99a56c54f1a7cd0b8',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/code-review/general.md' => '8e4a824d6e07ff72b90ae5397be5eecc33b88ebe333e7d4fa39661b179224bb2',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -515,7 +517,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: *Data Handling* requires test data to be inserted in one batch whenever possible and names the cases where a batch fails.
         // Re-baselined: *Flaky Test Prevention* keeps a date test correct across a daylight saving transition and names the manifest zone as the winner over the application config zone.
         // Re-baselined: the affected tests run through `run-gate.sh --exclusive` (issue #409).
-        'rules/code-testing/general.md' => '420a5ef4858d14ff65437479f9c7bac2b845c12ee628c9c1bae2bd9149f4e0ba',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/code-testing/general.md' => '6650c2ef5f08eb5b85e52dad0d712cb9dbe7c688cbc6d5815e3cf2fcbfb6bd2c',
         // Re-baselined: the JIRA publisher now updates the comment it already owns. It appends the
         // visible marker line `_cr-comment:actor=<acli-email>_`, converts the source to ADF, and
         // applies that ADF to the existing marker-carrying comment, creating one only when none
@@ -566,7 +569,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the printed setup step; `## Code Review Application` gained the matching entry (issue #640).
         // Re-baselined: the fetch takes the loader's `key` of the assigned issue, creates its folder below the
         // physical toplevel after the symbolic-link check, and audits the site host (issue #640, review round 1).
-        'rules/jira/general.md' => 'bd5fb92ec0e8f042c56b969f88813370a9d08d47c743306a16315a8e47e64b64',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/jira/general.md' => '0bb0e8987ba5b4c685c419f125dfd8379d81f50ef085458aca9ab45459db171c',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
@@ -583,7 +587,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
         // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
-        'rules/refactoring/general.md' => 'cecee55969d3c1dc138fdac62349c7bccba0a40ec7ea50fbe345c33f689b0e2e',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/refactoring/general.md' => 'ba512e64e6d746b51c0f7f1d65cc559bc9515c4c6512756ff6933766ae3dcf39',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
@@ -612,7 +617,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        'rules/reports/general.md' => 'e08225a3b9d2622d4df173884035befa39521364b2298c4f1435e311c31f5aca',
+        // Issue #678 moved the cited command assets. The rule body otherwise matches the previous revision.
+        'rules/reports/general.md' => '96e4acfd90b4b769d1ae45e5f8f08f2204cb237c968d15541394535f91d8bfb5',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -5,7 +5,7 @@ declare(strict_types = 1);
 test('test-assignment runs the assignment test through krang, donatello, raphael, and april', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/commands/test-assignment.md');
-    $skill = (string) file_get_contents($packageDir . '/skills/test-assignment/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/test-assignment.inc');
     $krang = (string) file_get_contents($packageDir . '/commands/_shared/krang-workflow.inc');
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $raphael = (string) file_get_contents($packageDir . '/agents/raphael.md');

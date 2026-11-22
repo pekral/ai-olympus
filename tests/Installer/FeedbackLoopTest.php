@@ -122,14 +122,14 @@ test('the lookup refuses a result of another repository and the proposal contrac
         ->toContain('check \'a result that points to another owner or repository is not the proposal of this class\'')
         ->toContain('check \'the repository of the result is compared without regard to case\'');
 
-    expect(feedbackFile('skills/code-review/references/prevention-proposal.md'))
+    expect(feedbackFile('commands/_shared/orchestration/prevention-proposal.inc'))
         ->toContain('and its URL belongs to the repository of the key (compared without regard to case).')
         ->toContain('3. Run `commands/_shared/feedback-loop.sh lookup --key <key>`.')
         ->toContain('The number of proposals in the repository therefore never blocks the lookup.');
 });
 
 test('the contract names the roles, the store, the canonical repository, the approval, the consent, and the limits', function (): void {
-    $contract = feedbackFile('skills/code-review/references/feedback-loop.md');
+    $contract = feedbackFile('commands/_shared/orchestration/feedback-loop.inc');
 
     expect($contract)
         ->toStartWith('# Feedback loop — from a repeated review finding to an enforced safeguard')
@@ -172,7 +172,7 @@ test('the contract names the roles, the store, the canonical repository, the app
 });
 
 test('the earlier contracts hand their open points to the wiring contract', function (): void {
-    $analysis = feedbackFile('skills/code-review/references/recurrence-analysis.md');
+    $analysis = feedbackFile('commands/_shared/orchestration/recurrence-analysis.inc');
     $proposal = feedbackFile('skills/code-review/references/prevention-proposal.md');
 
     expect($analysis)
@@ -243,7 +243,7 @@ test('krang runs the feedback analysis as an analysis-only run and never starts 
 });
 
 test('an approved proposal is implemented by the ordinary pipeline under four proofs and a read-only review', function (): void {
-    $reference = feedbackFile('skills/resolve-issue/references/safeguard-implementation.md');
+    $reference = feedbackFile('commands/_shared/orchestration/safeguard-implementation.inc');
 
     expect($reference)
         ->toStartWith('# Safeguard implementation')

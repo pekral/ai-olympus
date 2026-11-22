@@ -34,7 +34,7 @@ test('the principle is stated in the owner only and every other file references 
         'skills/code-review/references/assignment-conformance-gate.md' => 1,
         'skills/create-missing-tests-in-pr/SKILL.md' => 1,
         'skills/create-test/SKILL.md' => 1,
-        'skills/process-code-review/SKILL.md' => 1,
+        'commands/_shared/orchestration/process-code-review.inc' => 1,
         'skills/resolve-issue/SKILL.md' => 2,
         'skills/resolve-issue/references/pre-existing-issue-handling.md' => 2,
         'skills/resolve-issue/references/pull-request.md' => 1,
@@ -61,7 +61,7 @@ test('no skill mandates fixing a pre-existing bug, a rule violation, or a commen
     foreach ([
         'skills/resolve-issue/SKILL.md',
         'skills/resolve-issue/references/pre-existing-issue-handling.md',
-        'skills/process-code-review/SKILL.md',
+        'commands/_shared/orchestration/process-code-review.inc',
         'skills/create-test/SKILL.md',
         'skills/create-missing-tests-in-pr/SKILL.md',
     ] as $path) {
@@ -88,7 +88,7 @@ test('the one pre-existing fix that remains is a security vulnerability in its o
         ->and(substr_count($reference, '6. **A refactoring-only assignment fixes no vulnerability.**'))->toBe(1);
 
     foreach ([
-        'skills/process-code-review/SKILL.md',
+        'commands/_shared/orchestration/process-code-review.inc',
         'skills/create-test/SKILL.md',
         'skills/create-missing-tests-in-pr/SKILL.md',
     ] as $path) {
@@ -101,11 +101,16 @@ test('the one pre-existing fix that remains is a security vulnerability in its o
         1,
     )
         ->and(
-            substr_count($files['skills/process-code-review/SKILL.md'], 'list every pre-existing security fix under a `## Pre-existing fixes` heading'),
+            substr_count(
+                $files['commands/_shared/orchestration/process-code-review.inc'],
+                'list every pre-existing security fix under a `## Pre-existing fixes` heading',
+            ),
         )->toBe(
             1,
         )
-        ->and(substr_count($files['skills/process-code-review/SKILL.md'], 'only when **Pre-fix phase** landed a security fix'))->toBe(1);
+        ->and(substr_count($files['commands/_shared/orchestration/process-code-review.inc'], 'only when **Pre-fix phase** landed a security fix'))->toBe(
+            1,
+        );
 });
 
 test('the Assignment Conformance Gate flags a non-security change outside the assignment once', function (): void {
@@ -182,7 +187,7 @@ test('no skill restates what happens to a non-security observation, and no outpu
     $files = packageTextFiles();
 
     $copies = [
-        'skills/process-code-review/SKILL.md',
+        'commands/_shared/orchestration/process-code-review.inc',
         'skills/create-test/SKILL.md',
         'skills/create-missing-tests-in-pr/SKILL.md',
         'skills/resolve-issue/SKILL.md',

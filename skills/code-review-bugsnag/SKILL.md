@@ -7,7 +7,7 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
-For an explicit user invocation, run `bash ../_shared/resolve-command-helper.sh --entry` from this skill directory and follow the returned command contract with the original arguments. For a bounded work step already in progress, use the method below.
+Entry contract: from this skill directory, read the file printed by `bash ../_shared/resolve-command-helper.sh --entry`.
 
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `@skills/code-review-github/references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a Bugsnag-sourced review decides for itself.

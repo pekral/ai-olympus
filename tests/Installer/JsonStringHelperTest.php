@@ -24,14 +24,14 @@ test('the build runs the json-string helper self-test once', function (): void {
 });
 
 test('the shared script sources the json-string helper and defines no copy of json_string', function (string $script): void {
-    $source = jsonStringSource('skills/_shared/' . $script . '.sh');
+    $source = jsonStringSource($script . '.sh');
 
     expect(substr_count($source, 'json-string.sh'))->toBeGreaterThanOrEqual(2)
         ->and($source)->not->toContain('json_string() {');
-})->with(['check-handoff', 'run-validation', 'check-cr-header']);
+})->with(['commands/_shared/check-handoff', 'commands/_shared/run-validation', 'skills/_shared/check-cr-header']);
 
 test('exactly one shared script defines json_string', function (): void {
-    $files = glob(dirname(__DIR__, 2) . '/skills/_shared/*.sh');
+    $files = glob(dirname(__DIR__, 2) . '/{skills,commands}/_shared/*.sh', GLOB_BRACE);
     assert($files !== false);
 
     $definitions = array_sum(array_map(

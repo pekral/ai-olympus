@@ -140,7 +140,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    $readySignal = (string) file_get_contents($packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md');
+    $readySignal = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/review-ready-to-merge-signal.inc');
 
     expect($pullRequest)->toContain('**Merge risk** — it tells');
     expect($pullRequest)->toContain('🟢 for `low`, 🟡 for `medium`, 🔴 for `high`');
@@ -924,7 +924,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
     expect($checkedAgents)->not->toBeEmpty();
 
     foreach ($checkedAgents as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        $content = installedRoleInstructions($agent);
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
@@ -1260,7 +1260,7 @@ test('issues are cut as vertical slices, and a wide refactor as expand, migrate,
 test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    $trigger = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $trigger = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
 
     // The ban was written as an unqualified glob over every `.env*` spelling, so a skill reading
     // the committed template was violating an absolute the rule states. A sanctioned exception a
@@ -1669,7 +1669,7 @@ test('orchestration rule batches independent reads into one round and every read
 
     // Each agent whose context load is a batchable step references the rule from that step.
     foreach (['krang', 'donatello', 'leonardo', 'april'] as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        $content = installedRoleInstructions($agent);
         expect($content)->toContain('*Batch independent reads*');
     }
 

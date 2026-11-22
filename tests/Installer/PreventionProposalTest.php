@@ -179,7 +179,7 @@ test('the text rules are written once and strip every bidirectional-control and 
 
 test('the contract is written once, in the code-review skill', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/prevention-proposal.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/prevention-proposal.inc');
 
     expect($reference)
         ->toContain('This file is the one contract for turning a recurring defect class into a prevention proposal.')
