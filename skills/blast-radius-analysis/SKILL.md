@@ -15,8 +15,8 @@ metadata:
   - *Behaviour changed outside the diff* — callers and consumers of every changed symbol;
   - *Input consistency* — every entry point that writes the changed data;
   - *A caller or consumer outside the repository is a verification gap, never proof of absence* — external consumers.
-- **Risk areas are named, never re-specified.** Database, queue, API, and security risk is judged by the rule that owns it: `@rules/sql/optimalize.md`, `@rules/laravel/laravel.md` *Queue and Jobs*, `@rules/laravel/queue-debouncing.md`, `@skills/api-review/SKILL.md`, and the *Backward-compatible data / storage changes* and *Deploy-safe schema changes* bullets of `@rules/code-review/core-analysis.md`. This skill only names the security boundaries a change touches; `leonardo` owns the security review.
-- **The tier comes from `skills/_shared/classify-risk.sh`.** Never compute a second risk score. Grade individual risks `Critical` / `Moderate` / `Minor` only.
+- **Risk areas are named, never re-specified.** Database, queue, API, and security risk is judged by the rule that owns it: `@rules/sql/optimalize.md`, `@rules/laravel/laravel.md` *Queue and Jobs*, `@rules/laravel/queue-debouncing.md`, `@skills/api-review/SKILL.md`, and the *Backward-compatible data / storage changes* and *Deploy-safe schema changes* bullets of `@rules/code-review/core-analysis.md`. This skill only names the security boundaries a change touches; record each boundary for the security review.
+- **The tier comes from `commands/_shared/classify-risk.sh`.** Never compute a second risk score. Grade individual risks `Critical` / `Moderate` / `Minor` only.
 - Never present a `Likely` or `Unknown` impact as `Verified`. Never invent a path, a call site, a dependency, or a test.
 
 ## Use when
@@ -27,7 +27,7 @@ metadata:
 
 ## Depth by tier
 
-Read the tier from the run's routing ledger (`.claude/run/<source-slug>.routing`). With no ledger, run `skills/_shared/classify-risk.sh --assignment <file>`.
+Read the tier from the run's routing ledger (`.claude/run/<source-slug>.routing`). With no ledger, run `commands/_shared/classify-risk.sh --assignment <file>`.
 
 | Tier | Depth |
 |---|---|
@@ -50,7 +50,7 @@ The number of files is never a depth signal. A one-line authorization change is 
 1. **Fix the scope.** Record the planned change boundaries and `git rev-parse HEAD`. The report is valid only for that revision and those boundaries.
 2. **List the changed symbols** — step 1 of *Behaviour changed outside the diff*, applied to the plan.
 3. **Walk at the tier's depth.** Search by symbol and by the string that carries the behaviour (event name, config key, route name, column). Use targeted searches and the project's existing tools. No whole-repository sweep without a reason, no repeated reads of one file, and no test-suite run. Grade every entry.
-4. **Escalate on evidence.** When the walk reaches a path a force signal covers — authorization, a migration, payments, a project critical path — run `skills/_shared/classify-risk.sh --files <the paths> --floor <the current tier>` and report the tier it prints. The routing that already exists decides what the higher tier runs.
+4. **Escalate on evidence.** When the walk reaches a path a force signal covers — authorization, a migration, payments, a project critical path — run `commands/_shared/classify-risk.sh --files <the paths> --floor <the current tier>` and report the tier it prints. The routing that already exists decides what the higher tier runs.
 5. **Write the verification plan.** Name the existing tests that cover each affected behaviour, the regression scenarios still missing, and the runtime scenarios a user could observe. Prefer a behaviour or a contract over an implementation detail.
 6. **Set the constraints and the recommendation.** List the boundaries the implementation must keep. Recommend `proceed`, `proceed with safeguards`, or `blocked` — `blocked` only when an unresolved `Critical` risk needs an answer from a human first.
 
@@ -67,7 +67,7 @@ A change that leaves the report's assumptions true needs no new analysis. A find
 
 ## Output
 
-Inside a `krang` run, append the report to the shared brief under `## Impact report`; `leonardo` and `raphael` already receive the brief path. Run standalone, return it inline. Keep it short — an affected component nobody can act on is not listed.
+Return the report under `## Impact report` in the supplied brief, or inline when no brief is supplied. Keep it short — an affected component nobody can act on is not listed.
 
 ```yaml
 scope: {change: "<one line>", revision: "<sha>", tier: STANDARD}

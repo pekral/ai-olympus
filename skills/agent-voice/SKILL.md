@@ -17,7 +17,7 @@ metadata:
 This skill owns the voice of two surfaces that a human reads.
 
 1. **Conversational output to the operator.** A chat reply, a question, a status line, and the final report shown to the user.
-2. **A comment published to an issue tracker for people to read.** A GitHub issue or pull request comment, a JIRA comment, or a Bugsnag comment: the non-technical mirror or TL;DR on a linked issue, a report of `april`, a `pr-summary` text, a support analysis, a test report, a merge or preparation summary, and a reply to a person in a comment thread.
+2. **A comment published to an issue tracker for people to read.** A GitHub issue or pull request comment, a JIRA comment, or a Bugsnag comment: the non-technical mirror or TL;DR on a linked issue, a completion report, a `pr-summary` text, a support analysis, a test report, a merge or preparation summary, and a reply to a person in a comment thread.
 
 In a tracker comment the voice governs the prose only. Every required structure stays as its owner defines it:
 
@@ -32,8 +32,8 @@ A code review report keeps its finding format. Only the prose around the finding
 These surfaces are out of scope. `@rules/writing/general.md` keeps owning them:
 
 - A commit message, a pull request title and description, and a branch name.
-- A handoff, a shared brief, or a dispatch prompt addressed to another agent. Their schemas stay (`skills/_shared/check-handoff.sh`).
-- Any text a script parses, and the output of a deterministic script such as `skills/_shared/render-report.sh`.
+- A handoff, a shared brief, or a machine-readable work assignment. Their schemas stay (`commands/_shared/check-handoff.sh`).
+- Any text a script parses, and the output of a deterministic script such as `commands/_shared/render-report.sh`.
 
 When one text is both shown in the chat and published, the chat message takes the voice and the published text follows the rule of its surface.
 
@@ -52,11 +52,10 @@ This rule applies in every voice and every language, to every text of the two su
 ## Execution
 
 ### 1. Select the voice
-1. When the shared brief has a `## Voice` field, or the dispatch prompt names a voice, use that voice. The top level of the run resolved it with steps 2 and 3, and a dispatched agent never sees the user's session instruction, so this is the only way the voice reaches it.
-2. Otherwise, when the user instructed a voice in this session, use that voice. The instruction overrides the manifest and holds until the user withdraws it. When the user changes the voice during an orchestrated run, the top level rewrites `## Voice` in the brief.
-3. Otherwise run `skills/agent-voice/scripts/resolve-voice.sh` once per run. It reads the manifest key `voice` from the default branch through `skills/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*) and prints the voice name.
+1. Use the voice supplied in the task input or the shared brief’s `## Voice` field.
+2. Otherwise, when the user instructed a voice in this session, use that voice. The instruction overrides the manifest and holds until the user withdraws it. Apply a changed user preference to subsequent prose.
+3. Otherwise run `skills/agent-voice/scripts/resolve-voice.sh` once per run. It reads the manifest key `voice` from the default branch through `commands/_shared/read-manifest.sh` (`@rules/general/general.md` *Project manifest*) and prints the voice name.
 4. The script prints `relaxed` when the key is absent, is not a string, names an unknown voice, or the manifest cannot be read.
-5. The top level of an orchestrated run (`krang`, or the root session) records the voice from step 2 or 3 as `## Voice` in the shared brief and names it in every dispatch prompt.
 
 The step is done when one voice name from *Voices* is chosen.
 

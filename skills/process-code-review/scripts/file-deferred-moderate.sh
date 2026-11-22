@@ -52,7 +52,7 @@
 #
 # Audit trail:
 #   Each tracker write appends its own line to the run's `.audit` file at the
-#   moment it happens, through `skills/_shared/audit-trail.sh record`: the
+#   moment it happens, through `commands/_shared/audit-trail.sh record`: the
 #   sub-issue creation, the GitHub parent link, each with the real exit status.
 #   A failed attempt leaves a `note` line. The ledger comes from AUDIT_TRAIL_FILE
 #   and AUDIT_TRAIL_ROLE; a missing ledger prints a hint on stderr and never
@@ -103,7 +103,8 @@ if [[ -z "${BODY//[[:space:]]/}" ]]; then
   exit 1
 fi
 
-AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/resolve-command-helper.sh" || exit 3
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || exit 3
 
 need() {
   if ! command -v "$1" >/dev/null 2>&1; then

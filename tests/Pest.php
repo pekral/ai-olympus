@@ -258,7 +258,7 @@ function codeTestingTestBlocks(string $source): array
 
 /**
  * An empty audit ledger in its own temporary directory, with the environment that points a package
- * wrapper at it (`skills/_shared/audit-trail.sh`).
+ * wrapper at it (`commands/_shared/audit-trail.sh`).
  *
  * @return array{directory: string, env: array<string, string>, file: string}
  */
@@ -852,7 +852,7 @@ function ruleScopingConsumerAppTreePaths(): array
  * puts the rules scoped to their own path, which is what an agent reads when a skill names them.
  * Two more are not the consumer's own source at all
  * and would never appear in `packageTextFiles()` either: `.claude/run/**` is `.gitignore`d in
- * every consuming project (per this package's own `agents/krang.md` *Shared task brief*), and
+ * every consuming project (per this package's own `commands/_shared/krang-workflow.inc` *Shared task brief*), and
  * the `vendor/pekral/arch-app-services/**` path the architecture rule scopes itself to sits in the
  * directory that walk skips. They live here for the same reason the rest of this corpus does.
  *
@@ -954,9 +954,17 @@ function ruleExtensionFrontmatter(string $path): string
  * Reading the delegating file alone would miss a rule stated once in the shared file; reading the
  * shared file alone would miss the tracker-specific half.
  */
+function installedRoleInstructions(string $name): string
+{
+    $definition = packageSource('agents/' . $name . '.md');
+    $workflow = 'commands/_shared/krang-workflow.inc';
+
+    return $name === 'krang' && str_contains($definition, '`' . $workflow . '`') ? packageSource($workflow) : $definition;
+}
+
 /**
  * The whole `krang` orchestration contract: its base prompt plus the rare
- * procedures extracted into `skills/_shared/orchestration/`.
+ * procedures extracted into `commands/_shared/orchestration/`.
  *
  * Those procedures were moved out so the orchestrator stops carrying ~30 KB of
  * crash-recovery and merge-preparation detail on every ordinary run (progressive
@@ -967,16 +975,22 @@ function ruleExtensionFrontmatter(string $path): string
  */
 function krangContractText(): string
 {
-    $packageDir = dirname(__DIR__);
-    $text = (string) file_get_contents($packageDir . '/agents/krang.md');
+    $pending = ['commands/_shared/krang-workflow.inc'];
+    $protocols = [];
 
-    $references = glob($packageDir . '/skills/_shared/orchestration/*.md');
+    while ($pending !== []) {
+        $path = array_pop($pending);
 
-    foreach ($references === false ? [] : $references as $reference) {
-        $text .= "\n" . (string) file_get_contents($reference);
+        if (isset($protocols[$path])) {
+            continue;
+        }
+
+        $protocols[$path] = packageSource($path);
+        preg_match_all('~`(commands/_shared/(?:orchestration/)?[a-z0-9-]+\.inc)`~', $protocols[$path], $references);
+        $pending = [...$pending, ...$references[1]];
     }
 
-    return $text;
+    return implode("\n", $protocols);
 }
 
 function crContractText(string $path): string
@@ -1016,7 +1030,7 @@ function packageTextFiles(): array
     // analysed line back as a PHP string — so an absence guard that walks it matches its own
     // assertion and fails on a name the tree no longer carries (issue #231).
     $skipped = ['vendor', 'node_modules', '.git', '.claude', '.codex', '.agents', '.idea', 'build'];
-    $extensions = ['md', 'mdc', 'php', 'sh', 'json', 'yml', 'yaml', 'toml'];
+    $extensions = ['md', 'mdc', 'inc', 'php', 'sh', 'json', 'yml', 'yaml', 'toml'];
 
     $iterator = new RecursiveIteratorIterator(
         new RecursiveCallbackFilterIterator(

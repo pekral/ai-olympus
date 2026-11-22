@@ -34,16 +34,16 @@ test('every other file points at the owner and none restates the filter (issue #
     expect($content)->toContain('Later rounds raise only new Critical findings');
     expect($content)->not->toContain('A new finding is raised only when it is Critical.');
 })->with([
-    'skills/process-code-review/SKILL.md',
-    'skills/process-code-review/references/review-loop-scope.md',
-    'skills/process-code-review/references/review-state.md',
-    'skills/process-code-review/references/round-three-deferral.md',
+    'commands/_shared/orchestration/process-code-review.inc',
+    'commands/_shared/orchestration/review-review-loop-scope.inc',
+    'commands/_shared/orchestration/review-review-state.inc',
+    'commands/_shared/orchestration/review-round-three-deferral.inc',
     'skills/code-review/references/finding-records.md',
 ]);
 
 test('the convergence gate and the cap-round table stay unchanged by the later-round filter (issue #455)', function (): void {
-    $skill = laterRoundsFile('skills/process-code-review/SKILL.md');
-    $deferral = laterRoundsFile('skills/process-code-review/references/round-three-deferral.md');
+    $skill = laterRoundsFile('commands/_shared/orchestration/process-code-review.inc');
+    $deferral = laterRoundsFile('commands/_shared/orchestration/review-round-three-deferral.inc');
 
     expect($skill)->toContain(
         'The loop is **converged** when `criticalCount == 0`, `unfulfilledCount == 0`, '
@@ -56,7 +56,7 @@ test('the convergence gate and the cap-round table stay unchanged by the later-r
 });
 
 test('the scripts record every finding a round reports and the reviewer alone applies the later-round rule (issue #455)', function (): void {
-    $state = laterRoundsFile('skills/_shared/review-state.sh');
+    $state = laterRoundsFile('commands/_shared/review-state.sh');
     $extract = laterRoundsFile('skills/_shared/extract-findings.sh');
 
     expect($state)
@@ -70,7 +70,7 @@ test('the scripts record every finding a round reports and the reviewer alone ap
 test('the owner and the references state that the scripts apply no later-round filter (issue #455)', function (): void {
     $rule = laterRoundsFile('rules/code-review/general.md');
     $records = laterRoundsFile('skills/code-review/references/finding-records.md');
-    $state = laterRoundsFile('skills/process-code-review/references/review-state.md');
+    $state = laterRoundsFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($rule)->not->toContain('never leaves the loop unfixed');
     expect($rule)->not->toContain('The filter applies to identity');
@@ -78,7 +78,7 @@ test('the owner and the references state that the scripts apply no later-round f
     expect($records)->not->toContain('heuristic for the S1–S3');
     expect($state)->toContain('**`record` stores every finding a round reports.**');
     expect($state)->not->toContain('`record` drops every other new finding');
-    expect(laterRoundsFile('skills/process-code-review/SKILL.md'))
+    expect(laterRoundsFile('commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('the script records every finding the round reports.');
 });
 
@@ -159,7 +159,7 @@ test('every review surface points at the owner of the four areas (issue #455)', 
     'skills/code-review/templates/review-output.md',
     'skills/code-review-github/templates/pr-comment-output.md',
     'skills/pr-summary/SKILL.md',
-    'skills/process-code-review/references/round-three-deferral.md',
+    'commands/_shared/orchestration/review-round-three-deferral.inc',
     'rules/code-review/review-process.md',
 ]);
 
@@ -171,7 +171,7 @@ test(
 )->with([
     'conformance gate follow-up' => ['skills/code-review/references/assignment-conformance-gate.md', 'move it to its own issue / PR'],
     'conformance gate move' => ['skills/code-review/references/assignment-conformance-gate.md', 'when it has independent value'],
-    'krang critical pre-existing' => ['agents/krang.md', 'critical pre-existing problems'],
+    'krang critical pre-existing' => ['commands/_shared/krang-workflow.inc', 'critical pre-existing problems'],
     'lens follow-up items' => ['skills/code-review/references/specialized-reviews.md', 'travel in the reviewer\'s handoff as follow-up items'],
     'leonardo critical field' => ['agents/leonardo.md', '**Critical out-of-scope findings:**'],
     'leonardo filed issue' => ['agents/leonardo.md', 'any filed out-of-scope issue'],

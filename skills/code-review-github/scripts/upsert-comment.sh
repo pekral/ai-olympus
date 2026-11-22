@@ -82,7 +82,7 @@
 #
 # Audit trail:
 #   The write appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line with the comment URL, or a `note` line for a failed attempt, both with
 #   the acting role and the real exit status of the write request. The ledger
 #   comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE. A missing ledger prints a
@@ -130,7 +130,13 @@ if [[ ! "$MARKER_KEY" =~ ^[a-z][a-z0-9-]*$ ]]; then
   exit 1
 fi
 
-AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../_shared/resolve-command-helper.sh
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh"
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || {
+  echo 'upsert-comment.sh: command-owned audit helper is not installed' >&2
+  exit 3
+}
 
 for bin in gh jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -247,11 +253,11 @@ fi
 NEW_URL="$(printf '%s' "$RESPONSE" | jq -r '.html_url // empty' 2>/dev/null || true)"
 if [[ -z "$NEW_URL" ]]; then
   [[ "$WRITE_RC" -ne 0 ]] || WRITE_RC=1
-  bash "$AUDIT_TRAIL" record --target "comment ${ACTION} on ${NWO}#${NUMBER}" --status "$WRITE_RC" || true
+  bash "$AUDIT_TRAIL" record-if-configured --target "comment ${ACTION} on ${NWO}#${NUMBER}" --status "$WRITE_RC" || exit 3
   echo "upsert-comment.sh: ${ACTION} request failed on ${NWO}#${NUMBER}: $(printf '%s' "$RESPONSE" | jq -r '.message // "unknown error"' 2>/dev/null || echo 'unknown error')" >&2
   exit 3
 fi
-bash "$AUDIT_TRAIL" record --target "$NEW_URL" --status 0 --detail "$ACTION" || true
+bash "$AUDIT_TRAIL" record-if-configured --target "$NEW_URL" --status 0 --detail "$ACTION" || exit 3
 printf '%s\n' "$NEW_URL"
 NEW_ID="$(printf '%s' "$RESPONSE" | jq -r '.id')"
 echo "action=${ACTION} id=${NEW_ID}" >&2

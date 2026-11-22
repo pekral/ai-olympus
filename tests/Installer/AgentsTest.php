@@ -79,7 +79,7 @@ test('leonardo owns every code-review wrapper and the no-source fallback (issue 
     // It owns the convergence loop that argos used to drive.
     expect($content)->toContain('@skills/process-code-review/SKILL.md');
     expect($content)->toContain(
-        'the default-branch manifest key `review.max-iterations`, default 3, which `skills/_shared/review-state.sh` reads and enforces',
+        'the default-branch manifest key `review.max-iterations`, default 3, which `commands/_shared/review-state.sh` reads and enforces',
     );
     expect($content)->not->toContain('never raise the cap');
     // The inline security pass is leonardo's own, so the delegation flag must never be set.
@@ -171,7 +171,7 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
         ->and($pullRequest)->toContain('no byte of the body is ever part of a command text')
         ->and($boundary)->toContain('`@skills/resolve-issue/references/pull-request.md` *Refresh after the gate*')
         ->and($boundary)->toContain(
-            'skills/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file "$file"`, '
+            'commands/_shared/audit-trail.sh run -- gh pr edit <PR> --body-file "$file"`, '
             . 'where `$file` is the name that `mktemp <top>/.claude/run/merge-risk/XXXXXXXX` prints',
         )
         ->and($boundary)->toContain(
@@ -202,7 +202,7 @@ test('leonardo may refresh the merge-risk heading with one named body write and 
         ->and($boundary)->toContain('only while the `headRefOid` of the pull request equals the head whose gate result it uses')
         ->and($boundary)->toContain('changing only the `## Merge risk` heading and its two lines')
         ->and($orchestration)->toContain(
-            '`gh pr edit <PR> --body-file <file>` only as `skills/_shared/audit-trail.sh run --`, '
+            '`gh pr edit <PR> --body-file <file>` only as `commands/_shared/audit-trail.sh run --`, '
             . 'with two files that `mktemp` creates under `.claude/run/merge-risk/`',
         )
         ->and($orchestration)->not->toContain('.claude/run/merge-risk/<source-slug>.md')
@@ -311,7 +311,7 @@ test('the roster ships no general problem-analysis subagent and krang routes acc
 
 test('agents directory ships the krang orchestrator subagent with required frontmatter', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $agentPath = $packageDir . '/agents/krang.md';
+    $agentPath = $packageDir . '/commands/_shared/krang-workflow.inc';
 
     expect(is_file($agentPath))->toBeTrue();
 
@@ -737,7 +737,7 @@ test(
         // Validation is deterministic work — run the commands, read the exit codes — so it no longer
         // costs an agent session. The runner returns an explicit escalate verdict, and that verdict,
         // not the orchestrator's judgment, is what buys an LLM.
-        expect($krang)->toContain('skills/_shared/run-validation.sh');
+        expect($krang)->toContain('commands/_shared/run-validation.sh');
         expect($krang)->toContain('**Dispatch `donatello` only when the runner escalates**');
         expect($krang)->toContain('a green run needs no session at all');
         expect($krang)->toContain('A `passed` verdict closes the stage with no dispatch.');
@@ -1360,7 +1360,7 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     // The UI channel is a real capability, not an aspiration: the package ships a runner that
     // drives a browser without adding a config file or a dev-dependency to the project under
     // test, and a blocked run must quote the one command that unblocks it.
-    expect($content)->toContain('skills/_shared/browser-drive.sh');
+    expect($content)->toContain('commands/_shared/browser-drive.sh');
     expect($content)->toContain('no config file, no dev-dependency, and no `package.json` inside the project under test');
     expect($content)->toContain('npm install -g playwright && playwright install chromium');
     expect($content)->toContain('page.on(\'response\')');
@@ -1377,10 +1377,10 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     expect($content)->toContain('reads as a clean pass');
 
     // The runner documents the same CommonJS constraint it imposes.
-    expect((string) file_get_contents($packageDir . '/skills/_shared/browser-drive.sh'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/browser-drive.sh'))
         ->toContain('which ESM resolution ignores entirely');
 
-    $runner = $packageDir . '/skills/_shared/browser-drive.sh';
+    $runner = $packageDir . '/commands/_shared/browser-drive.sh';
     expect(is_file($runner))->toBeTrue();
     $script = (string) file_get_contents($runner);
     // The project's own pinned Playwright always wins over whatever happens to be global.
@@ -1397,7 +1397,7 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     /** @var array<string, array<int, string>> $scripts */
     $scripts = $composer['scripts'];
 
-    expect(implode(' ', $scripts['shell-self-tests']))->toContain(' skills/_shared/browser-drive.sh');
+    expect(implode(' ', $scripts['shell-self-tests']))->toContain(' commands/_shared/browser-drive.sh');
 
     // Read-only, local-only, and it never publishes — april carries its walkthrough to the tracker.
     expect($content)->toContain('read-only');
@@ -1482,7 +1482,7 @@ test('the head-SHA gate log is retired along with the repeated builds it dedupli
     // The dedup existed only because three call sites each ran a full build on the same commit.
     // Deferring the gate removed all three, so the log has nothing left to deduplicate and must
     // not survive as a brief section nobody writes to.
-    foreach (['agents/donatello.md', 'agents/krang.md'] as $relativePath) {
+    foreach (['agents/donatello.md', 'commands/_shared/krang-workflow.inc'] as $relativePath) {
         expect((string) file_get_contents($packageDir . '/' . $relativePath))->not->toContain('## Gate log');
     }
 });
@@ -1522,7 +1522,7 @@ test('krang sweeps stale briefs and worktrees at startup before writing its own 
  * ESRCH ("no such process") is the only confirmed-dead outcome; EPERM ("process exists, no
  * permission") means alive under another UID/namespace. Shared by both the brief-half and the
  * worktree-half sweep mirrors below (PR #150 CR fix). The predicate matches the exact phrase
- * `agents/krang.md`'s prose pins (`LC_ALL=C kill -0 "$pid" 2>&1` looking for "not permitted") —
+ * `commands/_shared/krang-workflow.inc`'s prose pins (`LC_ALL=C kill -0 "$pid" 2>&1` looking for "not permitted") —
  * previously the prose and this mirror matched on two different substrings (PR #150 CR fix,
  * run-2 Minor 1).
  */
@@ -1565,7 +1565,7 @@ function krangBriefConfirmedDead(string $content): bool
 }
 
 /**
- * Mirrors the decision in agents/krang.md step 2 *Startup sweep*: fail-safe by construction.
+ * Mirrors the decision in commands/_shared/krang-workflow.inc step 2 *Startup sweep*: fail-safe by construction.
  * A brief file is safe to delete only on POSITIVE PROOF of death (`krangBriefConfirmedDead()`
  * above). Everything else — no PID line, a malformed token, a PID found only inside a fenced
  * tracker-payload quote, a live PID, or an EPERM probe — is preserved, never deleted (PR #150 CR
@@ -1689,14 +1689,14 @@ test('krang startup-sweep algorithm treats an EPERM probe as alive, never as dea
 });
 
 /**
- * Mirrors the confirmed-dead-gated steal decision in agents/krang.md step 2 *Sweep lock*: a
+ * Mirrors the confirmed-dead-gated steal decision in commands/_shared/krang-workflow.inc step 2 *Sweep lock*: a
  * lock is stolen only when it carries a holder file AND that holder's recorded PID probes
  * confirmed-dead — never on a bare timeout, and never when the holder file is missing or its PID
  * is alive/EPERM (PR #150 CR fix, run-2 Critical 2 / Moderate 2).
  *
  * This decision-level mirror alone gave FALSE ASSURANCE in run 2: it encodes the intended
  * `posix_kill()`-first semantics correctly, so it stayed green while the literal shell shipped at
- * `agents/krang.md:104` independently miscomputed the same decision by reading a downstream
+ * `commands/_shared/krang-workflow.inc:104` independently miscomputed the same decision by reading a downstream
  * `grep`'s exit status instead of `kill -0`'s own (PR #150 CR fix, run-3 Critical 1 — the mirror
  * tested a different implementation than the one that actually ran). `krangSweepLockKillProbeConfirmedDead()`
  * below closes that gap on the same two primitives the shell computes, and the shell's exact
@@ -1732,7 +1732,7 @@ test('krang sweep-lock steal is gated on a confirmed-dead holder, never a bare t
 });
 
 /**
- * Mirrors the corrected two-step shell probe at `agents/krang.md:104` on the SAME two primitives
+ * Mirrors the corrected two-step shell probe at `commands/_shared/krang-workflow.inc:104` on the SAME two primitives
  * the shell itself computes — `kill -0`'s own exit status ($rc) and its captured stderr message —
  * instead of collapsing straight to a live PID through `posix_kill()`. This is what lets the test
  * isolate the precise shape of the run-2 regression: a live holder produces `rc=0` AND an empty
@@ -1797,7 +1797,7 @@ test('krangParseEtimeToSeconds parses every ps -o etime= shape into seconds (PR 
 });
 
 /**
- * Mirrors the identity-corroboration probe in agents/krang.md *Concurrency & the working-tree
+ * Mirrors the identity-corroboration probe in commands/_shared/krang-workflow.inc *Concurrency & the working-tree
  * write-lock* → *Stale reclaim*: a bare alive PID only proves that PID number is currently in use
  * by *something*, never that it is the same process that wrote the lock's `STARTED` timestamp. The
  * process's own start time (`now - etime`) must fall at or before `STARTED`, allowing a small
@@ -1842,7 +1842,7 @@ test(
 );
 
 /**
- * Mirrors the fail-safe default added to agents/krang.md *Stale reclaim* for the case the
+ * Mirrors the fail-safe default added to commands/_shared/krang-workflow.inc *Stale reclaim* for the case the
  * identity check cannot be evaluated at all — a holder file with no `STARTED` key, or an
  * unparseable/empty `ps -o etime=` result (the process exits between the `kill -0` probe and the
  * `ps` call, `hidepid=2`, a PID namespace). An inconclusive check must resolve to "still a live
@@ -1918,7 +1918,7 @@ function krangWorktreeEntryConfirmedDead(string $entry): bool
 }
 
 /**
- * Mirrors the decision in agents/krang.md step 2 *Startup sweep* for the WORKTREE half —
+ * Mirrors the decision in commands/_shared/krang-workflow.inc step 2 *Startup sweep* for the WORKTREE half —
  * previously covered only by string assertions, not an algorithmic fixture (PR #150 CR fix,
  * Critical 4's test gap). A `.claude/worktrees/agent-*` entry from `git worktree list
  * --porcelain` is safe to remove only on positive proof of death (`krangWorktreeEntryConfirmedDead()`
@@ -2400,12 +2400,12 @@ test('the Run cleanup anchor is cross-referenced by name from leonardo and the c
     // The pinned handoff phrase stays; only the anchor it points at changes.
     expect($leonardo)->toContain('Record the worktree path in your handoff');
     expect($leonardo)->toContain('removes it during *Run cleanup*');
-    expect($leonardo)->not->toContain('during its cleanup (step 7 of `agents/krang.md`)');
+    expect($leonardo)->not->toContain('during its cleanup (step 7 of `commands/_shared/krang-workflow.inc`)');
 
     // Temporary-file hygiene moved to orchestration.md by issue #275.
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
     expect($rule)->toContain('released by `krang` during *Run cleanup*');
-    expect($rule)->toContain('*Run cleanup* (`agents/krang.md`) is the **reference implementation**');
+    expect($rule)->toContain('*Run cleanup* (`commands/_shared/krang-workflow.inc`) is the **reference implementation**');
     expect($rule)->not->toContain('released by `krang` in step 7.');
     expect($rule)->not->toContain('`krang` step 7 is the **reference implementation**');
 });
@@ -2722,7 +2722,7 @@ test('leonardo points at the not-run section once and never restates its list (i
     // invoke at all - groups 3 and 4 hold skills the run legitimately calls around the review.
     $section = explode(
         "\n## Skills deliberately not run\n",
-        (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md'),
+        (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc'),
     )[1];
     $groups = deliberatelyNotRunGroups($section);
 
@@ -2829,7 +2829,7 @@ test('april skips its own report only on content-proven coverage from an admissi
     // semantically, so a comment headed `What changed` passed one test and failed the other. The
     // discriminator is defined once, here, and the acceptor cites it.
     expect($april)->toContain('**This bullet is the discriminator, defined once here');
-    expect($april)->toContain('`agents/krang.md` step 6a cites this definition instead of restating it');
+    expect($april)->toContain('`commands/_shared/krang-workflow.inc` step 6a cites this definition instead of restating it');
     expect($april)->toContain('It is semantic, never a literal heading match');
     expect($april)->toContain('a first half headed `What changed` satisfies it exactly as one headed `Summary of changes` does');
 
@@ -2969,7 +2969,7 @@ test('an unregistered april stops a tracker-sourced run with a named blocker and
     expect($april)->toContain(
         '**On a run whose source is a tracker this dependency is load-bearing rather than a documented future step:**',
     );
-    expect($april)->toContain('stops the run `Blocked` with the remediation (`agents/krang.md` step 6a)');
+    expect($april)->toContain('stops the run `Blocked` with the remediation (`commands/_shared/krang-workflow.inc` step 6a)');
     expect($april)->toContain('and no other agent publishes the report in its place');
     expect($april)->toContain('On a run with no tracker source nothing is published anyway');
 });
@@ -2982,7 +2982,7 @@ test('krang labels the pull request ready to merge when it closes a FAST run (is
     expect($krang)->toContain('3. Then, and only then, promote the PR: `gh pr ready <PR>`, label it `gh pr edit <PR> --add-label "ready to merge"`');
     expect($krang)->toContain('those commands are this agent\'s sanctioned `gh` writes outside the three backlog skills');
     expect($rule)->toContain('owns that promotion and the `ready to merge` label on the pull request');
-    expect($krang)->toContain('Run both commands through `skills/_shared/audit-trail.sh run --`, which records their lines.');
+    expect($krang)->toContain('Run both commands through `commands/_shared/audit-trail.sh run --`, which records their lines.');
     expect((string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md'))
         ->toContain('| `krang` | Close a `FAST`-tier run: promote the pull request out of Draft (`gh pr ready`), add the `ready to merge` label to it');
 });
@@ -2993,14 +2993,14 @@ test('krang decides each step against the runs in progress through the one plann
 
     $rule = $read('rules/compound-engineering/concurrency.md');
     expect($rule)->toContain('## Parallel steps against the runs in progress');
-    expect($rule)->toContain('The decision has one owner: `skills/_shared/plan-parallel.sh --step`.');
+    expect($rule)->toContain('The decision has one owner: `commands/_shared/plan-parallel.sh --step`.');
     expect($rule)->toContain('`krang` never judges alone that a step may overlap another run.');
     expect($rule)->toContain('one `live|<id>|<kind>|<tree>|<branch>|<files>` line per run in progress, never one for its own run');
     expect($rule)->toContain(
         'the holder of the write-lock, the worktrees whose lock reason names a live `pid <N>`, and the holder of the gate lock',
     );
     expect($rule)->toContain('`krang` runs no memory read for a step decision.');
-    expect($rule)->toContain('When *Critical-finding memory read* (`agents/krang.md`) already ran in this run');
+    expect($rule)->toContain('When *Critical-finding memory read* (`commands/_shared/krang-workflow.inc`) already ran in this run');
     expect($rule)->toContain('each returned entry whose `paths` names a file every write run changes gives one `shared|<path>|<slug>` line');
     expect($rule)->toContain('Without that read the input carries no `shared` line.');
     expect($rule)->not->toContain('what the project memory recorded');
@@ -3017,11 +3017,13 @@ test('krang decides each step against the runs in progress through the one plann
 
     $krang = krangContractText();
     expect($krang)->toContain('**Decide each step against the runs in progress.**');
-    expect($krang)->toContain('`skills/_shared/plan-parallel.sh --step`');
+    expect($krang)->toContain('`commands/_shared/plan-parallel.sh --step`');
     expect($krang)->toContain('`@rules/compound-engineering/concurrency.md` *Parallel steps against the runs in progress* owns the evidence');
     expect($krang)->toContain('On `decision=wait` never dispatch the step.');
     expect($krang)->not->toContain('over the live runs and the project memory');
-    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))->toContain('skills/_shared/orchestration/analysis-only-routing.md');
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc'))->toContain(
+        'commands/_shared/orchestration/analysis-only-routing.inc',
+    );
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/docs/agents.md'))->not->toContain('shared-resource entries of the project memory');
     expect($krang)->toContain('**Decide this step first**');
 
@@ -3050,7 +3052,7 @@ test('krang treats unreadable evidence as a wait and gives every wait one end', 
     expect($rule)->toContain('2. **The blocker is another run, a lock, or unreadable evidence.**');
     expect($rule)->toContain('another top-level session never reports to this one');
     expect($rule)->toContain('`krang` stops with `Blocked` at once, naming the blocker and the `reason`');
-    expect($rule)->toContain('In both cases `krang` runs *Run cleanup* (`agents/krang.md` step 7) before the stop');
+    expect($rule)->toContain('In both cases `krang` runs *Run cleanup* (`commands/_shared/krang-workflow.inc` step 7) before the stop');
     expect($rule)->not->toContain('exit `6`, *One gate lock for the machine*');
     expect($rule)->not->toContain('at most three times for one step');
     expect($rule)->toContain('- **The write-lock holder is not a second wait.** This applies to a `write` step.');
@@ -3061,7 +3063,7 @@ test('krang treats unreadable evidence as a wait and gives every wait one end', 
 
     $krang = krangContractText();
     expect($krang)->toContain('owns the evidence, the input, the checks, the wait, and the gate worktree');
-    expect($krang)->toContain('Before you dispatch a step, run `skills/_shared/plan-parallel.sh --step`');
+    expect($krang)->toContain('Before you dispatch a step, run `commands/_shared/plan-parallel.sh --step`');
     expect($krang)->not->toContain('a step that writes or runs a heavy job');
     expect($read('docs/agents.md'))->toContain('Before it dispatches a step, `krang` also decides');
 });
@@ -3084,7 +3086,9 @@ test('the gate worktree runs the pre-push tier only and is removed by krang in R
     expect($rule)->toContain('every fix is made in the unit\'s own tree');
     expect($rule)->toContain('The run records the worktree path in its handoff and stops `Blocked` when `git worktree add` fails');
     expect($rule)->toContain('The run leaves the worktree in place and records its path in its handoff.');
-    expect($rule)->toContain('`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* (`agents/krang.md` step 7)');
+    expect($rule)->toContain(
+        '`krang` removes `.claude/worktrees/agent-gate-<source-slug>` in *Run cleanup* (`commands/_shared/krang-workflow.inc` step 7)',
+    );
     expect($rule)->toContain('under the clean check and the confirmed-dead probe');
     expect($rule)->toContain('A subagent hands the path back and removes nothing');
     expect($rule)->not->toContain('The run removes the worktree once it is clean');
@@ -3109,7 +3113,7 @@ test('krang plans parallel batches with the deterministic planner and the single
 
     $krang = krangContractText();
     expect($krang)->toContain('*Plan parallel batches*');
-    expect($krang)->toContain('skills/_shared/plan-parallel.sh');
+    expect($krang)->toContain('commands/_shared/plan-parallel.sh');
     expect($krang)->toContain('a unit with no named file stays empty, which keeps it out of every parallel batch');
     expect($krang)->toContain('dispatch the step-5 `donatello` runs as blocking `Task` calls in **one** message');
     expect($krang)->toContain('**A unit in a `mode.<k>=parallel` batch takes no write-lock**');
@@ -3118,7 +3122,7 @@ test('krang plans parallel batches with the deterministic planner and the single
     $concurrency = $read('rules/compound-engineering/concurrency.md');
     expect($concurrency)->toContain('## One gate lock for the machine');
     expect($concurrency)->toContain('**3600** by default');
-    expect($concurrency)->toContain('`skills/_shared/run-gate.sh --exclusive --command "<command>"`');
+    expect($concurrency)->toContain('`commands/_shared/run-gate.sh --exclusive --command "<command>"`');
     expect($concurrency)->toContain('Gate runs, dependency installs (`composer install`, `npm ci`), and full test suites are **never concurrent**');
 
     $donatello = $read('agents/donatello.md');
@@ -3179,7 +3183,7 @@ test('a parallel unit never switches a branch in the shared tree', function (): 
     );
     expect($reviewSkill)->toContain(
         'Run that `composer install` from inside the worktree through '
-        . '`skills/_shared/run-gate.sh --exclusive --command "composer install"`',
+        . '`commands/_shared/run-gate.sh --exclusive --command "composer install"`',
     );
     expect($reviewSkill)->not->toContain('switch and pull inside it');
     expect($read('agents/donatello.md'))->toContain('never switch a branch in the shared tree');
@@ -3188,7 +3192,7 @@ test('a parallel unit never switches a branch in the shared tree', function (): 
 
 test('the gate lock clears a reclaim directory on a confirmed-dead holder, never on its age', function (): void {
     $rule = (string) file_get_contents(dirname(__DIR__, 2) . '/rules/compound-engineering/concurrency.md');
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/gate-record.sh');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/gate-record.sh');
 
     expect($rule)->toContain(
         'is removed only when that holder is confirmed dead by the same probe, so no waiter that probes a stopped but alive waiter\'s directory removes it',
@@ -3203,7 +3207,7 @@ test('the gate lock clears a reclaim directory on a confirmed-dead holder, never
 });
 
 test('the startup sweep names the implementation worktrees of a parallel unit as well as the review worktrees', function (): void {
-    $sweep = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/orchestration/stale-run-recovery.md');
+    $sweep = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/orchestration/stale-run-recovery.inc');
 
     expect($sweep)->toContain('`agent-impl-*` included');
     expect($sweep)->not->toContain('a peer\'s CR pass');

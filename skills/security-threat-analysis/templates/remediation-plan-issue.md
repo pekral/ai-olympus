@@ -13,5 +13,5 @@
 - [ ] [Moderate] <one independently verifiable security invariant, checkable against the diff>
 
 <!-- Success criteria is a GFM task list, unchecked, one criterion per item, each prefixed with the severity of its finding. Never reflow it into prose. -->
-<!-- Public repository: apply the disclosure guard of agents/leonardo.md Security analysis mode step 4 before publishing. It covers the Security-risk analysis section and the Success criteria. An unfixed Critical is never published by rewording alone. -->
-<!-- Published by leonardo through skills/_shared/audit-trail.sh run -- gh issue create. -->
+<!-- Public repository: apply the disclosure guard of the command workflow Security analysis mode step 4 before publishing. It covers the Security-risk analysis section and the Success criteria. An unfixed Critical is never published by rewording alone. -->
+<!-- Published by review through commands/_shared/audit-trail.sh run -- gh issue create. -->

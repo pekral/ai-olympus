@@ -84,10 +84,10 @@ test('the review body template states the 500 character limit and the two fences
 test('the layout has one owner: the Merge Risk block markup is in the template and the renderer only', function (): void {
     $owners = [
         'skills/code-review-github/templates/review-body.md',
-        'skills/code-review-github/scripts/post-inline-review.sh',
+        'commands/_shared/code-review-github/post-inline-review.sh',
     ];
     $holders = array_values(array_filter(
-        reviewLayoutPackageFiles('rules', 'skills', 'agents', 'codex'),
+        reviewLayoutPackageFiles('rules', 'skills', 'commands', 'agents', 'codex'),
         static fn (string $path): bool => str_contains(reviewLayoutRepoFile($path), '<summary><strong>Merge Risk:</strong>'),
     ));
     sort($holders);
@@ -212,7 +212,7 @@ test('every review output template says a faulty example and a suggested fix car
 
 test('the review body template has the Fix line and the suggested code, and the wrapper refuses any other code', function (): void {
     $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
-    $script = reviewLayoutRepoFile('skills/code-review-github/scripts/post-inline-review.sh');
+    $script = reviewLayoutRepoFile('commands/_shared/code-review-github/post-inline-review.sh');
 
     expect($template)->toContain('**Fix:** {what to change, in one sentence}')
         ->and($template)->toContain('**Suggested code** (replaces lines {start}–{end}):')
@@ -236,7 +236,7 @@ test('the wrapper contract names the walkthrough file, its sources, and the reus
 
 test('the Walkthrough lists no test file, in the template, the wrapper header, and the fixture', function (): void {
     $template = reviewLayoutRepoFile('skills/code-review-github/templates/review-body.md');
-    $script = (string) preg_replace('/\s*\n#\s*/', ' ', reviewLayoutRepoFile('skills/code-review-github/scripts/post-inline-review.sh'));
+    $script = (string) preg_replace('/\s*\n#\s*/', ' ', reviewLayoutRepoFile('commands/_shared/code-review-github/post-inline-review.sh'));
     /** @var array{areas: list<array{files: list<string>}>} $walkthrough */
     $walkthrough = json_decode(reviewLayoutRepoFile('tests/Fixtures/review-layout/walkthrough.json'), associative: true, flags: JSON_THROW_ON_ERROR);
     $files = array_merge(...array_column($walkthrough['areas'], 'files'));

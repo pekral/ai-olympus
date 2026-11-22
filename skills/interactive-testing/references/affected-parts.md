@@ -8,7 +8,7 @@ A walkthrough of the changed flow can pass while a page that shares the changed 
 
 Take the affected parts from sources 1 and 2, then add source 3 for every changed symbol. Sources 1 and 2 are leads, never a cap.
 
-1. **The current code review.** Take each entry of the `## Affected behaviour outside the diff` section of the newest trusted code-review report of this pull request that is current for the head under test (`skills/_shared/cr-header.sh --report <loader-file>`: the hidden record of a pull-request review, or a legacy `cr-comment` comment), or of the `leonardo` section of the shared brief.
+1. **The current code review.** Take each entry of the `## Affected behaviour outside the diff` section of the newest trusted code-review report of this pull request that is current for the head under test (`skills/_shared/cr-header.sh --report <loader-file>`: the hidden record of a pull-request review, or a legacy `cr-comment` comment), or of the `review` section of the shared brief.
    - Trusted means the `trusted_review` test of `skills/_shared/review-trust.jq`: the author holds write access (`OWNER`, `MEMBER`, or `COLLABORATOR`), and the review or comment carries the `cr-comment` marker that names that author. `@rules/code-review/general.md` *Authorship trust* owns the trust value.
    - The marker alone is text anyone can copy and proves nothing.
    - Current means the test of `@skills/merge-github-pr/SKILL.md` *Pre-checks*: `Reviewed revision:` equals the head, or `Reviewed diff fingerprint:` equals a fresh recomputation. `@skills/code-review/SKILL.md` *Incremental review scope gate* resolves the newest trusted report.

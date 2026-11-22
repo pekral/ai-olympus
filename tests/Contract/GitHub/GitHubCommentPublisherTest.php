@@ -129,6 +129,8 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
 
     try {
         $process = runGitHubCommentPublisher($fixture, [
+            'AUDIT_TRAIL_FILE' => $fixture['directory'] . '/publication.audit',
+            'AUDIT_TRAIL_ROLE' => 'publisher',
             'FAKE_GH_LIST_JSON' => $listJson,
             'FAKE_GH_RESPONSE' => '{"id":502,"html_url":"https://github.com/acme/widgets/pull/42#issuecomment-502"}',
         ], 'Round two body');
@@ -137,6 +139,9 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
         $payload = (string) file_get_contents($fixture['body']);
 
         expect($process->getExitCode())->toBe(0)
+            ->and((string) file_get_contents($fixture['directory'] . '/publication.audit'))->toContain(
+                '|external-write|https://github.com/acme/widgets/pull/42#issuecomment-502|updated (exit 0)',
+            )
             // The newest comment carrying this actor's marker is updated in place.
             ->and($calls)->toContain('repos/acme/widgets/issues/comments/502 -X PATCH')
             ->and($calls)->not->toContain('-X POST')
@@ -145,6 +150,10 @@ test('the GitHub publisher PATCHes the comment already carrying this actor\'s ma
             // The marker travels in the published body, so the next run finds it again.
             ->and($payload)->toContain('<!-- cr-comment:actor=bot -->');
     } finally {
+        if (is_file($fixture['directory'] . '/publication.audit')) {
+            unlink($fixture['directory'] . '/publication.audit');
+        }
+
         removeGitHubCommentPublisherFixture($fixture);
     }
 });

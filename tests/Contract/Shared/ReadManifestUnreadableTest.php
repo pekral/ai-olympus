@@ -61,7 +61,7 @@ function runInRepository(string $dir, string $script, string $arguments = '', st
 
 test('a composer.json that git cannot read is reported by the reader and by a caller that falls back to the default', function (): void {
     $dir = repositoryWithManifest('unreadable');
-    $reader = runInRepository($dir, 'skills/_shared/read-manifest.sh');
+    $reader = runInRepository($dir, 'commands/_shared/read-manifest.sh');
     $voice = runInRepository($dir, 'skills/agent-voice/scripts/resolve-voice.sh');
 
     expect($reader->getExitCode())->toBe(3)
@@ -74,7 +74,7 @@ test('a composer.json that git cannot read is reported by the reader and by a ca
 
 test('a project with no composer.json keeps the built-in behaviour without a report', function (): void {
     $dir = repositoryWithManifest('absent');
-    $reader = runInRepository($dir, 'skills/_shared/read-manifest.sh');
+    $reader = runInRepository($dir, 'commands/_shared/read-manifest.sh');
     $voice = runInRepository($dir, 'skills/agent-voice/scripts/resolve-voice.sh');
 
     expect($reader->getExitCode())->toBe(0)
@@ -97,8 +97,8 @@ function manifestCallers(): array
 
     return [
         'analyze-recurrence' => ['skills/_shared/analyze-recurrence.sh', '--store /dev/null', '', 'stderr', 'read-manifest.sh'],
-        'classify-risk' => ['skills/_shared/classify-risk.sh', '--merge-risk --diff -', $diff, 'stdout', 'project-paths=unavailable'],
-        'discover-fixers' => ['skills/_shared/discover-fixers.sh', '', '', 'stderr', 'discover-fixers.sh: composer.json on'],
+        'classify-risk' => ['commands/_shared/classify-risk.sh', '--merge-risk --diff -', $diff, 'stdout', 'project-paths=unavailable'],
+        'discover-fixers' => ['commands/_shared/discover-fixers.sh', '', '', 'stderr', 'discover-fixers.sh: composer.json on'],
         'history-scan text' => [
             'skills/git-history-exposure-audit/scripts/history-scan.sh',
             'text',
@@ -106,11 +106,11 @@ function manifestCallers(): array
             'stdout',
             'not-verified: default-branch manifest',
         ],
-        'plan-parallel' => ['skills/_shared/plan-parallel.sh', '', "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
+        'plan-parallel' => ['commands/_shared/plan-parallel.sh', '', "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
         'resolve-voice' => ['skills/agent-voice/scripts/resolve-voice.sh', '', '', 'stderr', 'read-manifest.sh'],
-        'run-fast-checks' => ['skills/_shared/run-fast-checks.sh', '', '', 'stdout', 'cannot be read as a manifest'],
+        'run-fast-checks' => ['commands/_shared/run-fast-checks.sh', '', '', 'stdout', 'cannot be read as a manifest'],
         'run-validation (project-commands)' => [
-            'skills/_shared/run-validation.sh',
+            'commands/_shared/run-validation.sh',
             '--manifest - --dry-run',
             '{"tests":["vendor/bin/pest tests/x.php"],"head_sha":"%HEAD%"}',
             'stderr',
@@ -148,7 +148,7 @@ test(
 )->with(manifestCallers());
 
 test('the fixer discovery and the history scan stop with exit 3 on a composer.json git cannot read', function (): void {
-    $discovery = runInRepository(repositoryWithManifest('unreadable'), 'skills/_shared/discover-fixers.sh');
+    $discovery = runInRepository(repositoryWithManifest('unreadable'), 'commands/_shared/discover-fixers.sh');
     $scan = runInRepository(
         repositoryWithManifest('unreadable'),
         'skills/git-history-exposure-audit/scripts/history-scan.sh',

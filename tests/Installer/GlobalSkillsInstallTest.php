@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 use Pekral\AiOlympus\Installer;
+use Symfony\Component\Process\Process;
 use Tests\Support\StderrCapture;
 
 /**
@@ -125,5 +126,110 @@ test('install rejects --global combined with --prune-global', function (): void 
         expect($result['stderr'])->toContain('--global and --prune-global are mutually exclusive');
         // Nothing is installed and nothing is removed when the arguments contradict each other.
         expect(is_dir($result['root'] . '/.claude/skills'))->toBeFalse();
+    });
+});
+
+test('global skill helpers use the matching home payload outside any checkout', function (): void {
+    globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
+        foreach (['.agents', '.claude'] as $platform) {
+            $scripts = $result['home'] . '/' . $platform . '/skills/_shared';
+            $helper = $result['home'] . '/' . $platform . '/ai-olympus-commands/_shared/audit-trail.sh';
+            $process = new Process(
+                ['bash', '-c', 'source "$1" && resolve_command_helper audit-trail.sh', 'lookup', $scripts . '/resolve-command-helper.sh'],
+                $result['home'],
+                ['HOME' => $result['home']],
+            );
+
+            expect($process->mustRun()->getOutput())->toBe(realpath($helper) . "\n")
+                ->and(is_file($helper))->toBeTrue();
+        }
+    });
+});
+
+function checkDiscoveredWorkflow(string $skills, string $public, string $name, string $command, string $protocol): void
+{
+    $skill = $skills . '/' . $name;
+    $instructions = (string) file_get_contents($skill . '/SKILL.md');
+    expect($instructions)->toContain('bash ../_shared/resolve-command-helper.sh --entry')
+        ->and($instructions)->not->toContain('For a bounded work step already in progress');
+
+    $resolver = new Process(['bash', '../_shared/resolve-command-helper.sh', '--entry'], $skill);
+    $adapter = trim($resolver->mustRun()->getOutput());
+    $entry = (string) file_get_contents($adapter);
+    expect($entry)->toContain('| `$' . $name . '` | `commands/' . $command . '.md` |')
+        ->and($entry)->toContain('An unmapped user invocation also stays in its current executor', 'resume below the entry link');
+
+    $commandText = (string) file_get_contents($public . '/' . $command . '.md');
+    expect($commandText)->toContain('commands/_shared/orchestration/' . $protocol . '.inc')
+        ->and(is_file(dirname($adapter) . '/orchestration/' . $protocol . '.inc'))->toBeTrue()
+        ->and((string) file_get_contents($skills . '/class-refactoring/SKILL.md'))->not->toContain('resolve-command-helper.sh --entry');
+}
+
+test('direct workflows continue from the host-discovered project and global skills even with older project instructions', function (): void {
+    globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
+        $root = $result['root'];
+        installerWriteFile($root . '/AGENTS.md', 'Custom project instructions.' . PHP_EOL);
+        $previous = (string) file_get_contents(__DIR__ . '/../Fixtures/legacy-skills/do-it-0.5.md');
+        installerWriteFile($root . '/.agents/skills/do-it/SKILL.md', $previous);
+        $customSkill = $root . '/.agents/skills/process-code-review/SKILL.md';
+        installerWriteFile($customSkill, 'Custom review procedure.' . PHP_EOL);
+        [$status] = installedCopyReferenceInstall($root);
+        expect($status)->toBe(0)->and(file_get_contents($root . '/AGENTS.md'))->toBe('Custom project instructions.' . PHP_EOL);
+        expect(file_get_contents($customSkill))->toBe('Custom review procedure.' . PHP_EOL);
+        $source = dirname(__DIR__, 2);
+        $layouts = [
+            [$source . '/skills', $source . '/commands'],
+            [$root . '/.claude/skills', $root . '/.claude/commands'],
+            [$root . '/.agents/skills', $root . '/.codex/commands'],
+            [$result['home'] . '/.claude/skills', $result['home'] . '/.claude/ai-olympus-commands'],
+            [$result['home'] . '/.agents/skills', $result['home'] . '/.agents/ai-olympus-commands'],
+        ];
+
+        foreach ($layouts as [$skills, $commands]) {
+            checkDiscoveredWorkflow($skills, $commands, 'do-it', 'do-it', 'do-it');
+            checkDiscoveredWorkflow($skills, $commands, 'verify-merge-readiness', 'prepare-issue-for-merge', 'verify-merge-readiness');
+        }
+    });
+});
+
+function recordInstalledReviewMetrics(string $directory, string $consumer, int $number): string
+{
+    $state = ".codex/run/round-{$number}.json";
+    $script = $directory . '/review-state.sh';
+    (new Process(['bash', $script, 'init', '--state', $state, '--repo', 'acme/shop', '--pr', (string) $number], $consumer))->mustRun();
+    $report = "# Code Review\n\n**Status:** converged\n**Counts:** Critical 0 · Moderate 0\n"
+        . '**Reviewed revision:** ' . str_repeat('a', 40) . "\n**Last updated:** 2026-09-03T12:00:00Z\n\n## Findings\n";
+    (new Process(['bash', $script, 'record', '--state', $state, '--input', '-'], $consumer, input: $report))->mustRun();
+    $output = (new Process(['bash', $script, 'evaluate', '--state', $state], $consumer))->mustRun()->getOutput();
+    expect(json_decode($output, associative: true, flags: JSON_THROW_ON_ERROR))->toMatchArray(['iteration' => 1, 'verdict' => 'converged']);
+
+    $store = $consumer . "/metrics-{$number}.jsonl";
+    $metrics = [
+        'bash', $directory . '/record-metrics.sh', '--initial-tier', 'STANDARD', '--final-tier', 'STANDARD',
+        '--status', 'success', '--review-state', $state, '--store', $store,
+    ];
+    (new Process($metrics, $consumer))->mustRun();
+
+    return (string) file_get_contents($store);
+}
+
+test('review state and derived metrics use the same canonical jq modules in every distribution', function (): void {
+    globalSkillsRunInstall(['--global'], seedHome: null, assert: function (array $result): void {
+        $root = $result['root'];
+        (new Process(['git', 'init', '-q'], $root))->mustRun();
+        $commit = ['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'base'];
+        (new Process($commit, $root))->mustRun();
+        installerEnsureDirectory($root . '/.codex/run');
+        $directories = [
+            dirname(__DIR__, 2) . '/commands/_shared',
+            $root . '/.claude/command-support/_shared',
+            $root . '/.codex/commands/_shared',
+            $result['home'] . '/.claude/ai-olympus-commands/_shared',
+            $result['home'] . '/.agents/ai-olympus-commands/_shared',
+        ];
+
+        foreach ($directories as $index => $directory) {
+            expect(recordInstalledReviewMetrics($directory, $root, $index + 1))->toContain('"iterations":1');
+        }
     });
 });

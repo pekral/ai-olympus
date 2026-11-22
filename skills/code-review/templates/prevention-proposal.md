@@ -28,6 +28,6 @@ No agent changes a project safeguard, a rule, or a configuration because of this
 
 <!-- prevention-proposal:key=<repository>:<category>:<cause key> -->
 
-<!-- skills/_shared/propose-prevention.sh renders this body. The headings and their order are the contract that this template pins and that the script keeps. -->
+<!-- commands/_shared/propose-prevention.sh renders this body. The headings and their order are the contract that this template pins and that the script keeps. -->
 <!-- The first line is the issue title. The marker is the last line and appears once: the dedupe lookup reads it. -->
 <!-- Promotion target and Existing knowledge checked appear only when the analysis carries a target. -->

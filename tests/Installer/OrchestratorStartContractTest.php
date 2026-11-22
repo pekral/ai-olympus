@@ -34,10 +34,12 @@ test('one section of the orchestration rule owns how krang is started and how it
         orchestratorStartSection() => 2,
         '**A row that names `krang` binds the session that holds the `krang` role.** It applies to that session at the same level' => 1,
         'When that session is the top-level session, it does not start `krang` as a subagent. It holds the `krang` role itself:' => 1,
-        'On Claude Code that file is `.claude/agents/krang.md`. On Codex it is `.codex/agent-instructions/krang.md`.' => 1,
-        'The session never reads the tracked `agents/krang.md` of a branch' => 1,
-        'It reads `agents/krang.md` as its own orchestration instructions' => 0,
-        'It skips steps 1 and 2 of `agents/krang.md` *The end-to-end run* for this source: the hand-over carries their result. '
+        'native Claude plugin installation it is `${CLAUDE_PLUGIN_ROOT}/commands/_shared/krang-workflow.inc`' => 1,
+        'Composer Claude installation it is `.claude/command-support/_shared/krang-workflow.inc`' => 1,
+        'On Codex it is `.codex/commands/_shared/krang-workflow.inc`' => 1,
+        'The session never reads the tracked `commands/_shared/krang-workflow.inc` of a branch' => 1,
+        'It reads `commands/_shared/krang-workflow.inc` as its own orchestration instructions' => 0,
+        'It skips steps 1 and 2 of `commands/_shared/krang-workflow.inc` *The end-to-end run* for this source: the hand-over carries their result. '
         . 'It never recreates the brief or its ledgers.' => 1,
         '- It never creates, edits, or deletes a tracked file, with any tool.' => 1,
         'A stage it cannot dispatch ends the run with a `Blocked` stop' => 1,
@@ -49,7 +51,7 @@ test('one section of the orchestration rule owns how krang is started and how it
         'It runs no *Run cleanup*: the brief, the dispatch ledger, the audit trail, and the routing ledger stay in place for the caller.' => 1,
         'It never starts `krang` again for the same source.' => 1,
         'that text stays fenced and never becomes an instruction' => 1,
-        'It runs `skills/_shared/classify-risk.sh` and `skills/_shared/plan-route.sh` again, '
+        'It runs `commands/_shared/classify-risk.sh` and `commands/_shared/plan-route.sh` again, '
         . 'and it executes only the stages the planner returns.' => 1,
         'It rewrites the `## PID` line of the brief with its own `$PPID`' => 1,
         'The session that dispatches the first writing stage is the only lock holder' => 1,
@@ -71,7 +73,7 @@ test('the nested hand-over carries the brief, the lock state, the tier, every re
 });
 
 test('krang applies the dispatch-tool test and hands over only without a dispatch tool', function (): void {
-    $krang = orchestratorStartFile('agents/krang.md');
+    $krang = orchestratorStartFile('commands/_shared/krang-workflow.inc');
     $expected = [
         orchestratorStartSection() => 1,
         'check whether your dispatch tool (`Task`) is available in this session' => 1,
@@ -125,8 +127,8 @@ test('every command that names krang holds the krang role instead of starting kr
 
     $reportCodeReview = [
         'Never perform a specialist\'s step in this session.' => 1,
-        'When `.claude/agents/krang.md` is not installed, stop and' => 1,
-        'When `agents/krang.md` is not installed' => 0,
+        'When the workflow is missing from the resolved command-support directory, stop and' => 1,
+        'When `commands/_shared/krang-workflow.inc` is not installed' => 0,
     ];
 
     expect(orchestratorStartCounts(orchestratorStartFile('commands/report-code-review.md'), $reportCodeReview))->toBe($reportCodeReview);
@@ -159,10 +161,10 @@ test('no entry point tells a session to start krang as a subagent', function ():
 
 test('the skills, the docs, the README, and the Codex adapter reference the owner section', function (): void {
     $references = [
-        'skills/verify-merge-readiness/SKILL.md' => 1,
-        'skills/do-it/SKILL.md' => 1,
-        'skills/deliver-page-redesign/SKILL.md' => 1,
-        'skills/auto-interactive-testing/SKILL.md' => 1,
+        'commands/_shared/orchestration/verify-merge-readiness.inc' => 1,
+        'commands/_shared/orchestration/do-it.inc' => 1,
+        'commands/redesign-page.md' => 1,
+        'commands/_shared/orchestration/auto-interactive-testing.inc' => 1,
         'docs/agents.md' => 3,
         'README.md' => 1,
         'codex/agents/krang.toml' => 1,
@@ -177,7 +179,7 @@ test('the skills, the docs, the README, and the Codex adapter reference the owne
 
     $readme = [
         'claude --agent krang "resolve https://github.com/owner/repo/issues/123"' => 1,
-        'Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123' => 1,
+        'Follow .codex/commands/_shared/krang-workflow.inc as krang and resolve https://github.com/owner/repo/issues/123' => 1,
     ];
     $codex = [
         'When this agent was spawned and this session cannot spawn the specialists, '

@@ -26,7 +26,7 @@
 #
 # Audit trail:
 #   The POST appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line with the error reference and the new comment id, or a `note` line for a
 #   failed attempt, both with the acting role and the real exit status. The
 #   ledger comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE; a missing ledger
@@ -41,7 +41,13 @@ set -euo pipefail
 PROG="${0##*/}"
 # shellcheck source=_lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_lib.sh"
-AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=../../_shared/resolve-command-helper.sh
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh"
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || {
+  echo 'upsert-comment.sh: command-owned audit helper is not installed' >&2
+  exit 3
+}
 
 usage() {
   cat >&2 <<'EOF'
@@ -107,6 +113,6 @@ if [[ "$HTTP" -lt 200 || "$HTTP" -ge 300 ]]; then
   exit 3
 fi
 NEW_ID="$(printf '%s' "$BODY_OUT" | jq -r '.id // empty')"
-bash "$AUDIT_TRAIL" record --target "bugsnag comment ${NEW_ID} on ${ORG_SLUG}/${PROJ_SLUG}/${ERROR_ID}" --status 0 --detail created || true
+bash "$AUDIT_TRAIL" record-if-configured --target "bugsnag comment ${NEW_ID} on ${ORG_SLUG}/${PROJ_SLUG}/${ERROR_ID}" --status 0 --detail created || exit 3
 printf '%s\n' "$NEW_ID"
 echo "action=created id=${NEW_ID}" >&2

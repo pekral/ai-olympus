@@ -6,7 +6,7 @@ namespace Pekral\AiOlympus;
 
 /**
  * Reads the local orchestration-metrics store written by
- * `skills/_shared/record-metrics.sh`.
+ * `commands/_shared/record-metrics.sh`.
  *
  * The store is JSONL so two runs finishing at once cannot lose each other's
  * entry. A line that does not parse is skipped rather than fatal: the store is

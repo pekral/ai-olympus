@@ -164,7 +164,7 @@ test('review mode is an always-run security lens on a public repository wherever
         ->toContain('All four lenses are exempt from the gate in full');
     expect(historyExposureSource('skills/code-review/SKILL.md'))
         ->toContain('`git-history-exposure-audit` in its *Review mode* on a public repository, `api-review`) one at a time');
-    expect(historyExposureSource('skills/code-review/references/specialized-reviews.md'))
+    expect(historyExposureSource('commands/_shared/orchestration/specialized-reviews.inc'))
         ->toContain(
             '- @skills/git-history-exposure-audit/SKILL.md in its *Review mode* — '
             . '**always run when the reviewed repository is public on GitHub, never skipped there**',
@@ -251,7 +251,7 @@ test('the allow-list is a default-branch manifest key and the package lists the 
     expect(historyExposureSource('skills/security-audit/SKILL.md'))
         ->toContain('- `@skills/git-history-exposure-audit/SKILL.md` reads the git history and the GitHub texts');
     expect(historyExposureSource('docs/skills.md'))->toContain('| [`git-history-exposure-audit`](../skills/git-history-exposure-audit/) |');
-    expect(historyExposureSource('skills/_shared/gate-context.sh'))->toContain('(security-review|security-audit|git-history-exposure-audit)');
+    expect(historyExposureSource('commands/_shared/gate-context.sh'))->toContain('(security-review|security-audit|git-history-exposure-audit)');
 });
 
 test('review mode runs the installed copy of a project whose default branch does not ship skills, verified by its recorded hash', function (): void {
@@ -274,7 +274,7 @@ test('review mode runs the installed copy of a project whose default branch does
             'A copy that differs from it, a missing reference, and a path that the reference does not list are refused, and the scan fails.',
         )
         ->and($step)->toContain(
-            '`.claude/skills/git-history-exposure-audit/scripts/history-scan.sh .claude/skills/_shared/read-manifest.sh '
+            '`.claude/skills/git-history-exposure-audit/scripts/history-scan.sh .claude/commands/_shared/read-manifest.sh '
             . '.claude/skills/_shared/verify-installed-copy.sh`',
         )
         ->and($step)->toContain('On Codex every path starts with `.agents/skills/`.')
@@ -284,7 +284,7 @@ test('review mode runs the installed copy of a project whose default branch does
     $exemptions = historyExposureSource('skills/merge-github-pr/references/merge-exemptions.md');
 
     expect($exemptions)->toContain(
-        '`skills/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts --no-plugins"`, '
+        '`commands/_shared/run-gate.sh --exclusive --command "composer install --no-interaction --no-scripts --no-plugins"`, '
         . 'then `vendor/bin/ai-olympus install`.',
     )
         ->and($exemptions)->toContain('The installs run only when `TIP` carries a `composer.lock`')

@@ -70,8 +70,8 @@ test('the gate is green CI on the head commit or a passing quality gate on that 
         ->and($skill)->toContain('| Any other, unknown, or ambiguous state | Stop. Ambiguous is not green |')
         ->and($skill)->toContain('@skills/merge-github-pr/SKILL.md` *GitHub Actions billing exception*')
         ->and($skill)->toContain('| No check exists on the pull request | Fallback gate (below) |')
-        ->and($skill)->toContain('skills/_shared/run-gate.sh --tier full')
-        ->and($skill)->toContain('skills/_shared/verify-gate.sh --tier full <gated head>')
+        ->and($skill)->toContain('commands/_shared/run-gate.sh --tier full')
+        ->and($skill)->toContain('commands/_shared/verify-gate.sh --tier full <gated head>')
         ->and($skill)->toContain('This skill never commits the rewrite.');
 });
 
@@ -208,5 +208,5 @@ test('the package lists the skill in the README, the skill catalog, the installa
         ->and(mergeFastSource('docs/skills.md'))->toContain('All ' . $count . ' skills this package ships')
         ->and(mergeFastSource('docs/installation.md'))->toContain('| ' . $count . ' skills (`skills/*/SKILL.md`)')
         ->and(mergeFastSource('CHANGELOG.md'))->toContain('the `merge-github-pr-fast` skill merges a hotfix pull request as fast as possible (#406)')
-        ->and(mergeFastSource('skills/code-review/references/specialized-reviews.md'))->toContain('- `merge-github-pr-fast` —');
+        ->and(mergeFastSource('commands/_shared/orchestration/specialized-reviews.inc'))->toContain('- `merge-github-pr-fast` —');
 });

@@ -127,7 +127,7 @@
 #
 # Audit trail:
 #   Each write appends its own line to the run's `.audit` file at the moment it
-#   happens, through `skills/_shared/audit-trail.sh record`: an `external-write`
+#   happens, through `commands/_shared/audit-trail.sh record`: an `external-write`
 #   line with the comment URL, or a `note` line for a failed attempt, both with
 #   the acting role and the real exit status of the `acli` call. The ledger
 #   comes from AUDIT_TRAIL_FILE and AUDIT_TRAIL_ROLE; a missing ledger prints a
@@ -218,7 +218,12 @@ fi
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
+# shellcheck source=../../_shared/resolve-command-helper.sh
+source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh"
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || {
+  echo 'upsert-comment.sh: command-owned audit helper is not installed' >&2
+  exit 3
+}
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
 
@@ -469,6 +474,6 @@ if [[ "$UPDATE_RC" -ne 0 ]]; then
   exit 3
 fi
 
-bash "$AUDIT_TRAIL" record --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "$ACTION" || true
+bash "$AUDIT_TRAIL" record-if-configured --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "$ACTION" || exit 3
 echo "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}"
 echo "action=${ACTION} id=${TARGET_ID}" >&2

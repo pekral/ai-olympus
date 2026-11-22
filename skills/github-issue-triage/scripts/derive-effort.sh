@@ -13,7 +13,7 @@
 #   count  the `count=` line of `skills/_shared/count-assignment.sh --assignment <file>`: the distinct
 #          files the assignment names plus its criteria. That script is the one owner of the method
 #          `files-and-criteria`, which `@skills/do-it/SKILL.md` reads as the duration of an item.
-#   tier   the `tier=` line of `skills/_shared/classify-risk.sh --assignment <file>`, or the value of
+#   tier   the `tier=` line of `commands/_shared/classify-risk.sh --assignment <file>`, or the value of
 #          `--tier` (the caller already ran the classifier).
 #
 # Thresholds
@@ -48,7 +48,8 @@ set -f
 
 PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLASSIFIER="$HERE/../../_shared/classify-risk.sh"
+source "$HERE/../../_shared/resolve-command-helper.sh" || exit 3
+CLASSIFIER="$(resolve_command_helper classify-risk.sh)" || exit 3
 COUNTER="$HERE/../../_shared/count-assignment.sh"
 
 # The thresholds. Every other place refers to these two names and prints their values from them.

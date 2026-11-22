@@ -3,10 +3,13 @@ description: Prepare one or more GitHub or JIRA issues' pull requests for merge,
 argument-hint: [GitHub issue or pull request URL, or JIRA issue key or URL] [more references] [--merge]
 ---
 
-With exactly one reference and no flag, this session holds the `krang` role for this request
-and never starts `krang` as a subagent, per `@rules/compound-engineering/orchestration.md`
+Use the shared directory supplied by direct skill entry when present. Otherwise bind `commands/_shared/` to `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` for the native plugin, `.claude/command-support/_shared/` for Composer Claude, or `.codex/commands/_shared/` for project Codex. Retain that directory for every included protocol and helper.
+
+This session holds the `krang` role for this request
+and never starts `krang` as a subagent, per
+`@rules/compound-engineering/orchestration.md`
 *Starting the orchestrator — the top-level role and the nested hand-over*.
-Run `@skills/verify-merge-readiness/SKILL.md` with these arguments:
+Run `commands/_shared/orchestration/verify-merge-readiness.inc` with these arguments:
 
 $ARGUMENTS
 
@@ -17,12 +20,12 @@ superseded actor-owned preparation comments the skill permits, and stop before m
 
 With more than one reference, or with `--merge`, this session still holds the `krang` role. It holds
 it for every reference at once and starts no `krang` as a subagent. Load
-`skills/_shared/orchestration/batch-preparation.md` and follow it in full. It runs one pipeline for
+`commands/_shared/orchestration/batch-preparation.inc` and follow it in full. It runs one pipeline for
 each reference, each in its own git worktree, and it advances each pipeline when the handoff of its
 last dispatch arrives. `krang` only orchestrates and delegates every step to the specialists
 (`donatello`, `leonardo`, `splinter`, `casey`, `raphael`, `april`). Every gate, install, and test
-command of every unit runs only through `skills/_shared/run-gate.sh`, and a validation manifest runs
-only through `skills/_shared/run-validation.sh --exclusive`, so two worktrees never run a heavy job
+command of every unit runs only through `commands/_shared/run-gate.sh`, and a validation manifest runs
+only through `commands/_shared/run-validation.sh --exclusive`, so two worktrees never run a heavy job
 at the same time. The session publishes one aggregated report for the batch, and a blocker
 on one issue never stops the others.
 
@@ -38,7 +41,7 @@ pull request for a JIRA source, where the JIRA ticket shows only the Critical on
 decides it. The merge requires an answer to every question.
 
 When the issue carries no pull request, `krang` resolves the task first — the proposal review of
-`skills/_shared/orchestration/proposal-review.md`, implementation, and the review-and-fix loop to
+`commands/_shared/orchestration/proposal-review.inc`, implementation, and the review-and-fix loop to
 convergence — and then prepares the pull request that delivery opens.
 
 For Codex, invoke `$verify-merge-readiness` with the same references and the same optional

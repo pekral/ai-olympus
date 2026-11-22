@@ -145,7 +145,7 @@ test('the counter ignores an unclosed fence, a tilde fence, and a mixed fence th
 test('the fence rule has one owner that both the counter and the risk classifier call', function (): void {
     $vocabulary = packageSource('skills/_shared/domain-vocabulary.sh');
     $counter = packageSource('skills/_shared/count-assignment.sh');
-    $classifier = packageSource('skills/_shared/classify-risk.sh');
+    $classifier = packageSource('commands/_shared/classify-risk.sh');
 
     expect($vocabulary)->toContain('strip_assignment_fences() {')
         ->and($counter)->toContain('strip_assignment_fences |')
@@ -157,7 +157,7 @@ test('the fence rule has one owner that both the counter and the risk classifier
 
 test('the business headings are one set, in English and Czech, that the classifier and the counter share', function (): void {
     $vocabulary = packageSource('skills/_shared/domain-vocabulary.sh');
-    $classifier = packageSource('skills/_shared/classify-risk.sh');
+    $classifier = packageSource('commands/_shared/classify-risk.sh');
     $details = static fn (string $title, string ...$bullets): string => "<details open>\n<summary><strong>" . $title . "</strong></summary>\n\n"
         . implode("\n", array_map(static fn (string $bullet): string => '- ' . $bullet, $bullets)) . "\n\n</details>\n\n";
     $czech = countAssignment(
@@ -279,7 +279,7 @@ test('the effort labels are seeded and the skill names the one-label-at-most rul
     expect($skill)->toContain('at most one per issue')
         ->and($skill)->toContain('A new analysis replaces the old label')
         ->and($skill)->toContain('A `CRITICAL` tier raises the size by one step')
-        ->and($skill)->toContain('`skills/_shared/classify-risk.sh --assignment <file>`')
+        ->and($skill)->toContain('`commands/_shared/classify-risk.sh --assignment <file>`')
         ->and($skill)->toContain('`large` means yes');
 });
 

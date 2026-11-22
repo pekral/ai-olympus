@@ -1,0 +1,17 @@
+Read `commands/_shared/security-delivery.inc` before the normal merge pre-checks.
+
+# A merge requested on its own, and an unmet code-review gate
+
+Extracted from `commands/_shared/krang-workflow.inc` so the orchestrator does not carry it on every run. **Loading trigger:** a merge is requested on an existing pull request you did not just take through step 6, or `@skills/merge-github-pr/SKILL.md` refuses a merge on the code-review gate (step 7). A section, a step, or a bullet this file names *above* or *below* without a file is in `commands/_shared/krang-workflow.inc`.
+
+### Obtaining the converged review a merge needs
+
+- When the merge is requested on its own (an existing PR you did not just take through step 6), compare the current effective PR diff fingerprint with the latest trusted CR. If it is missing or different, **first dispatch `leonardo` through the Task tool** to run the review-and-fix loop on the current diff to convergence (step 6), and only then merge. If the fingerprint is identical after a rebase or other history-only rewrite, preserve the converged verdict and skip the redundant CR round. Never merge on a stale, partial, or absent code review.
+- **An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.** `@skills/merge-github-pr/SKILL.md` refuses a merge whose PR carries no trusted code-review report, whose latest one still reports Critical / Moderate findings, or whose reviewed diff fingerprint is missing or differs from the current effective PR diff.
+  Treat that refusal as a **missing prerequisite you own**, not as a blocker to escalate: dispatch the step-6 review-and-fix loop on the current diff — one `leonardo` pass covering quality and security alike — let `donatello` resolve every surfaced Critical / Moderate finding through `@skills/process-code-review/SKILL.md`, and then **re-enter the merge** once the loop reports **0 Critical with no undeferred Moderate** for the effective diff being merged. Recompute the fingerprint after fixes: a content change makes review stale, while a new SHA with the same fingerprint does not.
+  Tell the user the work waits for their decision (`@skills/agent-voice/SKILL.md` *A review loop that needs the reader waits for their decision*) only when the repair loop itself cannot converge (`maxIterations`, an unresolvable finding, or a blocked dispatch per *Blocked delegation is a hard stop*) — an absent review is a reason to run the review, never a reason to abandon a merge the user asked for, and never a reason to merge without one.
+
+
+## Full gate execution
+
+2. **Who runs it.** The gate writes to tracked files (fixers rewrite them) and lands a commit, so it is **never** run by a read-only orchestrator. When `krang` drives this merge, it dispatches `donatello` for this step exactly as it does for an unmet code-review gate — `donatello` is the only agent that may run the project's full gate, and only when running the gate itself (`agents/donatello.md` *Bash boundary*). A merge run by a caller who cannot execute the gate stops here and reports it; it never proceeds unverified.

@@ -11,7 +11,7 @@ declare(strict_types = 1);
 
 test('the proposal script is shipped, executable, self-testing, and run by the build', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/_shared/propose-prevention.sh';
+    $script = $packageDir . '/commands/_shared/propose-prevention.sh';
 
     expect(is_file($script))->toBeTrue();
     expect(is_executable($script))->toBeTrue();
@@ -24,11 +24,11 @@ test('the proposal script is shipped, executable, self-testing, and run by the b
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/_shared/propose-prevention.sh ');
+    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' commands/_shared/propose-prevention.sh ');
 });
 
 test('the self-test covers every acceptance criterion and testing scenario of the assignment', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/propose-prevention.sh');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/propose-prevention.sh');
 
     expect($script)
         // Criterion 1 and the happy path: a repeated class gives one proposal with every mandatory field and both occurrences.
@@ -107,7 +107,7 @@ test('the self-test covers every acceptance criterion and testing scenario of th
 });
 
 test('the script reuses the extractor, reads no network, files nothing, and writes nothing but its output file', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/propose-prevention.sh');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/propose-prevention.sh');
 
     expect($script)
         ->toContain('"$HERE/extract-findings.sh" --validate "$store"')
@@ -159,7 +159,7 @@ test('the script reuses the extractor, reads no network, files nothing, and writ
 });
 
 test('the text rules are written once and strip every bidirectional-control and zero-width character', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/propose-prevention.sh');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/propose-prevention.sh');
 
     expect(substr_count($script, 'def clean:'))->toBe(1);
     expect(substr_count($script, 'def inline:'))->toBe(1);
@@ -179,12 +179,12 @@ test('the text rules are written once and strip every bidirectional-control and 
 
 test('the contract is written once, in the code-review skill', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/prevention-proposal.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/prevention-proposal.inc');
 
     expect($reference)
         ->toContain('This file is the one contract for turning a recurring defect class into a prevention proposal.')
         ->toContain('It adds no record, no fingerprint, no report format, no store, and no agent.')
-        ->toContain('`skills/_shared/propose-prevention.sh` is the only implementation.')
+        ->toContain('`commands/_shared/propose-prevention.sh` is the only implementation.')
         ->toContain('so it runs the same on Claude Code and on Codex. It runs outside the review and is not an agent binding.')
         ->toContain('It files nothing, comments nothing, and changes no rule, no configuration, and no safeguard of any project.')
         ->toContain('- **A finding that does not recur gets no proposal.**')
@@ -248,7 +248,7 @@ test('issue creation and labelling keep their behaviour: no second creation path
     expect($createIssue)->not->toContain('prevention');
     expect($createIssue)->not->toContain('propose-prevention');
 
-    $script = (string) file_get_contents($packageDir . '/skills/_shared/propose-prevention.sh');
+    $script = (string) file_get_contents($packageDir . '/commands/_shared/propose-prevention.sh');
 
     foreach (['issue create', 'issue edit', 'label create', 'pr create'] as $needle) {
         expect($script)->not->toContain($needle);
@@ -298,4 +298,4 @@ test('the script and its contract are platform-neutral and name no path of one p
     foreach (['.claude/', '.codex/', '.agents/', 'CLAUDE_'] as $needle) {
         expect($content)->not->toContain($needle);
     }
-})->with(['skills/_shared/propose-prevention.sh', 'skills/code-review/references/prevention-proposal.md']);
+})->with(['commands/_shared/propose-prevention.sh', 'skills/code-review/references/prevention-proposal.md']);

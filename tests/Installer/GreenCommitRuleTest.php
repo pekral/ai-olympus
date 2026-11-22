@@ -63,7 +63,7 @@ test('every skill that authors or reshapes branch history cites the merged-head 
         'skills/resolve-issue/SKILL.md',
         'skills/test-driven-development/SKILL.md',
         'skills/git-workflow/SKILL.md',
-        'skills/process-code-review/SKILL.md',
+        'commands/_shared/orchestration/process-code-review.inc',
     ];
 
     $missing = [];
@@ -90,7 +90,7 @@ test('no skill mandates the per-commit range replay any more (issue #233, revise
     $mustNotMandateReplay = [
         'skills/resolve-issue/SKILL.md' => 'that replay is available, not required',
         'skills/git-workflow/SKILL.md' => 'is available when a bisectable history is wanted',
-        'skills/process-code-review/SKILL.md' => 'no range replay is required here',
+        'commands/_shared/orchestration/process-code-review.inc' => 'no range replay is required here',
     ];
 
     // The wordings the replay-mandating versions of these four files carried; none may survive in
@@ -189,5 +189,5 @@ test('a flaky test outside the diff and the assignment is left unchanged and doe
     expect((string) file_get_contents($packageDir . '/rules/code-testing/general.md'))->toContain($citation);
     expect((string) file_get_contents($packageDir . '/skills/e2e-testing/SKILL.md'))->toContain($citation);
     expect((string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md'))->toContain($citation);
-    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))->toContain($citation);
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc'))->toContain($citation);
 });

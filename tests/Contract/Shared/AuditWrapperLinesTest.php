@@ -5,7 +5,7 @@ declare(strict_types = 1);
 use Symfony\Component\Process\Process;
 
 // The package wrappers that publish through `gh` or `curl` leave their own audit line
-// (`skills/_shared/audit-trail.sh`). Each runs against a fake CLI that answers from the shell, so no
+// (`commands/_shared/audit-trail.sh`). Each runs against a fake CLI that answers from the shell, so no
 // request leaves the machine: one well-formed line for a write that succeeds, one note line for a
 // write that fails.
 

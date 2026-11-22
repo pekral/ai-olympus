@@ -190,7 +190,11 @@ test('every skill that acts on a GitHub reference wires the repository-ownership
     ];
 
     foreach ($guarded as $skill) {
-        expect(crContractText('skills/' . $skill . '/SKILL.md'))->toContain('skills/_shared/assert-current-repo.sh');
+        expect(
+            crContractText($skill === 'process-code-review' ? 'commands/_shared/orchestration/process-code-review.inc' : 'skills/' . $skill . '/SKILL.md'),
+        )->toContain(
+            'skills/_shared/assert-current-repo.sh',
+        );
     }
 });
 
@@ -210,7 +214,9 @@ test('guarded skills state that only a zero exit continues and no MCP fallback a
     ];
 
     foreach ($guarded as $skill) {
-        $content = crContractText('skills/' . $skill . '/SKILL.md');
+        $content = crContractText(
+            $skill === 'process-code-review' ? 'commands/_shared/orchestration/process-code-review.inc' : 'skills/' . $skill . '/SKILL.md',
+        );
         expect($content)->toContain('Only a zero exit permits');
         expect($content)->toContain('never applies to this guard');
     }
@@ -262,8 +268,8 @@ test('composer check actually runs the shared shell self-tests', function (): vo
 test('CR wrappers keep the opt-in inline-security-pass skip, which no shipped agent sets', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    foreach (['code-review', 'code-review-github', 'code-review-jira', 'code-review-bugsnag'] as $wrapper) {
-        $content = crContractText('skills/' . $wrapper . '/SKILL.md');
+    foreach (['specialized-reviews', 'tracker-review-lenses'] as $protocol) {
+        $content = packageSource('commands/_shared/orchestration/' . $protocol . '.inc');
         expect($content)->toContain('SECURITY_OWNER=leonardo');
         expect($content)->toContain('Absence of the flag means it runs');
         expect($content)->toContain('security: owned by leonardo');
@@ -295,9 +301,13 @@ test('a skipped security pass has somewhere to be declared on the summary line',
 
     foreach ($templates as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('security: owned by leonardo');
-        expect($content)->toContain('SECURITY_OWNER=leonardo');
+        expect($content)->toContain('delegated security summary suffix, supplied verbatim with the verified URL of the delivered security comment.');
+        expect($content)->toContain('Omit when security ran inline. Missing delivery blocks publication as covered.');
     }
+
+    $adapter = packageSource('commands/_shared/security-delivery.inc');
+    expect($adapter)->toContain('SECURITY_OWNER=leonardo')->toContain('security: owned by leonardo');
+    expect(packageSource('commands/_shared/krang-workflow.inc'))->toContain('`commands/_shared/security-delivery.inc`');
 });
 
 test('the ssh resolution comment does not claim to be side-effect free', function (): void {
@@ -319,8 +329,9 @@ test('the merge gate verifies a delegated security review actually arrived', fun
     // security pass that dies mid-run (API error, session limit, cancelled
     // agent) leaves the PR positively marked as covered with zero coverage —
     // strictly worse than an obviously missing review.
-    expect($merge)->toContain('Delegated security coverage is verified, never assumed');
-    expect($merge)->toContain('security: owned by leonardo');
+    expect($merge)->toContain('Delegated security coverage is verified before merge.');
+    expect(packageSource('commands/_shared/orchestration/merge-request.inc'))->toContain('`commands/_shared/security-delivery.inc`');
+    expect(packageSource('commands/_shared/security-delivery.inc'))->toContain('security: owned by leonardo (<url of leonardo\'s security comment>)');
 
     // The token must carry a link, so a missing delivery is visible in the
     // comment itself rather than only in the merge gate.
@@ -331,8 +342,8 @@ test('the merge gate verifies a delegated security review actually arrived', fun
         'code-review/templates/review-output.md',
     ] as $template) {
         $content = crContractText($packageDir . '/skills/' . $template);
-        expect($content)->toContain('url of leonardo\'s security comment');
-        expect($content)->toContain('The URL is mandatory');
+        expect($content)->toContain('supplied verbatim with the verified URL of the delivered security comment.');
+        expect($content)->toContain('Missing delivery blocks publication as covered.');
     }
 });
 

@@ -55,7 +55,7 @@ test('a changes-requested review decision still blocks and a branch protection i
 test('the skills reference the rule and no longer demand a GitHub approval on its own', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $readiness = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
     $fast = (string) file_get_contents($packageDir . '/skills/merge-github-pr-fast/SKILL.md');
     $exemptions = (string) file_get_contents($packageDir . '/skills/merge-github-pr/references/merge-exemptions.md');
     $orchestration = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
@@ -93,7 +93,7 @@ test('a converged review approves only a same-repository pull request', function
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $skill = (string) file_get_contents($packageDir . '/skills/merge-github-pr/SKILL.md');
-    $readiness = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $readiness = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
 
     expect($rule)->toContain(
         'A head branch in the repository needs push access, which a fork pull request does not have, so the rule never covers a pull request from a fork.',

@@ -62,6 +62,6 @@ test('every write of the release goes through the audit trail wrapper', function
     $skill = publishReleaseSource('skills/publish-github-release/SKILL.md');
 
     expect($skill)->toContain('AUDIT_TRAIL_FILE=<top>/.claude/run/release-<version>.audit')
-        ->and($skill)->toContain('skills/_shared/audit-trail.sh run -- git push origin <version>')
-        ->and($skill)->toContain('skills/_shared/audit-trail.sh run -- gh release create <version> --verify-tag');
+        ->and($skill)->toContain('commands/_shared/audit-trail.sh run -- git push origin <version>')
+        ->and($skill)->toContain('commands/_shared/audit-trail.sh run -- gh release create <version> --verify-tag');
 });

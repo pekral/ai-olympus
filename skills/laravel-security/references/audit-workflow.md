@@ -14,14 +14,14 @@ Audit reporting uses five levels. The repository's convergence gate (CR) knows t
 | Low              | Moderate      | YES                  |
 | Info             | not published | NO                   |
 
-An `Info` observation is not a finding. It never reaches a published CR report or its counts. The CR severities in `agents/leonardo.md` (`Critical` / `Moderate`) stay the gate; the audit severity is a reporting layer above them.
+An `Info` observation is not a finding. It never reaches a published CR report or its counts. The CR severities in `the command workflow` (`Critical` / `Moderate`) stay the gate; the audit severity is a reporting layer above them.
 
 ## Every confirmed finding carries
 
 1. **The area** (1–7 below) and the **severity** (Critical / High / Medium / Low / Info).
 2. **The concrete file and line** (or the search pattern).
 3. **The proposed fix** — as a reference to the matching section of `@skills/laravel-security/SKILL.md`.
-4. **A regression-test sketch** (Pest / PHPUnit) — the auditor sketches the test that would catch the finding; `donatello` implements the application fix.
+4. **A regression-test sketch** (Pest / PHPUnit) — the auditor sketches the test that would catch the finding; `implementation work` implements the application fix.
 
 ## The seven audit areas
 

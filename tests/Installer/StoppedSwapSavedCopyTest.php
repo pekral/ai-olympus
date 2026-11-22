@@ -62,12 +62,12 @@ test('the stopped-swap rule stays in the owner reference only (issue #622)', fun
 })->with([
     'skills/process-code-review/SKILL.md',
     'agents/donatello.md',
-    'agents/krang.md',
+    'commands/_shared/krang-workflow.inc',
     'agents/leonardo.md',
 ]);
 
 test('krang reports a stopped swap and names every kept tree with its reason (issue #622)', function (string $text): void {
-    expect(packageSource('agents/krang.md'))->toContain($text);
+    expect(packageSource('commands/_shared/krang-workflow.inc'))->toContain($text);
 })->with([
     'every kept worktree has a reason' => ['**Every worktree that *Run cleanup* leaves in place is named in the report with its reason**'],
     'the owner reference' => ['`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*'],
@@ -84,7 +84,7 @@ test('krang reports a stopped swap and names every kept tree with its reason (is
 ]);
 
 test('the stopped-swap item is its own Run cleanup item for the shared working tree too (issue #622)', function (): void {
-    $krang = packageSource('agents/krang.md');
+    $krang = packageSource('commands/_shared/krang-workflow.inc');
     $item = '   - **Keep every tree that holds a stopped swap, and report it.**';
     $position = (int) strpos($krang, $item);
     $implementation = (int) strpos($krang, '   - **Remove the implementation worktree of a parallel unit**');
@@ -104,20 +104,20 @@ test('the stopped-swap item is its own Run cleanup item for the shared working t
 test('every removal path of a worktree checks for a swap directory first (issue #622)', function (string $relativePath, string $anchor): void {
     expect(packageSource($relativePath))->toContain($anchor);
 })->with([
-    'krang Run cleanup' => ['agents/krang.md', 'Check every worktree for a swap directory before you remove it.'],
-    'the batch unit removal' => ['skills/_shared/orchestration/batch-preparation.md', '- **A swap directory keeps the worktree.**'],
+    'krang Run cleanup' => ['commands/_shared/krang-workflow.inc', 'Check every worktree for a swap directory before you remove it.'],
+    'the batch unit removal' => ['commands/_shared/orchestration/batch-preparation.inc', '- **A swap directory keeps the worktree.**'],
     'the general worktree cleanup' => ['rules/git/general.md', 'and it holds no swap directory'],
     'the post-merge removal' => ['skills/merge-github-pr/SKILL.md', 'If active, dirty, or holding a swap directory ('],
-    'the startup sweep' => ['skills/_shared/orchestration/stale-run-recovery.md', '**Verify it holds no swap directory before the removal.**'],
+    'the startup sweep' => ['commands/_shared/orchestration/stale-run-recovery.inc', '**Verify it holds no swap directory before the removal.**'],
 ]);
 
 test('each removal path that carries the check points to the owner reference (issue #622)', function (string $relativePath): void {
     expect(packageSource($relativePath))
         ->toContain('`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*');
 })->with([
-    'agents/krang.md',
-    'skills/_shared/orchestration/stale-run-recovery.md',
-    'skills/_shared/orchestration/batch-preparation.md',
+    'commands/_shared/krang-workflow.inc',
+    'commands/_shared/orchestration/stale-run-recovery.inc',
+    'commands/_shared/orchestration/batch-preparation.inc',
     'skills/merge-github-pr/SKILL.md',
     'rules/git/general.md',
 ]);
@@ -222,7 +222,7 @@ test('Claude Code and Codex install the stopped-swap rule and the kept-worktree 
 
         $markers = [
             '.agents/skills/process-code-review/references/close-the-defect-class.md' => '### A stopped swap keeps its saved copy',
-            '.claude/agents/krang.md' => '- **Kept worktrees:**',
+            '.claude/command-support/_shared/krang-workflow.inc' => '- **Kept worktrees:**',
             '.claude/skills/process-code-review/references/close-the-defect-class.md' => '### A stopped swap keeps its saved copy',
             '.codex/agent-instructions/krang.md' => '- **Kept worktrees:**',
         ];

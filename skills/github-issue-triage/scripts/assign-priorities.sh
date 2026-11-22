@@ -89,7 +89,8 @@ set -euo pipefail
 OPEN_ISSUE_LIMIT=500
 
 DERIVE_EFFORT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/derive-effort.sh"
-AUDIT_TRAIL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/audit-trail.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared/resolve-command-helper.sh" || exit 3
+AUDIT_TRAIL="$(resolve_command_helper audit-trail.sh)" || exit 3
 
 # Types that a title prefix can derive. `security` and `question` are topic
 # labels: they are never derived and never removed.
@@ -553,11 +554,15 @@ STUB
   # A failed effort derivation is named and leaves the effort labels unchanged. The copy of this script
   # sits next to a derive-effort.sh stub that fails, so no override of the real path exists.
   local real_script="$script"
-  mkdir -p "$SELF_TEST_TMP/failing"
-  cp "$script" "$SELF_TEST_TMP/failing/assign-priorities.sh"
-  printf '#!/usr/bin/env bash\necho "derive-effort.sh: boom" >&2\nexit 1\n' >"$SELF_TEST_TMP/failing/derive-effort.sh"
-  chmod +x "$SELF_TEST_TMP/failing/assign-priorities.sh" "$SELF_TEST_TMP/failing/derive-effort.sh"
-  script="$SELF_TEST_TMP/failing/assign-priorities.sh"
+  local fixture="$SELF_TEST_TMP/failing"
+  local scripts="$fixture/skills/github-issue-triage/scripts"
+  mkdir -p "$scripts" "$fixture/skills/_shared" "$fixture/commands/_shared"
+  cp "$(dirname "$real_script")/../../_shared/resolve-command-helper.sh" "$fixture/skills/_shared/"
+  cp "$AUDIT_TRAIL" "$fixture/commands/_shared/"
+  cp "$script" "$scripts/assign-priorities.sh"
+  printf '#!/usr/bin/env bash\necho "derive-effort.sh: boom" >&2\nexit 1\n' >"$scripts/derive-effort.sh"
+  chmod +x "$scripts/assign-priorities.sh" "$scripts/derive-effort.sh"
+  script="$scripts/assign-priorities.sh"
   e2e '--issue — a failed effort derivation is named and the effort label stays' \
     '[{"number":11,"title":"feat(core): eleven","body":"","labels":[{"name":"effort: large"}]}]' '--issue 11' \
     '#11  enhancement (title) — applied: +enhancement +priority: medium (effort not derived: derive-effort.sh: boom)' \
@@ -589,11 +594,11 @@ STUB
   : >"$SELF_TEST_TMP/edits"
   : >"$SELF_TEST_TMP/run.audit"
   (cd "$SELF_TEST_TMP" && PATH="$stub:$PATH" GH_STUB_NWO="$STUB_NWO" GH_STUB_ISSUES="$SELF_TEST_TMP/issues.json" \
-    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" AUDIT_TRAIL_ROLE=donatello \
+    GH_STUB_EDITS="$SELF_TEST_TMP/edits" AUDIT_TRAIL_FILE="$SELF_TEST_TMP/run.audit" AUDIT_TRAIL_ROLE=triage-fixture \
     "$script" --issue 2 >"$SELF_TEST_TMP/out" 2>&1)
   rc=$?
   checks=$((checks + 1))
-  if [[ "$rc" -ne 0 ]] || ! grep -q '^donatello|.*|external-write|.*+label enhancement' "$SELF_TEST_TMP/run.audit"; then
+  if [[ "$rc" -ne 0 ]] || ! grep -q '^triage-fixture|.*|external-write|.*+label enhancement' "$SELF_TEST_TMP/run.audit"; then
     echo "self-test FAIL: the write of --issue 2 left no audit line with its label tokens" >&2
     failures=$((failures + 1))
   fi

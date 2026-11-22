@@ -66,7 +66,8 @@ final class InstallerFileCopier
 
         InstallerPath::ensureDirectory($dirName);
 
-        $effectiveForce = $force || self::isSecurityRule($relativePath) || InstallerAgentMigration::isSupersededCopy($relativePath, $dst);
+        $effectiveForce = $force || self::isSecurityRule($relativePath) || InstallerAgentMigration::isSupersededCopy($relativePath, $dst)
+            || InstallerWorkflowUpgrade::isOriginalCopy($relativePath, $dst);
 
         if (file_exists($dst) && !$effectiveForce) {
             self::warnAboutKeptReusedName($relativePath, $src, $dst);

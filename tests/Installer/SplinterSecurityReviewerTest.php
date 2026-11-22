@@ -47,7 +47,7 @@ test('splinter reviews for security only, runs every security lens, and anchors 
 
 test('splinter never reads the findings of leonardo for the round and never waits for them (issue #379)', function (): void {
     $splinter = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/splinter.md');
-    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md');
+    $krang = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc');
 
     expect($splinter)->toContain('**Never read the findings of `leonardo` for the round.**')
         ->and($splinter)->toContain('Do not read its `### leonardo — CR round <n>` section of the shared brief')
@@ -76,16 +76,16 @@ test('krang dispatches splinter in every parallel CR round and converges only wh
         ->and($krang)->toContain('A `splinter` that is `Blocked`, unregistered, or without `Clean` leaves the round not converged')
         ->and($krang)->toContain('`leonardo` and `splinter` review in isolated read-only git worktrees');
 
-    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc'))
         ->toContain('it holds only when the handoffs of `leonardo` and `splinter` are both clean')
         ->toContain('   - **Convergence gate:**');
 
-    expect((string) file_get_contents(dirname(__DIR__, 2) . '/agents/krang.md'))->toContain(
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/krang-workflow.inc'))->toContain(
         'When the `splinter` handoff is `Blocked`, `splinter` is unregistered, or its report has no `Clean` field, '
-        . '**load `skills/_shared/orchestration/splinter-not-run.md`**.',
+        . '**load `commands/_shared/orchestration/splinter-not-run.inc`**.',
     );
     expect((string) file_get_contents(dirname(__DIR__, 2) . '/rules/code-review/review-process.md'))
-        ->toContain('`skills/_shared/orchestration/splinter-not-run.md`, and both finding templates point here')
+        ->toContain('`commands/_shared/orchestration/splinter-not-run.inc`, and both finding templates point here')
         ->toContain('its handoff is `Blocked`, or the report has no `Clean` field, the independent view did not run.');
 });
 
@@ -110,7 +110,7 @@ test('leonardo merges the splinter view under one owner rule and the security ag
         ->and($reviewProcess)->toContain(
             '- **`Clean: no` is a view that ran.** Merge its findings by the rules above. '
             . 'On a full run they leave the round not converged: return `not converged` and publish nothing '
-            . '(`agents/krang.md` step 6 *Convergence gate*). It never renders the not-run header line.',
+            . '(`commands/_shared/krang-workflow.inc` step 6 *Convergence gate*). It never renders the not-run header line.',
         )
         ->and($reviewProcess)->toContain(
             'Record a `splinter` finding of an earlier round'
@@ -163,7 +163,7 @@ test('splinter limits its Bash boundary to its own worktree and an independent a
 test('the convergence gate counts the splinter findings and never defers a security finding (issue #379)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('the Critical and Moderate findings of the independent `splinter` security view count in `criticalCount` and `moderateCount`')
         ->and((string) file_get_contents($packageDir . '/rules/code-review/general.md'))
         ->toContain('**A second, independent view runs in every round.**')

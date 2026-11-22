@@ -55,7 +55,7 @@ test('the script only reads: it names no tracker write and reads no environment 
 
 test('a tracker the script cannot count goes under not-verified with the step that settles it', function (): void {
     $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
-    $scope = quietRunCheckSource('skills/process-code-review/references/review-loop-scope.md');
+    $scope = quietRunCheckSource('commands/_shared/orchestration/review-review-loop-scope.inc');
 
     expect(
         substr_count(
@@ -101,7 +101,7 @@ test('the self-test covers every scenario of the assignment', function (): void 
 });
 
 test('the loop reference owns the contract: what to run, how to read each exit code, and how to mark the report', function (): void {
-    $scope = quietRunCheckSource('skills/process-code-review/references/review-loop-scope.md');
+    $scope = quietRunCheckSource('commands/_shared/orchestration/review-review-loop-scope.inc');
 
     expect(substr_count($scope, '#### Prove that a quiet run published nothing'))->toBe(1)
         ->and(
@@ -125,7 +125,7 @@ test('the loop reference owns the contract: what to run, how to read each exit c
 });
 
 test('every quiet review path calls the check and reports its result', function (): void {
-    $process = quietRunCheckSource('skills/process-code-review/SKILL.md');
+    $process = quietRunCheckSource('commands/_shared/orchestration/process-code-review.inc');
     $leonardo = quietRunCheckSource('agents/leonardo.md');
     $contract = quietRunCheckSource('skills/code-review-github/references/cr-wrapper-contract.md');
 
@@ -149,7 +149,7 @@ test('every quiet review path calls the check and reports its result', function 
 
 test('record writes its state only where review-state.sh writes its own, through one shared guard', function (): void {
     $script = quietRunCheckSource('skills/_shared/quiet-run-check.sh');
-    $reviewState = quietRunCheckSource('skills/_shared/review-state.sh');
+    $reviewState = quietRunCheckSource('commands/_shared/review-state.sh');
     $guard = quietRunCheckSource('skills/_shared/state-path.sh');
 
     expect(substr_count($script, 'problem="$(state_path_problem "$state" create)" || die "$problem" 2'))->toBe(1)

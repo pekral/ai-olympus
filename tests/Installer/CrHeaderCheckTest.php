@@ -4,7 +4,7 @@ declare(strict_types = 1);
 
 // The header-line check (issue #238, follow-up of #236). Per the project's test-isolation rule a Pest
 // test cannot exec a real .sh, so the behavioural proof lives in the script's own `--self-test` (the
-// precedent is `skills/_shared/check-handoff.sh`). The pins below fix the contract that self-test
+// precedent is `commands/_shared/check-handoff.sh`). The pins below fix the contract that self-test
 // enforces, the wiring that makes it run in the build, and the publication step that calls the script.
 
 function crHeaderCheckSource(string $relativePath): string
@@ -111,8 +111,8 @@ test('the self-test covers every scenario of the assignment', function (): void 
 
 test('the publication step checks the header lines of the record it then publishes', function (): void {
     $contract = crHeaderCheckSource('skills/code-review-github/references/cr-wrapper-contract.md');
-    $script = crHeaderCheckSource('skills/code-review-github/scripts/post-inline-review.sh');
-    $publish = 'skills/code-review-github/scripts/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
+    $script = crHeaderCheckSource('commands/_shared/code-review-github/post-inline-review.sh');
+    $publish = 'commands/_shared/code-review-github/post-inline-review.sh post <PR-NUMBER|URL> --commit-id '
         . '<reviewed head SHA> --meta-file <record-file> --walkthrough-file <walkthrough-file> <findings-file>';
 
     expect(substr_count($contract, '- **Check the record before publishing.**'))->toBe(1)

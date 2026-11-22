@@ -52,7 +52,7 @@ test('krang requests context through the structured interface instead of reading
 });
 
 test('the context package is ranked, deduplicated, bounded, provenanced, and cached by repository state (issue #133)', function (): void {
-    $packer = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/pack-context.sh');
+    $packer = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/pack-context.sh');
 
     foreach ([
         'a bug fix with two symbols and a 1500-token budget is packed',
@@ -85,7 +85,7 @@ test('the context package is ranked, deduplicated, bounded, provenanced, and cac
 
 test('retrieval telemetry is recorded as counts (issue #133)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $recorder = (string) file_get_contents($packageDir . '/skills/_shared/record-metrics.sh');
+    $recorder = (string) file_get_contents($packageDir . '/commands/_shared/record-metrics.sh');
 
     expect($recorder)->toContain('\'retrieval counters are stored as counts\'')
         ->and($recorder)->toContain('--items-inspected) items_inspected="$value" ;;')
@@ -161,7 +161,7 @@ test('the retriever builds or refreshes the graph once before its first query so
 test('the graph slice is bounded by the gate budget and the graph stays in git-ignored scratch (issue #136)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $command = (string) file_get_contents($packageDir . '/src/CommandOptions.php');
-    $packer = (string) file_get_contents($packageDir . '/skills/_shared/pack-context.sh');
+    $packer = (string) file_get_contents($packageDir . '/commands/_shared/pack-context.sh');
 
     expect($command)->toContain('public const DEFAULT_RUN_DIRECTORY = \'.claude/run\';')
         ->and($command)->toContain('private const RUN_DIRECTORIES = [self::DEFAULT_RUN_DIRECTORY, \'.codex/run\'];')
@@ -173,7 +173,7 @@ test('the graph slice is bounded by the gate budget and the graph stays in git-i
 });
 
 test('the packer ranks by graph distance, names the graph entity, and degrades without a graph (issue #136)', function (): void {
-    $packer = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/pack-context.sh');
+    $packer = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/pack-context.sh');
 
     foreach ([
         'a package built without a graph slice is unchanged and has no graph metadata',
@@ -202,7 +202,7 @@ test('the packer ranks by graph distance, names the graph entity, and degrades w
 });
 
 test('graph telemetry is recorded as counts and krang derives it from the package (issue #136)', function (): void {
-    $recorder = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/record-metrics.sh');
+    $recorder = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/record-metrics.sh');
 
     expect($recorder)->toContain('\'graph counters are stored as counts\'')
         ->and($recorder)->toContain('--graph-hits) graph_hits="$value" ;;')

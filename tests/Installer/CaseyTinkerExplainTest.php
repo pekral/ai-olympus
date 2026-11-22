@@ -6,7 +6,7 @@ use Symfony\Component\Process\Process;
 
 function tinkerExplainReferencePath(): string
 {
-    return 'skills/mysql-problem-solver/references/tinker-explain.md';
+    return 'commands/_shared/tinker-explain.inc';
 }
 
 function tinkerExplainSource(string $relativePath): string

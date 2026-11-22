@@ -31,7 +31,7 @@ function feedbackFile(string $relativePath): string
 
 test('the loop script is shipped, executable, self-testing, and run by the build', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/_shared/feedback-loop.sh';
+    $script = $packageDir . '/commands/_shared/feedback-loop.sh';
 
     expect(is_file($script))->toBeTrue();
     expect(is_executable($script))->toBeTrue();
@@ -44,11 +44,11 @@ test('the loop script is shipped, executable, self-testing, and run by the build
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/_shared/feedback-loop.sh ');
+    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' commands/_shared/feedback-loop.sh ');
 });
 
 test('the self-test covers recording, collecting, analysing, the lookup, and the refusals', function (): void {
-    $script = feedbackFile('skills/_shared/feedback-loop.sh');
+    $script = feedbackFile('commands/_shared/feedback-loop.sh');
 
     expect($script)
         // The canonical repository: one spelling, one store, one record.
@@ -85,7 +85,7 @@ test('the self-test covers recording, collecting, analysing, the lookup, and the
 });
 
 test('the loop script reuses the earlier scripts, reads no network of its own, and names no platform path', function (): void {
-    $script = feedbackFile('skills/_shared/feedback-loop.sh');
+    $script = feedbackFile('commands/_shared/feedback-loop.sh');
 
     expect($script)
         ->toContain('gh repo view "$owner/$name" --json nameWithOwner')
@@ -112,7 +112,7 @@ test('the loop script reuses the earlier scripts, reads no network of its own, a
 });
 
 test('the lookup refuses a result of another repository and the proposal contract says so', function (): void {
-    $script = feedbackFile('skills/_shared/propose-prevention.sh');
+    $script = feedbackFile('commands/_shared/propose-prevention.sh');
 
     expect(feedbackFile('skills/_shared/proposal-identity.sh'))
         ->toContain('and (.url | ascii_downcase | startswith("https://github.com/" + ($key | split(":")[0] | ascii_downcase) + "/issues/"))');
@@ -122,14 +122,14 @@ test('the lookup refuses a result of another repository and the proposal contrac
         ->toContain('check \'a result that points to another owner or repository is not the proposal of this class\'')
         ->toContain('check \'the repository of the result is compared without regard to case\'');
 
-    expect(feedbackFile('skills/code-review/references/prevention-proposal.md'))
+    expect(feedbackFile('commands/_shared/orchestration/prevention-proposal.inc'))
         ->toContain('and its URL belongs to the repository of the key (compared without regard to case).')
-        ->toContain('3. Run `skills/_shared/feedback-loop.sh lookup --key <key>`.')
+        ->toContain('3. Run `commands/_shared/feedback-loop.sh lookup --key <key>`.')
         ->toContain('The number of proposals in the repository therefore never blocks the lookup.');
 });
 
 test('the contract names the roles, the store, the canonical repository, the approval, the consent, and the limits', function (): void {
-    $contract = feedbackFile('skills/code-review/references/feedback-loop.md');
+    $contract = feedbackFile('commands/_shared/orchestration/feedback-loop.inc');
 
     expect($contract)
         ->toStartWith('# Feedback loop — from a repeated review finding to an enforced safeguard')
@@ -172,7 +172,7 @@ test('the contract names the roles, the store, the canonical repository, the app
 });
 
 test('the earlier contracts hand their open points to the wiring contract', function (): void {
-    $analysis = feedbackFile('skills/code-review/references/recurrence-analysis.md');
+    $analysis = feedbackFile('commands/_shared/orchestration/recurrence-analysis.inc');
     $proposal = feedbackFile('skills/code-review/references/prevention-proposal.md');
 
     expect($analysis)
@@ -184,7 +184,7 @@ test('the earlier contracts hand their open points to the wiring contract', func
     expect($proposal)->not->toContain('belongs to the wiring phase (#189)');
 
     expect(feedbackFile('skills/code-review/references/finding-records.md'))
-        ->toContain('Phase 4 wires those steps: `skills/_shared/feedback-loop.sh` runs the extractor');
+        ->toContain('Phase 4 wires those steps: `commands/_shared/feedback-loop.sh` runs the extractor');
 });
 
 test('leonardo records each round on instruction, writes the analysis file in a third mode, and stays read-only', function (): void {
@@ -203,7 +203,7 @@ test('leonardo records each round on instruction, writes the analysis file in a 
         ->toContain('`Feedback analysis done` (feedback analysis mode)')
         ->toContain('Instruct it also to record each round and the published report for the feedback loop')
         ->toContain('The recording is best effort and gates nothing.')
-        ->toContain('run `skills/_shared/feedback-loop.sh` (`record` and `collect`) only as')
+        ->toContain('run `commands/_shared/feedback-loop.sh` (`record` and `collect`) only as')
         ->toContain('write the one analysis file the dispatch names under that directory with `cat >`')
         ->toContain('disallowedTools: Write, Edit');
 
@@ -243,7 +243,7 @@ test('krang runs the feedback analysis as an analysis-only run and never starts 
 });
 
 test('an approved proposal is implemented by the ordinary pipeline under four proofs and a read-only review', function (): void {
-    $reference = feedbackFile('skills/resolve-issue/references/safeguard-implementation.md');
+    $reference = feedbackFile('commands/_shared/orchestration/safeguard-implementation.inc');
 
     expect($reference)
         ->toStartWith('# Safeguard implementation')
@@ -273,7 +273,7 @@ test('an approved proposal is implemented by the ordinary pipeline under four pr
         ->toContain('It reads the regression result from the gate entry\'s run over the whole configured scope,')
         ->toContain('taken from CI on the head commit or from the pre-merge gate, never from the pull request body.')
         ->toContain('It runs only the project\'s own test and coverage command, discovered from the default branch per')
-        ->toContain('`references/quality-gates.md`, through `skills/_shared/run-gate.sh --exclusive`.');
+        ->toContain('`references/quality-gates.md`, through `commands/_shared/run-gate.sh --exclusive`.');
     expect($reference)->not->toContain('it runs the commands of the proofs');
     expect($reference)->not->toContain('applies this section when the pull request body carries a `## Safeguard` section (');
     expect($reference)->not->toContain('The review checks the four proofs from the diff:');
@@ -336,7 +336,7 @@ test('no ordinary pipeline waits for the loop: only the review and the feedback 
     }
 
     // The two agents that run it name it, and every adapter stays thin: no adapter and no agent holds a second copy.
-    foreach (['agents/leonardo.md', 'agents/krang.md'] as $file) {
+    foreach (['agents/leonardo.md', 'commands/_shared/krang-workflow.inc'] as $file) {
         expect(feedbackFile($file))->toContain('feedback-loop');
     }
 
@@ -353,5 +353,5 @@ test('the changelog records the wiring once', function (): void {
     $changelog = feedbackFile('CHANGELOG.md');
 
     expect(substr_count($changelog, 'phase 4 of the recurring-defect epic #185'))->toBe(1);
-    expect($changelog)->toContain('`skills/_shared/feedback-loop.sh`');
+    expect($changelog)->toContain('`commands/_shared/feedback-loop.sh`');
 });

@@ -86,7 +86,7 @@ test('every path that creates a GitHub issue points to the one owner and triages
 });
 
 test('do-it records the triage that create-issues-from-text reported and never triages a second time', function (): void {
-    $skill = triageCreatedIssuesSource('skills/do-it/SKILL.md');
+    $skill = triageCreatedIssuesSource('commands/_shared/orchestration/do-it.inc');
 
     expect($skill)->toContain('Record the triage result that `@skills/create-issues-from-text/SKILL.md` reported for each issue that step 2 created.')
         ->and($skill)->toContain('so this step runs no second triage.')

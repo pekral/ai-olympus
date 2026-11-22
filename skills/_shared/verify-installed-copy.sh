@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# verify-installed-copy.sh — the one check that a skill copy holds the content the default branch ships, before a
+# verify-installed-copy.sh — the one check that an installed workflow copy holds the content the default branch ships, before a
 # step runs it as a trusted copy.
 #
 # Why this exists
 #   The merge gate and the code review run some package scripts as a trusted copy, never the copy of the branch under
 #   review. A trusted copy runs only in the clone that `skills/merge-github-pr/references/merge-exemptions.md`
-#   *The trusted classifier* item 6 defines: the default-branch file below `skills/`, or the copy the package
-#   installed below `.claude/skills/` (Claude Code) or `.agents/skills/` (Codex). This script is the only place that
+#   *The trusted classifier* item 6 defines: the default-branch file below `skills/` or `commands/`, or the copy the package
+#   installed below `.claude/skills/`, `.agents/skills/`, `.claude/commands/`, `.claude/command-support/`, or `.codex/commands/`. This script is the only place that
 #   decides whether such a file can run as a trusted copy. That section owns when a step runs it.
 #
 # Usage
@@ -17,7 +17,7 @@
 #   --root   the absolute path of the top of the untouched clone of merge-exemptions.md item 6. A `verified` verdict
 #            proves nothing for any other root, the main worktree included.
 #   --commit the full object id of the default-branch tip commit, as GitHub names it; never a ref name
-#   --installed-reference  for a path below `.claude/skills/` or `.agents/skills/` whose default branch neither ships
+#   --installed-reference  for a path below an installed `skills/` or `commands/` directory whose default branch neither ships
 #            nor tracks the file, the recorded hash of check 3 is the trusted reference, and check 4 is skipped. It changes
 #            nothing for a path that has a default-branch blob, and nothing for a path below `skills/`. Three procedures
 #            pass it, each in a clone where the package install of the default-branch tip wrote the copy and the
@@ -27,7 +27,7 @@
 #            parser of `skills/merge-github-pr/references/trusted-record-parser.md`. The classifier of
 #            the merge gate never passes it, so the low-risk path, which needs that classifier, takes the full path in
 #            such a project before its security check runs.
-#   <installed path>  a path relative to the root, below `skills/`, `.claude/skills/`, or `.agents/skills/`
+#   <installed path>  a path relative to the root, below `skills/`, `commands/`, `.claude/skills/`, `.agents/skills/`, `.claude/commands/`, `.claude/command-support/`, or `.codex/commands/`
 #
 #   The script reads no file beside itself, so a caller runs it from the default-branch blob:
 #   `git show "${TIP:?}:skills/_shared/verify-installed-copy.sh" | bash -s -- --root ... --commit "${TIP:?}" ...`
@@ -41,7 +41,7 @@
 #   Then, for every path, in this order:
 #   1. No component below the root is a symbolic link: not the file and not a directory on the way to it.
 #   2. The path is a regular file.
-#   3. For a path below `.claude/skills/` or `.agents/skills/` only: its SHA-256 equals the hash the installer
+#   3. For a path below an installed `skills/` or `commands/` directory: its SHA-256 equals the hash the installer
 #      recorded for that path in
 #      `<git dir of the root>/ai-olympus/installed-copies.sha256`. The installer writes that reference outside the
 #      working tree, so no checkout and no file of a branch changes it. A missing reference, a reference that is
@@ -88,10 +88,10 @@ sha256_of() {
   fi
 }
 
-# A path is relative, below a skills directory, and has no empty, `.`, or `..` component.
+# A path is relative, below an installable workflow directory, and has no empty, `.`, or `..` component.
 valid_installed_path() {
   local path="$1" component parts=()
-  [[ "$path" =~ ^(\.(claude|agents)/)?skills/. ]] || return 1
+  [[ "$path" =~ ^((\.(claude|agents)/)?skills|(\.(claude|codex)/)?commands|\.claude/command-support)/. ]] || return 1
   [[ "$path" != *$'\n'* ]] || return 1
   IFS='/' read -r -a parts <<<"$path"
   for component in "${parts[@]}"; do
@@ -133,7 +133,13 @@ recorded_hash() {
 # Prints the refusal reason of check 4, or nothing when the copy equals the default-branch blob.
 blob_refusal() {
   local root="$1" commit="$2" path="$3" file="$4" source="$3" blob_path
-  [[ "$path" != skills/* ]] && source="skills/${path#.*/skills/}"
+  if [[ "$path" != skills/* && "$path" != commands/* ]]; then
+    case "$path" in
+    */skills/*) source="skills/${path#.*/skills/}" ;;
+    */commands/*) source="commands/${path#.*/commands/}" ;;
+    .claude/command-support/*) source="commands/${path#.claude/command-support/}" ;;
+    esac
+  fi
   blob_path=''
   if [[ "$(git -C "$root" cat-file -t "$commit:$source" </dev/null 2>/dev/null)" == 'blob' ]]; then
     blob_path="$source"
@@ -166,7 +172,7 @@ verify_main() {
   [[ ${#paths[@]} -gt 0 ]] || usage_error 'no installed path given'
   local path
   for path in "${paths[@]}"; do
-    valid_installed_path "$path" || usage_error "not an installed skills path: $path"
+    valid_installed_path "$path" || usage_error "not an installed workflow path: $path"
   done
 
   if ! command -v git >/dev/null 2>&1; then
@@ -197,7 +203,7 @@ verify_main() {
     reason=''
     [[ "$worktrees" == 1 ]] || reason='other-worktree'
     [[ -n "$reason" ]] || reason="$(file_refusal "$root" "$path")"
-    if [[ -z "$reason" && "$path" != skills/* ]]; then
+    if [[ -z "$reason" && "$path" != skills/* && "$path" != commands/* ]]; then
       recorded="$(recorded_hash "$git_dir/$REFERENCE_FILE" "$path")"
       if [[ -z "$recorded" ]]; then
         reason='no-reference'
@@ -207,7 +213,7 @@ verify_main() {
     fi
     if [[ -z "$reason" ]]; then
       reason="$(blob_refusal "$root" "$commit" "$path" "$root/$path")"
-      [[ "$reason" == 'no-default-branch-blob' && "$installed_reference" == 1 && "$path" != skills/* ]] && reason=''
+      [[ "$reason" == 'no-default-branch-blob' && "$installed_reference" == 1 && "$path" != skills/* && "$path" != commands/* ]] && reason=''
     fi
     if [[ -z "$reason" ]]; then
       printf 'installed-copy=verified|%s\n' "$path"
@@ -238,8 +244,9 @@ verify_self_test() {
   git init -q --bare "$tmp/origin.git"
   git init -q -b master "$main"
   git -C "$main" remote add origin "$tmp/origin.git"
-  mkdir -p "$main/skills/_shared"
+  mkdir -p "$main/skills/_shared" "$main/commands/_shared"
   printf '#!/usr/bin/env bash\necho package\n' >"$main/skills/_shared/tool.sh"
+  printf '#!/usr/bin/env bash\necho command\n' >"$main/commands/_shared/tool.sh"
   printf 'tracked copy\n' >"$main/skills/_shared/other.sh"
   git -C "$main" add -A
   commit -m base
@@ -277,6 +284,12 @@ verify_self_test() {
   install_copy '.agents/skills/_shared/tool.sh' "$main/skills/_shared/tool.sh"
   expect 'the Codex copy below .agents/skills is verified the same way' 0 'installed-copy=verified|.agents/skills/_shared/tool.sh' \
     --root "$main" --commit "$(tip)" "$file" '.agents/skills/_shared/tool.sh'
+  install_copy '.codex/commands/_shared/tool.sh' "$main/commands/_shared/tool.sh"
+  expect 'the Codex copy below .codex/commands is verified the same way' 0 'installed-copy=verified|.codex/commands/_shared/tool.sh' \
+    --root "$main" --commit "$(tip)" '.codex/commands/_shared/tool.sh'
+  install_copy '.claude/command-support/_shared/tool.sh' "$main/commands/_shared/tool.sh"
+  expect 'the Claude command support copy is verified the same way' 0 'installed-copy=verified|.claude/command-support/_shared/tool.sh' \
+    --root "$main" --commit "$(tip)" '.claude/command-support/_shared/tool.sh'
 
   local output
   output="$(bash -s -- --root "$main" --commit "$(tip)" "$file" <"$script" 2>/dev/null)"

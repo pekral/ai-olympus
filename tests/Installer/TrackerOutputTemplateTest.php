@@ -148,7 +148,7 @@ test('the markers that scripts read stay in the templates that carry them', func
 test('the prevention proposal template lists the headings the proposal script renders', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $template = (string) file_get_contents($packageDir . '/skills/code-review/templates/prevention-proposal.md');
-    $script = (string) file_get_contents($packageDir . '/skills/_shared/propose-prevention.sh');
+    $script = (string) file_get_contents($packageDir . '/commands/_shared/propose-prevention.sh');
 
     preg_match_all('/^#{2,3} .+$/m', $template, $headings);
 
@@ -229,8 +229,8 @@ test('the end-of-body convention is stated in the rule and in every path that em
         'skills/pr-summary/templates/pr-summary-bugsnag.md',
         'skills/resolve-issue/references/tracker-follow-up.md',
         'skills/resolve-issue/references/deferred-follow-up.md',
-        'skills/process-code-review/references/round-three-deferral.md',
-        'skills/_shared/orchestration/proposal-review.md',
+        'commands/_shared/orchestration/review-round-three-deferral.inc',
+        'commands/_shared/orchestration/proposal-review.inc',
     ] as $path) {
         expect($read($path))->toContain('`=== END OF COMMENT BODY` line');
     }
@@ -246,7 +246,7 @@ test('the templates that restate a disclosure guard point to its owner', functio
     expect($plan)->toContain('Security-risk analysis section and the Success criteria');
     expect($plan)->toContain('An unfixed Critical is never published by rewording alone');
     expect($plan)->not->toContain('phrase each item as the invariant');
-    expect($review)->toContain('skills/_shared/orchestration/proposal-review.md step 6');
+    expect($review)->toContain('commands/_shared/orchestration/proposal-review.inc step 6');
     expect($review)->toContain('marked or not');
     expect($review)->not->toContain('A finding marked do not file publicly is never in this comment');
 });

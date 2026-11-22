@@ -9,24 +9,49 @@ final class InstallerCopyReference
 
     private const REFERENCE_FILE = 'ai-olympus/installed-copies.sha256';
 
-    public static function record(string $root, string $skillsSource): void
+    public static function record(string $root): void
     {
+        $skillsSource = InstallerPath::resolveSkillsSource();
+        $commandsSource = InstallerPath::resolveCommandsSource();
         $gitDirectory = self::resolveGitDirectory($root);
 
-        if ($gitDirectory === null) {
+        if ($gitDirectory === null || ($skillsSource === null && $commandsSource === null)) {
             return;
         }
 
-        $sourceFiles = InstallerPruner::listSourceFiles($skillsSource);
         $lines = '';
 
-        foreach (InstallerPath::resolveSkillsTargetDirectories($root) as $target) {
-            foreach ($sourceFiles as $relativePath) {
-                $lines .= self::referenceLine($root, $skillsSource . '/' . $relativePath, $target . '/' . $relativePath);
-            }
+        if ($skillsSource !== null) {
+            $lines .= self::recordDirectory(
+                $root,
+                $skillsSource,
+                InstallerPath::resolveSkillsTargetDirectories($root),
+                InstallerPruner::listSourceFiles($skillsSource),
+            );
+        }
+
+        foreach (InstallerCommands::payloads($root, $commandsSource) as [$source, $targets, $files]) {
+            $lines .= self::recordDirectory($root, $source, $targets, $files);
         }
 
         self::write($gitDirectory . '/' . self::REFERENCE_FILE, $lines);
+    }
+
+    /**
+     * @param array<int, string> $targets
+     * @param array<int, string> $sourceFiles
+     */
+    private static function recordDirectory(string $root, string $source, array $targets, array $sourceFiles): string
+    {
+        $lines = '';
+
+        foreach ($targets as $target) {
+            foreach ($sourceFiles as $relativePath) {
+                $lines .= self::referenceLine($root, $source . '/' . $relativePath, $target . '/' . $relativePath);
+            }
+        }
+
+        return $lines;
     }
 
     private static function referenceLine(string $root, string $source, string $installed): string

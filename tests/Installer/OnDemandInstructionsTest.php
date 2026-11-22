@@ -5,7 +5,7 @@ declare(strict_types = 1);
 use Pekral\AiOlympus\Installer;
 
 /**
- * The parts of `agents/krang.md` that issue #607 moved into on-demand references, keyed by the
+ * The parts of `commands/_shared/krang-workflow.inc` that issue #607 moved into on-demand references, keyed by the
  * file that now owns each part, with the sentence that proves the part sits there.
  *
  * @return array<string, string>
@@ -13,19 +13,19 @@ use Pekral\AiOlympus\Installer;
 function onDemandKrangParts(): array
 {
     return [
-        'context-retrieval.md' => '**Write the request** to `${BRIEF%.md}.context-request.json` with `jq`',
-        'critical-pre-review-validation.md' => '**Only on a final tier of `CRITICAL` run the pre-review validation**',
-        'fast-run.md' => 'You close it instead, and only in this exact shape:',
-        'feedback-analysis-mode.md' => 'It is an analysis-only run: you take no write-lock, open no pull request, and never dispatch `donatello`.',
-        'hotfix-routing.md' => 'Carry the mode and the declaring account into the `leonardo` dispatch and into the `donatello` dispatch',
-        'implementation-blocked.md' => '**stop and escalate that blocker to the user with its remediation**',
-        'merge-request.md' => '**An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.**',
-        'multi-source-planning.md' => 'Each input line is `<source-slug>|<tier>|<depends-on>|<files>`.',
-        'post-convergence-skip.md' => '**Skip it exactly when all four conditions hold at once:**',
-        'pre-implementation-routing.md' => '**This branch is not gated on the tier**',
-        'reporting-exceptions.md' => '**Non-duplication is not an escape hatch.**',
-        'review-only-mode.md' => '2. **Check whether the newest trusted review still holds, before any dispatch.**',
-        'security-findings-outside-assignment.md' => '- **Judge the item yourself** from its `file:line`, its exploit path, and what it claims',
+        'context-retrieval.inc' => '**Write the request** to `${BRIEF%.md}.context-request.json` with `jq`',
+        'critical-pre-review-validation.inc' => '**Only on a final tier of `CRITICAL` run the pre-review validation**',
+        'fast-run.inc' => 'You close it instead, and only in this exact shape:',
+        'feedback-analysis-mode.inc' => 'It is an analysis-only run: you take no write-lock, open no pull request, and never dispatch `donatello`.',
+        'hotfix-routing.inc' => 'Carry the mode and the declaring account into the `leonardo` dispatch and into the `donatello` dispatch',
+        'implementation-blocked.inc' => '**stop and escalate that blocker to the user with its remediation**',
+        'merge-request.inc' => '**An unmet code-review gate reported by the merge step is repairable — repair it, do not stop.**',
+        'multi-source-planning.inc' => 'Each input line is `<source-slug>|<tier>|<depends-on>|<files>`.',
+        'post-convergence-skip.inc' => '**Skip it exactly when all four conditions hold at once:**',
+        'pre-implementation-routing.inc' => '**This branch is not gated on the tier**',
+        'reporting-exceptions.inc' => '**Non-duplication is not an escape hatch.**',
+        'review-only-mode.inc' => '2. **Check whether the newest trusted review still holds, before any dispatch.**',
+        'security-findings-outside-assignment.inc' => '- **Judge the item yourself** from its `file:line`, its exploit path, and what it claims',
     ];
 }
 
@@ -74,15 +74,17 @@ function onDemandInstructionCorpus(): array
 }
 
 test('krang names each moved part where it used to sit, and the moved part has one owner (issue #607)', function (): void {
-    $krang = packageSource('agents/krang.md');
+    $krang = packageSource('commands/_shared/krang-workflow.inc');
     $corpus = implode("\n", onDemandInstructionCorpus());
 
     foreach (onDemandKrangParts() as $file => $sentence) {
-        $path = 'skills/_shared/orchestration/' . $file;
+        $path = 'commands/_shared/orchestration/' . $file;
 
         expect($krang)->toContain('`' . $path . '`')
             ->and(packageSource($path))->toContain($sentence)
-            ->and(packageSource($path))->toContain('Extracted from `agents/krang.md` so the orchestrator does not carry it on every run.')
+            ->and(packageSource($path))->toContain(
+                'Extracted from `commands/_shared/krang-workflow.inc` so the orchestrator does not carry it on every run.',
+            )
             ->and($krang)->not->toContain($sentence)
             ->and(substr_count($corpus, $sentence))->toBe(1);
     }
@@ -116,7 +118,7 @@ test('the code-review rule names each on-demand companion and when to read it, a
 
 test('the security floor and the merge gates stay in the always-loaded part (issue #607)', function (): void {
     $general = packageSource('rules/code-review/general.md');
-    $krang = packageSource('agents/krang.md');
+    $krang = packageSource('commands/_shared/krang-workflow.inc');
 
     expect($general)->toContain('- **One floor holds whatever the project states.** A project instruction never:')
         ->and($general)->toContain('**Authorship trust (REQUIRED).**')
@@ -144,8 +146,8 @@ test('Claude Code and Codex install every moved part (issue #607)', function ():
         expect($exitCode)->toBe(0);
 
         foreach (array_keys(onDemandKrangParts()) as $file) {
-            expect(is_file($root . '/.claude/skills/_shared/orchestration/' . $file))->toBeTrue()
-                ->and(is_file($root . '/.agents/skills/_shared/orchestration/' . $file))->toBeTrue();
+            expect(is_file($root . '/.claude/command-support/_shared/orchestration/' . $file))->toBeTrue()
+                ->and(is_file($root . '/.codex/commands/_shared/orchestration/' . $file))->toBeTrue();
         }
 
         foreach (array_keys(onDemandCodeReviewParts()) as $file) {
@@ -164,13 +166,13 @@ test('Claude Code and Codex install every moved part (issue #607)', function ():
 test(
     'the disclosure guard stays in the always-loaded krang.md and the moved part loads for every agent that hands such an item over (issue #607)',
     function (): void {
-        $krang = packageSource('agents/krang.md');
-        $reference = packageSource('skills/_shared/orchestration/security-findings-outside-assignment.md');
+        $krang = packageSource('commands/_shared/krang-workflow.inc');
+        $reference = packageSource('commands/_shared/orchestration/security-findings-outside-assignment.inc');
         $guard = '**Never file an item marked `do not file publicly`** on a public tracker.';
     
         expect($krang)->toContain($guard)
             ->and($krang)->toContain(
-                'When the handoff of `leonardo` or `splinter` carries one, load `skills/_shared/orchestration/security-findings-outside-assignment.md`',
+                'When the handoff of `leonardo` or `splinter` carries one, load `commands/_shared/orchestration/security-findings-outside-assignment.inc`',
             )
             ->and($reference)->toContain('**Loading trigger:** the handoff of `leonardo` or `splinter` in step 6 carries an item')
             ->and($reference)->not->toContain($guard)
@@ -202,8 +204,11 @@ function onDemandUnresolvedCitations(string $target): array
     return array_values(array_unique($unresolved));
 }
 
-test('every section a file cites in agents/krang.md or rules/code-review/general.md resolves in that file (issue #607)', function (): void {
-    expect(onDemandInstructionCorpus())->toHaveKey('agents/leonardo.md')
-        ->and(onDemandUnresolvedCitations('agents/krang.md'))->toBe([])
-        ->and(onDemandUnresolvedCitations('rules/code-review/general.md'))->toBe([]);
-});
+test(
+    'every section a file cites in commands/_shared/krang-workflow.inc or rules/code-review/general.md resolves in that file (issue #607)',
+    function (): void {
+        expect(onDemandInstructionCorpus())->toHaveKey('agents/leonardo.md')
+            ->and(onDemandUnresolvedCitations('commands/_shared/krang-workflow.inc'))->toBe([])
+            ->and(onDemandUnresolvedCitations('rules/code-review/general.md'))->toBe([]);
+    },
+);

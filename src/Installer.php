@@ -126,7 +126,7 @@ final class Installer
         $root = InstallerPath::resolveProjectRoot();
         $syncCounts = self::runAllSyncs(self::collectSyncPayloads($root, $options->global), $options->force, $options->symlink, $options->prune);
 
-        self::recordCopyReference($root);
+        InstallerCopyReference::record($root);
         $copied = $syncCounts->copied + self::installRootInstructions($root);
         $permissionsAdded = InstallerClaudeSettings::applyIfRequested($options->allowBundledScripts);
         $coAuthoredByDisabled = InstallerClaudeSettings::applyCoAuthoredByPreference($options->disableCoAuthorAttribution);
@@ -148,15 +148,6 @@ final class Installer
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
         return 0;
-    }
-
-    private static function recordCopyReference(string $root): void
-    {
-        $skillsSource = InstallerPath::resolveSkillsSource();
-
-        if ($skillsSource !== null) {
-            InstallerCopyReference::record($root, $skillsSource);
-        }
     }
 
     private static function installRootInstructions(string $root): int
@@ -237,50 +228,46 @@ final class Installer
     }
 
     /**
-     * @return array<int, array{0: string, 1: array<int, string>}>
+     * @return array<int, array{0: string, 1: array<int, string>, 2: array<int, string>|null}>
      */
     private static function collectSyncPayloads(string $root, bool $global): array
     {
         $payloads = [
-            [InstallerPath::resolveRulesSource($root), InstallerPath::resolveRulesTargetDirectories($root)],
+            [InstallerPath::resolveRulesSource($root), InstallerPath::resolveRulesTargetDirectories($root), null],
         ];
 
         $skillsSource = InstallerPath::resolveSkillsSource();
 
         if ($skillsSource !== null) {
-            $payloads[] = [$skillsSource, InstallerPath::resolveSkillsTargetDirectories($root, $global)];
+            $payloads[] = [$skillsSource, InstallerPath::resolveSkillsTargetDirectories($root, $global), null];
         }
 
         $agentsSource = InstallerPath::resolveAgentsSource();
 
         if ($agentsSource !== null) {
-            $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root)];
+            $payloads[] = [$agentsSource, InstallerPath::resolveAgentsTargetDirectories($root), null];
         }
 
-        $commandsSource = InstallerPath::resolveCommandsSource();
-
-        if ($commandsSource !== null) {
-            $payloads[] = [$commandsSource, InstallerPath::resolveCommandsTargetDirectories($root)];
-        }
+        $payloads = [...$payloads, ...InstallerCommands::payloads($root, InstallerPath::resolveCommandsSource(), $global)];
 
         $codexAgentsSource = InstallerPath::resolveCodexAgentsSource();
 
         if ($codexAgentsSource !== null) {
-            $payloads[] = [$codexAgentsSource, InstallerPath::resolveCodexAgentsTargetDirectories($root)];
+            $payloads[] = [$codexAgentsSource, InstallerPath::resolveCodexAgentsTargetDirectories($root), null];
         }
 
         return $payloads;
     }
 
     /**
-     * @param array<int, array{0: string, 1: array<int, string>}> $payloads
+     * @param array<int, array{0: string, 1: array<int, string>, 2: array<int, string>|null}> $payloads
      */
     private static function runAllSyncs(array $payloads, bool $force, bool $symlink, bool $prune): SyncCounts
     {
         $total = new SyncCounts(copied: 0, pruned: 0, orphaned: 0);
 
-        foreach ($payloads as [$source, $targets]) {
-            $total = $total->add(self::syncDirectories($source, $targets, $force, $symlink, $prune));
+        foreach ($payloads as [$source, $targets, $sourceFiles]) {
+            $total = $total->add(self::syncDirectories($source, $targets, $force, $symlink, $prune, $sourceFiles));
         }
 
         return $total;
@@ -315,8 +302,16 @@ final class Installer
 
     /**
      * @param array<int, string> $targets
+     * @param array<int, string>|null $sourceFiles
      */
-    private static function syncDirectories(string $source, array $targets, bool $force, bool $symlink, bool $prune): SyncCounts
+    private static function syncDirectories(
+        string $source,
+        array $targets,
+        bool $force,
+        bool $symlink,
+        bool $prune,
+        ?array $sourceFiles = null,
+    ): SyncCounts
     {
         $copied = 0;
         $pruned = 0;
@@ -325,7 +320,7 @@ final class Installer
         // Listed once per payload instead of once per target — `installDirectory()`,
         // `pruneDirectory()`, and `findOrphans()` all reuse this single listing instead of each
         // re-walking the identical source tree for every target of this payload.
-        $sourceFiles = InstallerPruner::listSourceFiles($source);
+        $sourceFiles ??= InstallerPruner::listSourceFiles($source);
 
         foreach ($targets as $target) {
             $copied += InstallerFileCopier::installDirectory($source, $target, $force, $symlink, $sourceFiles);

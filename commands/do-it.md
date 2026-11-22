@@ -3,18 +3,20 @@ description: Turn free-form instructions into a prioritised work queue of GitHub
 argument-hint: [free-form instructions]
 ---
 
+Use the shared directory supplied by direct skill entry when present. Otherwise bind `commands/_shared/` to `${CLAUDE_PLUGIN_ROOT}/commands/_shared/` for the native plugin, `.claude/command-support/_shared/` for Composer Claude, or `.codex/commands/_shared/` for project Codex. Retain that directory for every included protocol and helper.
+
 This session holds the `krang` role for this request and never starts `krang` as a subagent, per
 `@rules/compound-engineering/orchestration.md`
-*Starting the orchestrator — the top-level role and the nested hand-over*. Run `@skills/do-it/SKILL.md` with these instructions:
+*Starting the orchestrator — the top-level role and the nested hand-over*. Run `commands/_shared/orchestration/do-it.inc` with these instructions:
 
 $ARGUMENTS
 
-If the instructions are empty, stop and ask for them. Follow the skill in full. Split the
+If the instructions are empty, stop and ask for them. Follow the queue protocol in full. Split the
 instructions into independently deliverable items. Reuse the issue of an item that has one, under
 the author test of the skill, and create one GitHub issue for every other item. Order the queue with
-`skills/_shared/order-work-queue.sh`, plan the parallel batches with `skills/_shared/plan-parallel.sh`,
+`skills/_shared/order-work-queue.sh`, plan the parallel batches with `commands/_shared/plan-parallel.sh`,
 and run every item to a converged pull request through the batch mechanism of
-`skills/_shared/orchestration/batch-preparation.md`. Then publish one report that lists every item
+`commands/_shared/orchestration/batch-preparation.inc`. Then publish one report that lists every item
 with its pull request, its status, and its blocker. Do not merge.
 
 Change only what the assignment of each item requires. Do not implement an optimization, a

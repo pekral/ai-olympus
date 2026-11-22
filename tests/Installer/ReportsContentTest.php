@@ -163,7 +163,7 @@ test('reports/general.md bans developer content from a JIRA comment and names it
 
 test('the merge-readiness TL;DR obeys the JIRA banned list on a JIRA source (issue #118)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $skill = (string) file_get_contents($packageDir . '/skills/verify-merge-readiness/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/verify-merge-readiness.inc');
 
     // This path published the head SHA, the diff fingerprint, and the gate result to whichever
     // tracker the source was — the one route that would have bypassed the new rule.

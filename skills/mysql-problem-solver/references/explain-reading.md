@@ -5,7 +5,7 @@ This file is the one owner of the plain-language reading of an `EXPLAIN` result:
 ## Rules
 
 - **One sentence, one value.** Each sentence of a reading states what one named column, node, or field of the output shows. A sentence that no column, node, or field of the output supports is not written (`@rules/general/general.md` *Verified statements only*).
-- **The output forms this file reads.** It reads the output that `agents/casey.md` *Bash boundary* lets `casey` run:
+- **The output forms this file reads.** It reads the output from these permitted statements:
   1. the table of plain `EXPLAIN` on MySQL and MariaDB;
   2. the text plan of plain `EXPLAIN` on PostgreSQL;
   3. the text plan of `EXPLAIN ANALYZE` on PostgreSQL.
@@ -117,7 +117,7 @@ A detail line matches a row of this table only when it starts with the row's nam
 | `Rows Removed by Filter` | The scanned rows, or the potential join pairs of a join node, that the filter condition rejected. The line appears only when the condition rejected at least one. The documentation shows it in `EXPLAIN ANALYZE` output. |
 | `Rows Removed by Index Recheck` | The candidate rows that the index returned and that a recheck of the index condition rejected. The documentation shows it in `EXPLAIN ANALYZE` output. |
 | `Sort Method` | Shown by `EXPLAIN ANALYZE`. The sort method used, including whether the sort ran in memory or on disk, and the memory or disk space it needed. |
-| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child nodes. These are not distinct buffers. On PostgreSQL 18, `EXPLAIN ANALYZE` includes this line on its own; plain `EXPLAIN` without the `BUFFERS` option, which is the form `casey` runs, does not. |
+| `Buffers` | The count of buffers hit, read, dirtied, and written by the node and all its child nodes. These are not distinct buffers. On PostgreSQL 18, `EXPLAIN ANALYZE` includes this line on its own; plain `EXPLAIN` without the `BUFFERS` option, which is the permitted form, does not. |
 | `Planning Time` | `EXPLAIN ANALYZE` only. The time the planner took to generate and optimize the plan, without parsing and rewriting. |
 | `Execution Time` | `EXPLAIN ANALYZE` only. The time to run the query, including executor start-up and shut-down and any triggers fired, without parsing, rewriting, and planning. |
 

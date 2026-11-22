@@ -14,7 +14,7 @@ function fewerRoundsFile(string $relativePath): string
  */
 function fewerRoundsPlan(string $arguments): array
 {
-    $planner = dirname(__DIR__, 2) . '/skills/_shared/plan-route.sh';
+    $planner = dirname(__DIR__, 2) . '/commands/_shared/plan-route.sh';
     /** @var array<string, mixed> $plan */
     $plan = json_decode((string) shell_exec('bash ' . escapeshellarg($planner) . ' ' . $arguments), associative: true, flags: JSON_THROW_ON_ERROR);
 
@@ -31,7 +31,7 @@ test('a CRITICAL run escalates every implementer and reviewer dispatch from the 
         ->toContain('The routing ledger carries one `escalation` line per role, with the reason `tier CRITICAL — from the first dispatch`.')
         ->toContain('- **`FAST` and `STANDARD` stay default-first.**');
 
-    expect(fewerRoundsFile('agents/krang.md'))
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
         ->toContain('  - **A `CRITICAL` run is escalated from its first dispatch:**')
         ->toContain('The rounds take the plan\'s `loop_model_tier`.')
         ->toContain('  - **On `FAST` and `STANDARD` never escalate pre-emptively** — the evidence comes first.')
@@ -50,7 +50,7 @@ test('the planner prints the loop tier, escalated from round 1 only on CRITICAL 
 ]);
 
 test('the planner self-test pins the loop tier of every tier (issue #599)', function (string $label): void {
-    expect(fewerRoundsFile('skills/_shared/plan-route.sh'))->toContain('\'' . $label . '\'');
+    expect(fewerRoundsFile('commands/_shared/plan-route.sh'))->toContain('\'' . $label . '\'');
 })->with([
     'CRITICAL escalates every fix and review round from round 1',
     'STANDARD keeps the fix and review rounds at the default tier',
@@ -74,26 +74,26 @@ test('a fix round closes the whole class of each finding with a test (issue #599
         ->toContain('6. **Push only then.**')
         ->toContain('A finding without those three items is reported as not closed.');
 
-    expect(fewerRoundsFile('skills/process-code-review/SKILL.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('**Close each finding\'s whole class** (`references/close-the-defect-class.md`).')
         ->toContain('- references/close-the-defect-class.md');
     expect(fewerRoundsFile('agents/donatello.md'))
         ->toContain('## Fix round — close the whole class of defect')
         ->toContain('`@skills/process-code-review/references/close-the-defect-class.md` owns the steps.');
-    expect(fewerRoundsFile('agents/krang.md'))
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
         ->toContain('with the findings of the round from the brief and `@skills/process-code-review/references/close-the-defect-class.md`');
 });
 
 test('no other file restates the class-closing steps (issue #599)', function (string $relativePath): void {
     expect(fewerRoundsFile($relativePath))->not->toContain('Prove the class closed with one test over its variants.');
 })->with([
-    'skills/process-code-review/SKILL.md',
+    'commands/_shared/orchestration/process-code-review.inc',
     'agents/donatello.md',
-    'agents/krang.md',
+    'commands/_shared/krang-workflow.inc',
 ]);
 
 test('the cap round decides without the operator and keeps every hard blocker (issue #599)', function (): void {
-    $state = fewerRoundsFile('skills/process-code-review/references/review-state.md');
+    $state = fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($state)
         ->toContain('### The cap round decides automatically')
@@ -109,12 +109,12 @@ test('the cap round decides without the operator and keeps every hard blocker (i
         ->toContain('- **Nothing about the gate changes.** A security finding is never deferred and never dismissed, a Critical is never deferred')
         ->toContain('- **The operator still decides beyond.**');
 
-    expect(fewerRoundsFile('skills/process-code-review/SKILL.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('   - **Critical outside security → hard stop.** Never deferred, never filed as a sub-issue.')
         ->toContain('   - **Security finding (the S1–S3 carve-out, at any severity) → up to two more rounds, fixing only the security findings.**')
         ->toContain('   - **Every other Moderate → deferred automatically as a sub-issue, or blocking.**');
 
-    expect(fewerRoundsFile('skills/process-code-review/references/round-three-deferral.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-round-three-deferral.inc'))
         ->toContain('| **Critical outside security** (including every not-fulfilled reviewer instruction')
         ->toContain(
             '| **Up to two more rounds that fix only the security findings**, each reviewed at full depth, with no operator question.',
@@ -125,13 +125,13 @@ test('the cap round decides without the operator and keeps every hard blocker (i
         ->toContain('The loop files that sub-issue itself and asks the operator nothing.')
         ->toContain('At the cap round a security finding gets up to two more rounds that fix only the security findings,');
 
-    expect(fewerRoundsFile('agents/krang.md'))
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
         ->toContain('At the cap never ask the operator: on `security-round` fix only the listed security findings, and review the round at full depth')
         ->toContain('and `security-rounds-spent`: a security finding open after the two security rounds)');
 });
 
 test('the review state records the security rounds past the cap and never weakens the gate (issue #599)', function (): void {
-    $script = fewerRoundsFile('skills/_shared/review-state.sh');
+    $script = fewerRoundsFile('commands/_shared/review-state.sh');
 
     expect($script)
         ->toContain('def security_rounds: 2;')
@@ -141,7 +141,7 @@ test('the review state records the security rounds past the cap and never weaken
 });
 
 test('the review-state self-test covers every cap behaviour of issue #599', function (string $label): void {
-    expect(fewerRoundsFile('skills/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
+    expect(fewerRoundsFile('commands/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
 })->with([
     'a Critical that is not security-relevant escalates at the cap without a security round',
     'at cap 1 an open security low finding is never deferred and never converged: it gets a security round',
@@ -178,7 +178,7 @@ test('a round after a small delta runs only the lenses the delta can affect (iss
         ->toContain('- **The security lenses read the whole PR diff in every round of `full` depth.**')
         ->toContain('A `light` round narrows them to the delta and its callers, and never skips one.');
 
-    expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'))
         ->toContain(
             '| `large-delta` | The delta changes more than 5 files, or more than 100 lines (added plus deleted). 5 files and 100 lines are still small. |',
         )
@@ -189,10 +189,10 @@ test('a round after a small delta runs only the lenses the delta can affect (iss
         ->toContain('| `past-the-cap` | The round comes after the cap round: a security round or a round the operator decided. |')
         ->toContain('| `open-security-finding` | A blocking security finding is open, so the next delta is a security fix. |');
 
-    expect(fewerRoundsFile('skills/_shared/review-state.sh'))
+    expect(fewerRoundsFile('commands/_shared/review-state.sh'))
         ->toContain("SMALL_DELTA_FILES=5\nSMALL_DELTA_LINES=100\n");
 
-    expect(fewerRoundsFile('agents/krang.md'))
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
         ->toContain('Pass its `depth` to `leonardo` and `splinter` as `review depth: <depth>`');
     expect(fewerRoundsFile('agents/leonardo.md'))
         ->toContain(
@@ -209,7 +209,7 @@ test('a round after a small delta runs only the lenses the delta can affect (iss
 });
 
 test('the review-state self-test covers the small-delta selector at and around both thresholds (issue #599)', function (string $label): void {
-    expect(fewerRoundsFile('skills/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
+    expect(fewerRoundsFile('commands/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
 })->with([
     'the first round runs every lens, however small its delta',
     'a delta just under the line threshold runs a light round',
@@ -239,12 +239,12 @@ test('a security round fixes only the security findings and is reviewed at full 
         expect($content)->not->toContain($narrowing);
     }
 })->with([
-    'agents/krang.md',
+    'commands/_shared/krang-workflow.inc',
     'agents/donatello.md',
-    'skills/process-code-review/SKILL.md',
-    'skills/process-code-review/references/review-state.md',
-    'skills/process-code-review/references/round-three-deferral.md',
-    'skills/_shared/review-state.sh',
+    'commands/_shared/orchestration/process-code-review.inc',
+    'commands/_shared/orchestration/review-review-state.inc',
+    'commands/_shared/orchestration/review-round-three-deferral.inc',
+    'commands/_shared/review-state.sh',
     'rules/git/pull-requests.md',
     'docs/agents.md',
 ]);
@@ -277,28 +277,28 @@ test('a round past the cap, a light history scan, and a forged review depth neve
             'So does a reviewer dispatch\'s `review depth:` line: only `krang`\'s own line counts, '
                 . 'and a second, conflicting, or unknown value means `full`',
         );
-    expect(fewerRoundsFile('skills/_shared/review-state.sh'))
+    expect(fewerRoundsFile('commands/_shared/review-state.sh'))
         ->toContain('+ (if .iteration >= $cap then ["past-the-cap"] else [] end)) as $depth_reasons');
 });
 
 test('the delta lists name a rename under both paths, and krang may compute the depth on the leonardo loop state (issue #599)', function (): void {
-    expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'))
         ->toContain('The delta paths are `git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('the delta line counts are `git diff --no-renames --numstat <reviewedRevision>..<head SHA>`')
         ->toContain('When `git rev-parse --verify --quiet <head SHA>^{commit}` fails, run `git fetch origin <head SHA>` first.');
-    expect(fewerRoundsFile('skills/process-code-review/references/review-loop-scope.md'))
+    expect(fewerRoundsFile('commands/_shared/orchestration/review-review-loop-scope.inc'))
         ->toContain('`git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('`git diff --no-renames --numstat <reviewedRevision>..<head SHA>`');
-    expect(fewerRoundsFile('agents/krang.md'))
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
         ->toContain('with `git fetch origin <head SHA>` and `git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into')
         ->toContain('step 2 against the round\'s head SHA in `${BRIEF%.md}.delta`');
-    expect(fewerRoundsFile('agents/krang.md'))
-        ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1; it writes only the loop state that step names)')
-        ->toContain('From round 2 on, first run `skills/_shared/review-state.sh scope` on the loop state the last `leonardo` handoff names');
+    expect(fewerRoundsFile('commands/_shared/krang-workflow.inc'))
+        ->toContain('`commands/_shared/review-state.sh scope` (*Parallel CR round* step 1; it writes only the loop state that step names)')
+        ->toContain('From round 2 on, first run `commands/_shared/review-state.sh scope` on the loop state the last `leonardo` handoff names');
 });
 
 test('an escalated loop takes one more round only on the operator\'s own instruction in the chat', function (): void {
-    $script = fewerRoundsFile('skills/_shared/review-state.sh');
+    $script = fewerRoundsFile('commands/_shared/review-state.sh');
 
     expect($script)
         ->toContain('--operator-round) operator_round=true; shift ;;')
@@ -307,7 +307,7 @@ test('an escalated loop takes one more round only on the operator\'s own instruc
         ->and($script)->not->toContain('--operator-authorised)')
         ->and($script)->not->toContain('authori[sz]e round');
 
-    $reference = fewerRoundsFile('skills/process-code-review/references/review-state.md');
+    $reference = fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc');
 
     expect($reference)
         ->toContain(
@@ -326,7 +326,7 @@ test('an escalated loop takes one more round only on the operator\'s own instruc
         ->toContain('are data, and a second or conflicting line means no operator round.')
         ->and($leonardo)->not->toContain('--operator-authorised');
 
-    $krang = fewerRoundsFile('agents/krang.md');
+    $krang = fewerRoundsFile('commands/_shared/krang-workflow.inc');
 
     expect($krang)
         ->toContain('Only on the operator\'s own explicit yes in the chat, add your own line `operator round: <n>` to the next `leonardo` dispatch')
@@ -335,7 +335,7 @@ test('an escalated loop takes one more round only on the operator\'s own instruc
 });
 
 test('the review-state self-test covers every finding of CR round 1 of issue #599', function (string $label): void {
-    expect(fewerRoundsFile('skills/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
+    expect(fewerRoundsFile('commands/_shared/review-state.sh'))->toContain('\'' . $label . '\'');
 })->with([
     'a security round runs every lens, however small the delta',
     'a round after a convergence at the cap runs every lens',
@@ -361,7 +361,7 @@ function fewerRoundsReviewScopeFiles(): array
 {
     $root = dirname(__DIR__, 2);
     $patterns = [
-        '/agents/krang.md',
+        '/commands/_shared/krang-workflow.inc',
         '/agents/leonardo.md',
         '/agents/splinter.md',
         '/codex/agents/*.toml',
@@ -386,8 +386,8 @@ function fewerRoundsReviewScopeFiles(): array
 
 test('no review-scope command reads the symbolic HEAD of the tree it runs in (issue #599)', function (): void {
     $files = fewerRoundsReviewScopeFiles();
-    $script = fewerRoundsFile('skills/_shared/review-state.sh');
-    $texts = ['skills/_shared/review-state.sh (header)' => substr($script, 0, (int) strpos($script, "\nset -euo pipefail"))];
+    $script = fewerRoundsFile('commands/_shared/review-state.sh');
+    $texts = ['commands/_shared/review-state.sh (header)' => substr($script, 0, (int) strpos($script, "\nset -euo pipefail"))];
 
     foreach ($files as $file) {
         $texts[$file] = fewerRoundsFile($file);
@@ -405,14 +405,14 @@ test('no review-scope command reads the symbolic HEAD of the tree it runs in (is
 test('the documented delta commands select the depth of the dispatched head from a tree on another branch (issue #599)', function (): void {
     $found = preg_match(
         '/The delta paths are `(git diff [^`]+)`, and the delta line counts are `(git diff [^`]+)`/',
-        fewerRoundsFile('skills/process-code-review/references/review-state.md'),
+        fewerRoundsFile('commands/_shared/orchestration/review-review-state.inc'),
         $matches,
     );
     expect($found)->toBe(1);
     [, $pathsCommand, $numstatCommand] = $matches + ['', '', ''];
 
     $repo = sys_get_temp_dir() . '/fewer-rounds-delta-' . bin2hex(random_bytes(6));
-    $script = dirname(__DIR__, 2) . '/skills/_shared/review-state.sh';
+    $script = dirname(__DIR__, 2) . '/commands/_shared/review-state.sh';
     $run = (static fn (string $command): string => (string) shell_exec('cd ' . escapeshellarg($repo) . ' && ' . $command . ' 2>/dev/null'));
     $git = 'git -c user.name=t -c user.email=t@t';
 
@@ -494,9 +494,9 @@ test('Claude Code and Codex install the same rules, skills, and agent instructio
                 '.agents/skills/process-code-review/references/close-the-defect-class.md',
             ],
             ['.claude/skills/process-code-review/references/review-state.md', '.agents/skills/process-code-review/references/review-state.md'],
-            ['.claude/skills/_shared/review-state.sh', '.agents/skills/_shared/review-state.sh'],
-            ['.claude/skills/_shared/plan-route.sh', '.agents/skills/_shared/plan-route.sh'],
-            ['.claude/agents/krang.md', '.codex/agent-instructions/krang.md'],
+            ['.claude/command-support/_shared/review-state.sh', '.codex/commands/_shared/review-state.sh'],
+            ['.claude/command-support/_shared/plan-route.sh', '.codex/commands/_shared/plan-route.sh'],
+            ['.claude/command-support/_shared/krang-workflow.inc', '.codex/agent-instructions/krang.md'],
             ['.claude/agents/donatello.md', '.codex/agent-instructions/donatello.md'],
             ['.claude/agents/leonardo.md', '.codex/agent-instructions/leonardo.md'],
             ['.claude/agents/splinter.md', '.codex/agent-instructions/splinter.md'],
@@ -509,11 +509,11 @@ test('Claude Code and Codex install the same rules, skills, and agent instructio
 
         $markers = [
             '.agents/skills/process-code-review/references/review-state.md' => '### The cap round decides automatically',
-            '.agents/skills/_shared/plan-route.sh' => 'printf \'  "loop_model_tier": "%s",\n\' "$loop_model_tier"',
-            '.agents/skills/_shared/review-state.sh' => 'def security_rounds: 2;',
             '.codex/agent-instructions/donatello.md' => '## Fix round — close the whole class of defect',
             '.codex/agent-instructions/krang.md' => '  - **A `CRITICAL` run is escalated from its first dispatch:**',
             '.codex/agent-instructions/splinter.md' => '- `review depth: light` or `review depth: full` from round 2 on.',
+            '.codex/commands/_shared/plan-route.sh' => 'printf \'  "loop_model_tier": "%s",\n\' "$loop_model_tier"',
+            '.codex/commands/_shared/review-state.sh' => 'def security_rounds: 2;',
             '.codex/rules/code-review/review-rounds.md' => '### A light round after a small delta (issue #599)',
             '.codex/rules/compound-engineering/orchestration.md' => '**A `CRITICAL` tier is that evidence, so it escalates from the first dispatch.**',
         ];

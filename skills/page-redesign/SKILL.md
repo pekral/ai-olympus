@@ -78,7 +78,7 @@ A mockup is a communication artifact, not production code: keep it standalone, w
 
 ### 7. Render the previews
 
-Run `scripts/render-previews.sh mockups/ previews/` to render every mockup to a PNG. The script drives the project-independent Playwright runner (`skills/_shared/browser-drive.sh`), so it adds no dependency to the project under test.
+Run `scripts/render-previews.sh mockups/ previews/` to render every mockup to a PNG. The script drives the project-independent Playwright runner (`commands/_shared/browser-drive.sh`), so it adds no dependency to the project under test.
 
 **Every state in the map gets a preview, and the proposal proves it.** A state that the main screenshot hides is precisely the state a reviewer cannot check by looking at the page, so a missing preview is a missing part of the proposal, never an omission the reader can fill in. When the renderer is unavailable, say so and ship the mockups with the reason — never claim a preview that was not produced.
 

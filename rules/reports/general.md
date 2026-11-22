@@ -41,7 +41,7 @@ On GitHub and Bugsnag one exception replaces *How to test*: a review-only run (`
 
 ### Project override — `language.github` in the manifest
 
-A project can fix the language of everything it publishes to GitHub. It sets `language.github` in its manifest (`@rules/general/general.md` *Project manifest*). A run reads the manifest from the default branch through `skills/_shared/read-manifest.sh`, never from the working tree. When the key is set, every report published to GitHub is written in that language, whatever the assignment language is:
+A project can fix the language of everything it publishes to GitHub. It sets `language.github` in its manifest (`@rules/general/general.md` *Project manifest*). A run reads the manifest from the default branch through `commands/_shared/read-manifest.sh`, never from the working tree. When the key is set, every report published to GitHub is written in that language, whatever the assignment language is:
 
 - the technical code-review comment on the pull request — the exception above,
 - the non-technical mirror on a linked GitHub issue,

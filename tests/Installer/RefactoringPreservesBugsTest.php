@@ -67,7 +67,7 @@ test('a behaviour change in a refactoring-only pull request is raised once, not 
 test('a carried-over discrepancy is rendered under Deferred to sub-issues on the publish path (issue #175)', function (): void {
     $packageDir = dirname(__DIR__, 2);
 
-    expect((string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md'))
+    expect((string) file_get_contents($packageDir . '/commands/_shared/orchestration/process-code-review.inc'))
         ->toContain('or a refactoring-only pull request carries over a discrepancy: one entry per finding')
         ->toContain('and the sub-issue or follow-up issue URL');
 });

@@ -42,11 +42,11 @@ test('a ci billing failure runs the checkers and tests locally as the full gate'
         )
         ->and($gates)->toContain(
             'Run the project\'s checkers and tests on that head before you hand the branch on: the project\'s full gate through '
-            . '`skills/_shared/run-gate.sh --tier full`.',
+            . '`commands/_shared/run-gate.sh --tier full`.',
         )
         ->and($gates)->toContain('CI does not run on a later push of the run either, so run the same checkers and tests before each later push.')
         ->and($gates)->toContain('`checks: run — CI billing failure on <sha>`')
-        ->and($gates)->not->toContain('`skills/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`');
+        ->and($gates)->not->toContain('`commands/_shared/run-gate.sh --tier pr` when the manifest sets `pr-gate`');
 });
 
 test('a rebased branch goes back into its own pull request on a repository with ci', function (): void {
@@ -56,13 +56,13 @@ test('a rebased branch goes back into its own pull request on a repository with 
     expect($gates)->toContain('6. **A rebased branch goes back into the same pull request.**')
         ->and($gates)->toContain(
             'Run `git push --force-with-lease="refs/heads/<branch>:<remote head the rebase started from>" '
-            . 'origin "HEAD:refs/heads/<branch>"`, through `skills/_shared/audit-trail.sh run --`, with the rebased branch checked out.',
+            . 'origin "HEAD:refs/heads/<branch>"`, through `commands/_shared/audit-trail.sh run --`, with the rebased branch checked out.',
         )
         ->and($gates)->toContain('The name then never starts the refspec, so a leading `+` can never force another ref past the lease.')
         ->and($gates)->not->toContain('origin "<branch>"`')
         ->and($gates)->toContain('The pinned lease refuses a push that someone made after the rebase started.')
         ->and($gates)->toContain('The pull request keeps its number: no `<branch>-vN` branch and no new pull request.')
-        ->and($gates)->toContain('Without CI the conflict path of `skills/_shared/orchestration/batch-preparation.md`');
+        ->and($gates)->toContain('Without CI the conflict path of `commands/_shared/orchestration/batch-preparation.inc`');
     expect(strpos($gates, '**Check the branch name before the push.**'))
         ->toBeGreaterThan((int) strpos($gates, '6. **A rebased branch goes back into the same pull request.**'))
         ->toBeLessThan((int) strpos($gates, '**Push to an explicit destination.**'));

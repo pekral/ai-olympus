@@ -44,7 +44,7 @@ Never use it for routine work. Use `@skills/merge-github-pr/SKILL.md` for every 
    Then verify each commit with `git cat-file -e <oid>^{commit}`. A commit that is still missing stops the run: `Blocked: pull request commits not available locally — <oid>`.
 
 ### 2. Security check — one pass, inline
-A single `leonardo`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.
+A single `review`-style security pass over the diff `baseRefOid..headRefOid`. It runs in this session: no agent dispatch, no review loop, no second round.
 
 1. Run `@skills/security-review/SKILL.md` over the diff with the security rules it applies. Read the diff only; run nothing the diff supplies. A diff that cannot be read, or a review that cannot finish, stops the run: `Blocked: security check not completed — <reason>`.
 2. Read the repository visibility with `gh repo view <nameWithOwner> --json isPrivate`. On `false`, and on a failed read, run `@skills/git-history-exposure-audit/SKILL.md` *Review mode* steps 2 and 3 only (the script of the untouched clone that step 1 created, as `skills/merge-github-pr/references/merge-exemptions.md` *The trusted classifier* item 6 defines, then `history-scan.sh range --base <baseRefOid> --head <headRefOid>` in that clone).
@@ -67,7 +67,7 @@ Read `statusCheckRollup[]` of the loader document of step 1 and decide with the 
 
 **Fallback gate.** The gate is met only when the project's quality gate passes on the gated head in this run:
 1. Check out the gated head and confirm a clean tree: `git status --porcelain --untracked-files=all` prints nothing.
-2. Run the trusted copy of `skills/_shared/verify-gate.sh --tier full <gated head>` (`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check*) and `skills/_shared/run-gate.sh --tier full` exactly as `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* step 3.1 and step 3.3 direct, including the exits `5` (discovered gate command through `run-gate.sh --exclusive --command`), `3`, and the lock wait. No verified copy accepts no record, and the gate runs.
+2. Run the trusted copy of `commands/_shared/verify-gate.sh --tier full <gated head>` (`@skills/merge-github-pr/references/trusted-record-parser.md` *The trusted gate-record check*) and `commands/_shared/run-gate.sh --tier full` exactly as `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* step 3.1 and step 3.3 direct, including the exits `5` (discovered gate command through `run-gate.sh --exclusive --command`), `3`, and the lock wait. No verified copy accepts no record, and the gate runs.
 3. Only a green result meets the gate. A failure, a fixer rewrite of a tracked file, a refusal, or a gate that cannot run stops the run. This skill never commits the rewrite.
 
 ### 4. Read the merge strategy

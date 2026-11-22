@@ -26,7 +26,7 @@ function promotionProductionCode(string $script): string
 
 test('the lifecycle script is shipped, executable, self-testing, and run by the build', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/_shared/promote-learning.sh';
+    $script = $packageDir . '/commands/_shared/promote-learning.sh';
 
     expect(is_file($script))->toBeTrue();
     expect(is_executable($script))->toBeTrue();
@@ -39,11 +39,11 @@ test('the lifecycle script is shipped, executable, self-testing, and run by the 
     /** @var array{scripts: array<string, array<int, string>>} $composer */
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
-    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/_shared/promote-learning.sh ');
+    expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' commands/_shared/promote-learning.sh ');
 });
 
 test('the self-test covers every acceptance criterion and testing scenario of the assignment', function (): void {
-    expect(promotionFile('skills/_shared/promote-learning.sh'))
+    expect(promotionFile('commands/_shared/promote-learning.sh'))
         // Maturity states, grouping, evidence, and the happy path.
         ->toContain('check \'learnings carry an explicit maturity state, and an eligible pattern awaits analysis\'')
         ->toContain(
@@ -84,18 +84,18 @@ test('the self-test covers every acceptance criterion and testing scenario of th
         ->toContain('check \'the confidence is the share of resolved records and gates the pattern\'')
         ->toContain('check \'rewording the text of a learning changes neither its key nor its evidence\'');
 
-    expect(promotionFile('skills/_shared/propose-prevention.sh'))
+    expect(promotionFile('commands/_shared/propose-prevention.sh'))
         ->toContain('check \'the proposal names the target type, path, change, and the existing knowledge checked\'')
         ->toContain('check "a candidate can be promoted into the target type ${kind%%:*}"')
         ->toContain('check \'a partly covering knowledge file must be extended instead of duplicated\'')
         ->toContain('check \'a pattern that an existing rule covers reports that rule and writes no proposal\'');
 
-    expect(promotionFile('skills/_shared/read-manifest.sh'))
+    expect(promotionFile('commands/_shared/read-manifest.sh'))
         ->toContain('expect_output \'--default-ref prints the ref the manifest is read from\' "$repo" \'refs/remotes/origin/master\' 0 --default-ref');
 });
 
 test('the self-test proves every item of the security plan', function (): void {
-    $lifecycle = promotionFile('skills/_shared/promote-learning.sh');
+    $lifecycle = promotionFile('commands/_shared/promote-learning.sh');
 
     expect($lifecycle)
         // Critical: approval only from a trusted fact, bound to the digest of the exact text.
@@ -132,13 +132,13 @@ test('the self-test proves every item of the security plan', function (): void {
         ->toContain('check \'the default-branch manifest sets the promotion thresholds and a lower working-tree value does not govern\'')
         ->toContain('check \'a promotion threshold below 2 is ignored and the script says so\'');
 
-    expect(promotionFile('skills/_shared/propose-prevention.sh'))
+    expect(promotionFile('commands/_shared/propose-prevention.sh'))
         ->toContain('check "a target path outside the knowledge root of its type is refused: ${bad#*:}"')
         ->toContain('check \'a mention, a link, a marker, a bidirectional mark, and a fence in a target change stay inert\'');
 });
 
 test('no promotion command writes a tracker, a label, a commit, a push, or a merge', function (): void {
-    $production = promotionProductionCode(promotionFile('skills/_shared/promote-learning.sh'));
+    $production = promotionProductionCode(promotionFile('commands/_shared/promote-learning.sh'));
 
     // One needle per call: a negated toContain with several needles passes when any one of them is absent.
     $forbidden = [
@@ -172,7 +172,7 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
     expect(
         preg_match(
             '/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2069}\x{FEFF}\x{00AD}\x{061C}]/u',
-            promotionFile('skills/_shared/promote-learning.sh'),
+            promotionFile('commands/_shared/promote-learning.sh'),
         ),
     )->toBe(
         0,
@@ -200,9 +200,9 @@ test('no promotion command writes a tracker, a label, a commit, a push, or a mer
 });
 
 test('the contract is written once and names the states, the facts, the history, and the limits', function (): void {
-    expect(promotionFile('skills/code-review/references/learning-promotion.md'))
+    expect(promotionFile('commands/_shared/orchestration/learning-promotion.inc'))
         ->toStartWith('# Learning promotion — from a repeated learning to permanent knowledge, with a human in between')
-        ->toContain('`skills/_shared/promote-learning.sh` is the only implementation.')
+        ->toContain('`commands/_shared/promote-learning.sh` is the only implementation.')
         ->toContain(
             '| `observation` | The class rests on one task. `awaiting: "analysis"` marks a class with a resolved Critical record '
             . 'and no `memory` candidate yet. |',
@@ -297,9 +297,9 @@ test(
             ->toContain('| `memory` | `.claude/run/code-review-memory.sqlite`, `.codex/run/code-review-memory.sqlite` |');
         expect($contract)->not->toContain('docs/memory/PROJECT_MEMORY.md `');
 
-        $selfTests = promotionFile('skills/_shared/promote-learning.sh')
+        $selfTests = promotionFile('commands/_shared/promote-learning.sh')
             . promotionFile('skills/_shared/analyze-recurrence.sh')
-            . promotionFile('skills/_shared/propose-prevention.sh');
+            . promotionFile('commands/_shared/propose-prevention.sh');
 
         foreach ([
             'a recurring Moderate class still becomes a candidate of the rule target, as before the severity gate',

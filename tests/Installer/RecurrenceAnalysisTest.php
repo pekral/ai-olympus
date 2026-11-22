@@ -25,7 +25,7 @@ test('the analysis and the collection are shipped, executable, self-testing, and
     $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
 
     expect(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' ' . $relativePath . ' ');
-})->with(['skills/_shared/analyze-recurrence.sh', 'skills/_shared/collect-findings.sh']);
+})->with(['skills/_shared/analyze-recurrence.sh', 'commands/_shared/collect-findings.sh']);
 
 test('the self-test covers every acceptance criterion and testing scenario of the assignment', function (): void {
     $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/analyze-recurrence.sh');
@@ -96,7 +96,7 @@ test('the analysis reuses the extractor and the manifest reader and defines no r
 });
 
 test('the collection reads the reports through the loader and parses them only with the extractor', function (): void {
-    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/_shared/collect-findings.sh');
+    $script = (string) file_get_contents(dirname(__DIR__, 2) . '/commands/_shared/collect-findings.sh');
 
     expect($script)
         ->toContain('LOADER="$HERE/../code-review-github/scripts/load-issue.sh"')
@@ -143,7 +143,7 @@ test('the collection reads the reports through the loader and parses them only w
 
 test('the contract is written once, in the code-review skill', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $reference = (string) file_get_contents($packageDir . '/skills/code-review/references/recurrence-analysis.md');
+    $reference = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/recurrence-analysis.inc');
 
     expect($reference)
         ->toContain('This file is the one contract for finding the defect classes that recur across independent pull requests.')
@@ -235,4 +235,4 @@ test('the scripts are platform-neutral and name no path of one platform\'s insta
     foreach (['.claude/', '.codex/', '.agents/', 'CLAUDE_'] as $needle) {
         expect($script)->not->toContain($needle);
     }
-})->with(['skills/_shared/analyze-recurrence.sh', 'skills/_shared/collect-findings.sh']);
+})->with(['skills/_shared/analyze-recurrence.sh', 'commands/_shared/collect-findings.sh']);

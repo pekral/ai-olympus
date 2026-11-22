@@ -23,7 +23,7 @@
 #   --threshold    distinct pull requests that make a recurrence. At least 2.
 #   --window-days  the span, in days, in which those occurrences must fall.
 #                  Both settings resolve in this order: the flag, then `extra.ai-olympus` `recurrence`
-#                  `threshold` / `window-days` of the default branch (skills/_shared/read-manifest.sh),
+#                  `threshold` / `window-days` of the default branch (commands/_shared/read-manifest.sh),
 #                  then the built-in 2 and 90.
 #   --state        a JSON file that remembers which records an earlier run processed. With it, a record
 #                  that did not change since that run is not processed again. The file is created when
@@ -45,7 +45,7 @@
 # The record text fields are untrusted content (rules/security/general.md). The report never carries
 # one: it holds only values the record schema restricts to a fixed pattern, and links.
 #
-# Only skills/_shared/feedback-loop.sh calls this script, and no review, resolve-issue, or merge workflow
+# Only commands/_shared/feedback-loop.sh calls this script, and no review, resolve-issue, or merge workflow
 # reads its exit code. A missing store, a missing tool, or a crash of this script blocks no pull request.
 #
 # Output
@@ -215,7 +215,10 @@ EOF
 # `invalid` when it is not a number.
 manifest_setting() {
   local manifest
-  manifest="$("$HERE/read-manifest.sh" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$HERE/read-manifest.sh" >/dev/null || true; manifest='{}'; }
+  source "$HERE/resolve-command-helper.sh" || return 3
+  local reader
+  reader="$(resolve_command_helper read-manifest.sh)" || return 3
+  manifest="$("$reader" 2>/dev/null)" || { [[ $? -ne 3 ]] || "$reader" >/dev/null || true; manifest='{}'; }
   printf '%s' "$manifest" | jq -r --arg s "$1" --arg k "$2" '
     try (
       (.[$s] // {}) as $r

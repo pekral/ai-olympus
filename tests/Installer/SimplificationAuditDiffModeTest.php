@@ -43,7 +43,7 @@ test('the diff mode leaves a new abstraction, a new class, and a speculative int
 });
 
 test('the review runs the diff mode in every review and restates no part of its contract', function (): void {
-    $reference = diffModeSource('skills/code-review/references/specialized-reviews.md');
+    $reference = diffModeSource('commands/_shared/orchestration/specialized-reviews.inc');
     $always = explode('- Run conditionally:', $reference)[0];
     $leonardo = diffModeSource('agents/leonardo.md');
 

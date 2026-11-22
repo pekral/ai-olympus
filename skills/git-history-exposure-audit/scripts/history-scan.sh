@@ -84,7 +84,7 @@
 # Suppression (review modes only)
 #   The one suppression path is the default-branch manifest key `history-exposure.allow`, a list of
 #   {rule, path} objects with literal paths as this script prints them, read through
-#   skills/_shared/read-manifest.sh. Each suppressed occurrence is counted on `suppressed:`. Nothing
+#   commands/_shared/read-manifest.sh. Each suppressed occurrence is counted on `suppressed:`. Nothing
 #   on the branch — an inline marker, a PR text, a commit message, a manifest change — suppresses a
 #   finding. The full audit suppresses nothing.
 #
@@ -890,7 +890,9 @@ reach_tags() {
 # The default-branch allow-list as W records. Read through read-manifest.sh, which reads composer.json
 # from the default branch only; the branch under review never supplies it.
 allow_records() {
-  local manifest="$SCRIPT_DIR/../../_shared/read-manifest.sh" json status=0
+  local manifest json status=0
+  source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || return 3
+  manifest="$(resolve_command_helper read-manifest.sh)" || return 3
   [[ -f "$manifest" ]] || return 0
   json="$(bash "$manifest" 2>/dev/null)" || status=$?
   # Exit 3: the default-branch composer.json exists but cannot be read. The allow-list is then empty, and the report
@@ -1047,7 +1049,7 @@ cleanup_run() {
 # The run directory: the git-ignored run root of the current checkout, created without `mkdir -p`,
 # checked physically against the top level, and refused when git does not ignore it. Each start
 # removes sibling run directories whose holder process is confirmed dead; an inconclusive probe
-# leaves the directory alone (gate_lock_is_stale in skills/_shared/gate-record.sh).
+# leaves the directory alone (gate_lock_is_stale in commands/_shared/gate-record.sh).
 make_run_dir() {
   local root="$1" top phys path part sibling IFS
   top="$(git_ro rev-parse --show-toplevel 2>/dev/null)" || die 1 'the full audit runs inside a git checkout'
@@ -1234,8 +1236,12 @@ mode_full() {
   require_git
   pick_hash
   build_sensitive
-  # shellcheck source=../../_shared/gate-record.sh
-  . "$SCRIPT_DIR/../../_shared/gate-record.sh"
+  # shellcheck source=../../_shared/resolve-command-helper.sh
+  source "$SCRIPT_DIR/../../_shared/resolve-command-helper.sh" || return 3
+  local gate_library
+  gate_library="$(resolve_command_helper gate-record.sh)" || return 3
+  # shellcheck source=../../../commands/_shared/gate-record.sh
+  . "$gate_library"
   set +e +o pipefail
 
   check_push "$repo"

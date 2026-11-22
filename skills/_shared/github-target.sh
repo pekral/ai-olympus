@@ -2,7 +2,7 @@
 # github-target.sh — shared library: which GitHub item a wrapper writes to, and which account writes.
 #
 # Sourced, not executed, by `skills/code-review-github/scripts/upsert-comment.sh` and
-# `skills/code-review-github/scripts/post-inline-review.sh`. Both resolve the same two things before their
+# `commands/_shared/code-review-github/post-inline-review.sh`. Both resolve the same two things before their
 # first GitHub call, and both must resolve them the same way, so the code exists here once.
 #
 # The caller sets PROG (the script name its messages start with) before it calls a function.

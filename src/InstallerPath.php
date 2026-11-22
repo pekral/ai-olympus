@@ -133,10 +133,8 @@ final class InstallerPath
     }
 
     /**
-     * Slash-command prompts. Claude Code reads them from `.claude/commands`; Codex has no
-     * user-defined slash-command directory at all — its `SlashCommandItem` carries only built-in
-     * and service-tier variants — so each workflow reaches Codex as the skill its command delegates
-     * to in `.agents/skills`, which `resolveSkillsTargetDirectories()` already installs.
+     * Public slash-command prompts. Claude Code reads only these files from `.claude/commands`.
+     * Shared command support is installed separately so it cannot become an extra public command.
      */
     public static function resolveCommandsSource(): ?string
     {
@@ -151,6 +149,28 @@ final class InstallerPath
     public static function resolveCommandsTargetDirectories(string $root): array
     {
         return [$root . '/.claude/commands'];
+    }
+
+    /**
+     * Claude command support is intentionally outside `.claude/commands`: Claude discovers
+     * Markdown recursively below that directory as public commands.
+     *
+     * @return array<int, string>
+     */
+    public static function resolveCommandSupportTargetDirectories(string $root): array
+    {
+        return [$root . '/.claude/command-support'];
+    }
+
+    /**
+     * Codex does not discover custom slash commands. Its root instructions load this full command
+     * contract tree before a direct skill invocation.
+     *
+     * @return array<int, string>
+     */
+    public static function resolveCodexCommandsTargetDirectories(string $root): array
+    {
+        return [$root . '/.codex/commands'];
     }
 
     public static function resolveCodexAgentsSource(): ?string

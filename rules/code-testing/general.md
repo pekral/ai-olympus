@@ -115,7 +115,7 @@ A dispatch test owns exactly one fact: **the caller dispatched the job**. What t
 - Focus tests on behavior, not implementation details.
 
 ## Execution
-- Run tests in parallel whenever possible (e.g. `php artisan test --parallel` or `pest --parallel`), always through `skills/_shared/run-gate.sh --exclusive --command "<command>"`: the wrapper holds the machine lock, so only one heavy run starts workers at a time.
+- Run tests in parallel whenever possible (e.g. `php artisan test --parallel` or `pest --parallel`), always through `commands/_shared/run-gate.sh --exclusive --command "<command>"`: the wrapper holds the machine lock, so only one heavy run starts workers at a time.
 
 ## Quality
 - Prefer simple, readable tests over complex setups.
@@ -140,16 +140,16 @@ A change is delivered only when three things hold together: every acceptance cri
 - **A declared HOTFIX is the only waiver.** It follows `@rules/compound-engineering/orchestration.md` *HOTFIX — the declared emergency path* and the review-side waiver in `@rules/code-review/review-process.md`. No other caller instruction lifts this section.
 
 ## Coverage
-- Every test change must be verified to be functional — run affected tests after each modification, through `skills/_shared/run-gate.sh --exclusive --command "<command>"` (`@skills/resolve-issue/references/quality-gates.md` *Targeted checks take the machine lock too*).
+- Every test change must be verified to be functional — run affected tests after each modification, through `commands/_shared/run-gate.sh --exclusive --command "<command>"` (`@skills/resolve-issue/references/quality-gates.md` *Targeted checks take the machine lock too*).
 - Require 100% code coverage for every changed or added code path — applies equally to code modifications and code review.
 - Before running coverage, discover the project's coverage command per `@skills/resolve-issue/references/quality-gates.md`. Do not assume a default command.
-- **Coverage reporting is short by default.** Run the coverage check on every change (through `skills/_shared/run-gate.sh --exclusive`), but report the result on the published CR / tracker comment **only** when there is something the reader must act on:
+- **Coverage reporting is short by default.** Run the coverage check on every change (through `commands/_shared/run-gate.sh --exclusive`), but report the result on the published CR / tracker comment **only** when there is something the reader must act on:
     - **uncovered changed lines** — list every uncovered line as a Critical finding and render the `## Coverage` section with the tool, exact command, and the uncovered-line list;
     - **coverage tooling unavailable** — raise the missing-tool case as a Critical finding and render the `## Coverage` section with the reason in place of a result. **Sanctioned exception:** a pass running in the optional isolated read-only worktree with no `vendor/` reports `deferred to donatello` here instead of a Critical finding, per `@rules/code-review/review-process.md` *Validation & Coverage Gate*.
   When every changed line is at 100% coverage and the tool ran successfully, **omit the `## Coverage` section entirely, omit the `Coverage:` header line, and omit the `coverage …` slot from the final summary line.** The CR is "clean" on the Counts line and the omission is the signal that coverage is satisfied — never emit `100%` / `clean` / `n/a` placeholders for the section, the header line, or the summary slot. The coverage check itself still runs unconditionally on every CR; only the user-visible reporting is short-circuited.
 
 ## Code Style and Quality Gates
-- **Do not run fixers or checkers on test changes as you author them.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), run by `@skills/process-code-review/SKILL.md` *Finalization* after the review converges, or by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. That run commits the fixes it produces as their own commit.
+- **Do not run fixers or checkers on test changes as you author them.** The project's gate runs once, immediately before the merge (`@skills/resolve-issue/references/quality-gates.md` *Gate placement — deferred to the merge boundary*), run by `commands/_shared/orchestration/process-code-review.inc` *Finalization* after the review converges, or by `@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate* when no recorded run covers the head commit. That run commits the fixes it produces as their own commit.
 - Do run the **tests** you are writing or changing — that is correctness feedback on the change itself, not a style gate, and it costs no build.
 - The gate discovers its own tooling: the project's gate / coverage command, discovered per `@skills/resolve-issue/references/quality-gates.md`.
 

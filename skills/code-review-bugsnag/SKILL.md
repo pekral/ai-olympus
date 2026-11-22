@@ -7,6 +7,8 @@ metadata:
   author: Petr Král (pekral.cz)
 ---
 
+Entry contract: from this skill directory, read the file printed by `bash ../_shared/resolve-command-helper.sh --entry`.
+
 ## Constraints
 - Apply the shared CR tracker-wrapper contract in `@skills/code-review-github/references/cr-wrapper-contract.md` — Constraints, Load Context gates, Run Reviews, Publish Results, and Output Rules all live there and are not restated here. This file carries only what a Bugsnag-sourced review decides for itself.
 - Publishing is limited to PR / linked-issue comments via `gh` and to the Bugsnag error comment via `skills/code-review-bugsnag/scripts/upsert-comment.sh`.

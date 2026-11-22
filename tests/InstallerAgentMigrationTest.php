@@ -103,7 +103,7 @@ test('agent migration ignores sources other than the package agent directories',
 
 test('agent migration never removes the splinter security agent, old or new, because the package ships it again', function (string $content): void {
     $root = installerCreateProjectRoot();
-    installerWriteFile($root . '/agents/krang.md', 'replacement');
+    installerWriteFile($root . '/commands/_shared/krang-workflow.inc', 'replacement');
     installerWriteFile($root . '/agents/splinter.md', $content);
 
     try {

@@ -8,11 +8,11 @@ function codeReviewMemoryFile(string $path): string
 }
 
 test('krang reads the memory only through the Critical-finding procedure and never in the gather phase (issue #343)', function (): void {
-    $krang = codeReviewMemoryFile('agents/krang.md');
-    $procedure = codeReviewMemoryFile('skills/_shared/orchestration/critical-memory-read.md');
+    $krang = codeReviewMemoryFile('commands/_shared/krang-workflow.inc');
+    $procedure = codeReviewMemoryFile('commands/_shared/orchestration/critical-memory-read.inc');
 
     expect($krang)->toContain('### Critical-finding memory read (the only read of the code-review memory)')
-        ->and($krang)->toContain('**load `skills/_shared/orchestration/critical-memory-read.md`**')
+        ->and($krang)->toContain('**load `commands/_shared/orchestration/critical-memory-read.inc`**')
         ->and($krang)->toContain('The gather phase reads no memory')
         ->and($krang)->toContain('run *Critical-finding memory read* when a Critical one is open, then dispatch `donatello`')
         ->and($krang)->not->toContain('read the **full** file here');
@@ -25,7 +25,7 @@ test('krang reads the memory only through the Critical-finding procedure and nev
             'Exit `2` (memory unavailable) or exit `1` (usage error): append a `note` line to the audit ledger and continue without memory.',
         )
         ->and($procedure)->toContain(
-            'skills/_shared/pack-context.sh pack --request <request> --candidates <candidates> --output ${BRIEF%.md}.memory-package.json',
+            'commands/_shared/pack-context.sh pack --request <request> --candidates <candidates> --output ${BRIEF%.md}.memory-package.json',
         )
         ->and($procedure)->toContain(
             'A non-zero exit of `pack-context.sh` (for example a candidate text over its 500-character limit): '
@@ -38,7 +38,7 @@ test('krang reads the memory only through the Critical-finding procedure and nev
 });
 
 test('the memory commands krang runs sit inside its Bash boundary and its run cleanup (issue #343)', function (): void {
-    $krang = codeReviewMemoryFile('agents/krang.md');
+    $krang = codeReviewMemoryFile('commands/_shared/krang-workflow.inc');
 
     expect($krang)->toContain('`vendor/bin/ai-olympus graph query` and `memory query`')
         ->and($krang)->toContain('`memory add` (it writes only the git-ignored code-review memory database')
@@ -101,7 +101,7 @@ test('the memory rule states one trust position for an entry and the source of t
 
 test('only a resolved Critical code-review finding becomes a TL;DR entry that krang alone writes (issue #372)', function (): void {
     $memory = codeReviewMemoryFile('rules/compound-engineering/memory.md');
-    $procedure = codeReviewMemoryFile('skills/_shared/orchestration/critical-memory-read.md');
+    $procedure = codeReviewMemoryFile('commands/_shared/orchestration/critical-memory-read.inc');
     $promotion = codeReviewMemoryFile('skills/code-review/references/learning-promotion.md');
 
     expect($memory)->toContain('only a resolved Critical code-review finding, from its first resolved occurrence on')
@@ -114,7 +114,7 @@ test('only a resolved Critical code-review finding becomes a TL;DR entry that kr
         ->and($procedure)->toContain('you decide alone, with no human approval, whether the lesson becomes one TL;DR entry')
         ->and($procedure)->toContain('Check every point of `@skills/code-review/references/learning-promotion.md` *The write bar*.')
         ->and($procedure)->toContain(
-            '--run-dir .claude/run; AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh record '
+            '--run-dir .claude/run; AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang commands/_shared/audit-trail.sh record '
             . '--target "code-review memory: ai-olympus memory add <slug>" --status $?` in one Bash call.',
         )
         ->and($procedure)->not->toContain('audit-trail.sh append --class external-write --target "code-review memory')
@@ -146,7 +146,7 @@ test(
         $safeguard = codeReviewMemoryFile('skills/resolve-issue/references/safeguard-implementation.md');
     
         expect($loop)->toContain(
-            'The second list** is every class that `skills/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true '
+            'The second list** is every class that `commands/_shared/promote-learning.sh status --dir <dir>` lists with `memory.eligible` true '
             . 'and `awaiting: "analysis"`, unless its key',
         )
             ->and($loop)->not->toContain('`eligible` false')
@@ -169,7 +169,7 @@ test(
             ->and($loop)->toContain('Write `${BRIEF%.md}.memory-entry.json` from the `Change:` block')
             ->and($loop)->toContain(
                 'In one Bash call, `krang` runs `ai-olympus memory add --entry ${BRIEF%.md}.memory-entry.json; AUDIT_TRAIL_FILE=<abs .audit path> '
-                . 'AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh record --target "code-review memory: ai-olympus memory add <slug>" --status $?`',
+                . 'AUDIT_TRAIL_ROLE=krang commands/_shared/audit-trail.sh record --target "code-review memory: ai-olympus memory add <slug>" --status $?`',
             )
             ->and($loop)->toContain('run `promote-learning.sh written --dir <dir> --key <key> --digest <the digest of status> --slug <the slug>`')
             ->and($loop)->toContain('A refusal for an existing slug means that an earlier run wrote this text and did not record it')
@@ -179,12 +179,12 @@ test(
             ->and($loop)->toContain('skills/code-review-github/scripts/upsert-comment.sh <url> <comment-file> agent-note`')
             ->and($loop)->toContain('gh issue close <number> --reason completed`')
             ->and($loop)->toContain(
-                '`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang skills/_shared/audit-trail.sh run -- '
+                '`AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=krang commands/_shared/audit-trail.sh run -- '
                 . 'gh issue close <number> --reason completed`',
             )
             ->and($loop)->not->toContain('AUDIT_TRAIL_FILE=${BRIEF%.md}.audit')
             ->and($loop)->toContain('The wrapper appends the `external-write` line of the comment itself.')
-            ->and($loop)->toContain('Run the write that creates the issue through `skills/_shared/audit-trail.sh run --`.')
+            ->and($loop)->toContain('Run the write that creates the issue through `commands/_shared/audit-trail.sh run --`.')
             ->and($loop)->toContain('Append no audit line by hand for the comment or for the close')
             ->and($loop)->not->toContain('No audit helper script exists yet')
             ->and($loop)->toContain('The one exception is the close of the proposal of a written `memory` candidate in step 5.')
@@ -237,9 +237,9 @@ test(
 test(
     'krang closes the proposal issue of a written memory candidate at consent level L1, and the slug rule lives once in promote-learning.sh (issue #372)',
     function (): void {
-        $krang = codeReviewMemoryFile('agents/krang.md');
+        $krang = codeReviewMemoryFile('commands/_shared/krang-workflow.inc');
         $orchestration = codeReviewMemoryFile('rules/compound-engineering/orchestration.md');
-        $script = codeReviewMemoryFile('skills/_shared/promote-learning.sh');
+        $script = codeReviewMemoryFile('commands/_shared/promote-learning.sh');
 
         expect($krang)->toContain('`gh issue close <N> --reason completed` on the proposal issue of that written `memory` candidate')
             ->and(krangContractText())->toContain(
@@ -260,14 +260,14 @@ test(
 );
 
 test('krang writes a memory entry under the same rule on Claude Code and Codex and lists it in its report (issue #559)', function (): void {
-    $procedure = codeReviewMemoryFile('skills/_shared/orchestration/critical-memory-read.md');
+    $procedure = codeReviewMemoryFile('commands/_shared/orchestration/critical-memory-read.inc');
 
     expect(codeReviewMemoryFile('codex/agents/krang.toml'))->toContain(
         'A code-review memory write or read therefore passes `--run-dir .codex/run` to `ai-olympus memory`, and `krang` decides the write '
         . 'under the same rule as on Claude Code (`@rules/compound-engineering/memory.md` *Write protocol*, no human approval).',
     )
         ->and($procedure)->toContain('--status $?` in one Bash call. Under Codex the run directory is `.codex/run`.')
-        ->and(codeReviewMemoryFile('agents/krang.md'))->toContain(
+        ->and(codeReviewMemoryFile('commands/_shared/krang-workflow.inc'))->toContain(
             '- **Memory entries:** each entry written (slug, rule, evidence, superseded slug) and each Critical lesson not written, '
             . 'with the failed bar point — or `none`.',
         );
@@ -275,7 +275,7 @@ test('krang writes a memory entry under the same rule on Claude Code and Codex a
 
 test('a memory entry is krang\'s own text, and a superseded entry is never served again (issue #559)', function (): void {
     $memory = codeReviewMemoryFile('rules/compound-engineering/memory.md');
-    $promotion = codeReviewMemoryFile('skills/code-review/references/learning-promotion.md');
+    $promotion = codeReviewMemoryFile('commands/_shared/orchestration/learning-promotion.inc');
 
     expect($memory)->toContain(
         '**The text is `krang`\'s own.** `krang` words every free-text field '

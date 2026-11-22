@@ -140,7 +140,7 @@ test('the pull request body states the merge danger from the merge-risk script a
     $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
     $rule = (string) file_get_contents($packageDir . '/rules/git/pull-requests.md');
     $finalization = (string) file_get_contents($packageDir . '/skills/process-code-review/SKILL.md');
-    $readySignal = (string) file_get_contents($packageDir . '/skills/process-code-review/references/ready-to-merge-signal.md');
+    $readySignal = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/review-ready-to-merge-signal.inc');
 
     expect($pullRequest)->toContain('**Merge risk** — it tells');
     expect($pullRequest)->toContain('🟢 for `low`, 🟡 for `medium`, 🔴 for `high`');
@@ -162,10 +162,10 @@ test('the pull request body states the merge danger from the merge-risk script a
         ->and($pullRequest)->toContain('so the heading never reads `low` when the pull request opens.')
         ->and($pullRequest)->not->toContain('at most `medium`')
         ->and($pullRequest)->toContain('Read the `headRefOid` of the pull request.');
-    expect($pullRequest)->toContain('renders the output of `skills/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
+    expect($pullRequest)->toContain('renders the output of `commands/_shared/classify-risk.sh --merge-risk` and never grades the change itself');
     expect($pullRequest)->toContain('`one-way` when the script prints `rollback=costly`, `two-way` when it prints `rollback=cheap`');
     expect($pullRequest)->toContain('`**Blast radius:**` — the `tier=` value followed by every `signal=` name');
-    expect($pullRequest)->toContain('| skills/_shared/classify-risk.sh --merge-risk --diff - --assignment <file>');
+    expect($pullRequest)->toContain('| commands/_shared/classify-risk.sh --merge-risk --diff - --assignment <file>');
     expect($pullRequest)->toContain('`two-way` means only that the script found no rollback signal; it does not prove that a revert restores the state');
     expect($pullRequest)->toContain('The signals are the ones in the script header, *Merge-risk mode*');
     expect($pullRequest)->toContain(
@@ -313,7 +313,7 @@ test('compound memory is read only when a Critical finding is open, never in the
 
     expect($krang)->toContain('## Project memory');
     expect($krang)->toContain('code-review-memory.sqlite');
-    expect($krang)->toContain('skills/_shared/orchestration/critical-memory-read.md');
+    expect($krang)->toContain('commands/_shared/orchestration/critical-memory-read.inc');
     expect($analyze)->not->toContain('PROJECT_MEMORY');
     expect($prepare)->not->toContain('PROJECT_MEMORY');
 });
@@ -402,7 +402,7 @@ test('compound-engineering rule mandates temporary-file hygiene with a hard memo
     expect($content)->toContain('NEVER deleted');
 
     // The rule must name krang's *Run cleanup* checklist as the reference implementation.
-    expect($content)->toContain('`krang`\'s *Run cleanup* (`agents/krang.md`) is the **reference implementation** of this contract');
+    expect($content)->toContain('`krang`\'s *Run cleanup* (`commands/_shared/krang-workflow.inc`) is the **reference implementation** of this contract');
 
     // As the canonical wording of the contract, that sentence must enumerate all three terminal
     // paths — the analysis-only stop included, since that is the path the brief used to survive on
@@ -924,7 +924,7 @@ test('an agent that carries the audit-trail append obligation also grants the ap
     expect($checkedAgents)->not->toBeEmpty();
 
     foreach ($checkedAgents as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        $content = installedRoleInstructions($agent);
         $boundarySection = installerDocsSection($content, '## Bash boundary');
 
         // Two legitimate spellings of the same grant: the literal path pattern every specialist
@@ -1260,7 +1260,7 @@ test('issues are cut as vertical slices, and a wide refactor as expand, migrate,
 test('the Bash capability boundary names the .env.example read exception the skills rely on (issue #62)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/compound-engineering/orchestration.md');
-    $trigger = (string) file_get_contents($packageDir . '/skills/code-review/references/specialized-reviews.md');
+    $trigger = (string) file_get_contents($packageDir . '/commands/_shared/orchestration/specialized-reviews.inc');
 
     // The ban was written as an unqualified glob over every `.env*` spelling, so a skill reading
     // the committed template was violating an absolute the rule states. A sanctioned exception a
@@ -1597,7 +1597,7 @@ test('every comment-reading consumer cross-references the canonical rule instead
     $docs = (string) file_get_contents($packageDir . '/docs/agents.md');
 
     // The rule names its executing consumers, so the ownership split is readable from it.
-    expect($rule)->toContain('`agents/krang.md` in its gather phase');
+    expect($rule)->toContain('`commands/_shared/krang-workflow.inc` in its gather phase');
     expect($rule)->toContain('`@skills/resolve-issue/references/comment-analysis.md` in its thread classification');
     expect($rule)->toContain('`@skills/prepare-issue-context/SKILL.md` when it loads the assignment');
 
@@ -1669,7 +1669,7 @@ test('orchestration rule batches independent reads into one round and every read
 
     // Each agent whose context load is a batchable step references the rule from that step.
     foreach (['krang', 'donatello', 'leonardo', 'april'] as $agent) {
-        $content = (string) file_get_contents($packageDir . '/agents/' . $agent . '.md');
+        $content = installedRoleInstructions($agent);
         expect($content)->toContain('*Batch independent reads*');
     }
 
@@ -1785,8 +1785,8 @@ test('the marker family is defined once by its own shape, with the namespaces pa
             . "`skills/code-review/references/prevention-proposal.md`),\n"
             . '`analysis-plan` (the plan artifact `skills/analyze-problem/SKILL.md` publishes on a GitHub issue), '
             . '`cr-inline` (the inline review comments that an earlier release of '
-            . '`skills/code-review-github/scripts/post-inline-review.sh` posted on the changed lines of a pull request), '
-            . '`proposal-review` (the Critical findings of the proposal review, `skills/_shared/orchestration/proposal-review.md` step 6), '
+            . '`commands/_shared/code-review-github/post-inline-review.sh` posted on the changed lines of a pull request), '
+            . '`proposal-review` (the Critical findings of the proposal review, `commands/_shared/orchestration/proposal-review.inc` step 6), '
             . '`pr-body-overflow` (the durable copy of the verbatim pull-request body content, '
             . '`rules/git/pull-requests.md` *PR Content Requirements*; one comment per pull request, updated in place), '
             . 'and `agent-note` (a separate, create-only agent comment the upsert helper never looks up or updates).',

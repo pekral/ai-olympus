@@ -1,0 +1,16 @@
+# Resolve addressed reviewer threads (GitHub)
+
+Referenced from `skills/process-code-review/SKILL.md` *PR update*. Extracted to keep the skill body under the skill-check token limit; the procedure is the skill's, stated once here.
+
+After the fixes are committed and pushed (the skill's *Finalization*), mark every reviewer review thread whose finding was **actually fixed** as resolved, using the thread `id` captured during intake:
+
+```
+gh api graphql -f query='mutation($threadId:ID!){ resolveReviewThread(input:{threadId:$threadId}){ thread{ isResolved } } }' -F threadId=<thread-id>
+```
+
+- **A thread of the agent's own finding is resolved through the wrapper.** A review publishes no inline comment, so only a review of an earlier release opened such a thread. A thread whose every comment is an agent comment of the current actor, with its `cr-inline` marker (`@skills/code-review-github/references/cr-wrapper-contract.md` *Findings in the review body*), is resolved with `AUDIT_TRAIL_FILE=<abs .audit path> AUDIT_TRAIL_ROLE=leonardo commands/_shared/code-review-github/post-inline-review.sh resolve <PR-NUMBER|URL> --fixed <finding id>[,<finding id>...]`, not with the mutation above.
+  Give it the ids that `review-state.sh` reports as resolved. The script records one audit line for each thread and leaves every other thread alone.
+  A thread that also holds a reply, a comment of the actor without the marker, or a comment of another author is listed under `has_reply` and not resolved: its comments are reviewer comments, and the thread is resolved only after each of them is fulfilled, with the mutation above.
+- Resolve **only** threads that were fixed. Leave a thread unresolved when its point was rejected or deferred, and record the rejection reason in the CR comment instead of resolving it. A **deferred** (not rejected) point must additionally be filed as a follow-up issue in the originating tracker per `@rules/compound-engineering/tracker.md` *File deferred points as follow-up tracker issues* (mechanics in `@skills/resolve-issue/SKILL.md` *Deferred-item follow-up issues*); the comment entry carries the created issue URL — rejection is a decision, deferral is a promise.
+- If `gh api graphql` is unavailable, fall back to the GitHub MCP server's resolve-review-thread operation.
+- Resolving a thread is a GitHub PR state change, not a code change — it stays within the read-fixes-push-resolve flow this skill already owns and never touches the protected main branch.

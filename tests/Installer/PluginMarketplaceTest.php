@@ -111,11 +111,16 @@ test('the surviving slash command installs into the Claude Code project director
         expect(is_file($root . '/.claude/commands/redesign-page.md'))->toBeTrue();
         expect(is_file($root . '/.claude/commands/report-code-review.md'))->toBeTrue();
         expect(is_file($root . '/.claude/commands/test-assignment.md'))->toBeTrue();
+        expect(is_file($root . '/.claude/commands/_shared/krang-workflow.inc'))->toBeFalse();
+        expect(is_file($root . '/.claude/command-support/_shared/krang-workflow.inc'))->toBeTrue();
 
-        // Codex exposes no user-defined slash command — `SlashCommandItem` carries only built-in and
-        // service-tier variants — so the same workflow reaches Codex as the skill it delegates to,
-        // which `.agents/skills` already installs. A `.codex` copy would be a file nothing reads.
-        expect(is_dir($root . '/.codex/commands'))->toBeFalse();
+        $claudeCommandFiles = glob($root . '/.claude/commands/*.md');
+        expect(is_array($claudeCommandFiles) ? count($claudeCommandFiles) : 0)->toBe(5);
+
+        // Codex has no native user-defined slash commands. Its root instructions load these
+        // contracts before a user-facing skill, so both platforms use the same routing rules.
+        expect(is_file($root . '/.codex/commands/do-it.md'))->toBeTrue();
+        expect(is_file($root . '/.codex/commands/_shared/krang-workflow.inc'))->toBeTrue();
         expect(is_file($root . '/.agents/skills/verify-merge-readiness/SKILL.md'))->toBeTrue();
         expect(is_file($root . '/.agents/skills/do-it/SKILL.md'))->toBeTrue();
         expect(is_file($root . '/.agents/skills/deliver-page-redesign/SKILL.md'))->toBeTrue();
@@ -137,6 +142,19 @@ test('commands ships exactly the commands the package exposes', function (): voi
     sort($names);
 
     expect($names)->toBe(['do-it.md', 'prepare-issue-for-merge.md', 'redesign-page.md', 'report-code-review.md', 'test-assignment.md']);
+
+    $markdown = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(dirname(__DIR__, 2) . '/commands'));
+
+    foreach ($iterator as $file) {
+        if ($file instanceof SplFileInfo && $file->isFile() && $file->getExtension() === 'md') {
+            $markdown[] = $file->getPathname();
+        }
+    }
+
+    // Claude discovers plugin commands recursively. Support contracts are `.inc` files, so this
+    // repository exposes no nested internal command through the marketplace channel.
+    expect($markdown)->toHaveCount(5);
 });
 
 test('both installation paths are documented with the difference between them', function (): void {

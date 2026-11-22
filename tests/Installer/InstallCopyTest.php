@@ -411,12 +411,18 @@ test('install copies all files to every rule, skill, agent, and command director
     $expectedAgentsCount = installerCountFiles($packageDir . '/agents');
     $expectedCodexAgentsCount = installerCountFiles($packageDir . '/codex/agents');
     $expectedCommandsCount = installerCountFiles($packageDir . '/commands');
+    $supportCount = installerCountFiles($packageDir . '/commands/_shared');
+    $publicCount = $expectedCommandsCount - $supportCount;
+    $supportTargets = InstallerPath::resolveCommandSupportTargetDirectories($root);
+    $codexCommands = InstallerPath::resolveCodexCommandsTargetDirectories($root);
     $agentsMdCount = InstallerPath::resolveAgentsMdSource() !== null ? 1 : 0;
     $expectedTotalFiles = $expectedRulesCount * count($rulesTargets)
         + $expectedSkillsCount * count($skillTargets)
         + $expectedAgentsCount * count($agentTargets)
         + $expectedCodexAgentsCount * count($codexAgentTargets)
-        + $expectedCommandsCount * count($commandTargets)
+        + $publicCount * count($commandTargets)
+        + $supportCount * count($supportTargets)
+        + $expectedCommandsCount * count($codexCommands)
         + $agentsMdCount;
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
@@ -433,7 +439,9 @@ test('install copies all files to every rule, skill, agent, and command director
         installerExpectFileCount($skillTargets, $expectedSkillsCount, 'Skills');
         installerExpectFileCount($agentTargets, $expectedAgentsCount, 'Agents');
         installerExpectFileCount($codexAgentTargets, $expectedCodexAgentsCount, 'Codex agents');
-        installerExpectFileCount($commandTargets, $expectedCommandsCount, 'Commands');
+        installerExpectFileCount($commandTargets, $publicCount, 'Claude public commands');
+        installerExpectFileCount($supportTargets, $supportCount, 'Claude command support');
+        installerExpectFileCount($codexCommands, $expectedCommandsCount, 'Codex commands');
 
         expect($output)->toContain(sprintf('(%d files,', $expectedTotalFiles));
     } finally {
