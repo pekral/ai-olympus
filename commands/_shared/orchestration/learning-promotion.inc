@@ -10,7 +10,7 @@ Apply the bounded contract in `@skills/code-review/references/learning-promotion
 
 ## The write bar
 
-This section is the one owner of the bar that `krang` applies before it writes a memory entry. `@rules/compound-engineering/memory.md` *Write protocol* references it. `krang` decides alone, and the bar replaces the human approval. It applies to both ways to a `memory` entry: the end of a run that resolved a Critical finding (`skills/_shared/orchestration/critical-memory-read.md` step 7) and a `memory` candidate of the feedback-analysis run. A lesson writes an entry only when every point holds.
+This section is the one owner of the bar that `krang` applies before it writes a memory entry. `@rules/compound-engineering/memory.md` *Write protocol* references it. `krang` decides alone, and the bar replaces the human approval. It applies to both ways to a `memory` entry: the end of a run that resolved a Critical finding (`commands/_shared/orchestration/critical-memory-read.inc` step 7) and a `memory` candidate of the feedback-analysis run. A lesson writes an entry only when every point holds.
 
 1. **The severity gate holds.** The finding is a Critical finding of a code review, resolved (*The severity gate*).
 2. **The fix is verified.** The review that converged on the final head reports the finding as resolved. A finding that only the fix commit claims to close is not verified.

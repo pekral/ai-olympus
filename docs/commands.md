@@ -40,7 +40,7 @@ shape of an existing command. Put any new shared routing instruction below
 | Test a task in report or fix mode | `orchestration/test-assignment.inc` | `test-assignment` returns the input map, test matrix, observed results and decisions. |
 | Approve a design, implement it and walk through the resulting page | `orchestration/deliver-page-redesign.inc` | `deliver-page-redesign` records the route, local captures and design criteria. Delivery requires the explicit approval record. |
 | Run independent review, fix, converge and finalize | `krang-workflow.inc`, `orchestration/process-code-review.inc` | `process-code-review` returns per-finding fixes, test evidence, revision and remaining blockers. |
-| Assess security controls and validate coverage | `orchestration/security-audit.inc` | `security-audit` returns source evidence and a verdict for the assigned unit. |
+| Assess security controls and validate coverage | `orchestration/security-audit.inc` applies the profile budget, controls read-only execution and assigns the independent briefs in `orchestration/security-audit-briefs.inc` | `security-audit` returns source evidence and a verdict for the assigned unit. |
 | Inspect a subsystem for simplifications | `orchestration/simplification-audit.inc` | `simplification-audit` returns at most two recommendations or a documented skip. |
 | Prepare one or several pull requests for a merge decision | `orchestration/verify-merge-readiness.inc` | `verify-merge-readiness` returns exact-head evidence and unanswered decisions. |
 | Process the interactive testing backlog | `orchestration/auto-interactive-testing.inc` | `auto-interactive-testing` returns local scenario results, evidence and cleanup status. |

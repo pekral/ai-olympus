@@ -63,7 +63,7 @@ test('only the code review wires security-audit into its pipeline', function ():
     $callers = [];
 
     foreach (packageTextFiles() as $path => $content) {
-        if ((!str_starts_with($path, 'skills/') && !str_starts_with($path, 'agents/') && !str_starts_with($path, 'commands/'))
+        if (preg_match('#^(skills|agents|commands)/#', $path) !== 1
             || str_starts_with($path, 'skills/security-audit/')
             || $path === 'commands/_shared/orchestration/security-audit.inc'
         ) {
