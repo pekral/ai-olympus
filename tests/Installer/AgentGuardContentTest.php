@@ -108,6 +108,8 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         ->and($guard)->toContain('**The cost:** a confined role asks the user for every command that no allow rule of the settings files covers')
         ->and($guard)->toContain('**The git object store is not writable.**')
         ->and($guard)->toContain('**Every worktree is read-only.**')
+        ->and($guard)->toContain('also a read-only command that Claude Code itself would run without a prompt, and in `dontAsk` mode such a command is refused')
+        ->and($guard)->not->toContain('as the same command would without the guard')
         ->and($guard)->toContain('Not verified: that the probe reports a `--sandbox read-only` session as `active`')
         ->and($guard)->not->toContain('hooks are read at session start');
 
