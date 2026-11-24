@@ -109,6 +109,20 @@ test('a report with a document type declaration is refused, so no entity is expa
         ->and($result['error'])->toContain('document type declaration');
 });
 
+test('a UTF-16 report with a document type declaration is refused, so no entity is expanded', function (): void {
+    $xml = '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE x [<!ENTITY e "expanded entity">]>'
+        . '<testsuites><testcase name="&e;" file="tests/ATest.php"><failure>&e;</failure></testcase></testsuites>';
+    $report = junitReportFile("\xFF\xFE" . mb_convert_encoding($xml, 'UTF-16LE', 'UTF-8'));
+
+    $result = runJunitResults([$report]);
+
+    (new Filesystem())->remove(dirname($report));
+
+    expect($result['exit'])->toBe(2)
+        ->and($result['lines'])->toBe([])
+        ->and($result['error'])->toContain('document type declaration');
+});
+
 test('a missing, empty, or malformed report exits 2 and prints no result', function (string $xml): void {
     $report = junitReportFile($xml);
 
