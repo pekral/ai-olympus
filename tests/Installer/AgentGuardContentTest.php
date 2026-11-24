@@ -107,6 +107,7 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         '10. **A changed `composer.lock`**',
         '11. **macOS only: a process left running after the command.**',
         '12. **`.claude/run/**` stays writable**',
+        '13. **A confined `krang` does not finish the local steps after a merge.**',
     ];
 
     foreach ($residuals as $residual) {
@@ -120,3 +121,17 @@ test('the manifest table documents the strict-mode key and that only the default
     expect($manifest)->toContain('| `security.strict-agent-guard` | bool |')
         ->and($manifest)->toContain('The guard reads it from the default branch only, through `skills/_shared/read-manifest.sh`.');
 });
+
+test('the boundary rule, SECURITY.md, and the merge skill hand the local post-merge steps to an unconfined session', function (string $file, string $needle): void {
+    expect(agentGuardPackageFile($file))->toContain($needle);
+})->with([
+    'the boundary rule' => [
+        'rules/compound-engineering/orchestration.md',
+        '**The local steps after a merge belong to an unconfined session.**',
+    ],
+    'SECURITY.md' => ['SECURITY.md', 'The top-level session without `--agent`, which the guard does not confine, runs those steps and the branch cleanup'],
+    'the merge skill' => [
+        'skills/merge-github-pr/SKILL.md',
+        'A confined `krang` hands the local steps to the session without `--agent`',
+    ],
+]);
