@@ -3,7 +3,7 @@
 # user and move it to the project's In Progress status before work starts.
 #
 # Status transitions are otherwise human-only (rules/jira/general.md). This
-# script is one of two sanctioned exceptions: it can ONLY land an issue in an
+# script is one of three sanctioned exceptions: it can ONLY land an issue in an
 # In Progress (start-of-work) status. It structurally refuses any other target
 # (Done, Closed, Review, …) so an AI agent cannot use it to push work through
 # the board in unintended directions. An issue already in a review status is
@@ -109,14 +109,11 @@ done
 INPUT="$1"
 TARGET="${2:-${JIRA_IN_PROGRESS_STATUS:-In Progress}}"
 
-KEY=""
-if [[ "$INPUT" =~ ^[A-Z][A-Z0-9_]+-[0-9]+$ ]]; then
-  KEY="$INPUT"
-elif [[ "$INPUT" == *"/browse/"* ]]; then
-  KEY="$(printf '%s' "$INPUT" | sed -nE 's#.*/browse/([A-Z][A-Z0-9_]+-[0-9]+).*#\1#p')"
-elif [[ "$INPUT" == *"selectedIssue="* ]]; then
-  KEY="$(printf '%s' "$INPUT" | sed -nE 's#.*selectedIssue=([A-Z][A-Z0-9_]+-[0-9]+).*#\1#p')"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=jira-write-guards.sh
+source "$SCRIPT_DIR/jira-write-guards.sh"
+
+KEY="$(jira_extract_key "$INPUT")"
 
 if [[ -z "$KEY" ]]; then
   echo "transition-to-in-progress.sh: could not extract JIRA key from input: $INPUT" >&2
@@ -130,23 +127,14 @@ target_lower="$(printf '%s' "$TARGET" | tr '[:upper:]' '[:lower:]')"
 is_progress=false
 if [[ "$target_lower" == *progress* || "$target_lower" == "rozpracováno" || "$target_lower" == "rozpracovano" ]]; then
   is_progress=true
-elif [[ -n "${JIRA_IN_PROGRESS_SYNONYMS:-}" ]]; then
-  IFS=',' read -ra SYNONYMS <<<"$JIRA_IN_PROGRESS_SYNONYMS"
-  for syn in "${SYNONYMS[@]}"; do
-    syn_trimmed="$(printf '%s' "$syn" | sed -E 's#^[[:space:]]+|[[:space:]]+$##g' | tr '[:upper:]' '[:lower:]')"
-    if [[ -n "$syn_trimmed" && "$target_lower" == "$syn_trimmed" ]]; then
-      is_progress=true
-      break
-    fi
-  done
+elif jira_name_in_list "$target_lower" "${JIRA_IN_PROGRESS_SYNONYMS:-}"; then
+  is_progress=true
 fi
 
 if [[ "$is_progress" != true ]]; then
   echo "transition-to-in-progress.sh: refused — '$TARGET' is not an In Progress status. This script only transitions to an in-progress (start-of-work) status; every other transition is human-only (rules/jira/general.md)." >&2
   exit 1
 fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 assign_to_current_user() {
   local assignment_error assignment_status
@@ -174,36 +162,9 @@ assign_to_current_user() {
   return 3
 }
 
-# The search requests summary, not key: key is a top-level attribute, and acli
-# answers a search whose only requested field is key with [null], so an owned
-# issue would read as unowned.
+# Exit 0 owned, 1 not owned, 3 the search failed (jira-write-guards.sh).
 current_user_owns_issue() {
-  local assignment_json
-
-  if ! assignment_json="$(acli jira workitem search --jql "key = $KEY AND assignee = currentUser()" --fields summary --limit 1 --json 2>/dev/null)"; then
-    return 3
-  fi
-
-  printf '%s' "$assignment_json" | jq -e --arg key "$KEY" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null
-}
-
-# $1 = a lower-cased status, $2 = a comma-separated synonym list. Matches the
-# same trim/lowercase handling as the progress-name guard above and the
-# review-name guard in transition-to-code-review.sh.
-status_in_list() {
-  local status="$1" list="$2" entry entry_trimmed
-
-  [[ -z "$list" ]] && return 1
-
-  IFS=',' read -ra entries <<<"$list"
-  for entry in "${entries[@]}"; do
-    entry_trimmed="$(printf '%s' "$entry" | sed -E 's#^[[:space:]]+|[[:space:]]+$##g' | tr '[:upper:]' '[:lower:]')"
-    if [[ -n "$entry_trimmed" && "$status" == "$entry_trimmed" ]]; then
-      return 0
-    fi
-  done
-
-  return 1
+  jira_issue_matches_jql "$KEY" "assignee = currentUser()"
 }
 
 # Read current status for the idempotence check and past-In-Progress guard.
@@ -260,7 +221,7 @@ fi
 # sits behind the issue and it is ready to merge into the main branch, so it
 # is refused unconditionally here — like the finished check, before any
 # ownership lookup, transition, or assignment.
-if [[ "$current_lower" == *merge* ]] || status_in_list "$current_lower" "${JIRA_READY_TO_MERGE_SYNONYMS:-}"; then
+if [[ "$current_lower" == *merge* ]] || jira_name_in_list "$current_lower" "${JIRA_READY_TO_MERGE_SYNONYMS:-}"; then
   echo "transition-to-in-progress.sh: $KEY is in '${CURRENT_STATUS}' (Ready to Merge) — never returned to In Progress; a human owns this status." >&2
   exit 4
 fi
@@ -269,7 +230,7 @@ fi
 # uses for its own target, so a board whose review column carries no "review"
 # substring is still recognised here. No agent changes the status once the
 # code review has started: the owner's issue stays in review.
-if [[ "$current_lower" == *review* ]] || status_in_list "$current_lower" "${JIRA_CODE_REVIEW_SYNONYMS:-}"; then
+if [[ "$current_lower" == *review* ]] || jira_name_in_list "$current_lower" "${JIRA_CODE_REVIEW_SYNONYMS:-}"; then
   if current_user_owns_issue; then
     ownership_status=0
   else

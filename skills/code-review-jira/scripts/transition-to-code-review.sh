@@ -3,7 +3,7 @@
 # status, and nothing else.
 #
 # Status transitions are otherwise human-only (rules/jira/general.md). This
-# script is the single sanctioned exception: it can ONLY land an issue in a
+# script is one of three sanctioned exceptions: it can ONLY land an issue in a
 # review status. It structurally refuses any other target (Done, In Progress,
 # Closed, …) so an AI agent cannot use it to push work through the board.
 #
@@ -86,14 +86,11 @@ done
 INPUT="$1"
 TARGET="${2:-${JIRA_CODE_REVIEW_STATUS:-Code Review}}"
 
-KEY=""
-if [[ "$INPUT" =~ ^[A-Z][A-Z0-9_]+-[0-9]+$ ]]; then
-  KEY="$INPUT"
-elif [[ "$INPUT" == *"/browse/"* ]]; then
-  KEY="$(printf '%s' "$INPUT" | sed -nE 's#.*/browse/([A-Z][A-Z0-9_]+-[0-9]+).*#\1#p')"
-elif [[ "$INPUT" == *"selectedIssue="* ]]; then
-  KEY="$(printf '%s' "$INPUT" | sed -nE 's#.*selectedIssue=([A-Z][A-Z0-9_]+-[0-9]+).*#\1#p')"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=jira-write-guards.sh
+source "$SCRIPT_DIR/jira-write-guards.sh"
+
+KEY="$(jira_extract_key "$INPUT")"
 
 if [[ -z "$KEY" ]]; then
   echo "transition-to-code-review.sh: could not extract JIRA key from input: $INPUT" >&2
@@ -107,23 +104,14 @@ target_lower="$(printf '%s' "$TARGET" | tr '[:upper:]' '[:lower:]')"
 is_review=false
 if [[ "$target_lower" == *review* ]]; then
   is_review=true
-elif [[ -n "${JIRA_CODE_REVIEW_SYNONYMS:-}" ]]; then
-  IFS=',' read -ra SYNONYMS <<<"$JIRA_CODE_REVIEW_SYNONYMS"
-  for syn in "${SYNONYMS[@]}"; do
-    syn_trimmed="$(printf '%s' "$syn" | sed -E 's#^[[:space:]]+|[[:space:]]+$##g' | tr '[:upper:]' '[:lower:]')"
-    if [[ -n "$syn_trimmed" && "$target_lower" == "$syn_trimmed" ]]; then
-      is_review=true
-      break
-    fi
-  done
+elif jira_name_in_list "$target_lower" "${JIRA_CODE_REVIEW_SYNONYMS:-}"; then
+  is_review=true
 fi
 
 if [[ "$is_review" != true ]]; then
   echo "transition-to-code-review.sh: refused — '$TARGET' is not a Code Review status. This script only transitions to a review status; every other transition is human-only (rules/jira/general.md)." >&2
   exit 1
 fi
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Read current status for the idempotence check.
 if ! ISSUE_JSON="$("$SCRIPT_DIR/load-issue.sh" "$KEY")"; then
