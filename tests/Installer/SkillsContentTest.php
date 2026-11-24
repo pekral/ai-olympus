@@ -2267,6 +2267,6 @@ test('the resolve-issue skill checks the places the actual diff affects before t
     // A second copy of a security defect is a vulnerability, never a public deferred item.
     expect($reference)->toContain('A place that carries a security vulnerability follows `references/pre-existing-issue-handling.md` instead.');
     expect($reference)->toContain(
-        'A vulnerability that stays unfixed never enters the pull request body or any other public text, and step 5 does not record it.',
+        'Its guard decides whether an unfixed vulnerability reaches the pull request body, and step 5 does not record it.',
     );
 });
