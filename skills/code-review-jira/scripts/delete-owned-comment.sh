@@ -10,9 +10,11 @@
 #   delete-owned-comment.sh --review-merge <KEY|URL> <COMMENT_ID> <MERGED_REVIEW_ID>
 #
 # The `--review-merge` form is the one delete of `skills/merge-review-comments`. The merged review comment is
-# both protected ID. The target must carry this actor's cr-comment marker as its only agent marker, and it is
-# refused when a later comment points at it: skills/_shared/comment-reply.jq owns what a reply is. A view that
-# embeds fewer comments than the issue carries refuses the delete, as an unreadable list does.
+# both protected ID. The owner is the account ID of the authenticated user (jira_actor_account_id); a user it
+# cannot resolve refuses the delete. The merged review comment and the target must both be that account's and
+# carry this actor's cr-comment marker, and the target only that agent marker. The target is refused when a
+# later comment points at it (skills/_shared/comment-reply.jq owns what a reply is). A view that embeds fewer
+# comments than the issue carries refuses the delete, as an unreadable list does.
 #
 # Inputs:
 #   KEY|URL        Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL, or
@@ -216,8 +218,18 @@ if ! COMMENTS="$(read_comments)" || [[ -z "$COMMENTS" ]]; then
 fi
 
 ANCHOR_ACCOUNT=""
-require_owned "$FINAL_TLDR_ID" "protected comment" ""
-require_owned "$CURRENT_CR_ID" "protected comment" ""
+if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+  # The owner is the authenticated account itself, never the author of a comment the caller names.
+  ANCHOR_ACCOUNT="$(jira_actor_account_id)"
+  if [[ -z "$ANCHOR_ACCOUNT" ]]; then
+    printf '%s\n' "$PROG: could not resolve the account ID of the acli user; ownership cannot be proven" >&2
+    exit 3
+  fi
+  require_owned "$FINAL_TLDR_ID" "merged review comment" "$MARKER"
+else
+  require_owned "$FINAL_TLDR_ID" "protected comment" ""
+  require_owned "$CURRENT_CR_ID" "protected comment" ""
+fi
 require_owned "$COMMENT_ID" "comment" "$MARKER"
 
 if [[ "$REVIEW_MERGE" -eq 1 ]]; then

@@ -18,10 +18,11 @@
 # cr-comment marker.
 #
 # The `--review-merge` form is the one delete of `skills/merge-review-comments`: it removes a review
-# comment that the skill merged into another comment. The merged comment is the one protected id, and
-# it must carry this actor's cr-comment marker. The target must carry this actor's cr-comment marker as
-# its only agent marker, and it is refused when a later comment points at it (skills/_shared/comment-reply.jq
-# owns what a reply is). A failed listing of the comments refuses the delete too.
+# comment that the skill merged into another comment. The merged comment is the one protected id: it must
+# be this actor's comment on the exact target and carry this actor's cr-comment marker on a line of its own.
+# The target must carry that marker as its only agent marker, and it is refused when a later comment points
+# at it (skills/_shared/comment-reply.jq owns what a reply is). A failed listing of the comments refuses the
+# delete too.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -103,86 +104,7 @@ if [[ "$ACTUAL_NAME" != "$EXPECTED_NAME" ]]; then
 fi
 
 ACTOR="$(gh api user --jq .login)"
-# The comment endpoint carries no repository_url; issue_url names the repository
-# and the issue or pull request the comment sits on.
-EXPECTED_ISSUE_URL_PREFIX="$(printf '%s' "https://api.github.com/repos/$OWNER/$REPOSITORY/issues/" | tr '[:upper:]' '[:lower:]')"
 
-if [[ "$OVERFLOW_ONLY" -eq 0 ]]; then
-  for index in "${!PROTECTED_IDS[@]}"; do
-    protected_id="${PROTECTED_IDS[$index]}"
-    protected_json="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$protected_id")"
-    protected_actor="$(printf '%s' "$protected_json" | jq -r '.user.login // empty')"
-    protected_issue_url="$(printf '%s' "$protected_json" | jq -r '.issue_url // empty' | tr '[:upper:]' '[:lower:]')"
-    protected_body="$(printf '%s' "$protected_json" | jq -r '.body // empty')"
-    expected_marker="<!-- ${PROTECTED_MARKERS[$index]}:actor=$ACTOR -->"
-
-    if [[ "$protected_actor" != "$ACTOR" ]]; then
-      printf '%s\n' "$PROG: protected comment $protected_id is not owned by the authenticated actor" >&2
-      exit 4
-    fi
-
-    if [[ "$protected_issue_url" != "$EXPECTED_ISSUE_URL_PREFIX"* || ! "${protected_issue_url#"$EXPECTED_ISSUE_URL_PREFIX"}" =~ ^[1-9][0-9]*$ ]]; then
-      printf '%s\n' "$PROG: protected comment $protected_id belongs to a different repository" >&2
-      exit 4
-    fi
-
-    if [[ "$protected_body" != *"$expected_marker"* ]]; then
-      printf '%s\n' "$PROG: protected comment $protected_id does not carry the required ${PROTECTED_MARKERS[$index]} marker" >&2
-      exit 4
-    fi
-  done
-fi
-
-COMMENT_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID")"
-COMMENT_ACTOR="$(printf '%s' "$COMMENT_JSON" | jq -r '.user.login // empty')"
-COMMENT_ISSUE_URL="$(printf '%s' "$COMMENT_JSON" | jq -r '.issue_url // empty')"
-EXPECTED_ISSUE_URL="https://api.github.com/repos/$OWNER/$REPOSITORY/issues/$NUMBER"
-
-if [[ "$COMMENT_ACTOR" != "$ACTOR" ]]; then
-  printf '%s\n' "$PROG: refusing to delete a comment not owned by the authenticated actor" >&2
-  exit 4
-fi
-
-if [[ "$(printf '%s' "$COMMENT_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$EXPECTED_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" ]]; then
-  printf '%s\n' "$PROG: refusing to delete a comment outside the exact target" >&2
-  exit 4
-fi
-
-# The --review-merge form removes only a review comment that no later comment points at.
-if [[ "$REVIEW_MERGE" -eq 1 ]]; then
-  REVIEW_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
-  REVIEW_MARKER_LINE="<!-- cr-comment:actor=$ACTOR -->"
-  if ! awk -v marker="$REVIEW_MARKER_LINE" '
-    /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
-    !fenced { sub(/[ \t\r]+$/, ""); if ($0 == marker) found = 1 }
-    END { exit !found }
-  ' <<<"$REVIEW_BODY"; then
-    printf '%s\n' "$PROG: the comment does not carry this actor's cr-comment marker on a line of its own" >&2
-    exit 4
-  fi
-  if grep -oE '[a-z][a-z0-9-]*:actor=' <<<"$REVIEW_BODY" | grep -qv '^cr-comment:actor='; then
-    printf '%s\n' "$PROG: the comment carries another agent marker; it is no plain review comment" >&2
-    exit 4
-  fi
-  ALL_COMMENTS_JSON=""
-  if ! ALL_COMMENTS_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER/comments" --paginate 2>/dev/null | jq -s -c 'add // []' 2>/dev/null)" || [[ -z "$ALL_COMMENTS_JSON" ]]; then
-    printf '%s\n' "$PROG: the comments of the target could not be listed; the reply check cannot run, nothing is deleted" >&2
-    exit 3
-  fi
-  HAS_REPLY="$(printf '%s' "$ALL_COMMENTS_JSON" | jq -L "$SCRIPT_DIR" -r --arg actor "$ACTOR" --arg id "$COMMENT_ID" '
-    include "comment-reply";
-    github_api_normalised($actor) as $all
-    | ($all | map(select(.id == $id)) | first) as $original
-    | if $original == null then "unknown" else (has_reply($original; $all) | tostring) end' 2>/dev/null || printf 'unknown')"
-  if [[ "$HAS_REPLY" != "false" ]]; then
-    printf '%s\n' "$PROG: a comment that has a reply is never deleted (reply check: $HAS_REPLY)" >&2
-    exit 4
-  fi
-fi
-
-# The overflow comment holds the durable copy of the pull-request body's verbatim content.
-# Read the body into a variable first: grep -q exits on the first match, which would SIGPIPE jq under pipefail on a large body.
-COMMENT_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
 OVERFLOW_HEADING='## Pull-request body overflow'
 
 # True when the body carries the marker on a line of its own outside a fenced code block.
@@ -210,6 +132,93 @@ is_overflow_comment() {
   { body_has_marker "$1" "<!-- pr-body-overflow:actor=$ACTOR -->" || body_has_marker "$1" "<!-- agent-note:actor=$ACTOR -->"; } \
     && body_opens_with_heading "$1"
 }
+
+# The comment endpoint carries no repository_url; issue_url names the repository
+# and the issue or pull request the comment sits on.
+EXPECTED_ISSUE_URL_PREFIX="$(printf '%s' "https://api.github.com/repos/$OWNER/$REPOSITORY/issues/" | tr '[:upper:]' '[:lower:]')"
+EXPECTED_ISSUE_URL="https://api.github.com/repos/$OWNER/$REPOSITORY/issues/$NUMBER"
+
+if [[ "$OVERFLOW_ONLY" -eq 0 ]]; then
+  for index in "${!PROTECTED_IDS[@]}"; do
+    protected_id="${PROTECTED_IDS[$index]}"
+    protected_json="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$protected_id")"
+    protected_actor="$(printf '%s' "$protected_json" | jq -r '.user.login // empty')"
+    protected_issue_url="$(printf '%s' "$protected_json" | jq -r '.issue_url // empty' | tr '[:upper:]' '[:lower:]')"
+    protected_body="$(printf '%s' "$protected_json" | jq -r '.body // empty')"
+    expected_marker="<!-- ${PROTECTED_MARKERS[$index]}:actor=$ACTOR -->"
+
+    if [[ "$protected_actor" != "$ACTOR" ]]; then
+      printf '%s\n' "$PROG: protected comment $protected_id is not owned by the authenticated actor" >&2
+      exit 4
+    fi
+
+    if [[ "$protected_issue_url" != "$EXPECTED_ISSUE_URL_PREFIX"* || ! "${protected_issue_url#"$EXPECTED_ISSUE_URL_PREFIX"}" =~ ^[1-9][0-9]*$ ]]; then
+      printf '%s\n' "$PROG: protected comment $protected_id belongs to a different repository" >&2
+      exit 4
+    fi
+
+    if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+      # The merged review comment sits on the exact target and carries the marker on a line of its own.
+      if [[ "$protected_issue_url" != "$(printf '%s' "$EXPECTED_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" ]]; then
+        printf '%s\n' "$PROG: the merged review comment $protected_id is not on the exact target" >&2
+        exit 4
+      fi
+      if ! body_has_marker "$protected_body" "$expected_marker"; then
+        printf '%s\n' "$PROG: the merged review comment $protected_id does not carry this actor's cr-comment marker on a line of its own" >&2
+        exit 4
+      fi
+    elif [[ "$protected_body" != *"$expected_marker"* ]]; then
+      printf '%s\n' "$PROG: protected comment $protected_id does not carry the required ${PROTECTED_MARKERS[$index]} marker" >&2
+      exit 4
+    fi
+  done
+fi
+
+COMMENT_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/comments/$COMMENT_ID")"
+COMMENT_ACTOR="$(printf '%s' "$COMMENT_JSON" | jq -r '.user.login // empty')"
+COMMENT_ISSUE_URL="$(printf '%s' "$COMMENT_JSON" | jq -r '.issue_url // empty')"
+
+if [[ "$COMMENT_ACTOR" != "$ACTOR" ]]; then
+  printf '%s\n' "$PROG: refusing to delete a comment not owned by the authenticated actor" >&2
+  exit 4
+fi
+
+if [[ "$(printf '%s' "$COMMENT_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$EXPECTED_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" ]]; then
+  printf '%s\n' "$PROG: refusing to delete a comment outside the exact target" >&2
+  exit 4
+fi
+
+# The --review-merge form removes only a review comment that no later comment points at.
+if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+  REVIEW_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
+  if ! body_has_marker "$REVIEW_BODY" "<!-- cr-comment:actor=$ACTOR -->"; then
+    printf '%s\n' "$PROG: the comment does not carry this actor's cr-comment marker on a line of its own" >&2
+    exit 4
+  fi
+  if grep -oE '[a-z][a-z0-9-]*:actor=' <<<"$REVIEW_BODY" | grep -qv '^cr-comment:actor='; then
+    printf '%s\n' "$PROG: the comment carries another agent marker; it is no plain review comment" >&2
+    exit 4
+  fi
+  ALL_COMMENTS_JSON=""
+  if ! ALL_COMMENTS_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER/comments" --paginate 2>/dev/null | jq -s -c 'add // []' 2>/dev/null)" || [[ -z "$ALL_COMMENTS_JSON" ]]; then
+    printf '%s\n' "$PROG: the comments of the target could not be listed; the reply check cannot run, nothing is deleted" >&2
+    exit 3
+  fi
+  HAS_REPLY="$(printf '%s' "$ALL_COMMENTS_JSON" | jq -L "$SCRIPT_DIR" -r --arg actor "$ACTOR" --arg id "$COMMENT_ID" '
+    include "comment-reply";
+    github_api_normalised($actor) as $all
+    | ($all | map(select(.id == $id)) | first) as $original
+    | if $original == null then "unknown" else (has_reply($original; $all) | tostring) end' 2>/dev/null || printf 'unknown')"
+  if [[ "$HAS_REPLY" != "false" ]]; then
+    printf '%s\n' "$PROG: a comment that has a reply is never deleted (reply check: $HAS_REPLY)" >&2
+    exit 4
+  fi
+
+fi
+
+# The overflow comment holds the durable copy of the pull-request body's verbatim content.
+# Read the body into a variable first: grep -q exits on the first match, which would SIGPIPE jq under pipefail on a large body.
+COMMENT_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
 
 if [[ "$OVERFLOW_ONLY" -eq 1 ]]; then
   # The two-argument form never touches merge evidence or a comment without an overflow marker.

@@ -119,8 +119,8 @@ fact, or state why a number no longer holds together with its round.
 1. Delete only the ids that `delete` lists, one at a time, with the audit prefix of step 4:
    - GitHub: `skills/_shared/delete-owned-github-comment.sh --review-merge <issue URL> <comment-id> <carrier id>`
    - JIRA: `skills/code-review-jira/scripts/delete-owned-comment.sh --review-merge <KEY|URL> <comment-id> <carrier id>`
-2. Each helper proves the author account, the exact item, the marker, the absence of a reply, and the protected carrier before
-   it deletes, and it reads the item back after the delete. Any refusal or non-zero exit keeps that comment and ends the
+2. Before it deletes, each helper proves the author account, the exact item, the marker, and the absence of a reply. It
+   proves that the carrier is this account's review comment on the same item. It reads the item back after the delete. Any refusal or non-zero exit keeps that comment and ends the
    deletes: a failed or incomplete read means no delete at all. Never replace a refusal with a raw call.
 3. Run `plan-merge.sh plan <item>` again into a second file and `plan-merge.sh compare <plan-before> <plan-after>`. A
    `problem:` line means a comment changed that should stay, or a comment stays that should be gone. Report it as it is.

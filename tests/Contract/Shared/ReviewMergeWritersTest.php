@@ -263,6 +263,20 @@ dataset('merge delete refusals', [
         [reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker())],
         '803', '803', 4,
     ],
+    'the merged comment sits on another issue of the repository' => [
+        [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker(), '43'),
+        ],
+        '801', '803', 4,
+    ],
+    'the merged comment quotes the marker only inside a code block' => [
+        [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n```\n" . reviewMergeMarker() . "\n```"),
+        ],
+        '801', '803', 4,
+    ],
 ]);
 
 test(
@@ -311,7 +325,11 @@ if [[ "$1" == "jira" && "$2" == "auth" && "$3" == "status" ]]; then
 fi
 
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "search" ]]; then
-  printf '%s\n' '{"issues":[{"fields":{"assignee":{"accountId":"acc-agent"}}}]}'
+  if [[ "${FAKE_ACLI_ACCOUNT_OK:-1}" == "1" ]]; then
+    printf '%s\n' '{"issues":[{"fields":{"assignee":{"accountId":"acc-agent"}}}]}'
+  else
+    printf '%s\n' '{"issues":[]}'
+  fi
   exit 0
 fi
 
@@ -375,6 +393,7 @@ function reviewMergeJiraView(array $comments, int $hidden = 0): string
  * @param array<mixed> $before
  * @param array<mixed> $after
  * @param array<mixed> $arguments
+ * @param array<mixed> $environment
  * @return array{process: \Symfony\Component\Process\Process, deleted: bool, updated: bool}
  */
 function runReviewMergeJira(
@@ -384,6 +403,7 @@ function runReviewMergeJira(
     array $arguments,
     string $stdin = '',
     int $hidden = 0,
+    array $environment = [],
 ): array {
     $packageDir = dirname(__DIR__, 3);
     $directory = installerCreateProjectRoot();
@@ -393,7 +413,7 @@ function runReviewMergeJira(
     $systemPath = getenv('PATH');
 
     try {
-        $process = new Process([$packageDir . '/' . $script, ...reviewMergeStrings($arguments)], $packageDir, [
+        $process = new Process([$packageDir . '/' . $script, ...reviewMergeStrings($arguments)], $packageDir, reviewMergeEnvironment($environment) + [
             'FAKE_ACLI_CALLS' => $directory . '/calls',
             'FAKE_ACLI_STATE' => $directory . '/deleted',
             'FAKE_ACLI_UPDATED' => $directory . '/updated',
@@ -577,4 +597,47 @@ test('the JIRA delete helper counts a link to the comment in a document node as 
     expect($result['process']->getExitCode())->toBe(4)
         ->and($result['deleted'])->toBeFalse();
 })->with('merge delete JIRA link replies');
+
+dataset('merge delete JIRA carriers', [
+    'a carrier and a target of another account that quotes the marker' => [
+        static fn (string $marker): array => [
+            reviewMergeJiraComment('20001', 'acc-stranger', 'Merged. ' . $marker),
+            reviewMergeJiraComment('20002', 'acc-stranger', 'Quoted. ' . $marker),
+        ],
+        ['--review-merge', 'ACME-1234', '20002', '20001'],
+    ],
+    'a carrier of the operator account without the marker' => [
+        static fn (string $marker): array => [
+            reviewMergeJiraComment('20001', 'acc-agent', 'Round 1. ' . $marker),
+            reviewMergeJiraComment('20002', 'acc-agent', 'A note of the operator.'),
+        ],
+        ['--review-merge', 'ACME-1234', '20001', '20002'],
+    ],
+]);
+
+test('the JIRA delete helper proves the merged comment against the authenticated account', function (Closure $comments, array $arguments): void {
+    $before = $comments(reviewMergeJiraMarker());
+    $result = runReviewMergeJira('skills/code-review-jira/scripts/delete-owned-comment.sh', $before, $before, $arguments);
+
+    expect($result['process']->getExitCode())->toBe(4)
+        ->and($result['deleted'])->toBeFalse();
+})->with('merge delete JIRA carriers');
+
+test('the JIRA delete helper deletes nothing when the account ID of the acli user cannot be resolved', function (): void {
+    $marker = reviewMergeJiraMarker();
+    $before = [
+        reviewMergeJiraComment('10001', 'acc-agent', 'Round 1. ' . $marker),
+        reviewMergeJiraComment('10003', 'acc-agent', 'Round 2: merged. ' . $marker),
+    ];
+    $result = runReviewMergeJira(
+        'skills/code-review-jira/scripts/delete-owned-comment.sh',
+        $before,
+        [$before[1]],
+        ['--review-merge', 'ACME-1234', '10001', '10003'],
+        environment: ['FAKE_ACLI_ACCOUNT_OK' => '0'],
+    );
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['deleted'])->toBeFalse();
+});
 
