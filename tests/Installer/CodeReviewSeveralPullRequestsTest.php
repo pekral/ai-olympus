@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+use Symfony\Component\Process\Process;
+
 test('an issue with several pull requests gets its remarks and findings split per pull request (issue #175)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $owner = '*An issue with several pull requests — remarks and findings split per pull request*';
@@ -66,7 +68,9 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
     expect($exceptions)
         ->toContain('### A stack of pull requests — one JIRA report')
         ->toContain('the `baseRefName` of one is the `headRefName` of another')
-        ->toContain('passed the repository ownership gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*)')
+        ->toContain(
+            'passed the repository ownership gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*)',
+        )
         ->toContain('1. **No part reports on its own.**')
         ->toContain('3. **Dispatch one `april` for the stack**')
         ->toContain('A stack run that published several JIRA comments, or none, is `Blocked`.');
@@ -143,7 +147,7 @@ test('a pull request of another repository never counts and a title stays inert 
 
 test('the JIRA title step leaves no mention, link, or extra block that a title could write', function (string $title): void {
     $packageDir = dirname(__DIR__, 2);
-    $process = new Symfony\Component\Process\Process(
+    $process = new Process(
         ['php', $packageDir . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'],
         $packageDir,
     );
@@ -170,19 +174,23 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
         ->and($types)->not->toContain('blockquote')
         ->and($types)->not->toContain('bulletList')
         ->and($hrefs)->toBe(['https://github.com/acme/app/pull/7'])
-        ->and(array_filter($nodes, static fn (array $node): bool => in_array('strong', array_column((array) ($node['marks'] ?? []), 'type'), true)))->toBe([]);
+        ->and(
+            array_filter($nodes, static fn (array $node): bool => in_array('strong', array_column((array) ($node['marks'] ?? []), 'type'), strict: true)),
+        )->toBe(
+            [],
+        );
 })->with([
-    'mention' => ['[~accountid:5b10ac8d82e05b22cc7d4ef5] please approve'],
-    'link' => ['click [here|https://evil.example/login]'],
+    'bold' => ['*bold* and _italic_'],
+    'carriage return opens a list' => ["fix\r- [x|https://evil.example]"],
+    'code macro' => ["x\n{code}\n{code}"],
     'code span breakout' => ['}} [~accountid:5b10ac8d82e05b22cc7d4ef5] {{'],
     'code span breakout with link' => ['a}}[x|https://evil.example]{{b'],
-    'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
-    'carriage return opens a list' => ["fix\r- [x|https://evil.example]"],
-    'quote macro' => ["x\n{quote}\n[~accountid:5b10ac8d82e05b22cc7d4ef5]\n{quote}"],
-    'code macro' => ["x\n{code}\n{code}"],
-    'bold' => ['*bold* and _italic_'],
-    'only braces' => ['{{}}'],
     'empty' => [''],
+    'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
+    'link' => ['click [here|https://evil.example/login]'],
+    'mention' => ['[~accountid:5b10ac8d82e05b22cc7d4ef5] please approve'],
+    'only braces' => ['{{}}'],
+    'quote macro' => ["x\n{quote}\n[~accountid:5b10ac8d82e05b22cc7d4ef5]\n{quote}"],
 ]);
 
 test('no stack text lets a pull request of another repository become a named part (security attack set)', function (string $file): void {
@@ -191,10 +199,10 @@ test('no stack text lets a pull request of another repository become a named par
     expect($text)->not->toContain('not in this repository')
         ->and($text)->not->toContain('outside this repository');
 })->with([
+    'april' => ['agents/april.md'],
+    'code-review-jira' => ['skills/code-review-jira/SKILL.md'],
+    'krang' => ['agents/krang.md'],
+    'pr-summary reference' => ['skills/pr-summary/references/several-pull-requests.md'],
     'reporting exceptions' => ['skills/_shared/orchestration/reporting-exceptions.md'],
     'stack rule' => ['rules/code-review/several-pull-requests.md'],
-    'pr-summary reference' => ['skills/pr-summary/references/several-pull-requests.md'],
-    'code-review-jira' => ['skills/code-review-jira/SKILL.md'],
-    'april' => ['agents/april.md'],
-    'krang' => ['agents/krang.md'],
 ]);
