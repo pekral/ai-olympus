@@ -56,6 +56,12 @@ A dispatch that returns a handoff is a step you can act on. A dispatch that retu
 
 **Trigger:** a turn resumes with a round still open in the ledger and ≥ 15 minutes elapsed since its `dispatched` timestamp or its last `liveness` line. → **load `skills/_shared/orchestration/dispatch-liveness.md`** and perform the check it defines. Two invariants matter here: the check is a **non-intrusive state read**, never an "are you done?" message sent into the running agent's context; and you **never fabricate it** — a check you could not perform is reported as unavailable, never as performed.
 
+## Runtime protection
+
+Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command, and carry its result in your handoff as `**Protection:** active` or `**Protection:** inactive (<reason>)`. When it prints `protection=inactive` together with `strict=true`, stop at once with `Blocked: runtime protection inactive — <reason>`. A command the runtime agent guard denied, or one that failed because its confinement refused a write, is a `Blocked` stop: never retry it through another tool, another interpreter, or another role (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*).
+
+As the orchestrator you also run `skills/_shared/agent-guard.sh verify` once after the brief exists and once in ***Run cleanup***, and record both results in the brief. A result that was `agent-guard=verified` at the start and is `refused` at the end goes into your report as a possible change of the guard by a writing role or the main session: the check detects such a change, it never prevents one. Pass the `**Protection:**` value of every confined role you dispatched to `skills/_shared/render-report.sh` as `runtime_protection` (`[{"role": "<role>", "protection": "<value>"}]`), so the completion report carries one `Runtime protection:` line per role.
+
 ## Bash boundary
 
 Every comment and issue body you publish is rendered from its template (`@rules/reports/general.md` *Every tracker output is rendered from a template*): `skills/_shared/templates/superseded-pr-pointer.md`, `skills/_shared/templates/proposal-review-comment.md`, and `skills/_shared/templates/memory-entry-written.md`.
