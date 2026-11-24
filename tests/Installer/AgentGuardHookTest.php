@@ -21,6 +21,14 @@ function agentGuardHookDecision(string $root, string $input): AgentGuardDecision
     return AgentGuardDecision::fromHookOutput(AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root])->getOutput());
 }
 
+/**
+ * @param array<array-key, mixed> $permissions
+ */
+function agentGuardWriteSettings(string $path, array $permissions): void
+{
+    installerWriteFile($path, json_encode(['permissions' => $permissions], JSON_THROW_ON_ERROR));
+}
+
 test('the hook wraps the command of a confined role in the absolute exec prefix', function (string $agentType, string $role): void {
     $root = AgentGuardRun::repository();
 
@@ -91,6 +99,60 @@ test('the wrapped command runs the original command word for word', function (st
     'expansions' => ['echo $HOME $(id -u) `date`'],
     'single quotes' => ['echo \'it\'\'s\' && echo "a"'],
 ]);
+
+test('the hook denies an original command that a supported Bash deny rule matches', function (string $settings, string $command): void {
+    $root = AgentGuardRun::repository();
+    $home = dirname($root) . '/home';
+    agentGuardWriteSettings(str_replace(['{root}', '{home}'], [$root, $home], $settings), ['deny' => ['Bash(curl:*)', 'Bash(git push *)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command]));
+
+        expect($decision->permissionDecision)->toBe('deny')
+            ->and($decision->updatedInput)->toBeNull();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a prefix rule in the project settings' => ['{root}/.claude/settings.json', 'curl https://example.test'],
+    'a rule in the local settings, second segment' => ['{root}/.claude/settings.local.json', 'cd x && curl https://example.test'],
+    'a rule in the user settings, behind a wrapper' => ['{home}/.claude/settings.json', 'FOO=1 timeout 5 curl https://example.test'],
+    'a space-star rule behind a pipe' => ['{root}/.claude/settings.json', 'echo x | git push origin HEAD'],
+]);
+
+test(
+    'the hook never allows a command that an ask rule matches or that a rule of an unsupported shape could match',
+    function (array $permissions, string $command): void {
+        $root = AgentGuardRun::repository();
+        agentGuardWriteSettings($root . '/.claude/settings.json', $permissions);
+    
+        try {
+            $decision = agentGuardHookDecision($root, agentGuardHookInput('splinter', ['command' => $command]));
+    
+            expect($decision->permissionDecision)->toBe('ask')
+                ->and($decision->command())->toContain(' exec splinter -- ');
+        } finally {
+            AgentGuardRun::remove($root);
+        }
+    },
+)->with([
+    'a deny rule with a star in the middle' => [['deny' => ['Bash(git * --force)']], 'git status'],
+    'an ask rule' => [['ask' => ['Bash(gh pr merge:*)']], 'gh pr merge 5'],
+    'an ask rule with a star in the middle' => [['ask' => ['Bash(rm -rf * now)']], 'ls'],
+]);
+
+test('the hook allows a confined command that no Bash rule matches', function (): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)'], 'ask' => ['Bash(gh pr merge:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('april', ['command' => 'curlish --version && gh pr view 5']));
+
+        expect($decision->permissionDecision)->toBe('allow');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
 
 test('the hook ignores a tool other than Bash', function (): void {
     $root = AgentGuardRun::repository();

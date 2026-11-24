@@ -38,8 +38,14 @@
 #
 # Hook decision (Claude Code PreToolUse)
 #   A role outside the confined set, an absent or empty `agent_type` (the main session), and a tool other than Bash:
-#   exit 0, no output. A confined role gets `allow` with `updatedInput`: every field of the tool input is kept and
-#   `command` is replaced by `'<abs>/agent-guard.sh' exec <role> -- '<original command>'`.
+#   exit 0, no output. A confined role: the original command is checked against the Bash `deny` and `ask` rules of
+#   the settings files the hook can read, because the harness checks those rules against the rewritten command, not
+#   the original one. A match with a deny rule is `deny`. A match with an ask rule, or a Bash rule of a shape this
+#   check does not support, is `ask`. Otherwise it is `allow`. `ask` and `allow` carry `updatedInput` with every field
+#   of the tool input kept and `command` replaced by `'<abs>/agent-guard.sh' exec <role> -- '<original command>'`.
+#   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
+#   `;`, `|`, `|&`, `&`, and a newline, and leading `NAME=value` words and the wrappers `timeout time nice nohup
+#   stdbuf command builtin noglob` are removed before a segment is matched.
 #
 # Probe
 #   Creates `<project root>/.ai-olympus-guard-probe-<random>` and `<git common dir>/ai-olympus-guard-probe-<random>`
@@ -126,6 +132,77 @@ strict_mode() {
 
 # --- the hook ---------------------------------------------------------------------------------------------------
 
+settings_files() {
+  local project="$1"
+  printf '%s\n' "$project/.claude/settings.json" "$project/.claude/settings.local.json"
+  [[ -n "${HOME:-}" ]] && printf '%s\n' "$HOME/.claude/settings.json"
+  printf '%s\n' '/Library/Application Support/ClaudeCode/managed-settings.json' '/etc/claude-code/managed-settings.json'
+}
+
+# Prints a JSON object {"deny": [...], "ask": [...], "unreadable": bool} of the Bash rules of every settings file.
+collect_rules() {
+  local project="$1" file unreadable=false
+  local -a docs=()
+  while IFS= read -r file; do
+    [[ -f "$file" ]] || continue
+    if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
+      unreadable=true
+      continue
+    fi
+    docs+=("$file")
+  done < <(settings_files "$project")
+  if [[ "${#docs[@]}" -eq 0 ]]; then
+    jq -cn --argjson u "$unreadable" '{deny: [], ask: [], unreadable: $u}'
+    return 0
+  fi
+  jq -cs --argjson u "$unreadable" '
+    def bash_rules($key): [ .[] | (.permissions[$key]? // []) | if type == "array" then .[] else empty end
+      | select(type == "string") | select(. == "Bash" or startswith("Bash(")) ];
+    {deny: bash_rules("deny"), ask: bash_rules("ask"), unreadable: $u}' "${docs[@]}"
+}
+
+# The jq program that decides deny / ask / allow for one command against the collected rules.
+# shellcheck disable=SC2016
+DECIDE_JQ='
+def norm: [splits("[ \t]+")] | map(select(length > 0));
+def drop_options: until(length == 0 or ((.[0] | startswith("-")) | not); if (.[0] == "-k" or .[0] == "-s" or .[0] == "-n") then .[2:] else .[1:] end);
+def strip:
+  if length == 0 then .
+  elif (.[0] | test("^[A-Za-z_][A-Za-z0-9_]*=")) then .[1:] | strip
+  elif .[0] == "timeout" then .[1:] | drop_options | .[1:] | strip
+  elif (.[0] == "nice" or .[0] == "stdbuf") then .[1:] | drop_options | strip
+  elif (.[0] as $t | ["time", "nohup", "command", "builtin", "noglob"] | index($t)) then .[1:] | drop_options | strip
+  else . end;
+def segments: [splits("\\|\\||&&|\\|&|[;|&\n]")] | map(norm | strip | join(" ")) | map(select(length > 0));
+def parse_rule:
+  if . == "Bash" or . == "Bash(*)" then {kind: "all"}
+  elif (test("^Bash\\(.*\\)$") | not) then {kind: "unsupported"}
+  else (.[5:-1]) as $x
+    | if ($x | endswith(":*")) or ($x | endswith(" *")) then ($x[:-2] | norm | join(" ")) as $p
+        | if ($p | contains("*")) or ($p == "") then {kind: "unsupported"} else {kind: "prefix", value: $p} end
+      elif ($x | contains("*")) then {kind: "unsupported"}
+      else {kind: "exact", value: ($x | norm | join(" "))} end
+  end;
+def matches($seg): if .kind == "all" then true
+  elif .kind == "exact" then $seg == .value
+  elif .kind == "prefix" then .value as $v | ($seg == $v or ($seg | startswith($v + " ")))
+  else false end;
+(.command | segments) as $segs
+| (.rules.deny | map(parse_rule)) as $deny
+| (.rules.ask | map(parse_rule)) as $ask
+| if any($deny[]; . as $r | any($segs[]; . as $s | $r | matches($s))) then "deny"
+  elif .rules.unreadable or any(($deny + $ask)[]; .kind == "unsupported") then "ask"
+  elif any($ask[]; . as $r | any($segs[]; . as $s | $r | matches($s))) then "ask"
+  else "allow" end
+'
+
+# The decision for one command: deny, ask, or allow.
+decide_command() {
+  local command="$1" project="$2" rules
+  rules="$(collect_rules "$project")" || rules='{"deny":[],"ask":[],"unreadable":true}'
+  jq -rn --arg command "$command" --argjson rules "$rules" "{command: \$command, rules: \$rules} | $DECIDE_JQ"
+}
+
 hook_fail() {
   local reason="$1"
   if [[ "$(strict_mode)" == "true" ]]; then
@@ -137,7 +214,7 @@ hook_fail() {
 }
 
 run_hook() {
-  local input role command wrapped
+  local input role command project decision wrapped
   input="$(cat)"
   resolve_project >/dev/null 2>&1 || true
 
@@ -157,10 +234,22 @@ run_hook() {
   fi
 
   command="$(printf '%s' "$input" | jq -r '.tool_input.command')"
+  project="${CLAUDE_PROJECT_DIR:-}"
+  [[ -n "$project" ]] || project="$(printf '%s' "$input" | jq -r '.cwd // ""')"
+  [[ -n "$project" ]] || project="$ROOT"
+  decision="$(decide_command "$command" "$project")" || decision="ask"
+
+  if [[ "$decision" == "deny" ]]; then
+    jq -cn --arg reason "$GUARD_PREFIX a Bash deny rule of the session matches this command of $role" \
+      '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
+    return 0
+  fi
+  [[ "$decision" == "allow" ]] || decision="ask"
+
   wrapped="$(shell_quote "$SCRIPT_PATH") exec $role -- $(shell_quote "$command")"
-  printf '%s' "$input" | jq -c --arg wrapped "$wrapped" \
+  printf '%s' "$input" | jq -c --arg wrapped "$wrapped" --arg decision "$decision" \
     --arg reason "$GUARD_PREFIX runs this command in the read-only confinement of $role" \
-    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "allow", permissionDecisionReason: $reason,
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: $decision, permissionDecisionReason: $reason,
       updatedInput: (.tool_input + {command: $wrapped})}}'
 }
 
@@ -427,6 +516,15 @@ self_test() {
 
   check 'the quoted command is the original command' \
     test "$(sh -c "printf '%s' $(shell_quote "a'b \$HOME \"c\"")")" == "a'b \$HOME \"c\""
+
+  mkdir -p "$tmp/.claude"
+  printf '{"permissions":{"deny":["Bash(curl:*)"],"ask":["Bash(gh pr merge *)"]}}' >"$tmp/.claude/settings.json"
+  check 'a deny rule denies the original command' \
+    test "$(decide_command 'cd x && timeout 5 curl https://example.test' "$tmp")" == deny
+  check 'an ask rule never allows' test "$(decide_command 'gh pr merge 1' "$tmp")" == ask
+  check 'a command no rule matches is allowed' test "$(decide_command 'curlish --version' "$tmp")" == allow
+  printf '{"permissions":{"deny":["Bash(git * --force)"]}}' >"$tmp/.claude/settings.local.json"
+  check 'an unsupported rule shape asks' test "$(decide_command 'ls' "$tmp")" == ask
 
   if [[ -z "$(confinement_unavailable_reason)" ]]; then
     repo="$tmp/repo"
