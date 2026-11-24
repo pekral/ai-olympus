@@ -7,6 +7,12 @@
 #
 # Usage:
 #   delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
+#   delete-owned-comment.sh --review-merge <KEY|URL> <COMMENT_ID> <MERGED_REVIEW_ID>
+#
+# The `--review-merge` form is the one delete of `skills/merge-review-comments`. The merged review comment is
+# both protected ID. The target must carry this actor's cr-comment marker as its only agent marker, and it is
+# refused when a later comment points at it: skills/_shared/comment-reply.jq owns what a reply is, and an
+# unreadable comment list refuses the delete as it does in the form above.
 #
 # Inputs:
 #   KEY|URL        Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL, or
@@ -71,14 +77,25 @@ PROG="${0##*/}"
 usage() {
   cat >&2 <<'EOF'
 Usage: delete-owned-comment.sh <KEY|URL> <COMMENT_ID> <FINAL_TLDR_ID> <CURRENT_CR_ID>
+       delete-owned-comment.sh --review-merge <KEY|URL> <COMMENT_ID> <MERGED_REVIEW_ID>
 
 Deletes only an actor-owned comment on the exact JIRA issue. The final TL;DR
 and the newest code-review report must be passed as protected IDs; pass the
-final TL;DR ID twice only when the issue carries no code-review report.
+final TL;DR ID twice only when the issue carries no code-review report. The
+--review-merge form deletes only a review comment that no later comment points at.
 EOF
 }
 
-if [[ "$#" -ne 4 ]]; then
+REVIEW_MERGE=0
+if [[ "${1:-}" == "--review-merge" ]]; then
+  REVIEW_MERGE=1
+  shift
+  if [[ "$#" -ne 3 ]]; then
+    usage
+    exit 1
+  fi
+  set -- "$1" "$2" "$3" "$3"
+elif [[ "$#" -ne 4 ]]; then
   usage
   exit 1
 fi
@@ -195,6 +212,21 @@ ANCHOR_ACCOUNT=""
 require_owned "$FINAL_TLDR_ID" "protected comment" ""
 require_owned "$CURRENT_CR_ID" "protected comment" ""
 require_owned "$COMMENT_ID" "comment" "$MARKER"
+
+if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+  REVIEW_VERDICT="$(printf '%s' "$COMMENTS" | jq -L "$SCRIPT_DIR/../../_shared" -r --arg actor "$ANCHOR_ACCOUNT" --arg id "$COMMENT_ID" '
+    include "comment-reply";
+    jira_acli_normalised($actor) as $all
+    | ($all | map(select(.id == $id)) | first) as $original
+    | if $original == null then "unknown"
+      elif ([$original.body | scan("([a-z][a-z0-9-]*):actor=") | .[0]] | map(select(. != "cr-comment")) | length) > 0 then "other-marker"
+      elif has_reply($original; $all) then "reply"
+      else "clear" end' 2>/dev/null || printf 'unknown')"
+  if [[ "$REVIEW_VERDICT" != "clear" ]]; then
+    printf '%s\n' "$PROG: a comment that has a reply, or that carries another agent marker, is never deleted (check: $REVIEW_VERDICT)" >&2
+    exit 4
+  fi
+fi
 
 # The audit line is written at the moment of the delete, with the real exit status of `acli`.
 DELETE_RC=0

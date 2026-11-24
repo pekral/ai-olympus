@@ -16,6 +16,12 @@
 # The two-argument form deletes only such a superseded copy, needs no protected id,
 # and refuses a comment without an overflow marker or with a merge-readiness or
 # cr-comment marker.
+#
+# The `--review-merge` form is the one delete of `skills/merge-review-comments`: it removes a review
+# comment that the skill merged into another comment. The merged comment is the one protected id, and
+# it must carry this actor's cr-comment marker. The target must carry this actor's cr-comment marker as
+# its only agent marker, and it is refused when a later comment points at it (skills/_shared/comment-reply.jq
+# owns what a reply is). A failed listing of the comments refuses the delete too.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -24,16 +30,27 @@ usage() {
   cat >&2 <<EOF
 Usage: $PROG <GitHub issue-or-PR URL> <comment-id> <final-tldr-id> <current-cr-id>
        $PROG <GitHub issue-or-PR URL> <comment-id>
+       $PROG --review-merge <GitHub issue URL> <comment-id> <merged-review-id>
 
 Deletes only an authenticated actor-owned top-level issue/PR comment. The final
 TL;DR and current CR evidence must be passed as protected IDs. The two-argument
 form deletes only a pull-request body overflow comment (the pr-body-overflow or
 agent-note marker of the actor, opening with the overflow heading) that a newer
-pr-body-overflow comment of the same actor supersedes.
+pr-body-overflow comment of the same actor supersedes. The --review-merge form
+deletes only a review comment (the cr-comment marker of the actor, no other agent
+marker) that no later comment points at, and only beside the merged review comment.
 EOF
 }
 
-if [[ "$#" -ne 4 && "$#" -ne 2 ]]; then
+REVIEW_MERGE=0
+if [[ "${1:-}" == "--review-merge" ]]; then
+  REVIEW_MERGE=1
+  shift
+  if [[ "$#" -ne 3 ]]; then
+    usage
+    exit 1
+  fi
+elif [[ "$#" -ne 4 && "$#" -ne 2 ]]; then
   usage
   exit 1
 fi
@@ -43,6 +60,7 @@ COMMENT_ID="$2"
 shift 2
 PROTECTED_IDS=("$@")
 PROTECTED_MARKERS=("merge-readiness" "cr-comment")
+[[ "$REVIEW_MERGE" -eq 1 ]] && PROTECTED_MARKERS=("cr-comment")
 OVERFLOW_ONLY=0
 [[ "${#PROTECTED_IDS[@]}" -eq 0 ]] && OVERFLOW_ONLY=1
 
@@ -128,6 +146,38 @@ fi
 if [[ "$(printf '%s' "$COMMENT_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$EXPECTED_ISSUE_URL" | tr '[:upper:]' '[:lower:]')" ]]; then
   printf '%s\n' "$PROG: refusing to delete a comment outside the exact target" >&2
   exit 4
+fi
+
+# The --review-merge form removes only a review comment that no later comment points at.
+if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+  REVIEW_BODY="$(printf '%s' "$COMMENT_JSON" | jq -r '.body // empty')"
+  REVIEW_MARKER_LINE="<!-- cr-comment:actor=$ACTOR -->"
+  if ! awk -v marker="$REVIEW_MARKER_LINE" '
+    /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
+    !fenced { sub(/[ \t\r]+$/, ""); if ($0 == marker) found = 1 }
+    END { exit !found }
+  ' <<<"$REVIEW_BODY"; then
+    printf '%s\n' "$PROG: the comment does not carry this actor's cr-comment marker on a line of its own" >&2
+    exit 4
+  fi
+  if grep -oE '[a-z][a-z0-9-]*:actor=' <<<"$REVIEW_BODY" | grep -qv '^cr-comment:actor='; then
+    printf '%s\n' "$PROG: the comment carries another agent marker; it is no plain review comment" >&2
+    exit 4
+  fi
+  ALL_COMMENTS_JSON=""
+  if ! ALL_COMMENTS_JSON="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER/comments" --paginate 2>/dev/null | jq -s -c 'add // []' 2>/dev/null)" || [[ -z "$ALL_COMMENTS_JSON" ]]; then
+    printf '%s\n' "$PROG: the comments of the target could not be listed; the reply check cannot run, nothing is deleted" >&2
+    exit 3
+  fi
+  HAS_REPLY="$(printf '%s' "$ALL_COMMENTS_JSON" | jq -L "$SCRIPT_DIR" -r --arg actor "$ACTOR" --arg id "$COMMENT_ID" '
+    include "comment-reply";
+    github_api_normalised($actor) as $all
+    | ($all | map(select(.id == $id)) | first) as $original
+    | if $original == null then "unknown" else (has_reply($original; $all) | tostring) end' 2>/dev/null || printf 'unknown')"
+  if [[ "$HAS_REPLY" != "false" ]]; then
+    printf '%s\n' "$PROG: a comment that has a reply is never deleted (reply check: $HAS_REPLY)" >&2
+    exit 4
+  fi
 fi
 
 # The overflow comment holds the durable copy of the pull-request body's verbatim content.

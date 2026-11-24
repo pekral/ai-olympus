@@ -24,10 +24,16 @@
 # is stable across runs, which is all the lookup needs.
 #
 # Usage:
-#   upsert-comment.sh [--create] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
-#   <body-producer> | upsert-comment.sh [--create] <KEY|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
+#   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
 #
 # Inputs:
+#   --comment-id <ID>
+#               Optional. Update exactly that comment instead of the newest one of this actor and
+#               namespace. The comment must be authored by this actor and carry this actor's marker of the
+#               namespace; otherwise nothing is written and the script exits 3. `skills/merge-review-comments`
+#               uses it to put merged text into the comment that has a reply. It never combines with
+#               `--create` or with the `agent-note` namespace.
 #   --create    Optional. Always create a new comment in the given namespace and
 #               never update an existing one, so nothing is carried over from an
 #               earlier comment. The before-create snapshot still runs, because
@@ -142,9 +148,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: upsert-comment.sh [--create] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
+Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
   --create    always create a new comment; never update an existing one
+  --comment-id <ID>
+              update exactly this comment of this actor and namespace; never create
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -155,9 +163,30 @@ EOF
 }
 
 CREATE_ONLY=0
-if [[ "${1:-}" == "--create" ]]; then
-  CREATE_ONLY=1
-  shift
+TARGET_COMMENT_ID=""
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --create)
+      CREATE_ONLY=1
+      shift
+      ;;
+    --comment-id)
+      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        usage
+        exit 1
+      fi
+      TARGET_COMMENT_ID="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+if [[ "$CREATE_ONLY" -eq 1 && -n "$TARGET_COMMENT_ID" ]]; then
+  usage
+  exit 1
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
@@ -173,6 +202,11 @@ MODE="${3:-cr-comment}"
 
 if [[ ! "$MODE" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "upsert-comment.sh: MARKER_KEY must match [a-z][a-z0-9-]* — got: $MODE" >&2
+  exit 1
+fi
+
+if [[ -n "$TARGET_COMMENT_ID" && "$MODE" == "agent-note" ]]; then
+  echo "upsert-comment.sh: --comment-id never combines with the create-only agent-note namespace" >&2
   exit 1
 fi
 
@@ -341,12 +375,18 @@ fi
 # skips the match for the same reason, in any namespace.
 if [[ "$MODE" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
-    | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+    | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" --arg target "$TARGET_COMMENT_ID" "${AUTHOR_JQ}"'
         map(select(marked and owned))
+        | map(select($target == "" or ((.id? // "") | tostring) == $target))
         | sort_by((.updated? // .created? // "") | tostring)
         | last
         | (.id? // empty)
         | tostring' 2>/dev/null || true)"
+
+  if [[ -n "$TARGET_COMMENT_ID" && "$EXISTING_ID" != "$TARGET_COMMENT_ID" ]]; then
+    echo "upsert-comment.sh: comment $TARGET_COMMENT_ID is not this actor's ${MODE} comment on $KEY, nothing was published" >&2
+    exit 3
+  fi
 
   if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
     UNDECIDABLE_ID="$(printf '%s' "$COMMENTS_JSON" \
