@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- ✨ **Added**: the implementer checks the places the actual diff affects before the pull request. `resolve-issue` step 17 and `references/diff-impact-check.md` run the impact walk on the real diff, not only on the planned change. Every caller and consumer outside the diff is proven working or repaired in the same pull request. Every other place an acceptance criterion covers gets the same fix; a place no criterion covers is recorded as a deferred item.
+
 - ✨ **Added**: the `x-brand-writing` skill drafts exactly two distinct, evidence-based X post or thread variants for the host project. It applies the installed project voice when available, recommends an existing host asset for each variant, keeps optional style preferences in the host project, and never publishes to X.
 
 - 📖 **Changed**: Laravel rules prefer HTTP input validation in the endpoint's FormRequest before an Action runs. Data Validators remain for non-HTTP input and execution-time domain invariants. Architecture review checks follow the same boundary.
