@@ -177,6 +177,17 @@ test('leonardo scans every review and donatello states a reason for every candid
         ->and(packageSource('rules/code-review/hotfix-review.md'))->toContain('Its scan for a weakened test or CI check still runs.');
 });
 
+test('the scan reads the one test definition of the classifier from the trusted copy', function (): void {
+    $script = packageSource('skills/_shared/test-integrity.sh');
+
+    expect($script)->toContain('. "$TI_DIR/domain-vocabulary.sh"')
+        ->and($script)->toContain('\'scan --without-review: the shared shapes complete with candidates\'')
+        ->and(str_contains($script, 'TI_TEST_SIDE_RE'))->toBeFalse()
+        ->and(str_contains(packageSource('skills/_shared/classify-risk.sh'), 'FORMAT_RE=\''))->toBeFalse()
+        ->and(packageSource('skills/test-audit/references/test-integrity.md'))
+        ->toContain('`skills/_shared/read-manifest.sh`, `skills/_shared/domain-vocabulary.sh`, and `skills/_shared/junit-results.php`');
+});
+
 test('a merge without a review takes the full path when the trusted scan lists a weakened test', function (string $path, string $pin): void {
     expect(packageSource($path))->toContain($pin)
         ->toContain('A `candidate` line, a last line other than `scan-verdict=complete`, or a copy that is not available')

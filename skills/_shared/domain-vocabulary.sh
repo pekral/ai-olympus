@@ -6,7 +6,8 @@
 # Sourced, not executed, by `classify-risk.sh` (which tier a change gets) and
 # `gate-context.sh` (which project knowledge a task needs). Both must agree on
 # what an auth, a data-loss, or a concurrency signal is, so the word lists
-# exist here once. A word added here changes both verdicts.
+# exist here once. A word added here changes both verdicts. `test-integrity.sh`
+# sources it too, for TEST_RE and CHECKER_CONFIG_RE below.
 #
 # It also holds the two parts of reading an assignment text that `classify-risk.sh`
 # and `count-assignment.sh` share: the names of the business-only headings
@@ -36,10 +37,19 @@ QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|
 # TEST_RE names a test file by its lower-cased path: a `test` or `tests` directory, a `spec`
 # directory, `test.php` and `tests.php` file names, `.test.`, `.spec.`, and `_test.` suffixes, a
 # `test_*.py` file, and the PHPUnit and Pest configuration files. `classify-risk.sh` reads it for
-# the `tests-only` signal of the merge risk, and `post-inline-review.sh` reads it to decide whether a
-# Walkthrough row may name a test file, so both give one answer for one path. The pattern is an ERE
-# that bash, awk, and the regular expressions of jq all read.
+# the `tests-only` signal of the merge risk, `post-inline-review.sh` reads it to decide whether a
+# Walkthrough row may name a test file, and `test-integrity.sh` reads it as its test-side paths, so
+# all three give one answer for one path. The pattern is an ERE that bash, awk, and the regular
+# expressions of jq all read.
 TEST_RE='(^|/)tests?/|(^|/)spec/|tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[a-z0-9_]+\.py$|(^|/)phpunit\.xml|(^|/)pest\.php$'
+
+# CHECKER_CONFIG_RE names the configuration of a checker by its lower-cased path: Prettier, ESLint,
+# StyleCI, Pint, PHP CS Fixer, PHP_CodeSniffer, Rector, and PHPStan. FORMAT_RE adds the editor and
+# git metadata files. `classify-risk.sh` reads FORMAT_RE for the `formatting-metadata-only` signal,
+# and `test-integrity.sh` reads CHECKER_CONFIG_RE as check paths, so a checker configuration the
+# classifier grades as formatting is always a check path of the scan.
+CHECKER_CONFIG_RE='(^|/)\.(prettierrc|eslintrc|styleci)([.-][a-z0-9]+)*$|(^|/)(pint|\.php-cs-fixer)\.[a-z.]+$|(^|/)(ruleset|phpcs)\.xml(\.dist)?$|(^|/)rector\.php$|(^|/)phpstan\.neon(\.dist)?$'
+FORMAT_RE='(^|/)\.(editorconfig|gitignore|gitattributes)([.-][a-z0-9]+)*$|'"$CHECKER_CONFIG_RE"
 
 # The names of the business-only headings of an assignment, in both project languages
 # (rules/compound-engineering/assignment.md). `classify-risk.sh` reads them as a heading
