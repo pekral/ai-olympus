@@ -689,11 +689,18 @@ test('the plan lists the line the operator added to a review comment, and the co
 
 test('the JIRA plan lists the node the operator added to a review comment', function (): void {
     $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
-    $first = mergePlanJiraComment('10001', 'acc-agent', 'Round 1: 3 findings.');
     $paragraph = static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'];
-    $first['view']['body']['content'][] = $paragraph('Decision: keep the limit.');
-    $first['view']['body']['content'][] = $paragraph($marker . ' lines=' . mergePlanFingerprint('Round 1: 3 findings.'));
-    $first['list']['body'] = $first['view']['body'];
+    $document = ['content' => [
+        $paragraph('Round 1: 3 findings.'),
+        $paragraph('Decision: keep the limit.'),
+        $paragraph($marker . ' lines=' . mergePlanFingerprint('Round 1: 3 findings.')),
+    ], 'type' => 'doc', 'version' => 1,
+    ];
+    $created = '2026-01-02T10:01:00.000+0000';
+    $first = [
+        'list' => ['author' => ['displayName' => 'Agent'], 'body' => $document, 'created' => $created, 'id' => '10001'],
+        'view' => ['author' => ['accountId' => 'acc-agent', 'displayName' => 'Agent'], 'body' => $document, 'created' => $created, 'id' => '10001'],
+    ];
     $second = mergePlanJiraComment('10003', 'acc-agent', 'Round 2: 0 findings. ' . $marker);
     $result = mergePlanJira([$first['view'], $second['view']], [$first['list'], $second['list']]);
 
