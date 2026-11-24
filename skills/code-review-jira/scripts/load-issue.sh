@@ -25,6 +25,7 @@
 #     "descriptionText": "<flattened plain text>",
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
+#     "mentionedKeys": [ "<KEY>" ],
 #     "subtasks":    [ { "key", "summary", "status", "type",
 #                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
@@ -745,4 +746,17 @@ def viewCommentIdx:
 | .attachmentsFetch = (if ((.attachments | length) + ([.subtasks[].attachments[]] | length)) > 0
     then "skills/code-review-jira/scripts/download-attachments.sh " + $key
     else null end)
+# The issues of the same project that the task text names: the description and the comments of the issue assignee
+# (rules/compound-engineering/tracker.md *Resolving trust per tracker*, the display-name fallback). A comment with an
+# agent marker is no task text. Keys the issue already links as its parent, a subtask, or an issue link are left out,
+# so the list holds only what the native links do not.
+| . as $o
+| (($o.key | sub("-[0-9]+$"; "")) as $project
+   | [ [$o.descriptionText] + [ $o.comments[] | select(($o.assignee // "") != "" and .author == $o.assignee
+                                                       and ((.body | type) == "string") and (.body | test("[a-z][a-z0-9-]*:actor=") | not)) | .body ]
+       | .[] | select(type == "string") | scan("(?<![A-Za-z0-9_-])(\($project)-[0-9]{1,9})(?![0-9A-Za-z_-])") | .[0] ]
+   | unique
+   | map(select(. != $o.key and . != ($o.parent.key // "")
+                and (. as $k | ([$o.subtasks[].key] + [$o.issueLinks[].linkedKey]) | index([$k]) == null)))) as $mentioned
+| .mentionedKeys = $mentioned[0:20]
 '
