@@ -274,6 +274,14 @@ dataset('merge plan classification', [
         ],
         ['801' => 'review', '802' => 'other', '803' => 'review'],
     ],
+    'a marker quoted inside a fenced code block never makes a comment a review comment' => [
+        [
+            mergePlanComment(801, 'bot', 'MEMBER', "Round 1.\n\n" . mergePlanMarker(), 1),
+            mergePlanComment(802, 'bot', 'MEMBER', "Round 2.\n\n```\n~~~\n" . mergePlanMarker() . "\n```", 2),
+            mergePlanComment(803, 'bot', 'MEMBER', "Round 3.\n\n" . mergePlanMarker(), 3),
+        ],
+        ['801' => 'review', '802' => 'other', '803' => 'review'],
+    ],
     'a marker quoted inside a sentence never makes a comment a review comment' => [
         [
             mergePlanComment(801, 'bot', 'MEMBER', "Round 1.\n\n" . mergePlanMarker(), 1),
@@ -365,7 +373,9 @@ dataset('merge plan replies', [
     'a link to the comment' => ['See ' . MERGE_PLAN_ITEM . '#issuecomment-801 please.', 'reporter', 'NONE', true],
     'a mention of the operator account by another account' => ['@bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account in another letter case' => ['Why 2 MB, @Bot?', 'reporter', 'NONE', true],
-    'a mention of the operator account inside a fenced code block' => ["```\n@bot\n```", 'reporter', 'NONE', false],
+    'a mention of the operator account after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot why 2 MB?", 'reporter', 'NONE', true],
+    'a mention of the operator account between fence lines indented by four spaces' => ["    ```\n@bot why 2 MB?\n    ```", 'reporter', 'NONE', true],
+    'a mention of the operator account inside a fenced code block' => ["```\n@bot\n```", 'reporter', 'NONE', true],
     'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
     'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
     'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],

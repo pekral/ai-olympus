@@ -108,14 +108,10 @@ ACTOR="$(gh api user --jq .login)"
 
 OVERFLOW_HEADING='## Pull-request body overflow'
 
-# True when the body carries the marker on a line of its own outside a fenced code block.
-# A quoted marker or a quoted heading never identifies a comment.
+# True when the body carries the marker on a line of its own that no code block can hold
+# (marker_line in comment-reply.jq, which fails closed). A quoted marker never identifies a comment.
 body_has_marker() {
-  awk -v marker="$2" '
-    /^[ \t]*(```|~~~)/ { fenced = !fenced; next }
-    !fenced { sub(/[ \t\r]+$/, ""); if ($0 == marker) found = 1 }
-    END { exit !found }
-  ' <<<"$1"
+  jq -Rs -e -L "$SCRIPT_DIR" --arg marker "$2" 'include "comment-reply"; marker_line($marker)' <<<"$1" >/dev/null 2>&1
 }
 
 # True when the first non-blank line of the body is exactly the overflow heading.

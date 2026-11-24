@@ -218,6 +218,35 @@ test('a newer comment that only quotes the heading in a fence never supersedes t
     }
 });
 
+dataset('overflow code-held markers', [
+    'a fence line indented by four spaces does not close the fence' => ["```\n    ```\n%s\n```"],
+    'a fence of the other character does not close the fence' => ["```\n~~~\n%s\n```"],
+    'a shorter fence does not close the fence' => ["````\n```\n%s\n````"],
+]);
+
+test(
+    'a newer comment whose overflow marker a code block can hold never supersedes the only overflow copy',
+    function (string $shape): void {
+        $directory = installerCreateProjectRoot();
+        installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);
+        chmod($directory . '/bin/gh', 0755);
+        file_put_contents($directory . '/comments.json', json_encode([
+            overflowDeleteComment(1_301, 'bot', "## Pull-request body overflow\n\nAudit lines\n\n<!-- pr-body-overflow:actor=bot -->"),
+            overflowDeleteComment(1_302, 'bot', "## Pull-request body overflow\n\n" . sprintf($shape, '<!-- pr-body-overflow:actor=bot -->')),
+        ], JSON_THROW_ON_ERROR));
+
+        try {
+            $process = runOverflowCommentDelete($directory, ['1301']);
+
+            expect($process->getExitCode())->toBe(4)
+                ->and($process->getErrorOutput())->toContain('refusing to delete a pull-request body overflow comment')
+                ->and(is_file($directory . '/deleted'))->toBeFalse();
+        } finally {
+            installerRemoveDirectory($directory);
+        }
+    },
+)->with('overflow code-held markers');
+
 test('an operator comment without a marker is never deleted by the two-argument form, even when it holds the heading line', function (): void {
     $directory = installerCreateProjectRoot();
     installerWriteFile($directory . '/bin/gh', GITHUB_OVERFLOW_DELETE_GH_SCRIPT);

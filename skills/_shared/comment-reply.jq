@@ -20,18 +20,59 @@ include "review-trust";
 def other_agent_marker:
   type == "string" and ([scan("([a-z][a-z0-9-]*):actor=") | .[0]] | any(. != "cr-comment"));
 
-# github_mentions — the input is a GitHub comment body. The logins it mentions as `@<login>`, in lower case, outside a
-# fenced code block and outside an inline code span. An address such as `name@host` is no mention.
+# github_mentions — the input is a GitHub comment body. Every login it names as `@<login>`, in lower case. A login
+# inside a code block or a code span counts too: the test reads no Markdown structure, so no difference from the
+# GitHub renderer can hide a mention, and a login counted in excess only keeps a comment. A word character in front of
+# the `@`, as in an address such as `name@host`, makes it no mention.
 def github_mentions:
-  [ split("\n")
-    | foreach .[] as $line ({fenced: false, keep: null};
-        if ($line | test("^[ \t]*(```|~~~)")) then {fenced: (.fenced | not), keep: null}
-        elif .fenced then .keep = null
-        else .keep = $line end;
-        .keep // empty)
-    | gsub("`[^`]*`"; "")
-    | scan("(?<![A-Za-z0-9_/`])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)") | .[0] | ascii_downcase ]
-  | unique;
+  [ scan("(?<![A-Za-z0-9_])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)") | .[0] | ascii_downcase ] | unique;
+
+# marker_line($marker) — the input is a GitHub comment body. True when a line of the body is exactly $marker, trailing
+# blanks aside, and no code block can hold that line. The reading fails closed: a marker that a code block could hold
+# does not count, so a quoted marker never identifies a comment. It follows the CommonMark fence rules only where they
+# are certain for a line at column 0, where the marker stands:
+# - a fence opens with three or more backticks or tildes at column 0 (a backtick fence has no backtick after the run),
+#   and only a line of the same character, at least as long, with at most three spaces in front and nothing after the
+#   run, closes it; an unclosed fence runs to the end of the body;
+# - a fence line with an indent, a tab, or a quote or list prefix makes every later marker uncertain, because it can
+#   belong to a list item or a quote whose end the reading does not track;
+# - a fence line inside an HTML block makes every later marker uncertain too, because the block can hold it as text;
+#   an HTML block opens with a `<` line and ends at its end mark, or at a blank line for a plain tag. A marker inside
+#   an HTML comment or a raw-text block does not count.
+def marker_line($marker):
+  def prefix: "^(?:[ \t>]|[-+*][ \t]|[0-9]{1,9}[.)][ \t])*";
+  def html_end:
+    if test("^<!--") then "-->"
+    elif test("^<\\?") then "\\?>"
+    elif test("^<!\\[CDATA\\[") then "\\]\\]>"
+    elif test("^<![A-Za-z]") then ">"
+    elif test("^<(?i:pre|script|style|textarea)(?:[ \t>]|$)") then "(?i:</(?:pre|script|style|textarea)>)"
+    else "blank" end;
+  def html_closed($end): if $end == "blank" then test("^[ \t]*$") else test($end) end;
+  split("\n")
+  | any(foreach .[] as $raw ({open: null, html: null, doubt: false, hit: false};
+      ($raw | sub("[ \t\r]+$"; "")) as $line
+      | ($line | test(prefix + "(?:```|~~~)")) as $fenceLike
+      | .hit = false
+      | if .open != null then
+          ("^ {0,3}" + .open.char + "{" + (.open.length | tostring) + ",}$") as $closer
+          | (if ($line | test($closer)) then .open = null else . end)
+        elif .html != null then
+          (if $fenceLike then .doubt = true else . end)
+          | .html as $end
+          | (if ($line | html_closed($end)) then .html = null else . end)
+          | (if .html == "blank" and $line == $marker and (.doubt | not) then .hit = true else . end)
+        elif $line == $marker then .hit = (.doubt | not)
+        elif $fenceLike then
+          ($line | capture("^(?<run>`{3,}|~{3,})(?<rest>.*)$")? // null) as $fence
+          | if $fence == null then .doubt = true
+            elif ($fence.run[0:1] == "`" and ($fence.rest | contains("`"))) then .
+            else .open = {char: $fence.run[0:1], length: ($fence.run | length)} end
+        elif ($line | sub(prefix; "") | startswith("<")) then
+          ($line | sub(prefix; "") | html_end) as $end
+          | if ($line | sub(prefix; "") | .[1:] | html_closed($end)) and $end != "blank" then . else .html = $end end
+        else . end;
+      .hit); .);
 
 # A reply quotes the original: it holds, as a substring, a whole line of the original that is at least 20 characters long
 # and is no marker line. A `>` or `bq.` prefix in front of the quoted line changes nothing, and a line that a person types

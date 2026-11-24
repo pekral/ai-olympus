@@ -202,7 +202,7 @@ include "comment-reply";
 def own_marker($ns): if $meta.tracker == "github" then "<!-- " + $ns + ":actor=" + $meta.actor + " -->" else $ns + ":actor=" + $meta.digest end;
 def has_own_cr:
   if $meta.tracker == "github"
-  then (.body | split("\n") | any(gsub("[ \t\r]+$"; "") == own_marker("cr-comment")))
+  then (.body | marker_line(own_marker("cr-comment")))
   else (.body | contains(own_marker("cr-comment"))) end;
 def mine:
   if $meta.tracker == "github" then (.authorKey == $meta.actor and (.authorAssociation | write_access))
