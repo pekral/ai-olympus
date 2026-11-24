@@ -13,3 +13,17 @@ test('distribution exclusions keep this repository\'s X style record out of the 
     expect($composer['archive']['exclude'])->toContain('/.x-brand-writing');
     expect($exportIgnored)->toContain('/.x-brand-writing export-ignore');
 });
+
+test('the x-brand-writing skill stores a full post only as an approved tone reference', function (): void {
+    $package = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($package . '/skills/x-brand-writing/SKILL.md');
+    $usage = (string) file_get_contents($package . '/skills/x-brand-writing/references/usage.md');
+
+    expect($skill)->toContain('Exclude full drafts, private content, and global preferences.');
+    expect($skill)->toContain('**The one exception is an approved tone reference.**');
+    expect($skill)->toContain('store that one post verbatim under `## Approved tone reference`, with the date of the approval');
+    expect($skill)->toContain('Never store a post the user did not approve this way.');
+    expect($skill)->toContain('An approved tone reference in it shows the voice only: never copy its sentences');
+    expect($usage)->toContain('The one exception is an approved tone reference.');
+    expect($usage)->toContain('## Approved tone reference');
+});

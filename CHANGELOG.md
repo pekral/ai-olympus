@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 📖 **Changed**: the `x-brand-writing` skill may keep one full post in the host style record as an approved tone reference, when the user explicitly asks for it. A later draft takes its voice only and verifies its facts against current evidence. Every other full draft stays out of the record.
+
 - 💥 **Changed**: code review verifies every finding by a real check before it publishes it. A Critical still goes through `analyze-problem`. A Moderate is now verified too, by the check its `Evidence` kind names: a test or command run, a static-analysis run, a trace through the real code, or the rule section read against the cited line. A refuted finding is dropped, and a finding the run cannot check goes on the `Not verified:` line instead of `## Findings`. A security finding stays in `## Findings`. The reviewer writes every command itself from the project's own test and analyser commands.
 
 - 💥 **Changed**: commit granularity follows the acceptance criteria, so a human can review a pull request commit by commit. The implementer lists the criteria of the assignment first. Each criterion lands in its own commit with its test, shared groundwork lands in a commit before them, and an assignment without explicit criteria is divided by its points. The PR *Walkthrough* rows follow the commit order. Commits stay ungated on their own, are not required to be cherry-pickable, and their division is not a review finding.
