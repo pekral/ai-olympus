@@ -167,6 +167,8 @@ History exposure: not run — the repository is private.  *(render this one body
 1. **Finding:** {the short title of the finding} — `path/to/file.php:42`
    **Linked issue:** {URL of the linked issue}
    **Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}
+2. **Security point** — **Linked issue:** {URL of the linked issue} — **Owner:** `{login}`
+   *(the shape of every security known point: no title, no place, and no sentence on what the issue covers, because the point merges unfixed — `@rules/code-review/review-process.md` *Known points*)*
 
 ---
 
