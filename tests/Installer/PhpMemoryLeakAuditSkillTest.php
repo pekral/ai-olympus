@@ -86,11 +86,15 @@ test('the lens divides the dimensions of a job with the bulk-data walk and the l
         ->and($gating)->toContain('the memory lens owns the memory dimension of `@rules/laravel/laravel.md` *Long-Running Runtime Safety***')
         ->and($gating)->toContain('That finding is Moderate, and the rule walk raises none on the same line.')
         ->and($gating)->toContain('a security finding is never lowered or moved to this lens')
-        ->and($gating)->toContain('**The rule walk keeps a line only when a later job reads the stored value as its own context of identity, tenant, or permission**')
+        ->and($gating)->toContain(
+            '**The rule walk keeps a line only when a later job reads the stored value as its own context of identity, tenant, or permission**',
+        )
         ->and($gating)->toContain('the memory lens then reports nothing on that line')
         ->and($gating)->toContain('On every other line the lens owns the finding and the rule walk raises none.')
         ->and($gating)->not->toContain('request-specific')
-        ->and(packageSource('skills/php-memory-leak-audit/references/checks.md'))->toContain('The rule walk and the security owners own it, and the lens reports nothing on it')
+        ->and(packageSource('skills/php-memory-leak-audit/references/checks.md'))->toContain(
+            'The rule walk and the security owners own it, and the lens reports nothing on it',
+        )
         ->and($gating)->toContain('**The memory lens owns what survives the job**')
         ->and($gating)->toContain('A `Model::all()` inside `handle()` carries the volume finding from the walk')
         ->and($gating)->toContain('the `laravel-horizon-audit` skill audits the configuration of the whole repository, which a review never runs.');
