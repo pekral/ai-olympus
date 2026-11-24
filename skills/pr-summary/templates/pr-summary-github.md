@@ -21,6 +21,10 @@
 2. [Next scenario step — concrete input, then its must-hold outcome. Say so in the step when this is the important one.]
 3. [Regression: the neighbouring flows the tester exercises to confirm nothing else moved, and the outcome that must stay unchanged.]
 
+## Already reported in a linked issue
+
+- [Only when the review marked a finding as a known point. One bullet per point: what it is in plain language, what the linked issue covers, and the link of that issue. It is no point to resolve, so the section carries no count and no severity.]
+
 {embedded_blocks}
 
 [PR #123](PR_URL) · [ISSUE-KEY](ISSUE_URL)
@@ -70,6 +74,13 @@
        *Review-only run*. The section lists only the points that must be resolved
        before the merge: a defect or an open question. It lists every such point,
        and never an assumption, a hypothesis, or a point with no evidence.
+
+     Already reported in a linked issue
+       Render this section only when the caller passes at least one known point (a
+       finding that a linked issue already reports). It follows `How to test`, or
+       the `Review findings` of a review-only run, and it comes after every new
+       finding. Omit the heading when there is none. The rule is owned by
+       `@skills/pr-summary/SKILL.md` *Known points*.
 
      Closing links line
        One line, the pull request and the source tracker item, separated by ` · `.
