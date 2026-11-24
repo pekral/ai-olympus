@@ -2,23 +2,11 @@
 
 declare(strict_types = 1);
 
-function plainPageLoadSource(string $relativePath): string
-{
-    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
-}
-
-function plainPageLoadSection(string $text, string $startHeading, string $endHeading): string
-{
-    $start = (int) strpos($text, $startHeading);
-
-    return substr($text, $start, (int) strpos($text, $endHeading, $start) - $start);
-}
-
 test(
     'the security rule owns the finding, the safe shape, the three limits, and the Moderate severity of a state change on a plain page load',
     function (): void {
-        $rule = plainPageLoadSource('rules/security/backend.md');
-        $section = plainPageLoadSection($rule, '## State Change on a Plain Page Load (issue #681)', '## Output Rendering');
+        $rule = packageSource('rules/security/backend.md');
+        $section = packageSection($rule, '## State Change on a Plain Page Load (issue #681)', '## Output Rendering');
     
         expect(substr_count($rule, '## State Change on a Plain Page Load (issue #681)'))->toBe(1)
             ->and($section)->toContain('A page that a browser opens with a plain page load (a `GET` or `HEAD` request) must never change data.')
@@ -39,16 +27,16 @@ test(
 );
 
 test('the CSRF protection section points at the section that owns a state change on a plain page load', function (): void {
-    $rule = plainPageLoadSource('rules/security/backend.md');
-    $csrf = plainPageLoadSection($rule, '### CSRF Protection', '## State Change on a Plain Page Load (issue #681)');
+    $rule = packageSource('rules/security/backend.md');
+    $csrf = packageSection($rule, '### CSRF Protection', '## State Change on a Plain Page Load (issue #681)');
 
     expect($csrf)->toContain('Never change data on a plain page load.')
         ->and($csrf)->toContain('*State Change on a Plain Page Load* below owns that surface.');
 });
 
 test('the security review has a plain-page-load step that runs in every review round and restates no rule', function (): void {
-    $skill = plainPageLoadSource('skills/security-review/SKILL.md');
-    $step = plainPageLoadSection($skill, '### State Change on a Plain Page Load (issue #681)', '### Route Access of Changed Routes (issue #586)');
+    $skill = packageSource('skills/security-review/SKILL.md');
+    $step = packageSection($skill, '### State Change on a Plain Page Load (issue #681)', '### Route Access of Changed Routes (issue #586)');
 
     expect(substr_count($skill, '### State Change on a Plain Page Load (issue #681)'))->toBe(1)
         ->and($step)->toContain('This step runs in **every review round**')
@@ -63,7 +51,7 @@ test('the security review has a plain-page-load step that runs in every review r
 });
 
 test('the audit report template carries the plain page load block', function (): void {
-    $template = plainPageLoadSource('skills/security-review/templates/audit-report.md');
+    $template = packageSource('skills/security-review/templates/audit-report.md');
 
     expect(substr_count($template, '### Plain Page Load'))->toBe(1)
         ->and($template)->toContain('return from an external flow (one-time value `file:line`, check `file:line`)')
@@ -71,8 +59,8 @@ test('the audit report template carries the plain page load block', function ():
 });
 
 test('splinter and leonardo run the plain page load step in every round', function (): void {
-    $splinter = plainPageLoadSource('agents/splinter.md');
-    $leonardo = plainPageLoadSource('agents/leonardo.md');
+    $splinter = packageSource('agents/splinter.md');
+    $leonardo = packageSource('agents/leonardo.md');
 
     expect($splinter)->toContain('its *State Change on a Plain Page Load* step (also in every round)')
         ->and($leonardo)->toContain('whose *State Change on a Plain Page Load* step also runs in every round');
