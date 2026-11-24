@@ -109,7 +109,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - **List only what must be resolved before the merge.** This skill is the one owner of the rule; the wrappers and the templates only point here.
     1. **Two kinds of point are listed:** a defect (a finding of the technical report with evidence that blocks the merge) and an open question that needs an answer.
     2. **Every such point is listed.** Read the whole technical report, and leave out none of the points that must be resolved.
-    3. **A point that needs no action is not listed:** a resolved point, a deferred point, and an informational point. This holds on every target. The review carries no other out-of-scope point and no follow-up proposal (`@rules/code-review/general.md` *What a code review checks, and nothing else*), so none is listed.
+    3. **A point that needs no action is not listed:** a resolved point, a deferred point, and an informational point. This holds on every target. A known point is the one exception, and *Known points* below owns it. The review carries no other out-of-scope point and no follow-up proposal (`@rules/code-review/general.md` *What a code review checks, and nothing else*), so none is listed.
     4. **An assumption, a hypothesis, or an unverified suspicion is never listed** (`@rules/general/general.md` *Verified statements only*). Such a point stays in the technical report, under `## Needs verification` and on the `Not verified:` line. The one exception is on JIRA (*The JIRA shape*): a security point that needs verification and blocks the merge (`@rules/code-review/general.md` S1–S3) is the first `Review findings` bullet, named as a blocker, without the detail of the suspicion.
     5. **Interactive testing that did not run is never listed.** When the walkthrough did not run because no local or test environment was available, the comment says nothing about it on any target: no bullet, no question, and no sentence in another section (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
   - Write one bullet per listed point, as a TL;DR of its solution for a human, backed by evidence (*A finding bullet is a TL;DR of the solution, backed by evidence* below). Plain prose only.
@@ -137,6 +137,16 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - **Restricted content never reaches a public mirror.** The caller passes the `github_allowed` value that `skills/_shared/review-carry-forward.sh answer` printed with each answer. The script reads the repository visibility from the GitHub loader's `repo.isPrivate`, and a repository whose visibility cannot be read counts as public. On a GitHub target, an answer whose `github_allowed` is `false` gets no link and no words: the finding is rendered without the answer sentence.
 - **A new comment on every run.** A review-only run publishes through the GitHub and JIRA helpers like any other run, with `--create`, so a later run adds a new comment and leaves the comment of an earlier run unchanged. The Bugsnag helper posts a new comment on every run.
 - **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten the wording of `What changed and what it affects` first, keeping each of its facts, then shorten the findings per item 8 above. Never drop a `Review findings` bullet.
+
+### Known points
+
+A known point is a finding that a linked issue already reports (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*). This skill is the one owner of how the tracker comment shows it; the templates only point here.
+
+- **The caller passes each known point** with its link and its one sentence on what the linked issue covers. The review does not count it, so the comment never counts it either.
+- **New findings come first, then the known points.** On GitHub and Bugsnag the section `Already reported in a linked issue` follows `How to test`, or `Review findings` in a review-only run. On JIRA it is the group `Already reported in a linked issue` of `Review findings`, after every new finding and after the group of earlier findings. Render the section or the group only when there is a known point.
+- **One bullet per point, in plain language:** what the point is, what the linked issue covers, and the link of the issue. The link is the one of exception 3 in `@rules/reports/general.md` *Three exceptions, and there is no fourth*. On Bugsnag the URL is plain text.
+- **A known point is no point to resolve.** It carries no severity label and no count, and it never makes the comment say that the release is blocked. A review with no new finding still renders the sentence that says there is no point to resolve, and then the known points.
+- **Length on JIRA.** A known point is shortened to its link and one clause before any `Review findings` bullet is shortened.
 
 ### An issue with several pull requests
 
@@ -171,7 +181,7 @@ Every authored sentence carries a fact and nothing else. Apply `references/terse
 
 ### Output shape per target
 
-- GitHub and Bugsnag output the **two sections plus the closing line**: `What changed` (four required fields, two conditional), `How to test`, then the PR / issue links. JIRA outputs the shape `references/jira-shape.md` owns.
+- GitHub and Bugsnag output the **two sections plus the closing line**: `What changed` (four required fields, two conditional), `How to test`, the conditional `Already reported in a linked issue` (*Known points* above), then the PR / issue links. JIRA outputs the shape `references/jira-shape.md` owns.
 - No target renders an `Authors` line, an `Available behind` line, a `Summary of changes` section, a categories list, a breaking-changes section, or a testing-notes section. This skill resolves no authorship — a caller that needs an author set resolves it itself.
 - Between GitHub and Bugsnag the only difference is markup and template. JIRA differs in section order and content too, per *The JIRA shape* above.
 

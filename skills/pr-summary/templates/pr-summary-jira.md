@@ -15,6 +15,10 @@ You can go through the whole change here: [code in the pull request|PR_URL/files
 h3. Already reported in an earlier review
 
 * *(tests):* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.] [View in code →|CODE_LINK]
+
+h3. Already reported in a linked issue
+
+* [Only when the review marked a finding as a known point. One bullet per point: what it is in plain language, what the linked issue covers, and a link to that issue. It is no point to resolve, so the group carries no count and no severity. The group sits inside Review findings, after every new finding.]
 {expand}
 
 {expand:What changed and what it affects}
