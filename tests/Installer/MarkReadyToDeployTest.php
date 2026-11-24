@@ -609,9 +609,9 @@ test(
                 $jiraWrites,
             )));
 
-            expect($writtenKeys)->toBe(preg_split('/ /', $written, -1, PREG_SPLIT_NO_EMPTY));
+            expect($writtenKeys)->toBe(array_values(array_filter(explode(' ', $written))));
 
-            foreach (preg_split('/ /', $notWritten, -1, PREG_SPLIT_NO_EMPTY) as $key) {
+            foreach (array_filter(explode(' ', $notWritten)) as $key) {
                 expect($process->getOutput())->toContain('JIRA ' . $key . ' | - | found, not written');
             }
         } finally {
@@ -621,7 +621,13 @@ test(
 )->with([
     'a key at the start of the title' => ['(ACME-13) fix: login', '', READY_TO_DEPLOY_SITE, '', 'ACME-13'],
     'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', READY_TO_DEPLOY_SITE, 'TEAM-42', 'ACME-12'],
-    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', READY_TO_DEPLOY_SITE, '', 'OPS-9'],
+    'a link on a host that only starts with the site' => [
+        'fix: login',
+        'https://example.atlassian.net.evil.example/browse/OPS-9',
+        READY_TO_DEPLOY_SITE,
+        '',
+        'OPS-9',
+    ],
     'a link on another JIRA host' => [
         'fix: login',
         'See https://sample.atlassian.net/browse/OPS-7 and https://example.atlassian.net/browse/TEAM-42.',
