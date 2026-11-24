@@ -39,8 +39,8 @@
 #      production commit keeps the record and a changed test gets a new one. No value of a record enters a path.
 #
 # verify — the reviewer runs it from the trusted copy; it executes nothing from the record or the branch
-#   Refuses (exit 3) a record path that is not absolute, has a symbolic link in a component, is not a regular
-#   file, or is not `.../regression/<64 hex>.json`. Reports malformed (exit 13) a record whose fields, file name,
+#   Refuses (exit 3) a record path that is not absolute, carries a control character, has a symbolic link in a
+#   component, is not a regular file, or is not `.../regression/<64 hex>.json`. Reports malformed (exit 13) a record whose fields, file name,
 #   sibling hashes, or statuses do not match: both JUnit reports are parsed again. Reports stale (exit 12) a test
 #   the pull request no longer changes, a test whose blob at --head differs from the record, and a recorded base
 #   that is not an ancestor of the current merge base. Prints the base failure message of each test, so the
@@ -427,7 +427,8 @@ ti_verify() {
   [[ -n "$record" && -n "$base" && -n "$head" ]] || ti_usage
   command -v php >/dev/null 2>&1 || ti_verify_stop 3 refused 'php is not available'
 
-  [[ "$record" =~ ^/[A-Za-z0-9._/-]+$ ]] || ti_verify_stop 3 refused 'the record path must be absolute and plain'
+  { [[ "$record" == /* ]] && ! ti_has_control "$record"; } \
+    || ti_verify_stop 3 refused 'the record path must be absolute, with no control character'
   gate_no_symlink "$record" || ti_verify_stop 3 refused 'a component of the record path is a symbolic link'
   [[ -e "$record" ]] || ti_verify_stop 10 missing 'no record at that path'
   [[ -f "$record" ]] || ti_verify_stop 3 refused 'the record is not a regular file'
@@ -1064,6 +1065,15 @@ ti_selftest_verify() {
   done
   ti_run bash "$TI_SELF" verify --record "$TI_ROOT/copy/regression/$zeros.json" --base "$master" --head "$head"
   ti_assert 'verify: a file name other than the key of its tests is malformed' ti_equals "$TI_RC" 13
+  local spaced="$TI_ROOT/a dir ž/regression"
+  mkdir -p "$spaced"
+  for suffix in json base.xml head.xml log; do
+    cp "$dir/$key.$suffix" "$spaced/$key.$suffix"
+  done
+  ti_run bash "$TI_SELF" verify --record "$spaced/$key.json" --base "$master" --head "$head"
+  ti_assert 'verify: a record below a path with a space and a non-ASCII letter is accepted' ti_equals "$TI_RC" 0
+  ti_run bash "$TI_SELF" verify --record "$TI_ROOT/a"$'\t'"dir/regression/$key.json" --base "$master" --head "$head"
+  ti_assert 'verify: a record path with a control character is refused' ti_equals "$TI_RC" 3
   printf '<testsuites/>\n' >>"$TI_ROOT/copy/regression/$zeros.base.xml"
   cp "$TI_ROOT/copy/regression/$zeros.base.xml" "$TI_ROOT/tampered.xml"
   cp "$dir/$key.base.xml" "$TI_ROOT/saved.xml"
