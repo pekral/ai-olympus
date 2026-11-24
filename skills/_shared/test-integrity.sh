@@ -64,14 +64,17 @@
 #   on the patterns or the content: it adds one `check-path-changed` candidate for each check path the diff adds,
 #   changes, deletes, renames (by the old and by the new path), or copies — a test-side file, a workflow or
 #   `.github/actions/**` file, `phpunit.xml*`, `tests/Pest.php`, a `.neon` file or a file whose name names
-#   PHPStan (TI_CHECK_CONFIG_RE) — and for `composer.json` when a script of the base changes. An added test runs
-#   code inside the runner, so it is a candidate too. Only a change that touches no check path completes with no
-#   candidate.
+#   PHPStan (TI_CHECK_CONFIG_RE), a checker configuration (CHECKER_CONFIG_RE) — and for `composer.json` when a
+#   script of the base changes. An added test runs code inside the runner, so it is a candidate too. Only a change
+#   that touches no check path completes with no candidate, so a change the classifier grades `tests-only` or
+#   formatting by a checker configuration always has one.
 #
 # Test-side paths
-#   One pattern, taken from the trigger of the test-value lens in
-#   `skills/code-review/references/specialized-reviews.md`: a path under `tests/` at any depth, a `*Test.php`
-#   file, a `*.spec.ts` file, and a `*.test.ts` file (TI_TEST_SIDE_RE). Every subcommand classifies a path with it.
+#   One definition: TEST_RE of `domain-vocabulary.sh`, matched on the lower-cased path, which `classify-risk.sh`
+#   reads for its `tests-only` signal. It covers a `test/`, `tests/`, or `spec/` directory at any depth, a
+#   `*Test.php` file, a `.test.*`, `.spec.*`, or `_test.*` file, a `test_*.py` file, and the PHPUnit and Pest
+#   configuration. Every subcommand classifies a path with it, so the scan never sees fewer tests than the
+#   classifier counts. The trusted copy reads `domain-vocabulary.sh` beside this script.
 #
 # TRUST MODEL — what a record proves, and what it does not
 #   A record is a local cache of one account, like the gate record (gate-record.sh). The tests it ran are the
@@ -111,8 +114,9 @@ TI_SELF="$TI_DIR/test-integrity.sh"
 PROG='test-integrity.sh'
 # shellcheck source=gate-record.sh
 . "$TI_DIR/gate-record.sh"
+# shellcheck source=domain-vocabulary.sh
+. "$TI_DIR/domain-vocabulary.sh"
 
-TI_TEST_SIDE_RE='(^|/)tests/|Test\.php$|\.spec\.ts$|\.test\.ts$'
 TI_DEPENDENCY_RE='(^|/)(composer\.json|composer\.lock|package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$'
 TI_OID_RE='^[0-9a-f]{40}([0-9a-f]{24})?$'
 TI_NAME_LIMIT=500
@@ -132,9 +136,13 @@ USAGE
   exit 1
 }
 
-# A path the test-value lens treats as a test.
+ti_lower() {
+  printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'
+}
+
+# A path the classifier counts as a test (TEST_RE of domain-vocabulary.sh).
 ti_is_test_side() {
-  [[ "$1" =~ $TI_TEST_SIDE_RE ]]
+  [[ "$(ti_lower "$1")" =~ $TEST_RE ]]
 }
 
 # The value carries a control character: a byte below 0x20, or 0x7f.
@@ -809,13 +817,13 @@ ti_scripts_changed() {
   esac
 }
 
-# A path whose change can switch a check off: a test-side file, a test or CI configuration, and every PHPStan
-# configuration, its includes and baseline included.
+# A path whose change can switch a check off: a test-side file, a test or CI configuration, every PHPStan
+# configuration, its includes and baseline included, and every checker configuration of CHECKER_CONFIG_RE.
 ti_is_check_path() {
   case "$2" in
   test | test-config | ci | phpstan) return 0 ;;
   esac
-  [[ "$1" =~ $TI_CHECK_CONFIG_RE ]]
+  [[ "$1" =~ $TI_CHECK_CONFIG_RE || "$(ti_lower "$1")" =~ $CHECKER_CONFIG_RE ]]
 }
 
 # --without-review: one check-path-changed candidate for each check path the diff adds, changes, deletes, renames
@@ -931,6 +939,10 @@ ti_selftest_classifier() {
   ti_assert 'classify: a *.test.ts file is test-side' ti_is_test_side 'web/calc.test.ts'
   ti_assert 'classify: a production file is not test-side' ti_not ti_is_test_side 'src/Billing/Calc.php'
   ti_assert 'classify: a directory named like tests is not test-side' ti_not ti_is_test_side 'src/contests/Entry.php'
+  local sample
+  for sample in "${TI_SHARED_TEST_PATHS[@]}"; do
+    ti_assert "classify: $sample is test-side, as the classifier counts it" ti_is_test_side "$sample"
+  done
   ti_assert 'path: a path with a tab is unsafe' ti_not ti_safe_relative_path $'tests/a\tb.php'
   ti_assert 'path: a path with an escape character is unsafe' ti_not ti_safe_relative_path $'tests/a\033b.php'
   ti_assert 'path: a path that climbs out is unsafe' ti_not ti_safe_relative_path 'tests/../../etc/passwd'
@@ -1582,6 +1594,50 @@ ti_selftest_scan() {
   ti_assert 'scan: a ref name instead of a commit id is a usage error that ends incomplete' ti_equals "$TI_RC" 1
 }
 
+# Paths the classifier counts as a test or as a checker configuration. Each one must be a check path of the shape
+# mode, so the merge paths without a review and the classifier never disagree on what a test is.
+TI_SHARED_TEST_PATHS=(test/bootstrap.php test/unit/add.test.js spec/add_spec.rb resources/js/calc.test.js src/calc_test.go
+  test_x.py test/fixtures/expected.json tests/Unit/CalcTest.php src/Billing/CalcTest.php web/calc.spec.ts phpunit.xml.dist)
+TI_SHARED_CHECKER_PATHS=(resources/.eslintrc.json .prettierrc pint.json phpcs.xml ruleset.xml.dist rector.php .php-cs-fixer.dist.php)
+
+# A path the trusted classifier grades `tests-only` or `formatting-metadata-only` when it is the only change.
+ti_classifier_discounts() {
+  local out
+  out="$(printf '%s\n' "$1" | bash "$TI_DIR/classify-risk.sh" --files - 2>/dev/null)" || return 1
+  grep -qE '^signal=-[0-9]+\|(tests-only|formatting-metadata-only)\|' <<<"$out"
+}
+
+# Every path the classifier discounts as a test or as formatting is a check-path-changed candidate of the shape
+# mode, whether the change edits it or deletes it.
+ti_selftest_shared_definition() {
+  local path
+  TI_REPO="$TI_ROOT/shared"
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
+    mkdir -p "$TI_REPO/$(dirname -- "$path")"
+    printf 'base\n' >"$TI_REPO/$path"
+  done
+  git -C "$TI_REPO" init -q
+  ti_git add -A
+  ti_git commit -q -m base
+  ti_git branch -q -M master
+  ti_git checkout -q -b shapes
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
+    printf 'exit\n' >"$TI_REPO/$path"
+  done
+  rm -f -- "$TI_REPO/spec/add_spec.rb"
+  ti_git add -A
+  ti_git commit -q -m shapes
+  ti_scan_shape_run master shapes
+  ti_assert 'scan --without-review: the shared shapes complete with candidates' ti_equals "$TI_RC" 5
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
+    ti_assert "classify-risk: $path alone is graded tests-only or formatting" ti_classifier_discounts "$path"
+    if ti_classifier_discounts "$path"; then
+      ti_assert "scan --without-review: $path, which the classifier discounts, is a candidate" \
+        ti_scan_has check-path-changed "$path" -
+    fi
+  done
+}
+
 TI_ROOT=''
 
 ti_selftest() {
@@ -1600,6 +1656,7 @@ ti_selftest() {
   ti_selftest_prove_refusals
   ti_selftest_verify
   ti_selftest_scan
+  ti_selftest_shared_definition
 
   if [[ "$TI_FAILED" -ne 0 ]]; then
     echo 'test-integrity.sh: self-test failed' >&2
