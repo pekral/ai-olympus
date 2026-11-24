@@ -21,6 +21,9 @@ function agentGuardHookDecision(string $root, string $input): AgentGuardDecision
     return AgentGuardDecision::fromHookOutput(AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root])->getOutput());
 }
 
+/**
+ * @return non-empty-string
+ */
 function agentGuardExecPrefix(string $role, string $root): string
 {
     return '/bin/bash \'' . AgentGuardRun::script() . '\' exec ' . $role . ' --project \'' . $root . '\' -- ';

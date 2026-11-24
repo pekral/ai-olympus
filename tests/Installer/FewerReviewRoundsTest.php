@@ -291,7 +291,8 @@ test('the delta lists name a rename under both paths, and krang may compute the 
         ->toContain('`git diff --no-renames --numstat <reviewedRevision>..<head SHA>`');
     expect(fewerRoundsFile('agents/krang.md'))
         ->toContain(
-            'with the scratch-store fetch of the head that `@skills/process-code-review/references/review-state.md` step 2 names and `git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into',
+            'with the scratch-store fetch of the head that `@skills/process-code-review/references/review-state.md` step 2 names and '
+            . '`git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into',
         )
         ->toContain('step 2 against the round\'s head SHA in `${BRIEF%.md}.delta`');
     expect(fewerRoundsFile('agents/krang.md'))
