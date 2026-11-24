@@ -164,3 +164,17 @@ test('leonardo scans every review and donatello states a reason for every candid
         ->and($donatello)->toContain('Run its `scan` before the pull request and write a `Test change:` line with the reason for each candidate')
         ->and(packageSource('rules/code-review/hotfix-review.md'))->toContain('Its scan for a weakened test or CI check still runs.');
 });
+
+test('a merge without a review takes the full path when the trusted scan lists a weakened test', function (string $path, string $pin): void {
+    expect(packageSource($path))->toContain($pin)
+        ->toContain('A `candidate` line, a last line other than `scan-verdict=complete`, or a copy that is not available');
+})->with([
+    'FAST-tier exemption' => [
+        'skills/merge-github-pr/references/merge-exemptions.md',
+        '4. **The trusted test-integrity scan lists nothing.** A tests-only change classifies `FAST`',
+    ],
+    'low-risk path' => [
+        'skills/merge-github-pr/references/low-risk-path.md',
+        '5. Run `scan --base <base tip> --head <headRefOid>` of the trusted copy of `skills/_shared/test-integrity.sh` in the same clone',
+    ],
+]);
