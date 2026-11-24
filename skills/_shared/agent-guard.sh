@@ -15,7 +15,7 @@
 #   agent-guard.sh exec <role> [--project <dir>] -- <command>
 #                                           run <command> with `/bin/bash -c` in the confinement of <role>
 #   agent-guard.sh probe                    prove whether the current process can write into the project
-#   agent-guard.sh verify                   check the installed copy, the hook handler, and the worktree metadata
+#   agent-guard.sh verify                   check the installed copy and the hook handler
 #   agent-guard.sh --self-test
 #
 # Tools
@@ -29,17 +29,13 @@
 #   default. A confined role may write only:
 #     every confined role   `.claude/run/**` and `.codex/run/**` of the project (no symbolic link is created there on
 #                           macOS), the temporary directories (`/tmp`, `$TMPDIR`), the machine lock directory, and the
-#                           terminal and null devices. Never the project, its git directories, the home directory, a
+#                           terminal and null devices. Never the project, its git directories, any
+#                           worktree under `.claude/worktrees/` or `<git common dir>/worktrees/`, the home directory, a
 #                           directory on PATH, a shell startup file, or the git configuration.
-#     leonardo, splinter    their own review worktree `.claude/worktrees/agent-cr-*-<role>` and its git directory; the
-#                           worktree metadata (`.git`, `commondir`, `gitdir`, `config`, `config.worktree`) only once,
-#                           when it is created (macOS), or not at all once it exists (Linux)
-#     krang                 removal under `.claude/worktrees/**` and `<git common dir>/worktrees/**` (macOS: unlink
-#                           only; Linux: the two directories, which SECURITY.md names as a residual)
+#     leonardo, splinter    the security-audit run directories below `.claude/run/security-audit/` (or `.codex/run/`)
+#                           inside their own review worktree `.claude/worktrees/agent-cr-*-<role>`; the session that
+#                           dispatches them creates the worktree and that directory, never the role
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
-#   After the confined command ends, `exec` checks the worktree metadata the role could write and restores a
-#   `commondir` that is not `../..`, removes a new `config.worktree`, and moves a `.git` entry that does not point
-#   into the git worktrees directory aside. `verify` runs the same check without changing anything.
 #
 # Strict mode
 #   Only `extra.ai-olympus.security.strict-agent-guard: true` on the default branch switches it on, read through
@@ -74,8 +70,7 @@
 #   `protection=inactive reason=jq-missing strict=<true|false>`.
 #
 # Exit codes
-#   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 6 the command changed
-#           worktree metadata and the guard restored it; 64 usage error
+#   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 64 usage error
 #   hook    0 decision printed (or none needed); 2 strict mode and the hook could not decide
 #   probe   0 the result line was printed; 64 usage error
 #   verify  0 verified; 3 refused (the line names the reason)
@@ -408,8 +403,8 @@ resolve_writable() {
   return 0
 }
 
-role_allows_worktrees() {
-  [[ "$1" == "leonardo" || "$1" == "splinter" || "$1" == "krang" ]]
+is_review_role() {
+  [[ "$1" == "leonardo" || "$1" == "splinter" ]]
 }
 
 macos_profile() {
@@ -429,26 +424,18 @@ macos_profile() {
   profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
   case "$role" in
-  leonardo | splinter)
-    profile+='(allow file-write* (literal (param "WT_DIR")) (regex (param "WT_RE")))'
-    profile+='(allow file-write* (literal (param "GIT_WT_DIR")) (regex (param "GIT_WT_RE")))'
-    profile+='(deny file-write* (regex (param "WT_META_RE")) (regex (param "GIT_WT_META_RE")))'
-    profile+='(allow file-write-create (regex (param "WT_META_RE")) (regex (param "GIT_WT_META_RE")))'
-    ;;
-  krang)
-    profile+='(allow file-write-unlink (subpath (param "WT_DIR")) (subpath (param "GIT_WT_DIR")))'
-    ;;
+  leonardo | splinter) profile+='(allow file-write* (regex (param "AUDIT_RE")))' ;;
   casey) profile+='(allow file-write* (subpath (param "LOGS")))' ;;
   esac
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CLAUDE")) (vnode-type SYMLINK)))'
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CODEX")) (vnode-type SYMLINK)))'
+  profile+='(deny file-write-create (require-all (regex (param "AUDIT_RE")) (vnode-type SYMLINK)))'
   printf '%s' "$profile"
 }
 
 run_macos() {
-  local role="$1" command="$2" root_re common_re
+  local role="$1" command="$2" root_re
   root_re="$(regex_escape "$ROOT")"
-  common_re="$(regex_escape "${COMMON:-$NONE}")"
   /usr/bin/sandbox-exec \
     -D ROOT="$ROOT" -D TOP="$TOP" -D CWD_ROOT="$CWD_ROOT" \
     -D COMMON="${COMMON:-$NONE}" -D PCOMMON="${PCOMMON:-$NONE}" \
@@ -456,26 +443,27 @@ run_macos() {
     -D HOME_DIR="${HOME_DIR:-$NONE}" -D LOCK_DIR="${LOCK_DIR:-$NONE}" \
     -D HOME_CLAUDE="${HOME_DIR:-$NONE}/.claude" -D HOME_CODEX="${HOME_DIR:-$NONE}/.codex" \
     -D RUN_CLAUDE="$ROOT/.claude/run" -D RUN_CODEX="$ROOT/.codex/run" \
-    -D WT_DIR="$ROOT/.claude/worktrees" -D GIT_WT_DIR="${COMMON:-$NONE}/worktrees" \
-    -D WT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
-    -D GIT_WT_RE="^$common_re/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
-    -D WT_META_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*/\\.git\$" \
-    -D GIT_WT_META_RE="^$common_re/worktrees/agent-cr-[^/]+-${role}[0-9]*/(commondir|gitdir|config|config\\.worktree)\$" \
+    -D AUDIT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*/\\.(claude|codex)/run/security-audit/.+" \
     -D LOGS="$ROOT/storage/logs" \
     -p "$(macos_profile "$role")" /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
 }
 
-worktree_metadata_files() {
-  local dir="$1" wt="$2"
-  [[ -e "$wt/.git" ]] && printf '%s\n' "$wt/.git"
-  local name
-  for name in commondir gitdir config config.worktree; do
-    [[ -f "$dir/$name" ]] && printf '%s\n' "$dir/$name"
+# Prints the security-audit run directory of every review worktree of <role> that the dispatcher prepared: a real
+# directory below the physical project root, with no symbolic link on its path.
+review_audit_dirs() {
+  local role="$1" entry dir sub
+  for entry in "$ROOT/.claude/worktrees"/agent-cr-*; do
+    [[ "${entry##*/}" =~ ^agent-cr-.+-${role}[0-9]*$ ]] || continue
+    for sub in .claude .codex; do
+      dir="$entry/$sub/run/security-audit"
+      [[ -d "$dir" && "$(physical_dir "$dir")" == "$dir" ]] && printf '%s\n' "$dir"
+    done
   done
+  return 0
 }
 
 run_linux() {
-  local role="$1" command="$2" entry name dir file
+  local role="$1" command="$2" dir
   local -a args=()
   mapfile -t args < <(bwrap_base_args)
   [[ -n "$TMP_SYS" && -d "$TMP_SYS" ]] && args+=(--bind "$TMP_SYS" "$TMP_SYS")
@@ -491,92 +479,17 @@ run_linux() {
   mkdir -p "$ROOT/.claude/run" 2>/dev/null || true
   args+=(--bind "$ROOT/.claude/run" "$ROOT/.claude/run")
   [[ -d "$ROOT/.codex/run" ]] && args+=(--bind "$ROOT/.codex/run" "$ROOT/.codex/run")
-  if role_allows_worktrees "$role"; then
-    mkdir -p "$ROOT/.claude/worktrees" 2>/dev/null || true
-    args+=(--bind "$ROOT/.claude/worktrees" "$ROOT/.claude/worktrees")
-    if [[ -n "$COMMON" ]]; then
-      mkdir -p "$COMMON/worktrees" 2>/dev/null || true
-      args+=(--bind "$COMMON/worktrees" "$COMMON/worktrees")
-    fi
-    if [[ "$role" != "krang" ]]; then
-      for entry in "$ROOT/.claude/worktrees"/* ${COMMON:+"$COMMON/worktrees"/*}; do
-        [[ -e "$entry" ]] || continue
-        name="${entry##*/}"
-        if [[ "$name" =~ ^agent-cr-.+-${role}[0-9]*$ ]]; then
-          [[ "$entry" == "$COMMON/worktrees/"* ]] && dir="$entry" || dir="$NONE"
-          while IFS= read -r file; do
-            args+=(--ro-bind "$file" "$file")
-          done < <(worktree_metadata_files "$dir" "$entry")
-        else
-          args+=(--ro-bind "$entry" "$entry")
-        fi
-      done
-    fi
+  if is_review_role "$role"; then
+    while IFS= read -r dir; do
+      args+=(--bind "$dir" "$dir")
+    done < <(review_audit_dirs "$role")
   fi
   [[ "$role" == "casey" && -d "$ROOT/storage/logs" ]] && args+=(--bind "$ROOT/storage/logs" "$ROOT/storage/logs")
   bwrap "${args[@]}" -- /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
 }
 
-# --- worktree metadata ----------------------------------------------------------------------------------------------
-
-# Resolves the path a metadata file names, relative to the directory that holds it. Prints nothing when the directory
-# that would hold it does not exist.
-resolve_pointer() {
-  local from="$1" target="$2" dir
-  [[ "$target" == /* ]] || target="$from/$target"
-  dir="$(physical_dir "$(dirname "$target")")" || return 1
-  [[ -n "$dir" ]] || return 1
-  printf '%s/%s' "$dir" "${target##*/}"
-}
-
-# Prints one line per worktree metadata entry that an unconfined git must not trust: a `commondir` other than `../..`,
-# a `config.worktree` that the snapshot did not hold, and a `.git` entry under `.claude/worktrees/` that is not a
-# regular file naming an entry of the git worktrees directory. With `fix`, it restores a `commondir`, removes the
-# `config.worktree`, and moves the `.git` entry aside. `$1` is `check` or `fix`, `$2` the snapshot of the existing
-# `config.worktree` files.
-worktree_problems() {
-  local mode="$1" snapshot="${2:-}" dir content wt target
-  [[ -n "$COMMON" && -d "$COMMON/worktrees" ]] || return 0
-  for dir in "$COMMON/worktrees"/*/; do
-    dir="${dir%/}"
-    [[ -d "$dir" && ! -L "$dir" ]] || continue
-    content=""
-    [[ -f "$dir/commondir" && ! -L "$dir/commondir" ]] && content="$(head -n 1 "$dir/commondir")"
-    if [[ "$content" != "../.." ]]; then
-      printf '%s\n' "$dir/commondir"
-      [[ "$mode" == "fix" ]] && { rm -f "$dir/commondir"; printf '../..\n' >"$dir/commondir"; }
-    fi
-    if [[ -e "$dir/config.worktree" ]] && ! grep -qxF "$dir/config.worktree $(cksum <"$dir/config.worktree" 2>/dev/null)" <<<"$snapshot"; then
-      printf '%s\n' "$dir/config.worktree"
-      [[ "$mode" == "fix" ]] && rm -f "$dir/config.worktree"
-    fi
-  done
-  for wt in "$ROOT/.claude/worktrees"/*/; do
-    wt="${wt%/}"
-    [[ -e "$wt/.git" || -L "$wt/.git" ]] || continue
-    target=""
-    if [[ -f "$wt/.git" && ! -L "$wt/.git" ]]; then
-      content="$(head -n 1 "$wt/.git")"
-      [[ "$content" == "gitdir: "* ]] && target="$(resolve_pointer "$wt" "${content#gitdir: }")"
-    fi
-    if [[ -z "$target" || "$target" != "$COMMON/worktrees/"* || "${target#"$COMMON/worktrees/"}" == */* ]]; then
-      printf '%s\n' "$wt/.git"
-      [[ "$mode" == "fix" ]] && mv -f -- "$wt/.git" "$wt/.git.ai-olympus-quarantined-$RANDOM$RANDOM"
-    fi
-  done
-}
-
-worktree_snapshot() {
-  local file
-  [[ -n "$COMMON" && -d "$COMMON/worktrees" ]] || return 0
-  for file in "$COMMON/worktrees"/*/config.worktree; do
-    [[ -f "$file" ]] && printf '%s %s\n' "$file" "$(cksum <"$file")"
-  done
-  return 0
-}
-
 run_exec() {
-  local role="${1:-}" project="" command reason status snapshot problems
+  local role="${1:-}" project="" command reason status
   shift || true
   if [[ "${1:-}" == "--project" ]]; then
     project="${2:-}"
@@ -600,20 +513,12 @@ run_exec() {
   fi
 
   resolve_writable
-  snapshot="$(worktree_snapshot)"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     run_macos "$role" "$command"
   else
     run_linux "$role" "$command"
   fi
   status=$?
-  if role_allows_worktrees "$role"; then
-    problems="$(worktree_problems fix "$snapshot")"
-    if [[ -n "$problems" ]]; then
-      echo "$GUARD_PREFIX $role changed git worktree metadata, which the guard restored: $(tr '\n' ' ' <<<"$problems")— a Blocked stop" >&2
-      return 6
-    fi
-  fi
   if [[ "$status" -ne 0 ]]; then
     echo "$GUARD_PREFIX $role ran this command in its read-only confinement (exit $status); a refused write is a Blocked stop, never a retry another way" >&2
   fi
@@ -682,7 +587,7 @@ sha256_of() {
 }
 
 run_verify() {
-  local installed=".claude/skills/_shared/agent-guard.sh" reference recorded actual settings problems
+  local installed=".claude/skills/_shared/agent-guard.sh" reference recorded actual settings
   resolve_project || { echo 'agent-guard=refused reason=not-a-git-checkout'; return 3; }
   reference="$COMMON/ai-olympus/installed-copies.sha256"
   [[ -f "$ROOT/$installed" && ! -L "$ROOT/$installed" ]] || { echo 'agent-guard=refused reason=no-installed-copy'; return 3; }
@@ -694,11 +599,6 @@ run_verify() {
   if ! jq -e '[.hooks.PreToolUse[]?.hooks[]? | .command? // "" | select(type == "string")
       | select(test("/\\.claude/skills/_shared/agent-guard\\.sh hook$"))] | length == 1' "$settings" >/dev/null 2>&1; then
     echo 'agent-guard=refused reason=no-hook-handler'
-    return 3
-  fi
-  problems="$(worktree_problems check "$(worktree_snapshot)" | head -n 1)"
-  if [[ -n "$problems" ]]; then
-    echo "agent-guard=refused reason=worktree-metadata path=$problems"
     return 3
   fi
   echo 'agent-guard=verified'

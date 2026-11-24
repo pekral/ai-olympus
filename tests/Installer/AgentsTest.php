@@ -2061,21 +2061,20 @@ test(
 );
 
 test(
-    'leonardo locks every CR worktree at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
+    'every CR worktree of leonardo is locked at creation with a parseable pid token, under the required path convention (PR #150 CR fix)',
     function (): void {
         $packageDir = dirname(__DIR__, 2);
         $content = (string) file_get_contents($packageDir . '/agents/leonardo.md');
 
         expect($content)->toContain('.claude/worktrees/agent-cr-<slug>-leonardo');
-        expect($content)->toContain('lock it immediately on creation');
+        expect($content)->toContain('It creates and locks the worktree');
         expect($content)->toContain('git worktree lock --reason "pid $PPID agent leonardo slug <slug>"');
-        expect($content)->toContain('never `$$`, the ephemeral per-Bash-call subshell PID');
+        expect($content)->toContain('`$PPID` is the stable PID of that session, never `$$`');
         expect($content)->toContain('git worktree unlock <path>');
-        // The per-agent suffix keeps the path attributable even without a peer to collide with.
-        expect($content)->toContain('the `-leonardo` suffix keeps this path and lock reason attributable to this agent');
         // Moderate 4 (unvalidated <slug> reaching a shell/path) — slug format guard, reject-and-stay-shared.
         expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
-        expect($content)->toContain('do not create a worktree** — continue the review in the shared tree instead');
+        expect($content)->toContain('A slug that fails creates no worktree.');
+        expect($content)->toContain('outside one, review in the shared tree instead');
         // Minor 2 (`<ref>` fails on an already-checked-out PR head branch) — --detach + head SHA instead.
         expect($content)->toContain('git worktree add --detach .claude/worktrees/agent-cr-<slug>-leonardo <head-sha>');
         // Standalone cleanup removes only this agent's own path, never a peer's.

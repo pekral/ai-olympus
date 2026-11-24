@@ -68,6 +68,63 @@ function agentGuardObjectFiles(string $root): array
     return $files;
 }
 
+/**
+ * @return array<string, array{0: string, 1: string}>
+ */
+function agentGuardWorktreeWrites(): array
+{
+    $writes = [
+        'a new worktree' => 'git worktree add -q --detach .claude/worktrees/agent-cr-new-{role} HEAD',
+        'a symbolic link to the project' => 'ln -s "$PWD" .claude/worktrees/agent-cr-z-{role}',
+        'a symbolic link in place of a git dir' => 'mv .git/worktrees/agent-cr-slug-leonardo "$TMPDIR/gd"; '
+            . 'ln -s "$TMPDIR/gd" .git/worktrees/agent-cr-slug-leonardo',
+        'a commondir' => 'echo /tmp/elsewhere > .git/worktrees/agent-cr-slug-leonardo/commondir',
+        'a .git file' => 'echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-slug-leonardo/.git',
+        'a gitlink in an index' => 'git -C .claude/worktrees/agent-cr-slug-leonardo update-index --add --cacheinfo 160000,"$(git rev-parse HEAD)",nested',
+        'a nested repository' => 'git init -q .claude/worktrees/agent-cr-slug-leonardo/nested',
+        'a file' => 'echo x > .claude/worktrees/agent-cr-slug-leonardo/composer.json',
+        'a branch' => 'git -C .claude/worktrees/agent-cr-slug-leonardo checkout -q -b escaped',
+        'a removed file of a unit worktree' => 'rm -f .claude/worktrees/agent-impl-slug-donatello/composer.json',
+        'a moved .git of a unit worktree' => 'mv .claude/worktrees/agent-impl-slug-donatello/.git "$TMPDIR/x"',
+        'a removed worktree' => 'git worktree remove --force .claude/worktrees/agent-impl-slug-donatello',
+    ];
+    $cases = [];
+
+    foreach (['krang', 'leonardo', 'splinter'] as $role) {
+        foreach ($writes as $label => $command) {
+            $cases[$role . ': ' . $label] = [$role, $command];
+        }
+    }
+
+    return $cases;
+}
+
+function agentGuardWorktreeState(string $root): string
+{
+    $state = [];
+
+    foreach ([$root . '/.claude/worktrees', $root . '/.git/worktrees'] as $directory) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST,
+        );
+
+        foreach ($iterator as $file) {
+            assert($file instanceof SplFileInfo);
+            $path = $file->getPathname();
+            $state[] = substr($path, strlen($root)) . ':' . match (true) {
+                is_link($path) => 'link ' . (string) readlink($path),
+                is_dir($path) => 'dir',
+                default => (string) hash_file('sha256', $path),
+            };
+        }
+    }
+
+    sort($state);
+
+    return implode("\n", $state);
+}
+
 function agentGuardConfinedInput(): string
 {
     return (string) json_encode(['tool_name' => 'Bash', 'agent_type' => 'leonardo', 'tool_input' => ['command' => 'true']]);
@@ -248,30 +305,46 @@ test('a profile file planted in the project or under .claude/run does not widen 
     }
 })->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
-test('each confined role keeps the writes its definition documents', function (string $role, string $extra): void {
+test('each confined role keeps the reads and writes its definition documents', function (string $role): void {
     $root = AgentGuardRun::repository();
     $sha = AgentGuardRun::remoteOnlyCommit($root);
-    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-batch-slug-krang', 'HEAD');
+    $review = AgentGuardRun::reviewWorktree($root, 'leonardo');
+    AgentGuardRun::reviewWorktree($root, 'splinter');
     $fetch = 'mkdir -p .claude/run/fetch/objects && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects '
         . 'GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git fetch -q --no-write-fetch-head --no-auto-maintenance origin ' . $sha
         . ' && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git cat-file -e ' . $sha;
+    $command = 'echo handoff >> .claude/run/brief.md && echo line >> .claude/run/brief.audit'
+        . ' && git -C ' . $review . ' diff --stat HEAD && git -C ' . $review . ' status --short && git -C ' . $review . ' log -1 --format=%H'
+        . ' && { ! command -v gh >/dev/null || gh --version >/dev/null; } && ' . $fetch;
+    $scratch = " && cat > \"\$TMPDIR/note\" <<'EOF'\nscratch\nEOF\ntest -s \"\$TMPDIR/note\"";
+    $audit = ' && mkdir .claude/worktrees/agent-cr-slug-' . $role . '/.claude/run/security-audit/run-1'
+        . ' && echo "{}" > .claude/worktrees/agent-cr-slug-' . $role . '/.claude/run/security-audit/run-1/metadata.json';
 
     try {
-        $process = AgentGuardRun::exec($root, $role, 'echo handoff >> .claude/run/brief.md && ' . $fetch . $extra);
+        $process = AgentGuardRun::exec($root, $role, $command . (in_array($role, ['leonardo', 'splinter'], strict: true) ? $audit : '') . $scratch);
 
         expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
             ->and(file_get_contents($root . '/.claude/run/brief.md'))->toBe("handoff\n");
     } finally {
         AgentGuardRun::remove($root);
     }
-})->with([
-    'april' => ['april', ''],
-    'casey' => ['casey', ''],
-    'krang' => ['krang', ' && git worktree remove .claude/worktrees/agent-batch-slug-krang && git worktree prune'],
-    'leonardo' => ['leonardo', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-leonardo HEAD'],
-    'shredder' => ['shredder', ''],
-    'splinter' => ['splinter', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-splinter HEAD'],
-]);
+})->with(['april', 'casey', 'krang', 'leonardo', 'shredder', 'splinter'])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('a confined role cannot change a worktree or a worktree directory of git', function (string $role, string $command): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::reviewWorktree($root, 'leonardo');
+    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-impl-slug-donatello', 'HEAD');
+    $before = agentGuardWorktreeState($root);
+
+    try {
+        AgentGuardRun::exec($root, $role, str_replace('{role}', $role, $command));
+
+        expect(agentGuardWorktreeState($root))->toBe($before)
+            ->and(is_dir($root . '/.git/objects'))->toBeTrue();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with(agentGuardWorktreeWrites())->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
 test('a confined role cannot fetch into the object store of the project', function (): void {
     $root = AgentGuardRun::repository();
@@ -347,57 +420,6 @@ test('the hook and exec never run a tool planted in a directory on PATH', functi
     }
 })->with(['bwrap', 'git', 'jq', 'uname']);
 
-test('a review role cannot rewrite the metadata of its own existing review worktree', function (string $command, string $file): void {
-    $root = AgentGuardRun::repository();
-    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-cr-slug-splinter', 'HEAD');
-    $before = (string) file_get_contents($root . '/' . $file);
-
-    try {
-        AgentGuardRun::exec($root, 'splinter', $command);
-
-        expect(file_get_contents($root . '/' . $file))->toBe($before);
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->with([
-    'commondir' => ['echo /tmp/elsewhere > .git/worktrees/agent-cr-slug-splinter/commondir', '.git/worktrees/agent-cr-slug-splinter/commondir'],
-    'the .git file' => ['echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-slug-splinter/.git', '.claude/worktrees/agent-cr-slug-splinter/.git'],
-])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
-
-test('exec restores worktree metadata that a review role wrote in the call that created it', function (): void {
-    $root = AgentGuardRun::repository();
-    $command = 'mkdir -p .git/worktrees/agent-cr-x-splinter .claude/worktrees/agent-cr-x-splinter'
-        . ' && echo /tmp/elsewhere > .git/worktrees/agent-cr-x-splinter/commondir'
-        . ' && echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-x-splinter/.git';
-
-    try {
-        $process = AgentGuardRun::exec($root, 'splinter', $command);
-
-        expect($process->getExitCode())->toBe(6)
-            ->and(file_get_contents($root . '/.git/worktrees/agent-cr-x-splinter/commondir'))->toBe("../..\n")
-            ->and(file_exists($root . '/.claude/worktrees/agent-cr-x-splinter/.git'))->toBeFalse()
-            ->and($process->getErrorOutput())->toContain('splinter changed git worktree metadata');
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
-
-test('krang cannot write into the worktree of a writing role on macOS', function (): void {
-    $root = AgentGuardRun::repository();
-    installerWriteFile($root . '/.claude/worktrees/agent-impl-slug-donatello/inject.php', 'unit');
-
-    try {
-        AgentGuardRun::exec($root, 'krang', 'echo planted >> .claude/worktrees/agent-impl-slug-donatello/inject.php');
-
-        expect(file_get_contents($root . '/.claude/worktrees/agent-impl-slug-donatello/inject.php'))->toBe('unit');
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->skip(
-    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
-    'bwrap cannot grant removal without writing, which SECURITY.md names as a residual',
-);
-
 test('exec protects the project it is given when the command starts in a nested checkout', function (): void {
     $root = AgentGuardRun::repository();
     $nested = $root . '/nested';
@@ -427,35 +449,6 @@ test('a confined command cannot reach the host file system through another proce
         AgentGuardRun::remove($root);
     }
 })->skip(PHP_OS_FAMILY !== 'Linux' || agentGuardSkipWithoutConfinement(), 'only bwrap exposes /proc of the host this way');
-
-test('a review role cannot open the review worktree of another role on macOS', function (): void {
-    $root = AgentGuardRun::repository();
-
-    try {
-        $process = AgentGuardRun::exec($root, 'splinter', 'git worktree add -q --detach .claude/worktrees/agent-cr-slug-leonardo HEAD');
-
-        expect($process->getExitCode())->not->toBe(0)
-            ->and(is_dir($root . '/.claude/worktrees/agent-cr-slug-leonardo/.git'))->toBeFalse();
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->skip(
-    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
-    'bwrap binds .claude/worktrees by directory, not by name, which SECURITY.md names as a residual',
-);
-
-test('a review role cannot write into the existing review worktree of another role', function (): void {
-    $root = AgentGuardRun::repository();
-    installerWriteFile($root . '/.claude/worktrees/agent-cr-slug-leonardo/review.md', 'leonardo');
-
-    try {
-        AgentGuardRun::exec($root, 'splinter', 'echo splinter > .claude/worktrees/agent-cr-slug-leonardo/review.md');
-
-        expect(file_get_contents($root . '/.claude/worktrees/agent-cr-slug-leonardo/review.md'))->toBe('leonardo');
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
 test('the confinement is applied on a host that ships sandbox-exec', function (): void {
     expect(AgentGuardRun::confinementAvailable())->toBeTrue();

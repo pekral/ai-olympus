@@ -151,6 +151,15 @@ final class AgentGuardRun
         return trim(self::git($base . '/other', 'rev-parse', 'HEAD')->getOutput());
     }
 
+    public static function reviewWorktree(string $root, string $role): string
+    {
+        $path = '.claude/worktrees/agent-cr-slug-' . $role;
+        self::git($root, 'worktree', 'add', '-q', '--detach', $path, 'HEAD');
+        mkdir($root . '/' . $path . '/.claude/run/security-audit', 0777, recursive: true);
+
+        return $path;
+    }
+
     public static function confinementAvailable(): bool
     {
         if (self::$confinementAvailable !== null) {

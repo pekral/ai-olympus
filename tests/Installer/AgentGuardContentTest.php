@@ -19,6 +19,18 @@ test('every confined agent runs the probe first and reports its protection in th
         ->and(strpos($definition, '## Runtime protection'))->toBeLessThan((int) strpos($definition, '## Bash boundary'));
 })->with(['leonardo', 'splinter', 'april', 'casey', 'shredder', 'krang']);
 
+test('the dispatching session prepares the review worktree and a confined reviewer only reads in it', function (string $file, string $needle): void {
+    expect(agentGuardPackageFile($file))->toContain($needle);
+})->with([
+    'leonardo' => ['agents/leonardo.md', '**The dispatching session prepares the worktree, never you, while your protection is active.**'],
+    'splinter' => ['agents/splinter.md', 'Under an active protection the dispatching session prepares it and you only read in it.'],
+    'krang' => ['agents/krang.md', 'Before the `leonardo` and `splinter` dispatches, prepare their review worktrees for the round head'],
+    'a confined krang' => ['agents/krang.md', 'you cannot prepare a review worktree or fetch a head commit: return the nested hand-over'],
+    'the checkout gate' => ['skills/code-review/references/branch-checkout-gate.md', '**Under an active runtime agent guard the reviewer runs steps 1 and 5 only.**'],
+    'the cleanup' => ['skills/_shared/orchestration/stale-run-recovery.md', '**A worktree this session prepared is its own.**'],
+    'the batch' => ['skills/_shared/orchestration/batch-preparation.md', 'The root session prepares them before each round and removes them in *Run cleanup*.'],
+]);
+
 test('every confined Codex adapter runs the probe and reports its protection', function (string $agent): void {
     $adapter = agentGuardPackageFile('codex/agents/' . $agent . '.toml');
 
@@ -94,6 +106,7 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         ->and($guard)->toContain('**The hook never allows a command only because no deny rule matched it.**')
         ->and($guard)->toContain('**The cost:** a confined role asks the user for every command that no allow rule of the settings files covers')
         ->and($guard)->toContain('**The git object store is not writable.**')
+        ->and($guard)->toContain('**Every worktree is read-only.**')
         ->and($guard)->toContain('Not verified: that the probe reports a `--sandbox read-only` session as `active`')
         ->and($guard)->not->toContain('hooks are read at session start');
 
