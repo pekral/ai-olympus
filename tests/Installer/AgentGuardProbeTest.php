@@ -126,3 +126,25 @@ test(
         "agent-guard=verified\n",
     ],
 ]);
+
+test('verify refuses worktree metadata that points outside the git worktrees directory', function (): void {
+    $root = AgentGuardRun::repository();
+    $hash = hash_file('sha256', $root . '/.claude/skills/_shared/agent-guard.sh');
+    installerWriteFile($root . '/.git/ai-olympus/installed-copies.sha256', $hash . "  .claude/skills/_shared/agent-guard.sh\n");
+    file_put_contents(
+        $root . '/.claude/settings.local.json',
+        (string) json_encode(['hooks' => ['PreToolUse' => [['matcher' => 'Bash', 'hooks' => [['type' => 'command', 'command' => InstallerAgentGuard::HOOK_COMMAND]]]]]]),
+    );
+    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-cr-slug-leonardo', 'HEAD');
+    file_put_contents($root . '/.git/worktrees/agent-cr-slug-leonardo/commondir', "/tmp/elsewhere\n");
+
+    try {
+        $process = AgentGuardRun::run($root, ['verify']);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getOutput())->toStartWith('agent-guard=refused reason=worktree-metadata path=')
+            ->and(file_get_contents($root . '/.git/worktrees/agent-cr-slug-leonardo/commondir'))->toBe("/tmp/elsewhere\n");
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});

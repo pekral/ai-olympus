@@ -251,6 +251,7 @@ test('a profile file planted in the project or under .claude/run does not widen 
 test('each confined role keeps the writes its definition documents', function (string $role, string $extra): void {
     $root = AgentGuardRun::repository();
     $sha = AgentGuardRun::remoteOnlyCommit($root);
+    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-batch-slug-krang', 'HEAD');
     $fetch = 'mkdir -p .claude/run/fetch/objects && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects '
         . 'GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git fetch -q --no-write-fetch-head --no-auto-maintenance origin ' . $sha
         . ' && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git cat-file -e ' . $sha;
@@ -266,10 +267,7 @@ test('each confined role keeps the writes its definition documents', function (s
 })->with([
     'april' => ['april', ''],
     'casey' => ['casey', ''],
-    'krang' => [
-        'krang',
-        ' && git worktree add -q --detach .claude/worktrees/agent-batch-slug-krang HEAD && git worktree remove .claude/worktrees/agent-batch-slug-krang',
-    ],
+    'krang' => ['krang', ' && git worktree remove .claude/worktrees/agent-batch-slug-krang && git worktree prune'],
     'leonardo' => ['leonardo', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-leonardo HEAD'],
     'shredder' => ['shredder', ''],
     'splinter' => ['splinter', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-splinter HEAD'],
@@ -348,6 +346,57 @@ test('the hook and exec never run a tool planted in a directory on PATH', functi
         AgentGuardRun::remove($root);
     }
 })->with(['bwrap', 'git', 'jq', 'uname']);
+
+test('a review role cannot rewrite the metadata of its own existing review worktree', function (string $command, string $file): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-cr-slug-splinter', 'HEAD');
+    $before = (string) file_get_contents($root . '/' . $file);
+
+    try {
+        AgentGuardRun::exec($root, 'splinter', $command);
+
+        expect(file_get_contents($root . '/' . $file))->toBe($before);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'commondir' => ['echo /tmp/elsewhere > .git/worktrees/agent-cr-slug-splinter/commondir', '.git/worktrees/agent-cr-slug-splinter/commondir'],
+    'the .git file' => ['echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-slug-splinter/.git', '.claude/worktrees/agent-cr-slug-splinter/.git'],
+])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('exec restores worktree metadata that a review role wrote in the call that created it', function (): void {
+    $root = AgentGuardRun::repository();
+    $command = 'mkdir -p .git/worktrees/agent-cr-x-splinter .claude/worktrees/agent-cr-x-splinter'
+        . ' && echo /tmp/elsewhere > .git/worktrees/agent-cr-x-splinter/commondir'
+        . ' && echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-x-splinter/.git';
+
+    try {
+        $process = AgentGuardRun::exec($root, 'splinter', $command);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and(file_get_contents($root . '/.git/worktrees/agent-cr-x-splinter/commondir'))->toBe("../..\n")
+            ->and(file_exists($root . '/.claude/worktrees/agent-cr-x-splinter/.git'))->toBeFalse()
+            ->and($process->getErrorOutput())->toContain('splinter changed git worktree metadata');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('krang cannot write into the worktree of a writing role on macOS', function (): void {
+    $root = AgentGuardRun::repository();
+    installerWriteFile($root . '/.claude/worktrees/agent-impl-slug-donatello/inject.php', 'unit');
+
+    try {
+        AgentGuardRun::exec($root, 'krang', 'echo planted >> .claude/worktrees/agent-impl-slug-donatello/inject.php');
+
+        expect(file_get_contents($root . '/.claude/worktrees/agent-impl-slug-donatello/inject.php'))->toBe('unit');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(
+    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
+    'bwrap cannot grant removal without writing, which SECURITY.md names as a residual',
+);
 
 test('exec protects the project it is given when the command starts in a nested checkout', function (): void {
     $root = AgentGuardRun::repository();
