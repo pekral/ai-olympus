@@ -28,10 +28,11 @@
 # The writes:
 #   - GitHub label: the repository label whose name equals the --label name, or else one of "ready
 #     to deploy", "ready for deploy", "ready-to-deploy", or "připraveno k nasazení" (case-insensitive,
-#     exact). A missing label is reported with the names looked for, and never created. No label is applied when a workflow of the default-branch
-#     tip, read through `gh api`, has a `labeled` or `unlabeled` type, an `issues` trigger without a
-#     `types` filter, or a read of the event label, or names the label in any letter case or
-#     separator; nor when those workflows cannot be read in full.
+#     exact). A missing label is reported with the names looked for, and never created. No label
+#     is applied when a workflow of the default-branch tip, read through `gh api`, has a `labeled`
+#     or `unlabeled` type, an `issues` trigger without a `types` filter, a trigger the check cannot
+#     read, or a read of the event label, or names the label in any letter case or separator; nor
+#     when those workflows cannot be read in full.
 #   - GitHub assignee: the pull-request author, added through `--add-assignee`; an existing
 #     assignee is never removed, and a bot author gets no write.
 #   - JIRA: transition-to-ready-to-deploy.sh, then assign-to-pr-author.sh, one key per call.
@@ -150,14 +151,17 @@ fi
 # $1 = workflow text, $2 = label. Prints why the workflow may run on a label write or names the
 # label, and nothing otherwise. It fails closed: a form it cannot read as filtered counts as a hit.
 workflow_label_reason() {
-  local content="$1" squeezed_label
+  local content="$1" squeezed_label trigger
 
+  trigger="$(workflow_issue_trigger <<<"$content")" || trigger=unreadable
   if grep -qiE '(^|[^[:alnum:]_])(un)?labeled([^[:alnum:]_]|$)' <<<"$content"; then
     echo "subscribes to label activity"
   elif grep -qiE 'event\.label([^[:alnum:]_]|$)' <<<"$content"; then
     echo "reads the label of the event"
-  elif [[ "$(workflow_has_unfiltered_issue_trigger <<<"$content")" == 1 ]]; then
+  elif [[ "$trigger" == unfiltered ]]; then
     echo "runs on every issue activity"
+  elif [[ "$trigger" == unreadable ]]; then
+    echo "has a trigger the check cannot read"
   else
     squeezed_label="$(squeeze "$2")"
     if grep -qF -- "$squeezed_label" <<<"$(squeeze "$content")"; then
@@ -170,40 +174,83 @@ workflow_label_reason() {
 # `ready to deploy` compare equal.
 squeeze() { lower "$1" | sed -E "s/[[:space:]_.'\"-]+//g"; }
 
-# Reads a workflow on stdin and prints 1 when it subscribes to the `issues` event without a `types`
-# filter (GitHub then runs it on every issue activity, `labeled` included), 0 otherwise.
-workflow_has_unfiltered_issue_trigger() {
+# Reads a workflow on stdin and prints `unfiltered` when its `on` value may subscribe to the `issues`
+# event without a `types` filter (GitHub then runs it on every issue activity, `labeled` included),
+# `unreadable` when the check cannot tell what the `on` value holds, and nothing otherwise.
+# It fails closed. Every `issues` token of the `on` value counts, in any quoting, letter case, or
+# flow form, unless it is a block key whose own children carry a non-empty `types` filter. A form
+# it does not model (an escape, an alias, a merge key, a tag, an explicit or indented key, a flow
+# document, a second document) is `unreadable`.
+workflow_issue_trigger() {
   awk '
-    function indent(text) { match(text, /^[[:space:]]*/); return RLENGTH }
-    {
-      line = $0
-      if (line ~ /^[[:space:]]*#/) next
-      sub(/[[:space:]]+#.*$/, "", line)
-      if (line ~ /^[[:space:]]*$/) next
-      if (in_issues) {
-        if (indent(line) <= issues_indent) { if (!has_types) found = 1; in_issues = 0 }
-        else if (line ~ /^[[:space:]]*types[[:space:]]*:/) has_types = 1
+    function indent(text) { match(text, /^[ \t]*/); return RLENGTH }
+    function verdict(value) { if (result == "") result = value }
+    function close_block() { if (block && (!has_types || types_keys != 1)) verdict("unfiltered"); block = 0 }
+    function event_type(text) { return text ~ /^[a-z_][a-z0-9_]*([^a-z0-9_]|$)/ && text !~ /^(null|true|false)([^a-z0-9_]|$)/ }
+    function scan(text, first,    flat, plain, value, ind) {
+      plain = text
+      gsub(/"[^"]*"|\047[^\047]*\047/, "", plain)
+      if (text ~ /\\/ || plain ~ /<</ || plain ~ /(^|[ \t,:{[])[*!]/) verdict("unreadable")
+      flat = tolower(text)
+      gsub(/["\047]/, "", flat)
+      ind = indent(flat)
+      if (block) {
+        if (ind <= block_indent && depth <= 0) close_block()
+        else {
+          if (child < 0) child = ind
+          if (types_open && ind >= types_indent && flat ~ /^[ \t]*-[ \t]+/) {
+            value = flat
+            sub(/^[ \t]*-[ \t]+/, "", value)
+            if (event_type(value)) has_types = 1
+          }
+          types_open = 0
+          if (ind == child && flat ~ /^[ \t]*types[ \t]*:/) {
+            types_keys++
+            value = flat
+            sub(/^[ \t]*types[ \t]*:[ \t]*/, "", value)
+            if (value ~ /^[ \t]*$/) { types_open = 1; types_indent = ind }
+            else if (value ~ /^\[/) {
+              sub(/^\[[ \t]*/, "", value)
+              if (event_type(value)) has_types = 1
+            }
+          }
+        }
       }
-      if (in_issues) next
-      if (line ~ /^[[:space:]]*["\047]?on["\047]?[[:space:]]*:/) {
-        value = line
-        sub(/^[[:space:]]*["\047]?on["\047]?[[:space:]]*:[[:space:]]*/, "", value)
-        if (value ~ /^[[{]/) {
-          gsub(/[][{}[:space:]]/, "", value)
-          count = split(value, parts, /[,:]/)
-          for (i = 1; i <= count; i++) if (parts[i] == "issues" && value !~ /types/) found = 1
-        } else if (value == "issues") found = 1
-      } else if (line ~ /^[[:space:]]*-[[:space:]]*issues[[:space:]]*$/) {
-        found = 1
-      } else if (line ~ /^[[:space:]]*issues[[:space:]]*:[[:space:]]*$/) {
-        issues_indent = indent(line); in_issues = 1; has_types = 0
-      } else if (line ~ /^[[:space:]]*issues[[:space:]]*:/) {
-        value = line
-        sub(/^[[:space:]]*issues[[:space:]]*:[[:space:]]*/, "", value)
-        if (value !~ /^(read|write|none)$/ && value !~ /types/) found = 1
+      if (flat ~ /(^|[ \t,:?{[])issues($|[] \t,:}])/) {
+        if (!first && !block && depth <= 0 && flat ~ /^[ \t]*issues[ \t]*:[ \t]*$/) {
+          block = 1; block_indent = ind; child = -1; has_types = 0; types_open = 0; types_keys = 0
+        } else verdict("unfiltered")
+      }
+      depth += gsub(/[[{]/, "&", flat) - gsub(/[]}]/, "&", flat)
+      if (depth < 0) depth = 0
+    }
+    {
+      sub(/\r$/, "")
+      line = $0
+      if (line ~ /^[ \t]*#/) next
+      if (line !~ /["\047]/) sub(/(^|[ \t])#.*$/, "", line)
+      if (line ~ /^[ \t]*$/) next
+      if (!seen_key && (line ~ /^%/ || line ~ /^---[ \t]*$/)) next
+      if (indent(line) > 0 || depth > 0) {
+        if (!seen_key) { verdict("unreadable"); exit }
+        if (in_on) scan(line, 0)
+        next
+      }
+      close_block()
+      in_on = 0
+      if (!match(line, /^[A-Za-z_][A-Za-z0-9_-]*/) && !match(line, /^("[^"\\]*"|\047[^\047]*\047)/)) { verdict("unreadable"); exit }
+      key = substr(line, 1, RLENGTH)
+      rest = substr(line, RLENGTH + 1)
+      if (rest !~ /^[ \t]*:([ \t]|$)/) { verdict("unreadable"); exit }
+      seen_key = 1
+      gsub(/["\047]/, "", key)
+      if (tolower(key) ~ /^(on|true|yes|y)$/) {
+        in_on = 1
+        sub(/^[ \t]*:/, "", rest)
+        scan(rest, 1)
       }
     }
-    END { if (in_issues && !has_types) found = 1; print found + 0 }
+    END { close_block(); print result }
   '
 }
 
@@ -226,7 +273,7 @@ if [[ -n "$LABEL" ]]; then
         LABEL_SKIP="not applied — the default-branch workflow $workflow $reason; the operator decides"
         break
       fi
-    done < <(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"))) | [.path, .sha] | @tsv' <<<"$TREE")
+    done < <(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"; "i"))) | [.path, .sha] | @tsv' <<<"$TREE")
   fi
 fi
 
