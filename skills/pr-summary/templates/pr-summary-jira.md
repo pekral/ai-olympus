@@ -115,7 +115,7 @@ Review findings
   - A point that blocks the merge comes first and says in words that it blocks
     the merge. Never write a severity label.
   - Interactive testing that the project switched off is stated in one sentence
-    (@skills/pr-summary/SKILL.md, Review-only run, item 6).
+    (@skills/pr-summary/SKILL.md, What the comment carries).
   - Interactive testing that did not run because no local or test environment
     was available is never mentioned, in this section or in any other
     (@rules/code-review/general.md, What a code review checks, and nothing

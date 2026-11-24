@@ -229,3 +229,14 @@ test('no package file reads the interactive-testing value without the rule that 
     expect($readers)->not->toBeEmpty()
         ->and($withoutTheRule)->toBe([]);
 });
+
+test('every tracker summary states a switched-off project, not only the review-only one', function (): void {
+    $skill = packageSource('skills/pr-summary/SKILL.md');
+    $reviewOnly = explode("\n### ", explode('### Review-only run', $skill, 2)[1] ?? '', 2)[0];
+    $whatTheCommentCarries = explode("\n### ", explode('### What the comment carries', $skill, 2)[1] ?? '', 2)[0];
+
+    expect($reviewOnly)->not->toContain('Interactive testing that the project switched off')
+        ->and($whatTheCommentCarries)->toContain('**Interactive testing that the project switched off is stated once, on every target and in every run mode.**')
+        ->and(normalizedPackageSource('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('(@skills/pr-summary/SKILL.md, What the comment carries)')
+        ->and(normalizedPackageSource('agents/april.md'))->toContain('pass `interactive testing: off` to `pr-summary`');
+});
