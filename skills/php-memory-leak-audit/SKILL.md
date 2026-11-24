@@ -31,7 +31,7 @@ Out of scope: an HTTP request, a controller, middleware, a synchronous service, 
 
 What the skill leaves to other owners:
 - `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)* owns how much one job holds at once and releases when it ends. This skill owns what survives the job.
-- `@skills/laravel-horizon-audit/SKILL.md` audits the queue and supervisor configuration of the whole repository and is not a review lens. This skill reads worker flags only in a file the diff changes (check ML-5).
+- `@skills/laravel-horizon-audit/SKILL.md` audits the queue and supervisor configuration of the whole repository and is not a review lens. This skill reads only a worker command line or a Horizon supervisor entry that the diff adds or changes (check ML-5).
 - `@skills/latency-critical-systems/SKILL.md` owns the latency budget and the freshness of the path.
 
 ## Use when

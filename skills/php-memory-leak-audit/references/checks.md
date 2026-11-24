@@ -57,7 +57,7 @@ Read this before every check.
 **Not a finding:** a query log enabled only in a path that no entry point reaches; a log flushed in `finally` of the same job.
 
 ## ML-5 — Worker recycle bounds
-Only a changed file that starts or configures a worker is read (*Entry points*, last item). The whole-repository configuration audit is `@skills/laravel-horizon-audit/SKILL.md` and is not part of a review.
+Only a worker command line or a Horizon supervisor entry that the diff adds or changes is read, and every other line of the same file is left alone (*Entry points*, last item). The whole-repository configuration audit is `@skills/laravel-horizon-audit/SKILL.md` and is not part of a review.
 
 **Hit:**
 - the worker command line sets neither `--max-jobs` nor `--max-time`, or a Horizon supervisor sets neither `maxJobs` nor `maxTime`, so no count or time recycles the worker. Read the default of each flag and the meaning of `0` in the installed `WorkCommand` signature. Without `vendor/`, the point goes under *Not verified*;
