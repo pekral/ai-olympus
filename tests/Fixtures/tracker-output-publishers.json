@@ -84,6 +84,11 @@
     "skills/github-release-roadmap/references/github-cli-workflow.md": [
         "skills/create-issues-from-text/templates/issue-structure.md"
     ],
+    "skills/merge-review-comments/SKILL.md": [
+        "skills/merge-review-comments/templates/merged-review-comment-github.md",
+        "skills/merge-review-comments/templates/merged-review-comment-jira.md",
+        "skills/merge-review-comments/templates/merged-review-comment-bugsnag.md"
+    ],
     "skills/publish-github-release/SKILL.md": [
         "skills/resolve-issue/templates/pull-request-body.md"
     ],
