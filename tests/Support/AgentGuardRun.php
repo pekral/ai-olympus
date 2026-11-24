@@ -91,24 +91,20 @@ final class AgentGuardRun
      */
     public static function runUnavailable(string $root, array $arguments): Process
     {
-        $home = dirname($root) . '/home';
-        $environment = self::environment($home);
         $command = ['bash', self::script(), ...$arguments];
 
         if (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/sandbox-exec')) {
             $command = ['/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)', ...$command];
-        } else {
-            $stub = $home . '/stub-bin';
-            installerWriteFile($stub . '/bwrap', "#!/bin/sh\nexit 1\n");
-            chmod($stub . '/bwrap', 0755);
-            $environment['PATH'] = $stub . ':' . (string) getenv('PATH');
+        } elseif (self::linuxBwrap() !== '') {
+            $command = [self::linuxBwrap(), '--unshare-user', '--disable-userns', '--dev-bind', '/', '/', '--', ...$command];
         }
 
-        $process = new Process($command, $root, $environment);
-        $process->setTimeout(60);
-        $process->run();
+        return self::runCommand($root, $command);
+    }
 
-        return $process;
+    public static function linuxBwrap(): string
+    {
+        return is_executable('/usr/bin/bwrap') ? '/usr/bin/bwrap' : '';
     }
 
     public static function remoteOnlyCommit(string $root): string
@@ -139,6 +135,19 @@ final class AgentGuardRun
         }
 
         return self::$confinementAvailable;
+    }
+
+    /**
+     * @param list<string> $command
+     */
+    private static function runCommand(string $root, array $command, ?string $stdin = null): Process
+    {
+        $process = new Process($command, $root, self::environment(dirname($root) . '/home'));
+        $process->setInput($stdin);
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process;
     }
 
     /**

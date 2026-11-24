@@ -33,10 +33,10 @@ function agentGuardInterpreterWrites(): array
  */
 function agentGuardDetachedWrites(): array
 {
-    $writes = ['nohup … &' => ['nohup sh -c \'echo x > target; touch "$HOME/done"\' >/dev/null 2>&1 &']];
+    $writes = ['nohup … &' => ['nohup sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &']];
     $setsid = trim((string) shell_exec('command -v setsid 2>/dev/null'));
 
-    return $setsid === '' ? $writes : [...$writes, 'setsid' => ['setsid sh -c \'echo x > target; touch "$HOME/done"\' >/dev/null 2>&1 &']];
+    return $setsid === '' ? $writes : [...$writes, 'setsid' => ['setsid sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &']];
 }
 
 /**
@@ -65,6 +65,11 @@ function agentGuardObjectFiles(string $root): array
     sort($files);
 
     return $files;
+}
+
+function agentGuardConfinedInput(): string
+{
+    return (string) json_encode(['tool_name' => 'Bash', 'agent_type' => 'leonardo', 'tool_input' => ['command' => 'true']]);
 }
 
 function agentGuardGitState(string $root): string
@@ -127,7 +132,7 @@ test('a write through an interpreter is refused in the confinement', function (s
 
 test('a write from a detached process is refused after the process ended', function (string $command): void {
     $root = AgentGuardRun::repository();
-    $done = dirname($root) . '/home/done';
+    $done = $root . '/.claude/run/done';
 
     try {
         AgentGuardRun::exec($root, 'casey', $command);
@@ -305,6 +310,43 @@ test('a confined role cannot change the git object store', function (string $com
     'a removed pack' => ['rm -f .git/objects/pack/*.pack'],
     'an alternates file' => ['echo /tmp > .git/objects/info/alternates'],
 ])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('a confined role cannot write the home directory, a directory on PATH, or the git configuration', function (string $command, string $path): void {
+    $root = AgentGuardRun::repository();
+    $home = dirname($root) . '/home';
+    mkdir($home . '/.local/bin', 0777, recursive: true);
+
+    try {
+        AgentGuardRun::exec($root, 'april', $command);
+
+        expect(file_exists($home . '/' . $path))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a binary in a PATH directory' => ['printf "#!/bin/sh\n" > "$HOME/.local/bin/git"', '.local/bin/git'],
+    'a gh setting' => ['mkdir -p "$HOME/.config/gh" && echo "pager: x" > "$HOME/.config/gh/config.yml"', '.config/gh/config.yml'],
+    'a global git setting' => ['git config --global core.fsmonitor "touch planted"', '.gitconfig'],
+    'a launch agent' => ['mkdir -p "$HOME/Library/LaunchAgents" && echo x > "$HOME/Library/LaunchAgents/x.plist"', 'Library/LaunchAgents/x.plist'],
+    'a shell startup file' => ['echo "touch planted" >> "$HOME/.bashrc"', '.bashrc'],
+])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('the hook and exec never run a tool planted in a directory on PATH', function (string $tool): void {
+    $root = AgentGuardRun::repository();
+    $planted = dirname($root) . '/home/planted-bin';
+    installerWriteFile($planted . '/' . $tool, "#!/bin/sh\necho x > " . escapeshellarg($root . '/planted-' . $tool) . "\nexit 1\n");
+    chmod($planted . '/' . $tool, 0755);
+    $path = $planted . ':' . (string) getenv('PATH');
+
+    try {
+        AgentGuardRun::run($root, ['hook'], agentGuardConfinedInput(), ['CLAUDE_PROJECT_DIR' => $root, 'PATH' => $path]);
+        AgentGuardRun::run($root, ['exec', 'leonardo', '--', 'true'], null, ['PATH' => $path]);
+
+        expect(file_exists($root . '/planted-' . $tool))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with(['bwrap', 'git', 'jq', 'uname']);
 
 test('a review role cannot open the review worktree of another role on macOS', function (): void {
     $root = AgentGuardRun::repository();

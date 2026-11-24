@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # agent-guard.sh — confine the shell commands of a read-only agent role with an operating-system sandbox.
 #
 # Why this exists
@@ -6,28 +6,33 @@
 #   write any file: a redirect, `sh -c`, an interpreter, `git commit`, a process left in the background. An
 #   instruction that says "do not write" stops none of them. This script makes the limit hold while the agent runs:
 #   a Claude Code `PreToolUse` hook rewrites the Bash command of a confined role so it runs under `sandbox-exec`
-#   (macOS) or `bwrap` (Linux). The kernel then refuses every write into the project, from the command and from
-#   every process it starts. The decision is made from the role the harness reports (`agent_type`), never from the
-#   text of the command (rules/compound-engineering/orchestration.md *Bash capability boundary*).
+#   (macOS) or `bwrap` (Linux). The kernel then refuses every write outside a short list of named paths, from the
+#   command and from every process it starts. The decision is made from the role the harness reports (`agent_type`),
+#   never from the text of the command (rules/compound-engineering/orchestration.md *Bash capability boundary*).
 #
 # Usage
 #   agent-guard.sh hook                     read the PreToolUse JSON on stdin, print the hook decision
-#   agent-guard.sh exec <role> -- <command> run <command> with `$SHELL -c` in the confinement of <role>
+#   agent-guard.sh exec <role> -- <command> run <command> with `/bin/bash -c` in the confinement of <role>
 #   agent-guard.sh probe                    prove whether the current process can write into the project
 #   agent-guard.sh verify                   check the installed copy and the hook handler against the install record
 #   agent-guard.sh --self-test
 #
+# Tools
+#   The script runs unconfined, so it never resolves a tool through the PATH it inherits: a directory on that PATH can
+#   be writable by the user. It sets PATH to /usr/bin:/bin:/usr/sbin:/sbin before its first lookup, runs git with
+#   `core.fsmonitor` and `core.hooksPath` switched off, and gives the inherited PATH back only to the confined command.
+#
 # Roles and profiles
 #   The confined roles and their write allowances are literals of this script. It reads no file of the working tree
-#   and nothing under `.claude/run/` to build them, so no branch and no agent can widen them. Every confined role may
-#   not write into the project root, the current git toplevel, the git common directory, `~/.claude`, or `~/.codex`.
-#   It may write:
-#     every confined role   `.claude/run/**`, `.codex/run/**` (no symbolic link is created there on macOS); a
-#                           commit missing from the object store is fetched into a scratch object directory there
+#   and nothing under `.claude/run/` to build them, so no branch and no agent can widen them. Writes are refused by
+#   default. A confined role may write only:
+#     every confined role   `.claude/run/**` and `.codex/run/**` of the project (no symbolic link is created there on
+#                           macOS), the temporary directories (`/tmp`, `$TMPDIR`), the machine lock directory, and the
+#                           terminal and null devices. Never the project, its git directories, the home directory, a
+#                           directory on PATH, a shell startup file, or the git configuration.
 #     leonardo, splinter    their own review worktree `.claude/worktrees/agent-cr-*-<role>` and its git directory
 #     krang                 `.claude/worktrees/**` and `<git common dir>/worktrees/**` (it removes unit worktrees)
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
-#   Every write outside the project stays free: `gh` keeps its configuration and a cache keeps its files.
 #
 # Strict mode
 #   Only `extra.ai-olympus.security.strict-agent-guard: true` on the default branch switches it on, read through
@@ -42,7 +47,7 @@
 #   the settings files the hook can read, because the harness checks those rules against the rewritten command, not
 #   the original one. A match with a deny rule is `deny`. A match with an ask rule, or a Bash rule of a shape this
 #   check does not support, is `ask`. Otherwise it is `allow`. `ask` and `allow` carry `updatedInput` with every field
-#   of the tool input kept and `command` replaced by `'<abs>/agent-guard.sh' exec <role> -- '<original command>'`.
+#   of the tool input kept and `command` replaced by `/bin/bash '<abs>/agent-guard.sh' exec <role> -- '<original command>'`.
 #   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
 #   `;`, `|`, `|&`, `&`, and a newline, and leading `NAME=value` words and the wrappers `timeout time nice nohup
 #   stdbuf command builtin noglob` are removed before a segment is matched.
@@ -60,12 +65,17 @@
 #   other   1 usage error; 2 missing required tool (jq)
 set -uo pipefail
 
+ORIGINAL_PATH="${PATH:-/usr/bin:/bin}"
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
+export PATH
+
 PROG="${0##*/}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 SCRIPT_PATH="$SCRIPT_DIR/$PROG"
 
 CONFINED_ROLES='leonardo splinter april casey shredder krang'
 GUARD_PREFIX='ai-olympus agent-guard:'
+NONE='/nonexistent-ai-olympus-guard'
 
 usage() {
   cat >&2 <<'EOF'
@@ -75,6 +85,11 @@ Usage: agent-guard.sh hook
        agent-guard.sh verify
        agent-guard.sh --self-test
 EOF
+}
+
+# git without the configuration that runs a program: no fsmonitor, no hooks.
+git_safe() {
+  git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
 }
 
 # A role the harness reports as `<plugin>:<role>` is the same role.
@@ -99,7 +114,7 @@ physical_dir() {
 # directory and COMMON is empty.
 resolve_project() {
   local common
-  TOP="$(git rev-parse --show-toplevel 2>/dev/null)" || TOP=""
+  TOP="$(git_safe rev-parse --show-toplevel 2>/dev/null)" || TOP=""
   if [[ -z "$TOP" ]]; then
     TOP="$(pwd -P)"
     COMMON=""
@@ -107,7 +122,7 @@ resolve_project() {
     return 1
   fi
   TOP="$(physical_dir "$TOP")"
-  common="$(git rev-parse --git-common-dir 2>/dev/null)" || common=""
+  common="$(git_safe rev-parse --git-common-dir 2>/dev/null)" || common=""
   COMMON="$(physical_dir "$common")"
   if [[ -n "$COMMON" && "${COMMON##*/}" == ".git" ]]; then
     ROOT="${COMMON%/.git}"
@@ -120,8 +135,8 @@ resolve_project() {
 # Prints true only when the default-branch manifest sets security.strict-agent-guard to the boolean true.
 strict_mode() {
   local manifest=""
-  if [[ -x "$SCRIPT_DIR/read-manifest.sh" || -r "$SCRIPT_DIR/read-manifest.sh" ]]; then
-    manifest="$(cd "$ROOT" 2>/dev/null && bash "$SCRIPT_DIR/read-manifest.sh" 2>/dev/null)" || true
+  if [[ -r "$SCRIPT_DIR/read-manifest.sh" ]]; then
+    manifest="$(cd "$ROOT" 2>/dev/null && /bin/bash "$SCRIPT_DIR/read-manifest.sh" 2>/dev/null)" || true
   fi
   if [[ -n "$manifest" ]] && printf '%s' "$manifest" | jq -e '.security["strict-agent-guard"] == true' >/dev/null 2>&1; then
     printf 'true'
@@ -235,7 +250,7 @@ run_hook() {
 
   command="$(printf '%s' "$input" | jq -r '.tool_input.command')"
   project="${CLAUDE_PROJECT_DIR:-}"
-  [[ -n "$project" ]] || project="$(printf '%s' "$input" | jq -r '.cwd // ""')"
+  [[ -n "$project" ]] || project="$(printf '%s' "$input" | jq -r '.cwd // "" | if type == "string" then . else "" end')"
   [[ -n "$project" ]] || project="$ROOT"
   decision="$(decide_command "$command" "$project")" || decision="ask"
 
@@ -246,7 +261,7 @@ run_hook() {
   fi
   [[ "$decision" == "allow" ]] || decision="ask"
 
-  wrapped="$(shell_quote "$SCRIPT_PATH") exec $role -- $(shell_quote "$command")"
+  wrapped="/bin/bash $(shell_quote "$SCRIPT_PATH") exec $role -- $(shell_quote "$command")"
   printf '%s' "$input" | jq -c --arg wrapped "$wrapped" --arg decision "$decision" \
     --arg reason "$GUARD_PREFIX runs this command in the read-only confinement of $role" \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: $decision, permissionDecisionReason: $reason,
@@ -267,23 +282,53 @@ regex_escape() {
   printf '%s' "$1" | sed 's/[][\.*^$(){}+?|\\/]/\\&/g'
 }
 
+bwrap_base_args() {
+  printf '%s\n' --die-with-parent --new-session
+  if bwrap --help 2>&1 | grep -q -- '--disable-userns'; then
+    printf '%s\n' --unshare-user --disable-userns
+  fi
+  printf '%s\n' --ro-bind / / --dev /dev
+}
+
 # Prints the reason the confinement cannot be applied on this host, or nothing when it can.
 confinement_unavailable_reason() {
+  local -a base=()
   case "$(uname -s 2>/dev/null)" in
   Darwin)
     [[ -x /usr/bin/sandbox-exec ]] || { printf 'sandbox-exec is not available'; return 0; }
     # A profile without a rule is accepted even inside a sandbox, so the trial carries one deny rule like the real one.
-    /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny file-write* (literal "/nonexistent-ai-olympus-guard"))' \
+    /usr/bin/sandbox-exec -p "(version 1)(allow default)(deny file-write* (literal \"$NONE\"))" \
       /usr/bin/true >/dev/null 2>&1 \
       || printf 'sandbox-exec cannot apply a profile here (already inside a sandbox)'
     ;;
   Linux)
     command -v bwrap >/dev/null 2>&1 || { printf 'bwrap is not installed'; return 0; }
-    bwrap --dev-bind / / -- /bin/true >/dev/null 2>&1 \
+    mapfile -t base < <(bwrap_base_args)
+    bwrap "${base[@]}" -- /bin/true >/dev/null 2>&1 \
       || printf 'bwrap cannot create a sandbox here (no unprivileged user namespaces, or already inside one)'
     ;;
   *) printf 'no supported sandbox on this operating system' ;;
   esac
+}
+
+# Sets TMP_SYS, TMP_USER, HOME_DIR, and LOCK_DIR: the temporary directories, the home directory, and the machine lock
+# directory of skills/_shared/gate-record.sh (gate_machine_dir).
+resolve_writable() {
+  TMP_SYS="$(physical_dir /tmp)" || TMP_SYS=""
+  TMP_USER=""
+  [[ -n "${TMPDIR:-}" && "$TMPDIR" == /* ]] && TMP_USER="$(physical_dir "$TMPDIR")"
+  HOME_DIR=""
+  [[ -n "${HOME:-}" && "$HOME" == /* && "$HOME" != "/" ]] && HOME_DIR="$(physical_dir "$HOME")"
+  LOCK_DIR=""
+  if [[ -n "${AI_OLYMPUS_LOCK_DIR:-}" && "$AI_OLYMPUS_LOCK_DIR" == /* ]]; then
+    LOCK_DIR="$AI_OLYMPUS_LOCK_DIR"
+  elif [[ -n "${XDG_CACHE_HOME:-}" && "$XDG_CACHE_HOME" == /* ]]; then
+    LOCK_DIR="$XDG_CACHE_HOME/ai-olympus"
+  elif [[ -n "$HOME_DIR" ]]; then
+    LOCK_DIR="$HOME_DIR/.cache/ai-olympus"
+  fi
+  [[ -n "$LOCK_DIR" && -d "$LOCK_DIR" ]] && LOCK_DIR="$(physical_dir "$LOCK_DIR")"
+  return 0
 }
 
 role_allows_worktrees() {
@@ -292,19 +337,26 @@ role_allows_worktrees() {
 
 macos_profile() {
   local role="$1" profile
-  profile='(version 1)(allow default)'
-  profile+='(deny file-write* (subpath (param "ROOT")) (subpath (param "TOP")))'
-  [[ -n "$COMMON" ]] && profile+='(deny file-write* (subpath (param "COMMON")))'
-  [[ -n "${HOME:-}" ]] && profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
+  profile='(version 1)(allow default)(deny file-write*)'
+  profile+='(allow file-write* (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/dtracehelper")'
+  profile+=' (regex "^/dev/ttys[0-9]+$") (regex "^/dev/fd/[0-9]+$"))'
+  profile+='(allow file-write* (subpath (param "TMP_SYS")) (subpath (param "TMP_USER")))'
+  profile+='(deny file-write* (regex "/xcrun_db"))'
+  profile+='(deny file-write* (subpath (param "HOME_DIR")))'
+  if [[ -n "$TMP_USER" && -n "$HOME_DIR" && "$TMP_USER" == "$HOME_DIR"/* ]]; then
+    profile+='(allow file-write* (subpath (param "TMP_USER")))(deny file-write* (regex "/xcrun_db"))'
+  fi
+  profile+='(allow file-write* (subpath (param "LOCK_DIR")))'
+  profile+='(deny file-write* (subpath (param "ROOT")) (subpath (param "TOP")) (subpath (param "COMMON")))'
+  profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
   case "$role" in
   leonardo | splinter)
     profile+='(allow file-write* (literal (param "WT_DIR")) (regex (param "WT_RE")))'
-    [[ -n "$COMMON" ]] && profile+='(allow file-write* (literal (param "GIT_WT_DIR")) (regex (param "GIT_WT_RE")))'
+    profile+='(allow file-write* (literal (param "GIT_WT_DIR")) (regex (param "GIT_WT_RE")))'
     ;;
   krang)
-    profile+='(allow file-write* (subpath (param "WT_DIR")))'
-    [[ -n "$COMMON" ]] && profile+='(allow file-write* (subpath (param "GIT_WT_DIR")))'
+    profile+='(allow file-write* (subpath (param "WT_DIR")) (subpath (param "GIT_WT_DIR")))'
     ;;
   casey) profile+='(allow file-write* (subpath (param "LOGS")))' ;;
   esac
@@ -314,31 +366,36 @@ macos_profile() {
 }
 
 run_macos() {
-  local role="$1" command="$2" shell="${SHELL:-/bin/sh}" root_re common_re
+  local role="$1" command="$2" root_re common_re
   root_re="$(regex_escape "$ROOT")"
-  common_re="$(regex_escape "${COMMON:-/nonexistent}")"
+  common_re="$(regex_escape "${COMMON:-$NONE}")"
   /usr/bin/sandbox-exec \
-    -D ROOT="$ROOT" -D TOP="$TOP" -D COMMON="${COMMON:-/nonexistent}" \
-    -D HOME_CLAUDE="${HOME:-/nonexistent}/.claude" -D HOME_CODEX="${HOME:-/nonexistent}/.codex" \
+    -D ROOT="$ROOT" -D TOP="$TOP" -D COMMON="${COMMON:-$NONE}" \
+    -D TMP_SYS="${TMP_SYS:-$NONE}" -D TMP_USER="${TMP_USER:-$NONE}" \
+    -D HOME_DIR="${HOME_DIR:-$NONE}" -D LOCK_DIR="${LOCK_DIR:-$NONE}" \
+    -D HOME_CLAUDE="${HOME_DIR:-$NONE}/.claude" -D HOME_CODEX="${HOME_DIR:-$NONE}/.codex" \
     -D RUN_CLAUDE="$ROOT/.claude/run" -D RUN_CODEX="$ROOT/.codex/run" \
-    -D WT_DIR="$ROOT/.claude/worktrees" -D GIT_WT_DIR="${COMMON:-/nonexistent}/worktrees" \
+    -D WT_DIR="$ROOT/.claude/worktrees" -D GIT_WT_DIR="${COMMON:-$NONE}/worktrees" \
     -D WT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
     -D GIT_WT_RE="^$common_re/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
     -D LOGS="$ROOT/storage/logs" \
-    -p "$(macos_profile "$role")" "$shell" -c "$command"
+    -p "$(macos_profile "$role")" /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
 }
 
 run_linux() {
-  local role="$1" command="$2" shell="${SHELL:-/bin/sh}" entry name
-  local -a args=(--die-with-parent --new-session)
-  if bwrap --help 2>&1 | grep -q -- '--disable-userns'; then
-    args+=(--unshare-user --disable-userns)
+  local role="$1" command="$2" entry name dir
+  local -a args=()
+  mapfile -t args < <(bwrap_base_args)
+  [[ -n "$TMP_SYS" && -d "$TMP_SYS" ]] && args+=(--bind "$TMP_SYS" "$TMP_SYS")
+  [[ -n "$TMP_USER" && -d "$TMP_USER" ]] && args+=(--bind "$TMP_USER" "$TMP_USER")
+  [[ -n "$HOME_DIR" && -d "$HOME_DIR" ]] && args+=(--ro-bind "$HOME_DIR" "$HOME_DIR")
+  if [[ -n "$TMP_USER" && -n "$HOME_DIR" && "$TMP_USER" == "$HOME_DIR"/* && -d "$TMP_USER" ]]; then
+    args+=(--bind "$TMP_USER" "$TMP_USER")
   fi
-  args+=(--dev-bind / / --ro-bind "$ROOT" "$ROOT")
-  [[ "$TOP" != "$ROOT" ]] && args+=(--ro-bind "$TOP" "$TOP")
-  [[ -n "$COMMON" && "$COMMON" != "$ROOT"/* ]] && args+=(--ro-bind "$COMMON" "$COMMON")
-  [[ -n "${HOME:-}" && -d "$HOME/.claude" ]] && args+=(--ro-bind "$HOME/.claude" "$HOME/.claude")
-  [[ -n "${HOME:-}" && -d "$HOME/.codex" ]] && args+=(--ro-bind "$HOME/.codex" "$HOME/.codex")
+  [[ -n "$LOCK_DIR" && -d "$LOCK_DIR" ]] && args+=(--bind "$LOCK_DIR" "$LOCK_DIR")
+  for dir in "$ROOT" "$TOP" "$COMMON"; do
+    [[ -n "$dir" && -d "$dir" ]] && args+=(--ro-bind "$dir" "$dir")
+  done
   mkdir -p "$ROOT/.claude/run" 2>/dev/null || true
   args+=(--bind "$ROOT/.claude/run" "$ROOT/.claude/run")
   [[ -d "$ROOT/.codex/run" ]] && args+=(--bind "$ROOT/.codex/run" "$ROOT/.codex/run")
@@ -358,7 +415,7 @@ run_linux() {
     fi
   fi
   [[ "$role" == "casey" && -d "$ROOT/storage/logs" ]] && args+=(--bind "$ROOT/storage/logs" "$ROOT/storage/logs")
-  bwrap "${args[@]}" -- "$shell" -c "$command"
+  bwrap "${args[@]}" -- /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
 }
 
 run_exec() {
@@ -375,10 +432,11 @@ run_exec() {
       return 5
     fi
     echo "$GUARD_PREFIX protection inactive ($reason)" >&2
-    "${SHELL:-/bin/sh}" -c "$command"
+    /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
     return $?
   fi
 
+  resolve_writable
   if [[ "$(uname -s)" == "Darwin" ]]; then
     run_macos "$role" "$command"
   else
@@ -495,7 +553,7 @@ self_test() {
   out="$(hook_input leonardo "echo it's" | (CLAUDE_PROJECT_DIR="$tmp" HOME="$tmp" run_hook))"
   check 'a confined role gets the command wrapped in exec' \
     test "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.updatedInput.command')" \
-    == "'$SCRIPT_PATH' exec leonardo -- 'echo it'\\''s'"
+    == "/bin/bash '$SCRIPT_PATH' exec leonardo -- 'echo it'\\''s'"
   check 'the wrapped input keeps every other field' \
     test "$(printf '%s' "$out" | jq -c '.hookSpecificOutput.updatedInput | del(.command)')" == '{"description":"d","timeout":5000}'
   check 'a plugin-qualified role is confined too' \
@@ -520,13 +578,15 @@ self_test() {
   if [[ -z "$(confinement_unavailable_reason)" ]]; then
     repo="$tmp/repo"
     mkdir -p "$repo"
-    git -C "$repo" init -q
+    git_safe -C "$repo" init -q
     mkdir -p "$repo/.claude/run"
-    (cd "$repo" && HOME="$tmp" "$SCRIPT_PATH" exec leonardo -- "echo x > '$repo/written'" >/dev/null 2>&1)
+    (cd "$repo" && HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo -- "echo x > '$repo/written'" >/dev/null 2>&1)
     check 'the confinement refuses a write into the project' test ! -e "$repo/written"
-    (cd "$repo" && "$SCRIPT_PATH" exec leonardo -- "echo x > '$repo/.claude/run/brief'" \
-      >/dev/null 2>&1)
+    (cd "$repo" && HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo -- "echo x > '$repo/.claude/run/brief'" >/dev/null 2>&1)
     check 'the confinement allows a write into .claude/run' test -e "$repo/.claude/run/brief"
+    mkdir -p "$tmp/home"
+    (cd "$repo" && HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo -- "echo x > '$tmp/home/.gitconfig'" >/dev/null 2>&1)
+    check 'the confinement refuses a write into the home directory' test ! -e "$tmp/home/.gitconfig"
   else
     printf 'ok    confinement checks skipped: %s (the fallback is covered by the Pest suite)\n' "$(confinement_unavailable_reason)"
   fi

@@ -21,6 +21,11 @@ function agentGuardHookDecision(string $root, string $input): AgentGuardDecision
     return AgentGuardDecision::fromHookOutput(AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root])->getOutput());
 }
 
+function agentGuardExecPrefix(string $role): string
+{
+    return '/bin/bash \'' . AgentGuardRun::script() . '\' exec ' . $role . ' -- ';
+}
+
 /**
  * @param array<array-key, mixed> $permissions
  */
@@ -35,7 +40,7 @@ test('the hook wraps the command of a confined role in the absolute exec prefix'
     try {
         $decision = agentGuardHookDecision($root, agentGuardHookInput($agentType));
 
-        expect($decision->command())->toStartWith('\'' . AgentGuardRun::script() . '\' exec ' . $role . ' -- ')
+        expect($decision->command())->toStartWith(agentGuardExecPrefix($role))
             ->and($decision->permissionDecision)->toBe('allow');
     } finally {
         AgentGuardRun::remove($root);
@@ -86,7 +91,7 @@ test('the wrapped command runs the original command word for word', function (st
 
     try {
         $wrapped = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command]))->command();
-        $echo = str_replace('\'' . AgentGuardRun::script() . '\' exec leonardo -- ', 'printf \'%s\' ', $wrapped);
+        $echo = str_replace(agentGuardExecPrefix('leonardo'), 'printf \'%s\' ', $wrapped);
         $process = new Process(['sh', '-c', $echo]);
         $process->run();
 
@@ -130,7 +135,7 @@ test(
             $decision = agentGuardHookDecision($root, agentGuardHookInput('splinter', ['command' => $command]));
     
             expect($decision->permissionDecision)->toBe('ask')
-                ->and($decision->command())->toContain(' exec splinter -- ');
+                ->and($decision->command())->toStartWith(agentGuardExecPrefix('splinter'));
         } finally {
             AgentGuardRun::remove($root);
         }
