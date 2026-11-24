@@ -145,6 +145,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 14. Run affected-area tests (`run-gate.sh --exclusive`) and confirm correctness.
 15. Add or update tests to cover the new or fixed behavior.
 16. Run `@skills/test-audit/SKILL.md` with `MODE=diff` over the current diff: it deletes tests proving no assignment logic and verifies 100% coverage of the changed lines.
+17. Check the places the actual diff affects, per `references/diff-impact-check.md`: every caller and consumer outside the diff still works or is repaired in this pull request, and every other place the same criterion covers carries the same fix.
 
 ## Quality gates — deferred to the merge boundary
 
@@ -224,6 +225,7 @@ The full per-tracker procedure — the create-apply-verify steps, the PR link-ba
 
 - references/source-detection.md
 - references/comment-analysis.md
+- references/diff-impact-check.md
 - references/pre-pr-self-check.md
 - references/quality-gates.md
 - references/data-repair.md
