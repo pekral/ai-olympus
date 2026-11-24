@@ -762,6 +762,13 @@ RECLAIMER
   code=0; run_in "$linked" --tier full || code=$?
   check 'a symlinked evidence directory is refused' "$([[ "$code" -eq 3 && -z "$(ls -A "$tmp/outside")" ]] && echo pass)"
 
+  local physical
+  physical="$(cd "$tmp" && pwd -P)"
+  ln -s "$physical/outside" "$physical/absolute-link"
+  check 'an absolute path with a symbolic link in a component is refused' \
+    "$(gate_no_symlink "$physical/absolute-link/record.json" >/dev/null 2>&1 || echo pass)"
+  check 'an absolute path without a symbolic link is accepted' "$(gate_no_symlink "$physical/outside/record.json" && echo pass)"
+
   # --- Usage ----------------------------------------------------------------------
   code=0; run_in "$project" --tier nightly || code=$?
   check 'an unknown tier is a usage error' "$([[ "$code" -eq 1 ]] && echo pass)"
