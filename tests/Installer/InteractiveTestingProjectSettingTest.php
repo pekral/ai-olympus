@@ -240,3 +240,12 @@ test('every tracker summary states a switched-off project, not only the review-o
         ->and(normalizedPackageSource('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('(@skills/pr-summary/SKILL.md, What the comment carries)')
         ->and(normalizedPackageSource('agents/april.md'))->toContain('pass `interactive testing: off` to `pr-summary`');
 });
+
+test('the page-redesign delivery names the switched-off project wherever it runs raphael', function (string $exception): void {
+    expect(normalizedPackageSource('skills/deliver-page-redesign/SKILL.md'))->toContain($exception);
+})->with([
+    'the blocked run without a browser' => ['the run reports `Blocked` and never claims the walkthrough, as long as interactive testing is on.'],
+    'the never-skipped pass' => ['the `raphael` pass is never skipped, unless the project switched interactive testing off'],
+    'the raphael dispatch' => ['dispatches `raphael`, unless the project switched interactive testing off, to run'],
+    'the runtime-acceptance flag' => ['When the project switched interactive testing off (@skills/interactive-testing/SKILL.md, Project setting), it passes no `--runtime-acceptance`, and the plan carries no `raphael` stage,'],
+]);
