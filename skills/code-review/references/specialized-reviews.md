@@ -236,6 +236,7 @@ Criterion: the skill produces or advances the very artifact under review, rather
 - `merge-github-pr` — merges the pull request after the review converges.
 - `merge-github-pr-fast` — merges a hotfix pull request on the user's explicit `/merge-github-pr-fast` command, with one security-only check of the diff in place of the converged review. No review run starts it.
 - `publish-github-release` — merges the release pull request and publishes the tag and the GitHub release on the user's explicit `/publish-github-release` command. No review run starts it.
+- `merge-review-comments` — merges the review comments of one tracker item into one comment on the operator's explicit `/merge-review-comments` command. It reads and rewrites the published review comments, and no review run starts it.
 - `auto-interactive-testing` — works through the open `interactive-testing` issues: it merges the fix for every defect it meets through `krang` and `merge-github-pr`, then publishes each issue's verdicts and closes the issue. It also writes code through `krang` and needs a running application through `interactive-testing`, but question 1 is asked before questions 2 and 3, so it lands here.
 
 ### Adding a `MODE=cr` lens — what moves a skill out of groups 1–3
