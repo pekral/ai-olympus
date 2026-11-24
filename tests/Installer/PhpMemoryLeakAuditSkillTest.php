@@ -27,9 +27,9 @@ test('the lens reports every finding as Moderate, as a risk or a confirmed leak,
 
     expect($skill)
         ->toContain('- **Every finding is Moderate.** No finding of this skill is Critical, and none is below Moderate.')
-        ->and($skill)->toContain('| Risk | The diff shows a path by which memory outlives a job. No measurement shows growth. | `static analysis only` |')
+        ->and($skill)->toContain('| Risk | The diff shows a path by which memory outlives a job. No measurement shows growth. | `logic-trace` |')
         ->and($skill)->toContain(
-            '| Confirmed leak | A measurement shows memory growing across jobs of one worker for the same path. | `confirmed by measurement` |',
+            '| Confirmed leak | A measurement shows memory growing across jobs of one worker for the same path. | `runtime-failure` |',
         )
         ->and($skill)->toContain('A risk never reads as a leak.')
         ->and($skill)->toContain('Never report ordinary allocation as a leak')
@@ -89,4 +89,26 @@ test('the lens divides the dimensions of a job with the bulk-data walk and the l
         ->and($gating)->toContain('**The memory lens owns what survives the job**')
         ->and($gating)->toContain('A `Model::all()` inside `handle()` carries the volume finding from the walk')
         ->and($gating)->toContain('the `laravel-horizon-audit` skill audits the configuration of the whole repository, which a review never runs.');
+});
+
+test('the lens output carries the fields of the review template and defines none of its own (issue #668)', function (): void {
+    $skill = packageSource('skills/php-memory-leak-audit/SKILL.md');
+    $output = packageSection($skill, "\n## Output\n", "\n## Done when\n");
+    $template = packageSource('skills/code-review/templates/review-output.md');
+
+    foreach (['Location', 'Rule', 'Impact', 'Evidence'] as $field) {
+        expect($template)->toContain('- **' . $field . ':**')
+            ->and($output)->toContain('- **' . $field . ':**');
+    }
+
+    expect($output)->toContain('It opens with the class, `Risk:` or `Confirmed leak:`')
+        ->and($output)->toContain('- **Evidence:** `logic-trace` for a risk, `runtime-failure` for a confirmed leak')
+        ->and($output)->toContain('The lens defines no field of its own: every field is a field of the template.')
+        ->and($output)->not->toContain('**Context:**')
+        ->and($output)->not->toContain('**Cause:**')
+        ->and($output)->not->toContain('Evidence status')
+        ->and($skill)->not->toContain('`static analysis only`')
+        ->and($skill)->not->toContain('`confirmed by measurement`')
+        ->and(packageSource('skills/code-review/references/specialized-reviews.md'))
+        ->toContain('opens its `Impact` with `Risk:`, with `Evidence: logic-trace`');
 });
