@@ -12,7 +12,7 @@ set -euo pipefail
 
 if [[ "$1" == "api" && "$2" == "user" ]]; then
   [[ "${FAKE_GH_ACTOR_OK:-1}" == "1" ]] || exit 1
-  printf '%s\n' 'bot'
+  printf '%s\n' "${FAKE_GH_LOGIN:-bot}"
   exit 0
 fi
 
@@ -363,6 +363,7 @@ test('the plan never lists a comment of another person or a comment with a reply
 });
 
 dataset('merge plan replies', [
+    'a hexadecimal reference that reads further letters as digits' => ['<div>&#x40bot why 2 MB?</div>', 'reporter', 'NONE', false],
     'a later machine comment of the operator account that repeats the line' => [
         "Carried over: Round 1: the upload limit is 2 MB.\n\n<!-- merge-readiness:actor=bot -->",
         'bot',
@@ -371,20 +372,41 @@ dataset('merge plan replies', [
     ],
     'a line typed out again by the operator account' => ['Round 1: the upload limit is 2 MB. Fixed in the next commit.', 'bot', 'MEMBER', true],
     'a link to the comment' => ['See ' . MERGE_PLAN_ITEM . '#issuecomment-801 please.', 'reporter', 'NONE', true],
+    'a mention of a longer login' => ['@bot-helper why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of an operator login that holds a named underscore reference' => ['@acme&lowbar;bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
+    'a mention of an operator login that holds an escaped underscore' => ['@acme\\_bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
+    'a mention of an operator login that holds an underscore' => ['@acme_bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
+    'a mention of an operator login that holds an underscore in another letter case' => ['@ACME_BOT why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
+    'a mention of an operator login that holds an underscore reference' => ['@acme&#95bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
     'a mention of the operator account after a closing double underscore' => ['__Note__@bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account after a closing underscore' => ['_Note_@bot why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account after a digit reference without a semicolon in an HTML block' => ['<div>&#33@bot why 2 MB?</div>', 'reporter', 'NONE', true],
     'a mention of the operator account after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot why 2 MB?", 'reporter', 'NONE', true],
+    'a mention of the operator account after a less-than reference without a semicolon in an HTML block' => ['<div>&lt@bot why 2 MB?</div>', 'reporter', 'NONE', true],
+    'a mention of the operator account after a named reference without a semicolon in an HTML block' => ['<div>&amp@bot why 2 MB?</div>', 'reporter', 'NONE', true],
+    'a mention of the operator account after a no-break space reference without a semicolon in an HTML block' => ['<div>&nbsp@bot why 2 MB?</div>', 'reporter', 'NONE', true],
     'a mention of the operator account between fence lines indented by four spaces' => ["    ```\n@bot why 2 MB?\n    ```", 'reporter', 'NONE', true],
     'a mention of the operator account by another account' => ['@bot why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account in an HTML block whose at sign is a decimal reference without a semicolon' => ['<div>&#64bot why 2 MB?</div>', 'reporter', 'NONE', true],
+    'a mention of the operator account in an HTML block whose at sign is a hexadecimal reference without a semicolon' => ['<div>&#x40ops_bot why 2 MB?</div>', 'reporter', 'NONE', true, 'ops_bot'],
+    'a mention of the operator account in an HTML block whose login holds a reference without a semicolon' => ['<div>@b&#111t why 2 MB?</div>', 'reporter', 'NONE', true],
+    'a mention of the operator account in an HTML paragraph whose at sign is a zero-padded reference without a semicolon' => ['<p>&#0064bot why 2 MB?</p>', 'reporter', 'NONE', true],
+    'a mention of the operator account in an HTML table cell whose at sign is a reference without a semicolon' => ['<table><tr><td>&#64bot why 2 MB?</td></tr></table>', 'reporter', 'NONE', true],
     'a mention of the operator account in another letter case' => ['Why 2 MB, @Bot?', 'reporter', 'NONE', true],
     'a mention of the operator account inside a fenced code block' => ["```\n@bot\n```", 'reporter', 'NONE', true],
     'a mention of the operator account whose at sign is a decimal reference' => ['&#64;bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account whose at sign is a hexadecimal reference' => ['&#x40;bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account whose at sign is a named reference' => ['&commat;bot why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account whose at sign is a named reference without a semicolon' => ['&commatbot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account whose at sign is an upper-case hexadecimal reference' => ['&#X0040;bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account whose at sign is a zero-padded decimal reference' => ['&#0000064;bot why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account whose login holds a backslash escape' => ['@ops\\-bot why 2 MB?', 'reporter', 'NONE', true, 'ops-bot'],
     'a mention of the operator account whose login holds a decimal reference' => ['@&#98;ot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account whose login holds a hexadecimal reference' => ['@b&#x6F;t why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account whose login holds a Kelvin sign' => ["@\u{212A}bot why 2 MB?", 'reporter', 'NONE', true, 'kbot'],
+    'a mention of the operator account whose login holds a Kelvin sign reference' => ['<div>@&#8490bot why 2 MB?</div>', 'reporter', 'NONE', true, 'kbot'],
+    'a mention of the operator account whose login holds a ligature reference' => ['@&fjlig;bot why 2 MB?', 'reporter', 'NONE', true, 'fjbot'],
+    'an address that contains the login' => ['Write to ops@bot.example please.', 'reporter', 'NONE', true],
     'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
     'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
     'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
@@ -392,12 +414,12 @@ dataset('merge plan replies', [
 
 test(
     'a later comment counts as a reply only when it points at the review comment',
-    function (string $body, string $author, string $association, bool $expected): void {
+    function (string $body, string $author, string $association, bool $expected, string $login = 'bot'): void {
         $result = mergePlanGitHub([
-            mergePlanComment(801, 'bot', 'MEMBER', "Round 1: the upload limit is 2 MB.\n\n" . mergePlanMarker(), 1),
+            mergePlanComment(801, $login, 'MEMBER', "Round 1: the upload limit is 2 MB.\n\n" . mergePlanMarker(actor: $login), 1),
             mergePlanComment(802, $author, $association, $body, 2),
-            mergePlanComment(803, 'bot', 'MEMBER', "Round 2: the limit is raised.\n\n" . mergePlanMarker(), 3),
-        ]);
+            mergePlanComment(803, $login, 'MEMBER', "Round 2: the limit is raised.\n\n" . mergePlanMarker(actor: $login), 3),
+        ], ['FAKE_GH_LOGIN' => $login]);
 
         expect(mergePlanCommentById($result['plan'], '801')['reply'])->toBe($expected)
             ->and(in_array('801', mergePlanIds($result['plan'], 'delete'), strict: true))->toBe(!$expected);

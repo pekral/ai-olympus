@@ -10,9 +10,10 @@
 # and skills/code-review-jira/scripts/delete-owned-comment.sh (the `--review-merge` guard that re-proves it before a delete).
 #
 # A normalised comment is { id: string, pos: number, authorKey: string|null, body: string, mentions: [string],
-# parentId: string|null, agent: bool }. `pos` is the place in the chronological list, `agent` is true only for a comment
-# of the operator's own account that carries an agent marker (machine output, never a reply), and `parentId` is a native
-# parent reference when the tracker data carries one.
+# mentionText: string|null, parentId: string|null, agent: bool }. `pos` is the place in the chronological list, `agent`
+# is true only for a comment of the operator's own account that carries an agent marker (machine output, never a reply),
+# and `parentId` is a native parent reference when the tracker data carries one. A GitHub comment carries its
+# `mentionText` (github_mention_text) and no `mentions`; a JIRA comment carries the account IDs it mentions in `mentions`.
 include "review-trust";
 
 # other_agent_marker — the input is a comment body. True when it carries an agent marker of a namespace other than
@@ -20,27 +21,31 @@ include "review-trust";
 def other_agent_marker:
   type == "string" and ([scan("([a-z][a-z0-9-]*):actor=") | .[0]] | any(. != "cr-comment"));
 
-# char_refs_decoded — the input is a GitHub comment body. Every decimal or hexadecimal character reference (`&#64;`,
-# `&#x40;`, leading zeros and either case of `x` included) becomes its character, and `&commat;` becomes `@`, in one
-# pass. No other named reference of HTML5 gives `@`, a letter, a digit, or `-`. A code point the renderer does not keep
-# becomes U+FFFD.
+# char_refs_decoded — the input is a GitHub comment body. Every decimal or hexadecimal character reference becomes its
+# character, with or without its `;`, as an HTML block decodes it: the digits are read greedily, leading zeros and either
+# case of `x` included (`&#64`, `&#x40;`, `&#X0040`). The named references of HTML5 that give `@`, `_`, or a letter
+# become their text with or without the `;`, in any letter case: `&commat;` gives `@`, `&lowbar;` and `&UnderBar;` give
+# `_`, and `&fjlig;` gives `fj`. No other named reference gives `@`, a letter, a digit, `_`, or `-`. A code point the
+# renderer does not keep becomes U+FFFD. One pass: a decoded `&` never starts a second reference.
 def char_refs_decoded:
   def code_point: if . >= 1 and . <= 1114111 and (. < 55296 or . > 57343) then . else 65533 end;
   def hex_value: ascii_downcase | explode | reduce .[] as $d (0; . * 16 + (if $d >= 97 then $d - 87 else $d - 48 end));
-  gsub("&(?:#(?<dec>[0-9]+)|#[xX](?<hex>[0-9A-Fa-f]+)|(?<named>[cC][oO][mM][mM][aA][tT]));";
-    if .named != null then "@"
+  gsub("&(?:#(?<dec>[0-9]+);?|#[xX](?<hex>[0-9A-Fa-f]+);?|(?<named>(?i:commat|lowbar|underbar|fjlig));?)";
+    if .named != null then ({commat: "@", lowbar: "_", underbar: "_", fjlig: "fj"}[.named | ascii_downcase])
     elif .dec != null then [.dec | tonumber | code_point] | implode
     else [.hex | hex_value | code_point] | implode end);
 
-# github_mentions — the input is a GitHub comment body. Every login it names as `@<login>` once its character
-# references are decoded, in lower case. A login inside a code block or a code span counts too: the test reads no
-# Markdown structure, so no difference from the GitHub renderer can hide a mention, and a login counted in excess only
-# keeps a comment. Only an ASCII letter or digit in front of the `@`, as in an address such as `name@host`, makes it no
-# mention: every markup that can end a text run right before the `@` ends in another character (`_`, `*`, `>`, `;`), so
-# that letter or digit stands in front of the `@` in the rendered text too, where GitHub reads no mention.
-def github_mentions:
-  [ char_refs_decoded | scan("(?<![A-Za-z0-9])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)") | .[0] | ascii_downcase ]
-  | unique;
+# github_mention_text — the input is a GitHub comment body. The text that the mention test of points_at reads: the body
+# with its character references decoded, every backslash removed (a Markdown escape such as `@name\-x` renders as
+# `@name-x`), the KELVIN SIGN U+212A read as `k` (GitHub reads it as `k` in a login, and it is the only non-ASCII
+# character whose lower case is an ASCII letter), and in lower case. Removing a character that no login holds never
+# breaks an `@<login>` the body already holds, so each step only adds mentions.
+# The text mentions a login when it holds `@` followed directly by that login, in lower case. Nothing in front of the `@`
+# and nothing after the login is read, and a login inside a code block or a code span counts too: the test reads no
+# Markdown structure, so no difference from the GitHub renderer can hide a mention. A mention counted in excess, such as
+# `ops@bot.example` or `@bot-helper` for `bot`, only keeps a comment.
+def github_mention_text:
+  char_refs_decoded | gsub("\\\\"; "") | gsub("K"; "k") | ascii_downcase;
 
 # marker_line($marker) — the input is a GitHub comment body. True when a line of the body is exactly $marker, trailing
 # blanks aside, and no code block can hold that line. A line ends at `\n`, `\r\n`, or a lone `\r`, as in CommonMark.
@@ -100,14 +105,16 @@ def quotes($reply; $original):
   | any($lines[]; . as $line | ($reply.body | contains($line)));
 
 # True when a later comment points at the original: a native parent reference, a link to its id, a quoted line, or a
-# mention of its author by another account. A GitHub login is compared without case.
+# mention of its author by another account. On GitHub the mention text holds `@` and the author login, without case.
 def points_at($reply; $original):
   ($reply.parentId // "") == $original.id
   or ($reply.body | test("(issuecomment-|focusedCommentId=|/comments/)" + $original.id + "([^0-9]|$)"))
   or quotes($reply; $original)
   or (($original.authorKey != null)
       and ($reply.authorKey != $original.authorKey)
-      and (($reply.mentions // []) | map(ascii_downcase) | index($original.authorKey | ascii_downcase)) != null);
+      and (if ($reply.mentionText | type) == "string"
+           then ($reply.mentionText | contains("@" + ($original.authorKey | ascii_downcase)))
+           else (($reply.mentions // []) | map(ascii_downcase) | index($original.authorKey | ascii_downcase)) != null end));
 
 # has_reply($original; $all) — true when a later comment that is not machine output of the operator's account points
 # at the original.
@@ -131,7 +138,8 @@ def github_normalised($actor):
           updatedAt: (.updatedAt // null),
           url: (.url // null),
           body: (.body // ""),
-          mentions: (.body // "" | github_mentions),
+          mentions: [],
+          mentionText: (.body // "" | github_mention_text),
           parentId: null,
           restricted: false }
       | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
@@ -181,6 +189,7 @@ def github_api_normalised($actor):
           pos: $pos,
           authorKey: (.user.login // null),
           body: (.body // ""),
-          mentions: (.body // "" | github_mentions),
+          mentions: [],
+          mentionText: (.body // "" | github_mention_text),
           parentId: null }
       | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
