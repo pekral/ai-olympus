@@ -33,17 +33,18 @@ test('the regression prover proves every acceptance scenario of the proof in its
         'verify: a record that is not a regular file is refused',
         'verify: a file name other than the key of its tests is malformed',
     ] as $label) {
-        expect($script)->toContain("'" . $label . "'");
+        expect($script)->toContain('\'' . $label . '\'');
     }
 });
 
 test('the prover and the record reader are part of the shell self-tests and the lock repair', function (): void {
-    $composer = json_decode(packageSource('composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-
-    expect($composer)->toBeArray()
-        ->and(implode(' ', (array) ($composer['scripts']['shell-self-tests'] ?? [])))->toContain(' skills/_shared/test-integrity.sh ')
+    expect(packageSource('composer.json'))->toContain(
+        'skills/_shared/verify-installed-copy.sh skills/_shared/test-integrity.sh skills/_shared/gate-lock.sh',
+    )
         ->and(packageSource('skills/_shared/gate-lock.sh'))->toContain('"$wrapper" == test-integrity.sh ]] || return 1')
-        ->and(packageSource('skills/_shared/gate-lock.sh'))->toContain("check 'a stale heartbeat of test-integrity.sh reads as a stuck wrapper of this package'")
+        ->and(packageSource('skills/_shared/gate-lock.sh'))->toContain(
+            'check \'a stale heartbeat of test-integrity.sh reads as a stuck wrapper of this package\'',
+        )
         ->and(packageSource('rules/compound-engineering/concurrency.md'))
         ->toContain('`skills/_shared/test-integrity.sh prove` holds it for its swap and both test runs.');
 });
@@ -67,7 +68,10 @@ test('the review raises a refuted or missing regression proof as Critical and a 
     $rule = packageSource('rules/code-review/core-analysis.md');
 
     expect($rule)->toContain('- **Test or CI check weakened by the diff, and the regression proof:**')
-        ->and($rule)->toContain('a bug fix whose proof is refuted, incomplete, missing, stale, or malformed, or whose test failed on the base for the wrong reason, with no `unprovable` reason')
+        ->and($rule)->toContain(
+            'a bug fix whose proof is refuted, incomplete, missing, stale, or malformed, or whose test failed '
+            . 'on the base for the wrong reason, with no `unprovable` reason',
+        )
         ->and($rule)->toContain('**Moderate:** an `unprovable` reason the review rejects.');
 });
 
@@ -89,7 +93,10 @@ test('leonardo verifies the proof only from the trusted copy and never runs the 
 
     expect($agent)->toContain('**Test-integrity agenda:**')
         ->and($agent)->toContain('A check that did not run returns `not converged — test-integrity check incomplete: <reason>`, never a clean review.')
-        ->and($agent)->toContain('of that clone in its `verify` and `scan` modes only, after `skills/_shared/verify-installed-copy.sh` printed `installed-copy-verdict=verified` in the same shell call')
+        ->and($agent)->toContain(
+            'of that clone in its `verify` and `scan` modes only, after `skills/_shared/verify-installed-copy.sh` '
+            . 'printed `installed-copy-verdict=verified` in the same shell call',
+        )
         ->and($agent)->toContain('and never its `prove` mode;');
 });
 
@@ -128,7 +135,7 @@ test('the scan proves every acceptance scenario of the weakening check in its se
         'scan: a git error is incomplete, never clean',
         'scan: a jq error is incomplete, never clean',
     ] as $label) {
-        expect($script)->toContain("'" . $label . "'");
+        expect($script)->toContain('\'' . $label . '\'');
     }
 });
 
@@ -137,9 +144,14 @@ test('the review raises an unexplained weakened test or CI check as Critical and
     $reference = packageSource('skills/test-audit/references/test-integrity.md');
 
     expect($rule)->toContain('runs on every review, a diff that changes no test included')
-        ->and($rule)->toContain('**Critical:** a test the diff removes, weakens, or skips, or a CI check it switches off or loosens, with no stated reason or a reason the review rejects')
+        ->and($rule)->toContain(
+            '**Critical:** a test the diff removes, weakens, or skips, or a CI check it switches off or '
+            . 'loosens, with no stated reason or a reason the review rejects',
+        )
         ->and($rule)->toContain('**Not findings:** a test removed with the behaviour the assignment removed')
-        ->and($rule)->toContain('a suppression keeps the bullet above, a junk test the pull request adds keeps the `cr` lens of `@skills/test-audit/SKILL.md`')
+        ->and($rule)->toContain(
+            'a suppression keeps the bullet above, a junk test the pull request adds keeps the `cr` lens of `@skills/test-audit/SKILL.md`',
+        )
         ->and($rule)->toContain('the Assignment Conformance Gate does not raise the same line again')
         ->and(packageSource('skills/code-review/references/assignment-conformance-gate.md'))
         ->toContain('**Gating — a weakened test or CI check.**')
