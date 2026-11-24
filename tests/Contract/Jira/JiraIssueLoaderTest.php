@@ -26,6 +26,13 @@ if [[ "$3" == "view" ]]; then
   exit 0
 fi
 
+# `jira_actor_account_id` resolves the operator account through a search; FAKE_ACLI_SEARCH_JSON answers it.
+if [[ "$3" == "search" ]]; then
+  [[ -n "${FAKE_ACLI_SEARCH_JSON:-}" ]] || exit 1
+  printf '%s\n' "$FAKE_ACLI_SEARCH_JSON"
+  exit 0
+fi
+
 if [[ "$3" == "comment" ]]; then
   if [[ "${FAKE_ACLI_COMMENTS_OK:-1}" != "1" ]]; then
     echo 'acli: comment list failed' >&2
@@ -256,9 +263,19 @@ function jiraLoaderDocument(string $text): array
     ];
 }
 
-function jiraLoaderNamingViewJson(): string
+/**
+ * The answer of the operator-account search: the operator is the account `acc-operator`.
+ */
+function jiraLoaderOperatorSearchJson(): string
 {
-    $description = 'Related: ACME-77, ACME-78 and OTHER-9, again ACME-77, itself ACME-1234, parent ACME-1, and ACME-5 (linked).';
+    return (string) json_encode([['fields' => ['assignee' => ['accountId' => 'acc-operator']], 'key' => 'ACME-2']]);
+}
+
+function jiraLoaderNamingViewJson(string $reporter = 'acc-operator', string $description = ''): string
+{
+    $description = $description !== ''
+        ? $description
+        : 'Related: ACME-77, ACME-78 and OTHER-9, again ACME-77, itself ACME-1234, parent ACME-1, and ACME-5 (linked).';
     $linked = ['fields' => ['issuetype' => ['name' => 'Bug'], 'status' => ['name' => 'Open'], 'summary' => 'Linked'], 'key' => 'ACME-5'];
 
     return (string) json_encode([
@@ -276,6 +293,7 @@ function jiraLoaderNamingViewJson(): string
             ],
             'issuetype' => ['name' => 'Bug'],
             'parent' => ['fields' => ['status' => ['name' => 'Open'], 'summary' => 'Epic'], 'key' => 'ACME-1'],
+            'reporter' => ['accountId' => $reporter, 'displayName' => 'Reporter'],
             'status' => ['name' => 'In Progress'],
             'subtasks' => [],
             'summary' => 'Upload validation rejects valid PDFs',
@@ -307,20 +325,81 @@ test('the issues of the same project that the description and the assignee comme
 
     $output = runJiraLoader($fixture, 'ACME-1234', [
         'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
         'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson(),
     ])->getOutput();
     removeJiraLoaderFixture($fixture);
 
-    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-77', 'ACME-78', 'ACME-80']);
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-77', 'ACME-78', 'ACME-80'])
+        ->and(decodedJsonField($output, 'reporterAccountId'))->toBe('acc-operator')
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeTrue()
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBeTrue();
 });
+
+test('the description of a reporter who is not the operator names no issue', function (string $reporter, ?string $search): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson($reporter),
+    ] + ($search === null ? [] : ['FAKE_ACLI_SEARCH_JSON' => $search]))->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    // Only the assignee's own comment names an issue; the description of another reporter is data, never task text.
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-80'])
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeFalse();
+})->with([
+    'another reporter' => ['acc-stranger', jiraLoaderOperatorSearchJson()],
+    'an operator account that cannot be resolved' => ['acc-operator', null],
+]);
+
+test('a comment of the operator account names an issue even when the operator is not the assignee', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $comments = (string) json_encode(['comments' => [[
+        'author' => ['accountId' => 'acc-operator', 'displayName' => 'Operator'],
+        'body' => jiraLoaderDocument('Also ACME-83.'),
+        'created' => '2026-01-06T08:00:00.000+0100',
+        'id' => '10004',
+    ],
+    ],
+    ]);
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => $comments,
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-stranger'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-83']);
+});
+
+test('a list that reaches the cap of 20 named keys says it is not complete', function (int $count, bool $complete): void {
+    $fixture = createJiraLoaderFixture();
+    $keys = implode(', ', array_map(static fn (int $n): string => 'ACME-' . (100 + $n), range(1, $count)));
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => (string) json_encode(['comments' => []]),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-operator', 'Related: ' . $keys . '.'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toHaveCount(min($count, 20))
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBe($complete);
+})->with([
+    'the limit' => [20, true],
+    'one over the limit' => [21, false],
+]);
 
 test('an issue whose text names no other issue has an empty list of named keys', function (): void {
     $fixture = createJiraLoaderFixture();
 
-    $output = runJiraLoader($fixture, 'ACME-1234')->getOutput();
+    $output = runJiraLoader($fixture, 'ACME-1234', ['FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson()])->getOutput();
     removeJiraLoaderFixture($fixture);
 
-    expect(decodedJsonField($output, 'mentionedKeys'))->toBe([]);
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe([])
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBeTrue();
 });
 
 test('an argument that is neither a key nor a URL is rejected before any acli call', function (): void {

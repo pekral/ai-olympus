@@ -30,6 +30,11 @@ if [[ "$1" == "pr" && "$2" == "view" ]]; then
 fi
 
 if [[ "$1" == "api" && "$2" == "graphql" ]]; then
+  if [[ "${FAKE_GH_SUBISSUES_OK:-1}" != "1" && "$*" == *"subIssues(first"* ]]; then
+    echo 'gh: GraphQL error' >&2
+    exit 1
+  fi
+
   if [[ "${FAKE_GH_GRAPHQL_OK:-1}" != "1" ]]; then
     echo 'gh: GraphQL error' >&2
     exit 1
@@ -271,7 +276,7 @@ function githubLoaderNamingIssueJson(): string
     ]);
 }
 
-function githubLoaderRelationsJson(): string
+function githubLoaderRelationsJson(string $association = 'OWNER'): string
 {
     $issue = static fn (int $number, string $title, string $state): array => [
         'number' => $number,
@@ -281,7 +286,7 @@ function githubLoaderRelationsJson(): string
     ];
 
     return (string) json_encode(['data' => ['repository' => ['issue' => [
-        'authorAssociation' => 'OWNER',
+        'authorAssociation' => $association,
         'blockedBy' => ['nodes' => [$issue(410, 'Blocker', 'CLOSED')]],
         'blocking' => ['nodes' => [$issue(420, 'Waits', 'OPEN')]],
         'parent' => $issue(400, 'The epic', 'OPEN'),
@@ -338,11 +343,44 @@ test('a failed relation read leaves the list short and says it is not complete',
     ])->getOutput();
     removeGitHubLoaderFixture($fixture);
 
+    // The author association comes from the failed read too, so the body names nothing; the trusted comment still does.
     expect(decodedJsonField($output, 'linkedIssuesComplete'))->toBeFalse()
-        ->and(decodedJsonField($output, 'linkedIssues'))->toHaveCount(3)
+        ->and(decodedJsonField($output, 'linkedIssues'))->toHaveCount(1)
         ->and(decodedJsonField($output, 'linkedIssues.0.relation'))->toBe('mentioned')
-        ->and(decodedJsonField($output, 'linkedIssues.2.number'))->toBe(452);
+        ->and(decodedJsonField($output, 'linkedIssues.0.number'))->toBe(452);
 });
+
+test('the list is not complete when only the sub-issue read fails', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $output = runGitHubLoader($fixture, 'https://github.com/acme/widgets/issues/445', [
+        'FAKE_GH_GRAPHQL_JSON' => githubLoaderRelationsJson(),
+        'FAKE_GH_ISSUE_JSON' => githubLoaderNamingIssueJson(),
+        'FAKE_GH_SUBISSUES_OK' => '0',
+    ])->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'subIssuesComplete'))->toBeFalse()
+        ->and(decodedJsonField($output, 'linkedIssuesComplete'))->toBeFalse()
+        ->and(decodedJsonField($output, 'linkedIssues.0.relation'))->toBe('parent');
+});
+
+test('the body of an author without write access names no linked issue', function (string $association): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $output = runGitHubLoader($fixture, 'https://github.com/acme/widgets/issues/445', [
+        'FAKE_GH_GRAPHQL_JSON' => githubLoaderRelationsJson($association),
+        'FAKE_GH_ISSUE_JSON' => githubLoaderNamingIssueJson(),
+    ])->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    $mentioned = array_values(array_filter(
+        (array) decodedJsonField($output, 'linkedIssues'),
+        static fn (mixed $entry): bool => is_array($entry) && $entry['relation'] === 'mentioned',
+    ));
+
+    expect(array_column($mentioned, 'number'))->toBe([452]);
+})->with(['NONE', 'CONTRIBUTOR', 'FIRST_TIME_CONTRIBUTOR']);
 
 test('a pull request carries no linked issue list', function (): void {
     $fixture = createGitHubLoaderFixture();
