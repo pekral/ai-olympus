@@ -310,17 +310,17 @@ function readyToDeployBaseBranch(array $fixture, string $name): void
 }
 
 /**
- * The base branch of the pull request #12, its head, and its merge ref, each with its workflows.
+ * The base-branch tip and the head of the pull request #12 with the given workflows, and its merge ref
+ * with the merge workflows.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
- * @param array<string, string> $baseWorkflows
- * @param array<string, string> $headWorkflows
+ * @param array<string, string> $workflows
  * @param array<string, string> $mergeWorkflows
  */
-function readyToDeployPullRequestTrees(array $fixture, array $baseWorkflows, array $headWorkflows, array $mergeWorkflows, string $baseBranch): void
+function readyToDeployPullRequestTrees(array $fixture, array $workflows, array $mergeWorkflows, string $baseBranch): void
 {
-    readyToDeployRemoteWorkflows($fixture, $baseWorkflows, tree: READY_TO_DEPLOY_BASE_SHA);
-    readyToDeployRemoteWorkflows($fixture, $headWorkflows, tree: READY_TO_DEPLOY_HEAD_SHA);
+    readyToDeployRemoteWorkflows($fixture, $workflows, tree: READY_TO_DEPLOY_BASE_SHA);
+    readyToDeployRemoteWorkflows($fixture, $workflows, tree: READY_TO_DEPLOY_HEAD_SHA);
     readyToDeployRemoteWorkflows($fixture, $mergeWorkflows, tree: READY_TO_DEPLOY_MERGE_TREE_SHA);
     readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/' . $baseBranch, [
         'object' => ['sha' => READY_TO_DEPLOY_BASE_SHA, 'type' => 'commit'],
@@ -330,17 +330,15 @@ function readyToDeployPullRequestTrees(array $fixture, array $baseWorkflows, arr
 }
 
 /**
- * The checkout of readyToDeployCheckout() with the given local workflows, the default-branch tip and
- * the base-branch tip of the pull request with the given workflows, the head of the pull request with
- * the head workflows (the same workflows when none are given), its merge ref with the merge workflows
- * (the head workflows when none are given), plus the pull request #12 and its closing issue #11 as the
- * fake `gh` serves them.
+ * The checkout of readyToDeployCheckout() with the given local workflows, the default-branch tip, the
+ * base-branch tip, and the head of the pull request with the given workflows, its merge ref with the
+ * merge workflows (the same workflows when none are given), plus the pull request #12 and its closing
+ * issue #11 as the fake `gh` serves them.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
  * @param array<string, string> $workflows
  * @param array<string, mixed> $pullRequest
  * @param array<string, string> $localWorkflows
- * @param array<string, string>|null $headWorkflows
  * @param array<string, string>|null $mergeWorkflows
  */
 function readyToDeployGithub(
@@ -348,14 +346,13 @@ function readyToDeployGithub(
     array $workflows = [],
     array $pullRequest = [],
     array $localWorkflows = [],
-    ?array $headWorkflows = null,
     ?array $mergeWorkflows = null,
 ): void {
     $baseBranch = $pullRequest['baseRefName'] ?? 'master';
     assert(is_string($baseBranch));
     readyToDeployCheckout($fixture['repo'], $localWorkflows);
     readyToDeployRemoteWorkflows($fixture, $workflows);
-    readyToDeployPullRequestTrees($fixture, $workflows, $headWorkflows ?? $workflows, $mergeWorkflows ?? $headWorkflows ?? $workflows, $baseBranch);
+    readyToDeployPullRequestTrees($fixture, $workflows, $mergeWorkflows ?? $workflows, $baseBranch);
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'assignees' => [],
         'author' => ['login' => 'pat'],
@@ -374,6 +371,16 @@ function readyToDeployGithub(
         'url' => 'https://github.com/acme/app/pull/12',
         ...$pullRequest,
     ]));
+    readyToDeployClosingIssue($fixture);
+}
+
+/**
+ * The closing issue #11 of the pull request #12, as the fake `gh` serves it.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ */
+function readyToDeployClosingIssue(array $fixture): void
+{
     file_put_contents($fixture['state'] . '/issue-11.json', (string) json_encode([
         'assignees' => [],
         'author' => ['login' => 'reporter'],
@@ -1038,17 +1045,17 @@ test('the label is not applied when the workflows of the default-branch tip cann
 
 test(
     'the pull request gets no label when its base-branch tip or its merge ref may run on label activity, and its issue still does',
-    function (array $pullRequest, string $baseWorkflow, string $headWorkflow, string $mergeWorkflow, string $result): void {
+    function (string $baseBranch, string $baseWorkflow, string $mergeWorkflow, string $result): void {
         $path = '.github/workflows/deploy.yml';
         $ci = ['.github/workflows/ci.yml' => "on: push\n"];
         $fixture = readyToDeployFixture();
-        readyToDeployGithub(
-            $fixture,
-            $ci,
-            ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login', ...$pullRequest],
-            headWorkflows: [...$ci, $path => $headWorkflow],
-            mergeWorkflows: [...$ci, $path => $mergeWorkflow],
-        );
+        readyToDeployGithub($fixture, $ci, [
+            'baseRefName' => $baseBranch,
+            'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA,
+            'body' => '',
+            'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']],
+            'title' => 'fix: login',
+        ], mergeWorkflows: [...$ci, $path => $mergeWorkflow]);
         readyToDeployRemoteWorkflows($fixture, [...$ci, $path => $baseWorkflow], tree: READY_TO_DEPLOY_BASE_SHA);
         readyToDeployRemoteWorkflows($fixture, $ci, tree: READY_TO_DEPLOY_STALE_BASE_SHA);
 
@@ -1065,51 +1072,44 @@ test(
     },
 )->with([
     'a base-branch workflow on labeled pull requests' => [
-        [],
+        'master',
         "on:\n  pull_request_target:\n    types: [labeled]\n",
-        "on: push\n",
         "on: push\n",
         'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
-    'a head workflow on labeled pull requests' => [
-        [],
+    'a head workflow on labeled pull requests, in the merge ref' => [
+        'master',
         "on: push\n",
-        "on:\n  pull_request:\n    types: [labeled]\n",
         "on:\n  pull_request:\n    types: [labeled]\n",
         'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
-    'a head workflow that names the label' => [
-        [],
+    'a head workflow that names the label, in the merge ref' => [
+        'master',
         "on: push\n",
-        "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
         "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
         'the pull-request merge workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'a labeled workflow added to a release base branch after the pull request was opened' => [
-        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
-        "on:\n  pull_request:\n    types: [labeled]\n",
-        "on: push\n",
-        "on:\n  pull_request:\n    types: [labeled]\n",
-        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
-    ],
-    'a merge-ref workflow that neither the base-branch tip nor the head shows' => [
-        [],
+    'a merge-ref workflow that the base-branch tip does not show' => [
+        'master',
         "on: pull_request\n",
-        "on: push\njobs: {}\n",
         "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
         'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
+    'a labeled workflow added to a release base branch after the pull request was opened' => [
+        'release/2.0',
+        "on:\n  pull_request:\n    types: [labeled]\n",
+        "on:\n  pull_request:\n    types: [labeled]\n",
+        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    ],
     'a merge-ref workflow that reads the event label on a release base branch' => [
-        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
-        "on: push\n",
+        'release/2.0',
         "on: push\n",
         "on: pull_request\njobs:\n  d:\n    if: github.event.label.name == 'x'\n",
         'the pull-request merge workflow .github/workflows/deploy.yml reads the label of the event; the operator decides',
     ],
     'a pull_request_target workflow added to a release base branch after the pull request was opened' => [
-        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
+        'release/2.0',
         "on:\n  pull_request_target:\n    types: [labeled]\n",
-        "on: push\n",
         "on: push\n",
         'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
@@ -1117,13 +1117,13 @@ test(
 
 test(
     'the pull request gets its label when neither its base-branch tip nor its merge ref reacts to labels',
-    function (array $pullRequest, string $baseWorkflow, string $mergeWorkflow): void {
+    function (string $baseBranch, string $baseWorkflow, string $mergeWorkflow): void {
         $path = '.github/workflows/deploy.yml';
         $fixture = readyToDeployFixture();
         readyToDeployGithub(
             $fixture,
             [$path => $baseWorkflow],
-            ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login', ...$pullRequest],
+            ['baseRefName' => $baseBranch, 'body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
             mergeWorkflows: [$path => $mergeWorkflow],
         );
 
@@ -1137,9 +1137,9 @@ test(
         }
     },
 )->with([
-    'a release base branch' => [['baseRefName' => 'release/2.0'], "on: pull_request\n", "on: pull_request\n"],
-    'only the base branch changed a workflow' => [[], "on: pull_request\n", "on: pull_request\n"],
-    'only the head changed a workflow' => [[], "on: push\n", "on: pull_request\n"],
+    'a release base branch' => ['release/2.0', "on: pull_request\n", "on: pull_request\n"],
+    'only the base branch changed a workflow' => ['master', "on: pull_request\n", "on: pull_request\n"],
+    'only the head changed a workflow' => ['master', "on: push\n", "on: pull_request\n"],
 ]);
 
 test(
