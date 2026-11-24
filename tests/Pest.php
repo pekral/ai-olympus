@@ -1048,6 +1048,17 @@ function packageSource(string $relativePath): string
 }
 
 /**
+ * The text of a package file between two headings, from the first heading up to the second one.
+ * Shared by the content tests that pin a sentence inside one section of a rule or a skill.
+ */
+function packageSection(string $text, string $startHeading, string $endHeading): string
+{
+    $start = (int) strpos($text, $startHeading);
+
+    return substr($text, $start, (int) strpos($text, $endHeading, $start) - $start);
+}
+
+/**
  * The content of one package file with every run of whitespace collapsed to one space, so a pin
  * never depends on where a Markdown paragraph wraps.
  */
