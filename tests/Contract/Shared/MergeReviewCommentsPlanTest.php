@@ -615,3 +615,70 @@ test('the JIRA plan stops when the comment list may be shorter than the thread',
         ->and($result['plan']['delete'])->toBe([])
         ->and($result['plan']['merge'])->toBe([]);
 });
+
+function mergePlanFingerprint(string $line): string
+{
+    return substr(hash('sha256', trim((string) preg_replace('/\s+/u', ' ', $line))), 0, 8);
+}
+
+/**
+ * @param array<mixed> $plan
+ * @return array{all: \Symfony\Component\Process\Process, first: \Symfony\Component\Process\Process}
+ */
+function mergePlanCoverage(array $plan, string $body): array
+{
+    $directory = installerCreateProjectRoot();
+    file_put_contents($directory . '/plan.json', json_encode($plan, JSON_THROW_ON_ERROR));
+    file_put_contents($directory . '/body.md', $body);
+
+    try {
+        return [
+            'all' => runMergePlanScript($directory, ['coverage', $directory . '/plan.json', $directory . '/body.md']),
+            'first' => runMergePlanScript($directory, ['coverage', $directory . '/plan.json', $directory . '/body.md', '801']),
+        ];
+    } finally {
+        installerRemoveDirectory($directory);
+    }
+}
+
+test('the coverage check reads the hidden line fingerprint of a review comment as no content', function (): void {
+    $result = mergePlanCoverage([
+        'comments' => [['body' => "Round 1: 14 findings.\n\n<!-- cr-comment:lines=3f9a21c8,7e10b4d2 -->\n" . mergePlanMarker(), 'id' => '801']],
+        'merge' => ['801'],
+    ], "Round 1: 14 findings.\n");
+
+    expect($result['all']->getExitCode())->toBe(0)
+        ->and($result['all']->getOutput())->toBe('');
+});
+
+test('the plan lists the line the operator added to a review comment, and the coverage check requires it', function (): void {
+    $agent = 'Round 1: the upload limit is 2 MB.';
+    $operator = 'Decision: keep the 2 MB limit.';
+    $result = mergePlanGitHub([
+        mergePlanComment(801, 'bot', 'MEMBER', $agent . "\n\n" . $operator . "\n\n<!-- cr-comment:lines=" . mergePlanFingerprint($agent) . " -->\n" . mergePlanMarker(), 1),
+        mergePlanComment(803, 'bot', 'MEMBER', "Round 2: the limit is raised.\n\n<!-- cr-comment:lines=" . mergePlanFingerprint('Round 2: the limit is raised.') . " -->\n" . mergePlanMarker(), 3),
+    ]);
+    $lacking = mergePlanCoverage($result['plan'], "Round 1: the upload limit is 2 MB. The operator kept it.\n");
+    $carrying = mergePlanCoverage($result['plan'], "Round 1: the upload limit is 2 MB.\n\n  Decision: keep the 2 MB  limit.\n");
+
+    expect(mergePlanCommentById($result['plan'], '801')['operatorLines'])->toBe([$operator])
+        ->and(mergePlanCommentById($result['plan'], '803')['operatorLines'])->toBe([])
+        ->and($lacking['first']->getExitCode())->toBe(6)
+        ->and($lacking['first']->getOutput())->toContain('missing line: ' . $operator)
+        ->and($carrying['first']->getExitCode())->toBe(0);
+});
+
+test('the JIRA plan lists the node the operator added to a review comment', function (): void {
+    $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
+    $first = mergePlanJiraComment('10001', 'acc-agent', 'Round 1: 3 findings.');
+    $first['view']['body']['content'][] = ['content' => [['text' => 'Decision: keep the limit.', 'type' => 'text']], 'type' => 'paragraph'];
+    $first['view']['body']['content'][] = ['content' => [['text' => $marker . ' lines=' . mergePlanFingerprint('Round 1: 3 findings.'), 'type' => 'text']], 'type' => 'paragraph'];
+    $first['list']['body'] = $first['view']['body'];
+    $second = mergePlanJiraComment('10003', 'acc-agent', 'Round 2: 0 findings. ' . $marker);
+    $result = mergePlanJira([$first['view'], $second['view']], [$first['list'], $second['list']]);
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and(mergePlanCommentById($result['plan'], '10001')['operatorLines'])->toBe(['Decision: keep the limit.'])
+        ->and(mergePlanCommentById($result['plan'], '10003')['operatorLines'])->toBe([])
+        ->and($result['plan']['delete'])->toBe(['10001']);
+});

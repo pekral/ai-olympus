@@ -12,19 +12,22 @@
 # plan
 #   Prints one JSON document: { tracker, item, actor, complete, unpublishedDataAllowed, deleteSupported,
 #   updateSupported, merge: [ids], carrier, delete: [ids], keep: [{id, reason}], operatorCandidates: [ids],
-#   comments: [{id, pos, author, createdAt, url, class, reason, reply, body?}], stop }.
+#   comments: [{id, pos, author, createdAt, url, class, reason, reply, operatorLines?, body?}], stop }.
 #   A comment is `review` only when the operator's own account wrote it (GitHub: the login that `gh api user` reports plus a
 #   write-access association; JIRA: the account ID that jira-actor.sh resolves), it carries that account's own `cr-comment`
 #   marker line, and it carries no other agent marker. `operator` is a comment of that account with no agent marker: the
 #   skill reads it and decides whether it is a review. Everything else is `other` and never changes. Bugsnag has no account
 #   lookup, so the caller names the operator's resolved collaborator name with --author; Bugsnag comments carry no id and no
 #   marker, so nothing there is updated or deleted.
+#   `operatorLines` of a review comment lists the lines the operator added to it (skills/_shared/operator-lines.sh). It is
+#   null when the JIRA document body of the comment could not be read; such a comment is never in `delete`.
 #   The plan fails closed. A `stop` text, with exit 5, replaces every list when the comment list may be shorter than the
 #   thread, when the actor cannot be resolved, or when fewer than two review comments exist.
 #
 # coverage
-#   Lists every number (two digits or more, or `#<n>`) and every URL of the named comments of the plan (default: every
-#   comment of `merge`) that the merged body file lacks. Exit 0 when none is missing, 6 otherwise.
+#   Lists every number (two digits or more, or `#<n>`), every URL, and every operator line of the named comments of the
+#   plan (default: every comment of `merge`) that the merged body file lacks; an operator line must stand in the body as a
+#   line of its own. A line fingerprint and a marker of a comment are no content. Exit 0 when none is missing, 6 otherwise.
 #
 # verify-read-back
 #   Loads the item again and proves that the carrier comment is readable, is a `review` comment of the operator's account,
@@ -45,6 +48,8 @@ PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS="$(cd "$HERE/../.." && pwd)"
 JQ_LIB="$SKILLS/_shared"
+# shellcheck source=../../_shared/operator-lines.sh
+source "$JQ_LIB/operator-lines.sh"
 
 usage() {
   cat >&2 <<EOF
@@ -92,6 +97,7 @@ load_item() {
 
   case "$tracker" in
     github)
+      command -v php >/dev/null 2>&1 || { printf '%s\n' "$PROG: required tool not found: php" >&2; exit 2; }
       "$SKILLS/code-review-github/scripts/load-issue.sh" "$item" >"$raw" 2>"$TMP_DIR/loader.err" || {
         printf '%s\n' "$PROG: the GitHub loader failed; nothing is planned" >&2
         exit 3
@@ -101,6 +107,7 @@ load_item() {
       jq -e '(.comments | type) == "array"' "$raw" >/dev/null || { printf '%s\n' "$PROG: the loader returned no comment list" >&2; exit 3; }
       [[ "$(jq -r '.repo.isPrivate' "$raw")" == "true" ]] && public=true
       jq -L "$JQ_LIB" --arg actor "$actor" 'include "comment-reply"; .comments | github_normalised($actor)' "$raw" >"$TMP_DIR/normalised.json"
+      add_operator_lines github
       ;;
     jira)
       for bin in acli php; do
@@ -122,6 +129,12 @@ load_item() {
       [[ "$(jq -r '.commentsComplete' "$raw")" == "true" ]] || complete=false
       public=true
       jq -L "$JQ_LIB" --arg actor "$actor" 'include "comment-reply"; .comments | jira_normalised($actor)' "$raw" >"$TMP_DIR/normalised.json"
+      # The operator lines need the document body, which the loader renders to text; the delete helper reads the same view.
+      if ! acli jira workitem view "$(jq -r '.key' "$raw")" --fields comment --json >"$TMP_DIR/view.json" 2>/dev/null; then
+        printf '%s\n' "$PROG: the JIRA comment documents could not be read; nothing is planned" >&2
+        exit 3
+      fi
+      add_operator_lines jira
       ;;
     bugsnag)
       if [[ -z "$author" ]]; then
@@ -146,6 +159,35 @@ load_item() {
   jq -n --arg tracker "$tracker" --arg item "$item" --arg actor "$actor" --arg digest "$digest" \
     --argjson complete "$complete" --argjson public "$public" \
     '{tracker: $tracker, item: $item, actor: $actor, digest: $digest, complete: $complete, unpublishedDataAllowed: $public}' >"$TMP_DIR/meta.json"
+}
+
+# add_operator_lines <github|jira> — adds `operatorLines` to every normalised comment that carries a review marker. On JIRA
+# the unit is a node of the document of $TMP_DIR/view.json; a comment whose document is missing gets null.
+add_operator_lines() {
+  local tracker="$1" id file lines="$TMP_DIR/operator-lines.jsonl" found
+  : >"$lines"
+  while IFS= read -r id; do
+    file="$TMP_DIR/comment-$id"
+    found=1
+    if [[ "$tracker" == "github" ]]; then
+      jq -r --arg id "$id" '.[] | select(.id == $id) | .body' "$TMP_DIR/normalised.json" >"$file"
+    else
+      jq -c --arg id "$id" '[.fields.comment.comments // [] | .[] | select(((.id // "") | tostring) == $id) | .body
+        | select(type == "object")] | first // empty' "$TMP_DIR/view.json" >"$file"
+      [[ -s "$file" ]] || found=0
+    fi
+    if [[ "$found" -eq 0 ]]; then
+      jq -n -c --arg id "$id" '{id: $id, lines: null}' >>"$lines"
+    elif ! operator_lines "$([[ "$tracker" == "github" ]] && printf markdown || printf adf)" "$file" >"$file.lines"; then
+      printf '%s\n' "$PROG: the operator lines of comment $id could not be read; nothing is planned" >&2
+      exit 3
+    else
+      jq -R . "$file.lines" | jq -s -c --arg id "$id" '{id: $id, lines: .}' >>"$lines"
+    fi
+  done < <(jq -r '.[] | select(.id != null and (.body | contains("cr-comment:"))) | .id' "$TMP_DIR/normalised.json")
+  jq --slurpfile found "$lines" '($found | map({key: .id, value: .lines}) | from_entries) as $byId
+    | map(. + {operatorLines: (.id as $i | if $i != null and ($byId | has($i)) then $byId[$i] else [] end)})' \
+    "$TMP_DIR/normalised.json" >"$TMP_DIR/normalised.next" && mv "$TMP_DIR/normalised.next" "$TMP_DIR/normalised.json"
 }
 
 # The classification and the plan, in one jq program over the normalised comments. The single quotes keep the shell
@@ -192,21 +234,25 @@ def classified:
     stop: $stop,
     merge: (if $stop then [] else ($c | map(select(.class == "review" or .class == "operator") | .id)) end),
     carrier: (if $stop then null else $carrier end),
-    delete: (if $stop or ($writable | not) then [] else ($reviewIds | map(select(. as $i | $i != $carrier and ($replied | index($i) | not)))) end),
+    delete: (if $stop or ($writable | not) then []
+             else ($reviews | map(select(.operatorLines != null) | .id
+                    | select(. as $i | $i != $carrier and ($replied | index($i) | not)))) end),
     operatorCandidates: (if $stop then [] else $operators end),
     keep: ($c | map(select(.class == "other") | {id, reason})
            + ($reviews | map(select(.id as $i | $replied | index($i)) | {id, reason: "has a reply, never deleted"}))
+           + ($reviews | map(select(.operatorLines == null) | {id, reason: "its document could not be read, so its operator lines are unknown"}))
            + (if $stop then [] else ($reviews | map(select(.id == $carrier and ($replied | index($carrier) | not)) | {id, reason: "carries the merged text"})) end)),
     comments: ($c | map({id, pos, author, createdAt, updatedAt, url, class, reason, bodyLength: (.body | length),
                          reply: (if .class == "review" then (. as $r | has_reply($r; $c)) else null end)}
+                        + (if .class == "review" then {operatorLines} else {} end)
                         + (if .class == "review" or .class == "operator" then {body} else {} end)))
   }
 '
 
-# tokens <body-file> — numbers of two digits or more, `#<n>`, and URLs of a body, one per line, with the markers and the
-# list numbers of the body left out.
+# tokens <body-file> — numbers of two digits or more, `#<n>`, and URLs of a body, one per line, with the marker and line
+# fingerprint lines and the list numbers of the body left out.
 tokens() {
-  grep -v ':actor=' "$1" \
+  grep -Ev ':(actor|lines)=' "$1" \
     | sed -E 's/^[[:space:]]*[0-9]+[.)][[:space:]]+//' \
     | grep -Eo 'https?://[^[:space:])>\]|"]+|#[0-9]+|[0-9]{2,}' \
     | sort -u || true
@@ -247,6 +293,16 @@ cmd_coverage() {
   fi
   source_file="$TMP_DIR/source.txt"
   jq -r --argjson ids "$ids" '.comments[] | select(.id as $i | $ids | index($i)) | .body // empty' "$plan" >"$source_file"
+  # An operator line counts only as a line of its own, compared with the whitespace collapsed, as the delete helpers compare it.
+  jq -r -n --argjson ids "$ids" --slurpfile plan "$plan" --rawfile body "$body" '
+    def norm: gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
+    ($body | split("\n") | map(norm)) as $have
+    | $plan[0].comments[] | select(.id as $i | $ids | index($i)) | (.operatorLines // [])[]
+    | select(norm as $line | $have | index([$line]) | not) | "missing line: " + .' >"$TMP_DIR/missing-lines"
+  if [[ -s "$TMP_DIR/missing-lines" ]]; then
+    cat "$TMP_DIR/missing-lines"
+    missing=1
+  fi
   tokens "$source_file" >"$TMP_DIR/source.tokens"
   while IFS= read -r token; do
     [[ -n "$token" ]] || continue

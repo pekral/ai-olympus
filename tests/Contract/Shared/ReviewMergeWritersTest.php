@@ -68,6 +68,19 @@ function reviewMergeMarker(string $namespace = 'cr-comment'): string
     return '<!-- ' . $namespace . ':actor=bot -->';
 }
 
+function reviewMergeFingerprint(string $line): string
+{
+    return substr(hash('sha256', trim((string) preg_replace('/\s+/u', ' ', $line))), 0, 8);
+}
+
+// A review comment as the GitHub upsert helper publishes it: the agent line, an optional line the operator added later,
+// the hidden fingerprint of the agent line, and the marker.
+function reviewMergeFingerprinted(string $agentLine, string $operatorLine = ''): string
+{
+    return $agentLine . "\n\n" . ($operatorLine === '' ? '' : $operatorLine . "\n\n")
+        . '<!-- cr-comment:lines=' . reviewMergeFingerprint($agentLine) . " -->\n" . reviewMergeMarker();
+}
+
 /**
  * @param array<mixed> $values
  * @return list<string>
@@ -277,6 +290,20 @@ dataset('merge delete refusals', [
         ],
         '801', '803', 4,
     ],
+    'the target holds a line the operator added that the merged comment lacks' => [
+        [
+            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
+        ],
+        '801', '803', 4,
+    ],
+    'the target holds an operator line that the merged comment only paraphrases' => [
+        [
+            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
+            reviewMergeComment(803, 'bot', "Round 2: merged. The operator decided to keep the limit.\n\n" . reviewMergeMarker()),
+        ],
+        '801', '803', 4,
+    ],
 ]);
 
 test(
@@ -377,6 +404,23 @@ function reviewMergeJiraComment(string $id, string $accountId, string $text, arr
     return [
         'author' => ['accountId' => $accountId, 'displayName' => 'Agent'],
         'body' => ['content' => $paragraphs, 'type' => 'doc', 'version' => 1],
+        'id' => $id,
+    ];
+}
+
+/**
+ * @param list<string> $paragraphs
+ * @return array<string, mixed>
+ */
+function reviewMergeJiraDocument(string $id, string $accountId, array $paragraphs): array
+{
+    return [
+        'author' => ['accountId' => $accountId, 'displayName' => 'Agent'],
+        'body' => [
+            'content' => array_map(static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'], $paragraphs),
+            'type' => 'doc',
+            'version' => 1,
+        ],
         'id' => $id,
     ];
 }
@@ -551,6 +595,16 @@ test(
     },
 )->with('merge delete mention replies');
 
+test('the GitHub delete helper removes a review comment whose operator line the merged comment carries verbatim', function (): void {
+    $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+        reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
+        reviewMergeComment(803, 'bot', "Round 2: merged.\n\n  Decision:  keep the 2 MB limit.\n\n" . reviewMergeMarker()),
+    ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and($result['deleted'])->toBeTrue();
+});
+
 test('the JIRA delete helper refuses a review comment when the view embeds fewer comments than the issue carries', function (): void {
     $marker = reviewMergeJiraMarker();
     $before = [
@@ -641,3 +695,27 @@ test('the JIRA delete helper deletes nothing when the account ID of the acli use
         ->and($result['deleted'])->toBeFalse();
 });
 
+test('the JIRA delete helper keeps a review comment until the merged comment carries its operator line', function (string $merged, int $exit): void {
+    $marker = reviewMergeJiraMarker();
+    $before = [
+        reviewMergeJiraDocument('10001', 'acc-agent', [
+            'Round 1: the limit is 2 MB.',
+            'Decision: keep the 2 MB limit.',
+            $marker . ' lines=' . reviewMergeFingerprint('Round 1: the limit is 2 MB.'),
+        ]),
+        reviewMergeJiraDocument('10003', 'acc-agent', ['Round 2: merged.', ...($merged === '' ? [] : [$merged]), $marker]),
+    ];
+    $result = runReviewMergeJira(
+        'skills/code-review-jira/scripts/delete-owned-comment.sh',
+        $before,
+        [$before[1]],
+        ['--review-merge', 'ACME-1234', '10001', '10003'],
+    );
+
+    expect($result['process']->getExitCode())->toBe($exit)
+        ->and($result['deleted'])->toBe($exit === 0);
+})->with([
+    'the merged comment lacks the line' => ['', 4],
+    'the merged comment rewords the line' => ['The operator kept the limit.', 4],
+    'the merged comment carries the line' => ['Decision: keep the 2 MB limit.', 0],
+]);

@@ -71,7 +71,9 @@ deletes. It never changes a status, an assignee, or a label.
    links the comment, quotes a whole line of it, or mentions its author account: a JIRA mention, or an `@<login>` outside
    code on GitHub (`skills/_shared/comment-reply.jq`). A `review` comment with a reply is never in `delete`. Its text goes
    into the carrier, and the comment itself stays.
-4. Bugsnag has no comment id, no marker, and no update or delete wrapper in this package. The merged comment is a new
+4. `operatorLines` of a `review` comment lists the lines the operator added to it (`skills/_shared/operator-lines.sh`). A
+   comment whose lines cannot be read has `null` there and stays.
+5. Bugsnag has no comment id, no marker, and no update or delete wrapper in this package. The merged comment is a new
    comment, `delete` is empty, and the report says every earlier comment stays.
 
 ### 3. Write the merged comment
@@ -98,10 +100,11 @@ The text has these properties:
    `@rules/reports/general.md`. On JIRA the section *A JIRA comment is written for a non-technical reader* and its
    3 000-character cap bind the text. When every fact does not fit the cap, stop, publish nothing, and report it.
 7. It carries no marker line. The wrapper appends the review marker, so a later review round updates this comment.
+8. It carries every line of `operatorLines`, verbatim and as a line of its own.
 
 Check the text before the publish: `skills/merge-review-comments/scripts/plan-merge.sh coverage <plan-file> <body-file>`
-lists every number and URL of the merged comments that the text lacks. Exit `6` sends you back to the text. Add the missing
-fact, or state why a number no longer holds together with its round.
+lists every number and URL of the merged comments and every operator line that the text lacks. Exit `6` sends you back
+to the text. Add the missing fact, or state why a number no longer holds together with its round.
 
 ### 4. Publish and read back
 
@@ -120,7 +123,8 @@ fact, or state why a number no longer holds together with its round.
    - GitHub: `skills/_shared/delete-owned-github-comment.sh --review-merge <issue URL> <comment-id> <carrier id>`
    - JIRA: `skills/code-review-jira/scripts/delete-owned-comment.sh --review-merge <KEY|URL> <comment-id> <carrier id>`
 2. Before it deletes, each helper proves the author account, the exact item, the marker, and the absence of a reply. It
-   proves that the carrier is this account's review comment on the same item. It reads the item back after the delete. Any refusal or non-zero exit keeps that comment and ends the
+   proves that the carrier is this account's review comment on the same item, and that the carrier holds every line the
+   operator added to the deleted comment. It reads the item back after the delete. Any refusal or non-zero exit keeps that comment and ends the
    deletes: a failed or incomplete read means no delete at all. Never replace a refusal with a raw call.
 3. Run `plan-merge.sh plan <item>` again into a second file and `plan-merge.sh compare <plan-before> <plan-after>`. A
    `problem:` line means a comment changed that should stay, or a comment stays that should be gone. Report it as it is.
@@ -140,6 +144,6 @@ Return, in the language of the operator, in the voice of `@skills/agent-voice/SK
 ## Done when
 
 - Only review comments of the operator's account or of an agent were merged, and every other comment is unchanged (`compare` is ok).
-- The merged comment keeps every verdict, finding, open question, and number, and `coverage` is clean.
+- The merged comment keeps every verdict, finding, open question, number, and operator line, and `coverage` is clean.
 - No comment with a reply was deleted, and every delete came after the read-back.
 - Every changed and every deleted comment is in the report, and no status, assignee, or label changed.
