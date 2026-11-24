@@ -33,6 +33,7 @@ link to read the skill itself.
 | [`process-code-review`](../skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](../skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`merge-github-pr-fast`](../skills/merge-github-pr-fast/) | Land a hotfix pull request now, only on the user's explicit `/merge-github-pr-fast`: one security-only check of the diff, then green CI or a passing gate on the head commit |
+| [`mark-ready-to-deploy`](../skills/mark-ready-to-deploy/) | The operator's own chat message says a task or a pull request is ready to deploy: marks the pull request, its closing issues, and the named JIRA issues ready to deploy and assigns each back to the pull-request author |
 | [`pr-summary`](../skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`create-issue`](../skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
