@@ -12,7 +12,7 @@ Extracted from `agents/krang.md` so the orchestrator does not carry it on every 
 
 ### A stack of pull requests — one JIRA report
 
-`@rules/code-review/several-pull-requests.md` *A stack of pull requests — one JIRA comment for the whole stack* owns the rule. This part owns how the run carries it out. It applies only when the brief's `## Source` is a JIRA key and the run holds two or more open pull requests of that task whose branches chain: the `baseRefName` of one is the `headRefName` of another, read from `skills/code-review-github/scripts/load-issue.sh` for each pull request that passed the ownership gate. Any other run keeps step 6a as written.
+`@rules/code-review/several-pull-requests.md` *A stack of pull requests — one JIRA comment for the whole stack* owns the rule. This part owns how the run carries it out. It applies only when the brief's `## Source` is a JIRA key and the run holds two or more open pull requests of that task whose branches chain: the `baseRefName` of one is the `headRefName` of another, read from `skills/code-review-github/scripts/load-issue.sh` for each pull request that passed the repository ownership gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*). Any other run keeps step 6a as written.
 
 1. **No part reports on its own.** Every review of the run already carries `tracker-report: deferred`. Dispatch no `april` for one part while another part of the run is still in review.
 2. **Wait for the last part.** The report is due when every part the run holds has ended its review: converged with the scoped pass done, `Blocked`, or carried forward. A part that ended `Blocked` does not stop the report.
