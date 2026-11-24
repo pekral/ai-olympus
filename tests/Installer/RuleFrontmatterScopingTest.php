@@ -575,7 +575,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // physical toplevel after the symbolic-link check, and audits the site host (issue #640, review round 1).
         // Re-baselined: a third sanctioned transition, to the ready-to-deploy status on the operator's own word,
         // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
-        'rules/jira/general.md' => '8bd1cbf75e15033ec298c6f34a49e80235a2bf9e888af107282e10dc851b33fd',
+        // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
+        'rules/jira/general.md' => 'e8ad6330a21fed6b27110d16549f3be1e81d1bb843b20fada0a6e543f43b9943',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

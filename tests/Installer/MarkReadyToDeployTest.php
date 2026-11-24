@@ -345,6 +345,13 @@ test('the consent table carries one L2 row per ready-to-deploy write, acted by t
     expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
 });
 
+test('the JIRA rule states the duties of every transition helper in the singular', function (): void {
+    expect(normalizedPackageSource('rules/jira/general.md'))->toContain(
+        'Every helper refuses any out-of-scope target, re-reads the status to confirm the issue actually reached the column before '
+        . 'reporting success, and is idempotent (no-op when already in the target status).',
+    );
+});
+
 test('the ready-to-deploy helper refuses a deny-list target with exit 1 and no transition, even as a synonym', function (string $target): void {
     $fixture = readyToDeployFixture();
 
