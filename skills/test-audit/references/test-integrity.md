@@ -97,7 +97,11 @@ An agent never removes a test, weakens what it checks, skips it, or switches off
 
 A pull request that merges without a converged review has no reader for the places the patterns miss, so it is judged on the shape of the change. `@skills/merge-github-pr/references/merge-exemptions.md` *`FAST`-tier PR exemption* and `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* run the trusted scan with `--without-review`, which adds a `check-path-changed` candidate for each check path the diff adds, changes, deletes, renames, or copies.
 
-A test-side path is every path that `TEST_RE` of `skills/_shared/domain-vocabulary.sh` matches, the one definition the classifier reads for its `tests-only` signal, and every checker configuration of its `CHECKER_CONFIG_RE` is a check path. An added test file runs code inside the runner, so the shape mode never reads it as harmless. A candidate or an incomplete scan takes the path with the full review, so a change the classifier grades `tests-only` always takes it, and only a change that touches no test-side or check path keeps the path without a review.
+A test-side path is every path that `TEST_RE` of `skills/_shared/domain-vocabulary.sh` matches, the one definition the classifier reads for its `tests-only` signal. Every file of its `FORMAT_RE` is a check path at any depth: a checker configuration, and an `.editorconfig`, `.gitignore`, or `.gitattributes`. A pytest, Jest, Vitest, or RSpec configuration is a check path too.
+
+The classifier never grades a file that a runner collects by default (`RUNNER_COLLECTED_RE`) as documentation. An added test file runs code inside the runner, so the shape mode never reads it as harmless. A candidate or an incomplete scan takes the path with the full review, so a change the classifier grades `tests-only` or `formatting-metadata-only` always takes it, and only a change that touches no test-side or check path keeps the path without a review.
+
+**The limit:** the scan knows the default collection patterns of the runners only. A file that only a pattern the project sets itself collects, such as a custom doctest glob, is no candidate. That pattern lives in a runner configuration, which is a check path, so the change that sets it takes the review.
 
 ## The trusted copy
 

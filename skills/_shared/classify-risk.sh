@@ -496,7 +496,8 @@ classify() {
     [[ -n "$path" ]] || continue
     all+=("$path")
     lowered="$(lower "$path")"
-    if [[ "$lowered" =~ $DOC_RE ]]; then
+    # A file a test runner collects by default is never documentation (RUNNER_COLLECTED_RE).
+    if [[ "$lowered" =~ $DOC_RE && ! "$lowered" =~ $RUNNER_COLLECTED_RE ]]; then
       docs+=("$path")
       continue
     fi
@@ -1428,6 +1429,11 @@ TEXT
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/clear.txt"
   expect_line 'every point is attributable to a signal line' 'signal=-2|documentation-only' \
     --files "$(writefiles 'README.md' 'docs/agents.md')" --assignment "$tmp/clear.txt"
+  # pytest runs test*.txt as doctests and loads conftest.py, so neither is documentation.
+  expect_line 'a pytest doctest file is a test, never documentation' 'signal=-2|tests-only' \
+    --files "$(writefiles 'app/test_add.txt')" --assignment "$tmp/clear.txt"
+  expect_line 'a conftest.py under docs/ is a test, never documentation' 'signal=-2|tests-only' \
+    --files "$(writefiles 'docs/conftest.py')" --assignment "$tmp/clear.txt"
 
   # --- Project-declared critical paths ---------------------------------------
   manifest_repo() {
