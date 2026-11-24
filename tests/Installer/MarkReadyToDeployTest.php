@@ -548,6 +548,47 @@ test('the driver moves and assigns the JIRA keys of a trusted author and of the 
     }
 });
 
+test(
+    'the driver writes only the trailing title key and the links on the acli JIRA site, and reports every other key as found, not written',
+    function (string $title, string $body, array $environment, array $written, array $notWritten): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub($fixture, [], ['author' => ['login' => 'Operator'], 'body' => $body, 'closingIssuesReferences' => [], 'title' => $title]);
+
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy', ...$environment]);
+            $jiraWrites = [...readyToDeployCalls($fixture, 'jira workitem transition'), ...readyToDeployCalls($fixture, 'jira workitem assign')];
+            $writtenKeys = array_values(array_unique(array_map(
+                static fn (string $call): string => (string) preg_replace('/^.* --key ([A-Z0-9_-]+) .*$/', '$1', $call),
+                $jiraWrites,
+            )));
+
+            expect($writtenKeys)->toBe($written);
+
+            foreach ($notWritten as $key) {
+                expect($process->getOutput())->toContain('JIRA ' . $key . ' | - | found, not written');
+            }
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'standard names in the title' => ['fix(auth): switch token hashing to SHA-256 and UTF-8 input (TEAM-42)', '', [], ['TEAM-42'], ['SHA-256', 'UTF-8']],
+    'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', [], ['TEAM-42'], ['ACME-12']],
+    'a key at the start of the title' => ['(ACME-13) fix: login', '', [], [], ['ACME-13']],
+    'a link on another JIRA host' => [
+        'fix: login',
+        'See https://sample.atlassian.net/browse/OPS-7 and https://example.atlassian.net/browse/TEAM-42.',
+        [],
+        ['TEAM-42'],
+        ['OPS-7'],
+    ],
+    'a link with the site as user info' => ['fix: login', 'https://example.atlassian.net@evil.example/browse/OPS-8', [], [], ['OPS-8']],
+    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', [], [], ['OPS-9']],
+    'a link with no host' => ['fix: login', 'See /browse/OPS-10.', [], [], ['OPS-10']],
+    'a link while acli names no site' => ['fix: login', 'https://example.atlassian.net/browse/TEAM-42', ['FAKE_ACLI_SITE' => ''], [], ['TEAM-42']],
+    'a link on the site in another letter case' => ['fix: login', 'https://EXAMPLE.atlassian.net/browse/TEAM-42', [], ['TEAM-42'], []],
+]);
+
 test('a missing ready-to-deploy label is reported and never created, and a lookalike label is never selected', function (string $labels): void {
     $fixture = readyToDeployFixture();
     readyToDeployGithub($fixture, [], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
