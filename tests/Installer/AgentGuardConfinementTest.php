@@ -74,19 +74,19 @@ function agentGuardObjectFiles(string $root): array
 function agentGuardWorktreeWrites(): array
 {
     $writes = [
+        'a .git file' => 'echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-slug-leonardo/.git',
+        'a branch' => 'git -C .claude/worktrees/agent-cr-slug-leonardo checkout -q -b escaped',
+        'a commondir' => 'echo /tmp/elsewhere > .git/worktrees/agent-cr-slug-leonardo/commondir',
+        'a file' => 'echo x > .claude/worktrees/agent-cr-slug-leonardo/composer.json',
+        'a gitlink in an index' => 'git -C .claude/worktrees/agent-cr-slug-leonardo update-index --add --cacheinfo 160000,"$(git rev-parse HEAD)",nested',
+        'a moved .git of a unit worktree' => 'mv .claude/worktrees/agent-impl-slug-donatello/.git "$TMPDIR/x"',
+        'a nested repository' => 'git init -q .claude/worktrees/agent-cr-slug-leonardo/nested',
         'a new worktree' => 'git worktree add -q --detach .claude/worktrees/agent-cr-new-{role} HEAD',
-        'a symbolic link to the project' => 'ln -s "$PWD" .claude/worktrees/agent-cr-z-{role}',
+        'a removed file of a unit worktree' => 'rm -f .claude/worktrees/agent-impl-slug-donatello/composer.json',
+        'a removed worktree' => 'git worktree remove --force .claude/worktrees/agent-impl-slug-donatello',
         'a symbolic link in place of a git dir' => 'mv .git/worktrees/agent-cr-slug-leonardo "$TMPDIR/gd"; '
             . 'ln -s "$TMPDIR/gd" .git/worktrees/agent-cr-slug-leonardo',
-        'a commondir' => 'echo /tmp/elsewhere > .git/worktrees/agent-cr-slug-leonardo/commondir',
-        'a .git file' => 'echo "gitdir: /tmp/elsewhere" > .claude/worktrees/agent-cr-slug-leonardo/.git',
-        'a gitlink in an index' => 'git -C .claude/worktrees/agent-cr-slug-leonardo update-index --add --cacheinfo 160000,"$(git rev-parse HEAD)",nested',
-        'a nested repository' => 'git init -q .claude/worktrees/agent-cr-slug-leonardo/nested',
-        'a file' => 'echo x > .claude/worktrees/agent-cr-slug-leonardo/composer.json',
-        'a branch' => 'git -C .claude/worktrees/agent-cr-slug-leonardo checkout -q -b escaped',
-        'a removed file of a unit worktree' => 'rm -f .claude/worktrees/agent-impl-slug-donatello/composer.json',
-        'a moved .git of a unit worktree' => 'mv .claude/worktrees/agent-impl-slug-donatello/.git "$TMPDIR/x"',
-        'a removed worktree' => 'git worktree remove --force .claude/worktrees/agent-impl-slug-donatello',
+        'a symbolic link to the project' => 'ln -s "$PWD" .claude/worktrees/agent-cr-z-{role}',
     ];
     $cases = [];
 
