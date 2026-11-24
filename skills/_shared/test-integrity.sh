@@ -21,8 +21,9 @@
 #      a regular test-side file the branch changed since its merge base with the default branch. It also refuses
 #      an ignored file at a production path the branch deleted, or at a parent of that path, because the swap
 #      would write the base file over it and the restore would delete it, and a production path HEAD has that
-#      carries an assume-unchanged or skip-worktree flag or whose bytes differ from its HEAD blob, because git
-#      status does not show that edit and the swap would replace it.
+#      carries an assume-unchanged or skip-worktree flag or whose bytes differ from the bytes the restore writes
+#      (`git cat-file --filters HEAD:<path>`, so a clean filter cannot hide an edit), because git status does not
+#      show that edit and the swap would replace it.
 #   2. Ends unprovable (exit 4, no swap) when the runner is not `vendor/bin/pest` or `vendor/bin/phpunit`, when the
 #      branch changes a dependency manifest or lockfile, or when it changes test-side paths only.
 #   3. Holds the machine lock (gate_lock_acquire) for the swap and both runs. It never starts another wrapper of
@@ -251,7 +252,9 @@ ti_require_clean_status() {
   [[ -z "$dirty" ]] || ti_prove_stop 3 refused 'the working tree has a change or an untracked file; commit the fix and the test first'
 }
 
-# The bytes of a path in the working tree equal its blob at the commit $1; a submodule is left to git status.
+# The bytes of a path in the working tree equal the bytes the restore writes for it from the commit $1: the blob
+# with its smudge filter and line-ending conversion applied. A clean filter is never applied, so an edit it would
+# drop from the blob still counts. A submodule is left to git status.
 ti_same_as_commit() {
   local entry blob
   entry="$(GIT_LITERAL_PATHSPECS=1 git ls-tree "$1" -- "$2" 2>/dev/null)" || return 1
@@ -260,13 +263,17 @@ ti_same_as_commit() {
   case "${BASH_REMATCH[1]}" in
   160000) return 0 ;;
   120000) [[ -L "$2" && "$(readlink -- "$2")" == "$(git cat-file blob "$blob")" ]] ;;
-  *) [[ -f "$2" && ! -L "$2" && "$(git hash-object -- "$2" 2>/dev/null)" == "$blob" ]] ;;
+  *)
+    [[ -f "$2" && ! -L "$2" ]] || return 1
+    git cat-file --filters "$1:$2" >"$TI_TMP/restored" 2>/dev/null || return 1
+    cmp -s -- "$2" "$TI_TMP/restored"
+    ;;
   esac
 }
 
 # The swap and the restore write only what they can give back: a clean status, every swapped path HEAD has in the
-# index with no assume-unchanged or skip-worktree flag (git status shows no edit under either) and with the bytes of
-# its HEAD blob, and nothing at a path the swap creates. prove runs it before the lock and again once it holds it.
+# index with no assume-unchanged or skip-worktree flag (git status shows no edit under either) and with the bytes
+# the restore writes from HEAD, and nothing at a path the swap creates. prove runs it before the lock and again once it holds it.
 ti_swap_ready() {
   local path entry
   ti_require_clean_status
@@ -1226,6 +1233,25 @@ ti_selftest_prove_refusals() {
   ti_git config --unset core.checkStat
   ti_git update-index -q --really-refresh
   ti_assert 'prove: no run with a hidden edit of a production path ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
+  ti_git checkout -q -b filtered fix
+  printf 'src/calc.txt filter=strip\n' >"$TI_REPO/.gitattributes"
+  ti_git add .gitattributes
+  ti_git commit -q -m filtered
+  ti_git config filter.strip.clean "sed '/# local\$/d'"
+  ti_git config filter.strip.smudge cat
+  printf 'fixed\nsetting # local\n' >"$TI_REPO/src/calc.txt"
+  ti_git add src/calc.txt
+  ti_assert 'prove: a clean filter hides the local line from git status' ti_equals "$(ti_git status --porcelain=v1)" ''
+  ti_prove_calc
+  ti_assert 'prove: a production path whose local line a clean filter hides is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the refused run keeps the line a clean filter hides' \
+    ti_equals "$(cat "$TI_REPO/src/calc.txt")" "$(printf 'fixed\nsetting # local')"
+  printf 'fixed\n' >"$TI_REPO/src/calc.txt"
+  ti_git add src/calc.txt
+  ti_git config --unset filter.strip.clean
+  ti_git config --unset filter.strip.smudge
+  ti_git checkout -q fix
+  ti_assert 'prove: no run with a line a clean filter hides ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
   ti_prove_while_locked ti_change_calc
   ti_assert 'prove: a change made during the lock wait is refused' ti_equals "$TI_RC" 3
   ti_assert 'prove: the change made during the lock wait is kept' ti_equals "$(tail -n 1 "$TI_REPO/src/calc.txt")" changed
