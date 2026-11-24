@@ -160,7 +160,10 @@ test('every list of machine lock wrappers names the fast checks', function (stri
 test('a stuck fast-check run is a wrapper the lock repair may stop', function (): void {
     $lock = packageSource('skills/_shared/gate-lock.sh');
 
-    expect($lock)->toContain('[[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh && "$wrapper" != test-integrity.sh ]] || name="$wrapper"')
+    expect($lock)->toContain(
+        '[[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != '
+        . 'run-fast-checks.sh && "$wrapper" != test-integrity.sh ]] || name="$wrapper"',
+    )
         ->and($lock)->toContain('check \'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package\'');
 });
 

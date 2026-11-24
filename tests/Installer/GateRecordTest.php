@@ -392,7 +392,8 @@ test('gate-lock self-test covers the heartbeat, the stuck holder, and the proces
 
     // The proof that a process is a wrapper this package started, before anything is stopped.
     expect($lock)->toContain(
-        '[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == run-fast-checks.sh || "$wrapper" == test-integrity.sh ]] || return 1',
+        '[[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == '
+        . 'run-fast-checks.sh || "$wrapper" == test-integrity.sh ]] || return 1',
     );
     expect($lock)->toContain('command="$(ps -o command= -p "$pid" 2>/dev/null || true)"');
     expect($lock)->toContain('actual="$(gate_process_start "$pid")" || return 1');
