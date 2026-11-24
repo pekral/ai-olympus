@@ -356,7 +356,8 @@ test('a confined role cannot write the shared temporary directories', function (
         expect(file_exists($path))->toBeFalse();
     } finally {
         AgentGuardRun::remove($root);
-        array_map(unlink(...), glob($path) ?: []);
+        $leftover = glob($path);
+        array_map(unlink(...), $leftover === false ? [] : $leftover);
     }
 })->with([
     '/tmp' => ['/tmp/ai-olympus-guard-test-'],

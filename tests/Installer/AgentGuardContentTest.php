@@ -25,10 +25,19 @@ test('the dispatching session prepares the review worktree and a confined review
 })->with([
     'a confined krang' => ['agents/krang.md', 'you cannot prepare a review worktree or fetch a head commit: return the nested hand-over'],
     'krang' => ['agents/krang.md', 'Before the `leonardo` and `splinter` dispatches, prepare their review worktrees for the round head'],
-    'leonardo' => ['agents/leonardo.md', '**The dispatching session prepares the worktree, never you, while your protection is active.**'],
+    'leonardo' => [
+        'agents/leonardo.md',
+        '**The dispatching session prepares the worktree, never you, while your protection is active.**',
+    ],
     'splinter' => ['agents/splinter.md', 'Under an active protection the dispatching session prepares it and you only read in it.'],
-    'the batch' => ['skills/_shared/orchestration/batch-preparation.md', 'The root session prepares them before each round and removes them in *Run cleanup*.'],
-    'the checkout gate' => ['skills/code-review/references/branch-checkout-gate.md', '**Under an active runtime agent guard the reviewer runs steps 1 and 5 only.**'],
+    'the batch' => [
+        'skills/_shared/orchestration/batch-preparation.md',
+        'The root session prepares them before each round and removes them in *Run cleanup*.',
+    ],
+    'the checkout gate' => [
+        'skills/code-review/references/branch-checkout-gate.md',
+        '**Under an active runtime agent guard the reviewer runs steps 1 and 5 only.**',
+    ],
     'the cleanup' => ['skills/_shared/orchestration/stale-run-recovery.md', '**A worktree this session prepared is its own.**'],
 ]);
 
