@@ -38,6 +38,7 @@ Walk the diff against each pillar of `@rules/api/general.md` and raise one findi
 
 ### 3. HTTP methods & idempotence
 - Method whose side effects violate its contract — `GET` that mutates state, `PUT`/`DELETE` not idempotent on repetition.
+  - A `GET` page that changes data on a plain page load is also in the scope of `@rules/security/backend.md` *State Change on a Plain Page Load (issue #681)*. Raise one finding for it, as the *Scope boundary* of that section states.
 - `PUT` used for a partial update or `PATCH` used for a full replacement.
 
 ### 4. Idempotency keys

@@ -24,11 +24,28 @@ test(
             ->and($section)->toContain(
                 'a one-time value that is bound to the user who started the flow, and the handler checks that value before anything changes',
             )
-            ->and($section)->toContain('**Moderate**, as a security finding. It is never deferred to a later pull request')
+            ->and($section)->toContain('**Moderate**, as a security finding, for a page that')
+            ->and($section)->toContain('does not already mark Critical. It is never deferred to a later pull request')
             ->and($section)->toContain('and never lowered.')
             ->and($section)->toContain('Raise one finding per page: a page that is already reported under *CSRF Protection* is not reported again here.');
     },
 );
+
+test('a page that both the security rule and the API rule match gets one finding at the Critical severity of the API rule', function (): void {
+    $rule = packageSource('rules/security/backend.md');
+    $section = packageSection($rule, '## State Change on a Plain Page Load (issue #681)', '## Output Rendering');
+    $apiReview = packageSource('skills/api-review/SKILL.md');
+    $apiRule = packageSource('rules/api/general.md');
+
+    expect($section)->toContain(
+        'A page that is also a `GET` that mutates state under `@rules/api/general.md` *CR Severity Rules* gets that one finding at the **Critical** severity of that rule, as a security finding that is never deferred.',
+    )
+        ->and($section)->toContain('This section raises no second finding for it, and neither lens lowers the severity.')
+        ->and($apiRule)->toContain('`GET` that mutates state')
+        ->and($apiReview)->toContain(
+            'is also in the scope of `@rules/security/backend.md` *State Change on a Plain Page Load (issue #681)*. Raise one finding for it, as the *Scope boundary* of that section states.',
+        );
+});
 
 test('the CSRF protection section points at the section that owns a state change on a plain page load', function (): void {
     $rule = packageSource('rules/security/backend.md');
