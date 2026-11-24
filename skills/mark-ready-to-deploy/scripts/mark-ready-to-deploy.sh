@@ -29,10 +29,12 @@
 #   - GitHub label: the repository label whose name equals the --label name, or else one of "ready
 #     to deploy", "ready for deploy", "ready-to-deploy", or "připraveno k nasazení" (case-insensitive,
 #     exact). A missing label is reported with the names looked for, and never created. No label
-#     is applied when a workflow of the default-branch tip, read through `gh api`, has a `labeled`
-#     or `unlabeled` type, an `issues` trigger without a `types` filter, a trigger the check cannot
-#     read, or a read of the event label, or names the label in any letter case or separator; nor
-#     when those workflows cannot be read in full.
+#     is applied when a workflow, read through `gh api`, has a `labeled` or `unlabeled` type, an
+#     `issues` trigger without a `types` filter, a trigger the check cannot read, or a read of the
+#     event label, or names the label in any letter case or separator; nor when those workflows
+#     cannot be read in full. An issue checks the workflows of
+#     the default-branch tip. The pull request also checks those of its base branch and its head,
+#     and gets no label when a workflow that both sides changed would be merged.
 #   - GitHub assignee: the pull-request author, added through `--add-assignee`; an existing
 #     assignee is never removed, and a bot author gets no write.
 #   - JIRA: transition-to-ready-to-deploy.sh, then assign-to-pr-author.sh, one key per call.
@@ -254,26 +256,99 @@ workflow_issue_trigger() {
   '
 }
 
-# The workflows are read from the tip of the default branch on GitHub, never from a local ref.
+# $1 = a branch name or a commit SHA. Sets TREE_FILES to the `path<TAB>blob` lines of the workflows
+# of that tree on GitHub, never of a local ref. Exit 1 when the tree cannot be read in full.
+read_workflow_tree() {
+  local json
+  TREE_FILES=""
+  json="$(gh api "repos/$NWO/git/trees/$1?recursive=1" </dev/null 2>/dev/null)" || return 1
+  jq -e '.truncated == false and (.tree | type == "array")' <<<"$json" >/dev/null 2>&1 || return 1
+  TREE_FILES="$(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"; "i"))) | [.path, .sha] | @tsv' <<<"$json")"
+}
+
+# $1 = a branch name or a commit SHA, $2 = how the report names its workflows. Sets SCAN_SKIP to why
+# the label is not applied, or to "" when no workflow of that tree may run on it.
+SCANNED_BLOBS=" "
+scan_workflows() {
+  local workflow sha content reason
+  SCAN_SKIP=""
+  if ! read_workflow_tree "$1"; then
+    SCAN_SKIP="not applied — the $2 workflows could not be read"
+    return 0
+  fi
+  while IFS=$'\t' read -r workflow sha; do
+    [[ -n "$workflow" && "$SCANNED_BLOBS" != *" $sha "* ]] || continue
+    if ! content="$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$NWO/git/blobs/$sha" </dev/null 2>/dev/null)"; then
+      SCAN_SKIP="not applied — the $2 workflow $workflow could not be read"
+      return 0
+    fi
+    reason="$(workflow_label_reason "$content" "$LABEL")"
+    if [[ -n "$reason" ]]; then
+      SCAN_SKIP="not applied — the $2 workflow $workflow $reason; the operator decides"
+      return 0
+    fi
+    SCANNED_BLOBS+="$sha "
+  done <<<"$TREE_FILES"
+}
+
+# $1 = path, $2 = `path<TAB>blob` lines. Prints the blob of that path, or nothing.
+blob_of() { P="$1" awk -F'\t' '$1 == ENVIRON["P"] { print $2 }' <<<"$2"; }
+
+# A label on the pull request starts its `pull_request_target` workflows from its base branch and its
+# `pull_request` workflows from the merge of its head into that branch. A workflow that both sides
+# changed is merged into content that neither tree shows, so it skips the label.
+pr_label_skip() {
+  local base head base_files head_files merge_base merge_files path head_blob base_blob merge_blob
+  PR_SKIP=""
+  base="$(jq -r '.baseRefOid // empty' <<<"$PR_JSON")"
+  head="$(jq -r '.headRefOid // empty' <<<"$PR_JSON")"
+  if [[ ! "$base" =~ ^[0-9a-f]{40}$ || ! "$head" =~ ^[0-9a-f]{40}$ ]]; then
+    PR_SKIP="not applied — the pull-request workflows could not be read"
+    return 0
+  fi
+  scan_workflows "$base" base-branch
+  base_files="$TREE_FILES"
+  [[ -z "$SCAN_SKIP" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
+  scan_workflows "$head" "pull-request head"
+  head_files="$TREE_FILES"
+  [[ -z "$SCAN_SKIP" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
+
+  merge_files=""
+  while IFS=$'\t' read -r path head_blob; do
+    base_blob="$(blob_of "$path" "$base_files")"
+    [[ -n "$path" && -n "$base_blob" && "$base_blob" != "$head_blob" ]] || continue
+    if [[ -z "$merge_files" ]]; then
+      if ! merge_base="$(gh api "repos/$NWO/compare/$base...$head" </dev/null 2>/dev/null | jq -r '.merge_base_commit.sha // empty')" \
+        || [[ ! "$merge_base" =~ ^[0-9a-f]{40}$ ]] || ! read_workflow_tree "$merge_base"; then
+        PR_SKIP="not applied — the merge base of the pull request could not be read"
+        return 0
+      fi
+      merge_files="$TREE_FILES"$'\n'
+    fi
+    merge_blob="$(blob_of "$path" "$merge_files")"
+    if [[ "$merge_blob" != "$base_blob" && "$merge_blob" != "$head_blob" ]]; then
+      PR_SKIP="not applied — the pull request and its base branch both change the workflow $path; the operator decides"
+      return 0
+    fi
+  done <<<"$head_files"
+}
+
+# Closing issues run the `issues` workflows of the default branch; the pull request runs those of its
+# base branch and its head as well.
+ISSUE_LABEL_SKIP="$LABEL_SKIP"
+PR_LABEL_SKIP="$LABEL_SKIP"
 if [[ -n "$LABEL" ]]; then
-  WORKFLOWS_UNREADABLE="not applied — the default-branch workflows could not be read"
   if ! DEFAULT_BRANCH="$(gh api "repos/$NWO" </dev/null 2>/dev/null | jq -r '.default_branch // empty')" \
-    || [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] \
-    || ! TREE="$(gh api "repos/$NWO/git/trees/$DEFAULT_BRANCH?recursive=1" </dev/null 2>/dev/null)" \
-    || ! jq -e '.truncated == false and (.tree | type == "array")' <<<"$TREE" >/dev/null 2>&1; then
-    LABEL_SKIP="$WORKFLOWS_UNREADABLE"
+    || [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    ISSUE_LABEL_SKIP="not applied — the default-branch workflows could not be read"
   else
-    while IFS=$'\t' read -r workflow sha; do
-      if ! content="$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$NWO/git/blobs/$sha" </dev/null 2>/dev/null)"; then
-        LABEL_SKIP="not applied — the default-branch workflow $workflow could not be read"
-        break
-      fi
-      reason="$(workflow_label_reason "$content" "$LABEL")"
-      if [[ -n "$reason" ]]; then
-        LABEL_SKIP="not applied — the default-branch workflow $workflow $reason; the operator decides"
-        break
-      fi
-    done < <(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"; "i"))) | [.path, .sha] | @tsv' <<<"$TREE")
+    scan_workflows "$DEFAULT_BRANCH" default-branch
+    ISSUE_LABEL_SKIP="$SCAN_SKIP"
+  fi
+  PR_LABEL_SKIP="$ISSUE_LABEL_SKIP"
+  if [[ -z "$PR_LABEL_SKIP" ]]; then
+    pr_label_skip
+    PR_LABEL_SKIP="$PR_SKIP"
   fi
 fi
 
@@ -290,17 +365,17 @@ reread_shows() {
   jq -e --arg label "$LABEL" --arg author "$AUTHOR" "$2" <<<"$json" >/dev/null
 }
 
-# $1 = item URL, $2 = pr|issue, $3 = number.
+# $1 = item URL, $2 = pr|issue, $3 = number, $4 = why the label is not applied, or "".
 write_github_item() {
-  local url="$1" kind="$2" number="$3" json rc
+  local url="$1" kind="$2" number="$3" label_skip="$4" json rc
   if ! json="$("$GH_LOADER" "$url" 2>/dev/null)"; then
     report "$url" "label and assignee" "not done — the item could not be read"
     NOT_DONE=1
     return 0
   fi
 
-  if [[ -n "$LABEL_SKIP" ]]; then
-    report "$url" "label" "$LABEL_SKIP"
+  if [[ -n "$label_skip" ]]; then
+    report "$url" "label" "$label_skip"
   elif jq -e --arg label "$LABEL" "$HAS_LABEL" <<<"$json" >/dev/null; then
     report "$url" "label \"$LABEL\"" "already present"
   else
@@ -330,14 +405,14 @@ write_github_item() {
   fi
 }
 
-write_github_item "$PR_URL" pr "${PR_URL##*/}"
+write_github_item "$PR_URL" pr "${PR_URL##*/}" "$PR_LABEL_SKIP"
 
 SAME_REPO_PREFIX="$(lower "https://github.com/$NWO/issues/")"
 while IFS= read -r issue_url; do
   [[ -n "$issue_url" ]] || continue
   issue_number="${issue_url##*/}"
   if [[ "$(lower "$issue_url")" == "$SAME_REPO_PREFIX$issue_number" && "$issue_number" =~ ^[0-9]+$ ]]; then
-    write_github_item "$issue_url" issue "$issue_number" </dev/null
+    write_github_item "$issue_url" issue "$issue_number" "$ISSUE_LABEL_SKIP" </dev/null
   else
     report "$issue_url" "-" "found, not written — another repository"
   fi
