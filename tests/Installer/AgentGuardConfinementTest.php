@@ -306,8 +306,8 @@ test('a confined role cannot change the git object store', function (string $com
     }
 })->with([
     'a forged loose object' => ['chmod u+w .git/objects/{loose}; printf forged > .git/objects/{loose}'],
-    'a removed pack' => ['rm -f .git/objects/pack/*.pack'],
     'an alternates file' => ['echo /tmp > .git/objects/info/alternates'],
+    'a removed pack' => ['rm -f .git/objects/pack/*.pack'],
 ])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
 test('a confined role cannot write the home directory, a directory on PATH, or the git configuration', function (string $command, string $path): void {
@@ -339,7 +339,7 @@ test('the hook and exec never run a tool planted in a directory on PATH', functi
 
     try {
         AgentGuardRun::run($root, ['hook'], agentGuardConfinedInput(), ['CLAUDE_PROJECT_DIR' => $root, 'PATH' => $path]);
-        AgentGuardRun::run($root, ['exec', 'leonardo', '--', 'true'], null, ['PATH' => $path]);
+        AgentGuardRun::run($root, ['exec', 'leonardo', '--', 'true'], environment: ['PATH' => $path]);
 
         expect(file_exists($root . '/planted-' . $tool))->toBeFalse();
     } finally {

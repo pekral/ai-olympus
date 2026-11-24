@@ -2,6 +2,7 @@
 
 declare(strict_types = 1);
 
+use Pekral\AiOlympus\AgentGuardOutcome;
 use Symfony\Component\Process\Process;
 
 function agentGuardPackageFile(string $relativePath): string
@@ -124,14 +125,17 @@ test('the manifest table documents the strict-mode key and that only the default
         ->and($manifest)->toContain('The guard reads it from the default branch only, through `skills/_shared/read-manifest.sh`.');
 });
 
-test('the boundary rule, SECURITY.md, and the merge skill hand the local post-merge steps to an unconfined session', function (string $file, string $needle): void {
-    expect(agentGuardPackageFile($file))->toContain($needle);
-})->with([
+test(
+    'the boundary rule, SECURITY.md, and the merge skill hand the local post-merge steps to an unconfined session',
+    function (string $file, string $needle): void {
+        expect(agentGuardPackageFile($file))->toContain($needle);
+    },
+)->with([
+    'SECURITY.md' => ['SECURITY.md', 'The top-level session without `--agent`, which the guard does not confine, runs those steps and the branch cleanup'],
     'the boundary rule' => [
         'rules/compound-engineering/orchestration.md',
         '**The local steps after a merge belong to an unconfined session.**',
     ],
-    'SECURITY.md' => ['SECURITY.md', 'The top-level session without `--agent`, which the guard does not confine, runs those steps and the branch cleanup'],
     'the merge skill' => [
         'skills/merge-github-pr/SKILL.md',
         'A confined `krang` hands the local steps to the session without `--agent`',
@@ -139,5 +143,5 @@ test('the boundary rule, SECURITY.md, and the merge skill hand the local post-me
 ]);
 
 test('the install summary of the guard makes no claim about when a session reads its hooks', function (): void {
-    expect(Pekral\AiOlympus\AgentGuardOutcome::Registered->installMessage())->not->toContain('session start');
+    expect(AgentGuardOutcome::Registered->installMessage())->not->toContain('session start');
 });

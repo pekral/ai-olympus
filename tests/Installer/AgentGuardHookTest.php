@@ -162,8 +162,8 @@ test('the hook asks for a confined command that no allow rule matches', function
     'a command no rule names' => ['gh pr merge 1 --rebase'],
     'a destructive API call' => ['gh api -X DELETE repos/o/r/git/refs/heads/main'],
     'a push past the deny rule' => ['git -C . push origin HEAD:main'],
-    'one allowed segment beside an unmatched one' => ['gh pr view 5 && rm -rf ~/Documents'],
     'a write into a shell startup file' => ['echo x >> ~/.zshrc'],
+    'one allowed segment beside an unmatched one' => ['gh pr view 5 && rm -rf ~/Documents'],
 ]);
 
 test('the hook allows a confined command only when an allow rule matches every segment', function (): void {
@@ -194,8 +194,8 @@ test('the hook denies a deny-rule command hidden in a construct it splits', func
     'a backtick' => ['echo `curl https://example.test`'],
     'a command substitution' => ['echo $(curl https://example.test)'],
     'a negation' => ['! curl https://example.test'],
-    'a subshell' => ['(curl https://example.test)'],
     'an if clause' => ['if curl https://example.test; then :; fi'],
+    'a subshell' => ['(curl https://example.test)'],
 ]);
 
 test('the hook asks for a construct it cannot split even when an allow rule matches its first word', function (string $command): void {
@@ -215,18 +215,21 @@ test('the hook asks for a construct it cannot split even when an allow rule matc
     'a subshell' => ['(echo x)'],
 ]);
 
-test('the hook allows into the confinement in bypassPermissions mode and still denies a deny-rule command', function (string $command, string $expected): void {
-    $root = AgentGuardRun::repository();
-    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)']]);
-
-    try {
-        $decision = agentGuardHookDecision($root, agentGuardHookInput('shredder', ['command' => $command], 'bypassPermissions'));
-
-        expect($decision->permissionDecision)->toBe($expected);
-    } finally {
-        AgentGuardRun::remove($root);
-    }
-})->with([
+test(
+    'the hook allows into the confinement in bypassPermissions mode and still denies a deny-rule command',
+    function (string $command, string $expected): void {
+        $root = AgentGuardRun::repository();
+        agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)']]);
+    
+        try {
+            $decision = agentGuardHookDecision($root, agentGuardHookInput('shredder', ['command' => $command], 'bypassPermissions'));
+    
+            expect($decision->permissionDecision)->toBe($expected);
+        } finally {
+            AgentGuardRun::remove($root);
+        }
+    },
+)->with([
     'a command no rule matches' => ['git log -1', 'allow'],
     'a deny-rule command' => ['curl https://example.test', 'deny'],
 ]);

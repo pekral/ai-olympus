@@ -133,7 +133,9 @@ test('verify refuses worktree metadata that points outside the git worktrees dir
     installerWriteFile($root . '/.git/ai-olympus/installed-copies.sha256', $hash . "  .claude/skills/_shared/agent-guard.sh\n");
     file_put_contents(
         $root . '/.claude/settings.local.json',
-        (string) json_encode(['hooks' => ['PreToolUse' => [['matcher' => 'Bash', 'hooks' => [['type' => 'command', 'command' => InstallerAgentGuard::HOOK_COMMAND]]]]]]),
+        (string) json_encode(
+            ['hooks' => ['PreToolUse' => [['matcher' => 'Bash', 'hooks' => [['type' => 'command', 'command' => InstallerAgentGuard::HOOK_COMMAND]]]]]],
+        ),
     );
     AgentGuardRun::git($root, 'worktree', 'add', '-q', '--detach', '.claude/worktrees/agent-cr-slug-leonardo', 'HEAD');
     file_put_contents($root . '/.git/worktrees/agent-cr-slug-leonardo/commondir', "/tmp/elsewhere\n");
