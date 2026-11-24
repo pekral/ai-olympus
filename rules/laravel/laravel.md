@@ -81,6 +81,11 @@ paths:
 - Do not query inside loops.
 - Use `withCount()` for counts where appropriate.
 - Use chunking for large datasets.
+- **Walk a table that grows with the data from the last processed record, never by offset.** `chunk()` and `lazy()` ask the database to skip the rows already processed on every batch, so each batch costs more than the one before and the walk slows down the further it goes. `chunkById()` and `lazyById()` continue from the last processed `id`, so every batch costs the same. This holds for a loop that only reads, and for a loop that writes to the table it reads, where offset paging also skips rows (`@rules/sql/optimalize.md` *Bounded reads over unbounded materialisation*).
+  - **A table with a hard, small, fixed size keeps `chunk()` or `lazy()`.**
+  - **Order by another unique, ordered column.** Pass that column to `chunkById()` or `lazyById()`.
+  - **A walk that cannot continue from the last record keeps `chunk()` or `lazy()`.** Its order is not by a unique, ordered value. A comment next to the call says why.
+  - `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)* owns the review of this rule.
 - Prefer the smallest fitting column types.
 - Use snake_case for table and column names.
 - When adding or changing Repository queries, verify indexes for every high-cardinality `where`, `join`, `orderBy`, and `groupBy` used by the query.
