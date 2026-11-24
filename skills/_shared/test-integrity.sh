@@ -136,19 +136,6 @@ ti_safe_relative_path() {
   ! ti_has_control "$1"
 }
 
-# No component of an absolute path is a symbolic link.
-ti_no_symlink_absolute() {
-  local prefix='' part
-  local -a parts=()
-  IFS='/' read -r -d '' -a parts < <(printf '%s\0' "$1") || true
-  for part in ${parts[@]+"${parts[@]}"}; do
-    [[ -n "$part" ]] || continue
-    prefix="$prefix/$part"
-    [[ ! -L "$prefix" ]] || return 1
-  done
-  return 0
-}
-
 # The key of a record: the SHA-256 of the sorted `<path> TAB <name> TAB <blob>` lines.
 ti_key() {
   printf '%s\n' "$@" | LC_ALL=C sort | gate_sha256 -
@@ -441,7 +428,7 @@ ti_verify() {
   command -v php >/dev/null 2>&1 || ti_verify_stop 3 refused 'php is not available'
 
   [[ "$record" =~ ^/[A-Za-z0-9._/-]+$ ]] || ti_verify_stop 3 refused 'the record path must be absolute and plain'
-  ti_no_symlink_absolute "$record" || ti_verify_stop 3 refused 'a component of the record path is a symbolic link'
+  gate_no_symlink "$record" || ti_verify_stop 3 refused 'a component of the record path is a symbolic link'
   [[ -e "$record" ]] || ti_verify_stop 10 missing 'no record at that path'
   [[ -f "$record" ]] || ti_verify_stop 3 refused 'the record is not a regular file'
   dir="$(dirname -- "$record")"

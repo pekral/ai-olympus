@@ -153,17 +153,19 @@ gate_load_commands() {
 
 # Refuse a path when any of its components is a symlink. Checked before every
 # write and every read, so a link planted in the tree cannot redirect either.
+# An absolute path keeps its leading slash, so each component is tested where it is.
 gate_no_symlink() {
-  local path="$1" prefix="" part
+  local path="$1" prefix="" part root=''
   local -a parts=()
+  [[ "$path" != /* ]] || root='/'
   # A read, never an unquoted expansion: a component such as `[a]b.php` must not glob into
   # another file's name, or the link it names would never be tested.
   IFS='/' read -r -d '' -a parts < <(printf '%s\0' "$path") || true
   for part in ${parts[@]+"${parts[@]}"}; do
     [[ -n "$part" ]] || continue
     prefix="${prefix:+$prefix/}$part"
-    if [[ -L "$prefix" ]]; then
-      GATE_REASON="refused: $(safe_display "$prefix") is a symlink"
+    if [[ -L "$root$prefix" ]]; then
+      GATE_REASON="refused: $(safe_display "$root$prefix") is a symlink"
       return 3
     fi
   done
