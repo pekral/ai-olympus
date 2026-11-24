@@ -131,7 +131,7 @@ test('review-only mode decides the carry-forward with the script before it dispa
         ->toContain('one `outbound-request` audit line for each entry of its `reads` list.')
         ->toContain('`skills/_shared/review-carry-forward.sh decide` (*Review-only mode* step 2;')
         ->toContain('`Review carried forward` when review-only mode found every linked pull request unchanged and dispatched nobody');
-    expect(reviewCarryForwardSource('codex/agents/krang.toml'))->toContain('`record-metrics.sh`, `review-carry-forward.sh`)');
+    expect(reviewCarryForwardSource('codex/agents/krang.toml'))->toContain('`record-metrics.sh`, `review-carry-forward.sh`, and `review-state.sh`');
 
     $command = reviewCarryForwardSource('commands/report-code-review.md');
 
