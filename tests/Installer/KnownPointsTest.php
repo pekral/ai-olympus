@@ -240,6 +240,15 @@ test('a security known point shows only its link and its owner in every output',
     expect(packageSource('agents/leonardo.md'))->toContain('as the walkthrough row `{issue, security: true, owner}`, with no title, no place, and no sentence');
 });
 
+test('every caller of the tracker summary passes the known points', function (): void {
+    expect(packageSource('skills/code-review-github/references/cr-wrapper-contract.md'))
+        ->toContain('Pass each known point of the loop state (`known_points` of `skills/_shared/review-state.sh`)');
+    expect(packageSource('agents/april.md'))
+        ->toContain('Pass each known point of the newest converged review (its `## Known points` section)');
+    expect(packageSource('agents/leonardo.md'))
+        ->toContain('and pass it the known points of step 4 in the same shapes');
+});
+
 test('krang may run every review-state command its known-point step names, on both platforms', function (): void {
     expect(packageSource('agents/krang.md'))
         ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1), `evaluate`, and `known` (step 3;');
