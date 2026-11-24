@@ -1089,12 +1089,6 @@ test(
         "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
         'the pull-request merge workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'a merge-ref workflow that the base-branch tip does not show' => [
-        'master',
-        "on: pull_request\n",
-        "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
-        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
-    ],
     'a labeled workflow added to a release base branch after the pull request was opened' => [
         'release/2.0',
         "on:\n  pull_request:\n    types: [labeled]\n",
@@ -1106,6 +1100,12 @@ test(
         "on: push\n",
         "on: pull_request\njobs:\n  d:\n    if: github.event.label.name == 'x'\n",
         'the pull-request merge workflow .github/workflows/deploy.yml reads the label of the event; the operator decides',
+    ],
+    'a merge-ref workflow that the base-branch tip does not show' => [
+        'master',
+        "on: pull_request\n",
+        "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
     'a pull_request_target workflow added to a release base branch after the pull request was opened' => [
         'release/2.0',
