@@ -82,8 +82,22 @@ jobs:
           SHELL_SELF_TESTS_SHARD: ${{ matrix.shard }}
         run: composer shell-self-tests
 
+      # The runtime agent guard tests need a usable bwrap. Ubuntu 24.04 restricts unprivileged user
+      # namespaces through AppArmor, so the restriction is lifted on this throwaway runner only.
+      - name: "🛡️ Install bubblewrap for the agent guard tests"
+        if: matrix.group == 'ShellCheck and coverage'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q bubblewrap
+          if sysctl -n kernel.apparmor_restrict_unprivileged_userns >/dev/null 2>&1; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --dev-bind / / -- true
+
       - name: "📊 Coverage Tests"
         if: matrix.group == 'ShellCheck and coverage'
+        env:
+          AI_OLYMPUS_EXPECT_CONFINEMENT: '1'
         run: composer test:coverage
 
   # The required status checks name one quality check per PHP version. Each of them passes only

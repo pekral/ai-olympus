@@ -264,6 +264,10 @@ test('the confinement is applied on a host that ships sandbox-exec', function ()
     expect(AgentGuardRun::confinementAvailable())->toBeTrue();
 })->skip(PHP_OS_FAMILY !== 'Darwin', 'sandbox-exec ships only with macOS');
 
+test('the confinement is applied on CI, where the workflow installs bubblewrap', function (): void {
+    expect(AgentGuardRun::confinementAvailable())->toBeTrue();
+})->skip(getenv('AI_OLYMPUS_EXPECT_CONFINEMENT') !== '1', 'only the CI workflow promises a usable bwrap');
+
 test('a confined command exits with its own status and names the confinement on a failure', function (): void {
     $root = AgentGuardRun::repository();
 
