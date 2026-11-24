@@ -32,9 +32,10 @@
 #     is applied when a workflow, read through `gh api`, has a `labeled` or `unlabeled` type, an
 #     `issues` trigger without a `types` filter, a trigger the check cannot read, or a read of the
 #     event label, or names the label in any letter case or separator; nor when those workflows
-#     cannot be read in full. An issue checks the workflows of
-#     the default-branch tip. The pull request also checks those of its base branch and its head,
-#     and gets no label when a workflow that both sides changed would be merged.
+#     cannot be read in full, or when `.github` or `.github/workflows` of a tree is not a directory.
+#     An issue checks the workflows of the default-branch tip. The pull request also checks those of
+#     the tip of its base branch and of its merge ref `refs/pull/<N>/merge`, and gets no label when
+#     that merge ref is missing or does not merge the current base-branch tip with the current head.
 #   - GitHub assignee: the pull-request author, added through `--add-assignee`; an existing
 #     assignee is never removed, and a bot author gets no write.
 #   - JIRA: transition-to-ready-to-deploy.sh, then assign-to-pr-author.sh, one key per call.
@@ -256,13 +257,16 @@ workflow_issue_trigger() {
   '
 }
 
-# $1 = a branch name or a commit SHA. Sets TREE_FILES to the `path<TAB>blob` lines of the workflows
-# of that tree on GitHub, never of a local ref. Exit 1 when the tree cannot be read in full.
+# $1 = a branch name, a commit SHA, or a tree SHA. Sets TREE_FILES to the `path<TAB>blob` lines of the
+# workflows of that tree on GitHub, never of a local ref. Exit 1 when the tree cannot be read in full,
+# or when `.github` or `.github/workflows` in it, in any letter case, is not a directory.
 read_workflow_tree() {
   local json
   TREE_FILES=""
   json="$(gh api "repos/$NWO/git/trees/$1?recursive=1" </dev/null 2>/dev/null)" || return 1
-  jq -e '.truncated == false and (.tree | type == "array")' <<<"$json" >/dev/null 2>&1 || return 1
+  jq -e '.truncated == false and (.tree | type == "array")
+    and all(.tree[]; (.path | ascii_downcase) as $p | ($p != ".github" and $p != ".github/workflows") or .type == "tree")' \
+    <<<"$json" >/dev/null 2>&1 || return 1
   TREE_FILES="$(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"; "i"))) | [.path, .sha] | @tsv' <<<"$json")"
 }
 
@@ -291,50 +295,46 @@ scan_workflows() {
   done <<<"$TREE_FILES"
 }
 
-# $1 = path, $2 = `path<TAB>blob` lines. Prints the blob of that path, or nothing.
-blob_of() { P="$1" awk -F'\t' '$1 == ENVIRON["P"] { print $2 }' <<<"$2"; }
-
-# A label on the pull request starts its `pull_request_target` workflows from its base branch and its
-# `pull_request` workflows from the merge of its head into that branch. A workflow that both sides
-# changed is merged into content that neither tree shows, so it skips the label.
+# A label on the pull request starts its `pull_request_target` workflows from the tip of its base
+# branch and its `pull_request` workflows from its merge ref `refs/pull/<N>/merge`, whose parents are
+# that tip and the head. The check reads exactly those two trees. A merge ref that is missing, or that
+# does not merge the current base-branch tip with the current head, skips the label.
 pr_label_skip() {
-  local base head base_files head_files merge_base merge_files path head_blob base_blob merge_blob
-  PR_SKIP=""
-  base="$(jq -r '.baseRefOid // empty' <<<"$PR_JSON")"
+  local number="${PR_URL##*/}" base_branch head base_tip merge_commit merge_json merge_tree
+  PR_SKIP="not applied — the pull-request workflows could not be read"
+  base_branch="$(jq -r '.baseRefName // empty' <<<"$PR_JSON")"
   head="$(jq -r '.headRefOid // empty' <<<"$PR_JSON")"
-  if [[ ! "$base" =~ ^[0-9a-f]{40}$ || ! "$head" =~ ^[0-9a-f]{40}$ ]]; then
-    PR_SKIP="not applied — the pull-request workflows could not be read"
+  if [[ ! "$base_branch" =~ ^[A-Za-z0-9._/-]+$ || ! "$head" =~ ^[0-9a-f]{40}$ ]] \
+    || ! git check-ref-format --branch "$base_branch" >/dev/null 2>&1; then
     return 0
   fi
-  scan_workflows "$base" base-branch
-  base_files="$TREE_FILES"
+  if ! base_tip="$(gh api "repos/$NWO/git/ref/heads/$base_branch" </dev/null 2>/dev/null \
+    | jq -r --arg ref "refs/heads/$base_branch" 'select(.ref == $ref and .object.type == "commit") | .object.sha')" \
+    || [[ ! "$base_tip" =~ ^[0-9a-f]{40}$ ]]; then
+    PR_SKIP="not applied — the base-branch tip could not be read"
+    return 0
+  fi
+  if ! merge_commit="$(gh api "repos/$NWO/git/ref/pull/$number/merge" </dev/null 2>/dev/null \
+    | jq -r --arg ref "refs/pull/$number/merge" 'select(.ref == $ref and .object.type == "commit") | .object.sha')" \
+    || [[ ! "$merge_commit" =~ ^[0-9a-f]{40}$ ]] \
+    || ! merge_json="$(gh api "repos/$NWO/git/commits/$merge_commit" </dev/null 2>/dev/null)" \
+    || ! merge_tree="$(jq -r '.tree.sha // empty' <<<"$merge_json" 2>/dev/null)" \
+    || [[ ! "$merge_tree" =~ ^[0-9a-f]{40}$ ]]; then
+    PR_SKIP="not applied — the pull-request merge ref could not be read"
+    return 0
+  fi
+  if ! jq -e --arg base "$base_tip" --arg head "$head" '[.parents[].sha] == [$base, $head]' <<<"$merge_json" >/dev/null 2>&1; then
+    PR_SKIP="not applied — the pull-request merge ref does not merge the base-branch tip with the head; the operator decides"
+    return 0
+  fi
+  scan_workflows "$base_tip" base-branch
   [[ -z "$SCAN_SKIP" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
-  scan_workflows "$head" "pull-request head"
-  head_files="$TREE_FILES"
-  [[ -z "$SCAN_SKIP" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
-
-  merge_files=""
-  while IFS=$'\t' read -r path head_blob; do
-    base_blob="$(blob_of "$path" "$base_files")"
-    [[ -n "$path" && -n "$base_blob" && "$base_blob" != "$head_blob" ]] || continue
-    if [[ -z "$merge_files" ]]; then
-      if ! merge_base="$(gh api "repos/$NWO/compare/$base...$head" </dev/null 2>/dev/null | jq -r '.merge_base_commit.sha // empty')" \
-        || [[ ! "$merge_base" =~ ^[0-9a-f]{40}$ ]] || ! read_workflow_tree "$merge_base"; then
-        PR_SKIP="not applied — the merge base of the pull request could not be read"
-        return 0
-      fi
-      merge_files="$TREE_FILES"$'\n'
-    fi
-    merge_blob="$(blob_of "$path" "$merge_files")"
-    if [[ "$merge_blob" != "$base_blob" && "$merge_blob" != "$head_blob" ]]; then
-      PR_SKIP="not applied — the pull request and its base branch both change the workflow $path; the operator decides"
-      return 0
-    fi
-  done <<<"$head_files"
+  scan_workflows "$merge_tree" "pull-request merge"
+  PR_SKIP="$SCAN_SKIP"
 }
 
-# Closing issues run the `issues` workflows of the default branch; the pull request runs those of its
-# base branch and its head as well.
+# Closing issues run the `issues` workflows of the default branch; the pull request runs those of the
+# tip of its base branch and of its merge ref as well.
 ISSUE_LABEL_SKIP="$LABEL_SKIP"
 PR_LABEL_SKIP="$LABEL_SKIP"
 if [[ -n "$LABEL" ]]; then

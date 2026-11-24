@@ -213,9 +213,11 @@ function readyToDeployCheckout(string $repo, array $workflows): void
     readyToDeployGit($repo, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
 }
 
+const READY_TO_DEPLOY_STALE_BASE_SHA = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const READY_TO_DEPLOY_BASE_SHA = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const READY_TO_DEPLOY_HEAD_SHA = 'cccccccccccccccccccccccccccccccccccccccc';
-const READY_TO_DEPLOY_MERGE_BASE_SHA = 'dddddddddddddddddddddddddddddddddddddddd';
+const READY_TO_DEPLOY_MERGE_SHA = 'dddddddddddddddddddddddddddddddddddddddd';
+const READY_TO_DEPLOY_MERGE_TREE_SHA = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
 function readyToDeployBlobSha(string $path, string $content): string
 {
@@ -246,45 +248,100 @@ function readyToDeployRemoteWorkflows(array $fixture, array $workflows, bool $tr
 }
 
 /**
- * The merge base of the base branch and the head of the pull request #12, as the compare endpoint
- * of the fake `gh api` serves it, and its tree.
+ * Writes one answer of the fake `gh api`, keyed by the API path.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
- * @param array<string, string> $workflows
+ * @param array<string, mixed> $answer
  */
-function readyToDeployMergeBase(array $fixture, array $workflows): void
+function readyToDeployApi(array $fixture, string $path, array $answer): void
 {
-    file_put_contents(
-        $fixture['state'] . '/api/repos_acme_app_compare_' . READY_TO_DEPLOY_BASE_SHA . '...' . READY_TO_DEPLOY_HEAD_SHA,
-        (string) json_encode(['merge_base_commit' => ['sha' => READY_TO_DEPLOY_MERGE_BASE_SHA]]),
-    );
-    readyToDeployRemoteWorkflows($fixture, $workflows, tree: READY_TO_DEPLOY_MERGE_BASE_SHA);
+    file_put_contents($fixture['state'] . '/api/' . strtr($path, '/?=&', '____'), (string) json_encode($answer));
 }
 
 /**
- * The base branch and the head of the pull request #12, each with its workflows.
+ * The merge ref `refs/pull/12/merge` and its merge commit, whose parents are the given commits.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ * @param list<string> $parents
+ */
+function readyToDeployMergeRef(array $fixture, array $parents, string $type = 'commit'): void
+{
+    readyToDeployApi($fixture, 'repos/acme/app/git/ref/pull/12/merge', [
+        'object' => ['sha' => READY_TO_DEPLOY_MERGE_SHA, 'type' => $type],
+        'ref' => 'refs/pull/12/merge',
+    ]);
+    readyToDeployApi($fixture, 'repos/acme/app/git/commits/' . READY_TO_DEPLOY_MERGE_SHA, [
+        'parents' => array_map(static fn (string $sha): array => ['sha' => $sha], $parents),
+        'sha' => READY_TO_DEPLOY_MERGE_SHA,
+        'tree' => ['sha' => READY_TO_DEPLOY_MERGE_TREE_SHA],
+    ]);
+}
+
+/**
+ * Adds one entry to a tree the fake `gh api` serves, for example a `.github` that is not a directory.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ * @param array<string, string> $entry
+ */
+function readyToDeployTreeEntry(array $fixture, string $tree, array $entry): void
+{
+    $file = $fixture['state'] . '/api/repos_acme_app_git_trees_' . $tree . '_recursive_1';
+    $json = json_decode((string) file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+    assert(is_array($json) && is_array($json['tree']));
+    $json['tree'][] = $entry;
+    file_put_contents($file, (string) json_encode($json));
+}
+
+/**
+ * Points the pull request #12 at a base branch with the given name, and serves that branch.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ */
+function readyToDeployBaseBranch(array $fixture, string $name): void
+{
+    $file = $fixture['state'] . '/pr-12.json';
+    $pullRequest = json_decode((string) file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+    assert(is_array($pullRequest));
+    file_put_contents($file, (string) json_encode([...$pullRequest, 'baseRefName' => $name]));
+    readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/' . $name, [
+        'object' => ['sha' => READY_TO_DEPLOY_BASE_SHA, 'type' => 'commit'],
+        'ref' => 'refs/heads/' . $name,
+    ]);
+}
+
+/**
+ * The base branch of the pull request #12, its head, and its merge ref, each with its workflows.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
  * @param array<string, string> $baseWorkflows
  * @param array<string, string> $headWorkflows
+ * @param array<string, string> $mergeWorkflows
  */
-function readyToDeployPullRequestTrees(array $fixture, array $baseWorkflows, array $headWorkflows): void
+function readyToDeployPullRequestTrees(array $fixture, array $baseWorkflows, array $headWorkflows, array $mergeWorkflows, string $baseBranch): void
 {
     readyToDeployRemoteWorkflows($fixture, $baseWorkflows, tree: READY_TO_DEPLOY_BASE_SHA);
     readyToDeployRemoteWorkflows($fixture, $headWorkflows, tree: READY_TO_DEPLOY_HEAD_SHA);
+    readyToDeployRemoteWorkflows($fixture, $mergeWorkflows, tree: READY_TO_DEPLOY_MERGE_TREE_SHA);
+    readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/' . $baseBranch, [
+        'object' => ['sha' => READY_TO_DEPLOY_BASE_SHA, 'type' => 'commit'],
+        'ref' => 'refs/heads/' . $baseBranch,
+    ]);
+    readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]);
 }
 
 /**
  * The checkout of readyToDeployCheckout() with the given local workflows, the default-branch tip and
- * the base branch of the pull request with the given workflows, the head of the pull request with the
- * head workflows (the same workflows when none are given), plus the pull request #12 and its closing
- * issue #11 as the fake `gh` serves them.
+ * the base-branch tip of the pull request with the given workflows, the head of the pull request with
+ * the head workflows (the same workflows when none are given), its merge ref with the merge workflows
+ * (the head workflows when none are given), plus the pull request #12 and its closing issue #11 as the
+ * fake `gh` serves them.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
  * @param array<string, string> $workflows
  * @param array<string, mixed> $pullRequest
  * @param array<string, string> $localWorkflows
  * @param array<string, string>|null $headWorkflows
+ * @param array<string, string>|null $mergeWorkflows
  */
 function readyToDeployGithub(
     array $fixture,
@@ -292,13 +349,17 @@ function readyToDeployGithub(
     array $pullRequest = [],
     array $localWorkflows = [],
     ?array $headWorkflows = null,
+    ?array $mergeWorkflows = null,
 ): void {
+    $baseBranch = $pullRequest['baseRefName'] ?? 'master';
+    assert(is_string($baseBranch));
     readyToDeployCheckout($fixture['repo'], $localWorkflows);
     readyToDeployRemoteWorkflows($fixture, $workflows);
-    readyToDeployPullRequestTrees($fixture, $workflows, $headWorkflows ?? $workflows);
+    readyToDeployPullRequestTrees($fixture, $workflows, $headWorkflows ?? $workflows, $mergeWorkflows ?? $headWorkflows ?? $workflows, $baseBranch);
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'assignees' => [],
         'author' => ['login' => 'pat'],
+        'baseRefName' => 'master',
         'baseRefOid' => READY_TO_DEPLOY_BASE_SHA,
         'body' => 'Fixes the login. See https://example.atlassian.net/browse/TEAM-42.',
         'closingIssuesReferences' => [
@@ -976,22 +1037,20 @@ test('the label is not applied when the workflows of the default-branch tip cann
 })->with(['tree', 'blob', 'truncated']);
 
 test(
-    'the pull request gets no label when its base branch, its head, or the merge of both may run on label activity, and its issue still does',
-    function (string $headWorkflow, string $baseWorkflow, string $mergeBaseWorkflow, string $result): void {
+    'the pull request gets no label when its base-branch tip or its merge ref may run on label activity, and its issue still does',
+    function (array $pullRequest, string $baseWorkflow, string $headWorkflow, string $mergeWorkflow, string $result): void {
         $path = '.github/workflows/deploy.yml';
+        $ci = ['.github/workflows/ci.yml' => "on: push\n"];
         $fixture = readyToDeployFixture();
         readyToDeployGithub(
             $fixture,
-            ['.github/workflows/ci.yml' => "on: push\n"],
-            ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login'],
-            headWorkflows: ['.github/workflows/ci.yml' => "on: push\n", $path => $headWorkflow],
+            $ci,
+            ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login', ...$pullRequest],
+            headWorkflows: [...$ci, $path => $headWorkflow],
+            mergeWorkflows: [...$ci, $path => $mergeWorkflow],
         );
-        readyToDeployRemoteWorkflows(
-            $fixture,
-            ['.github/workflows/ci.yml' => "on: push\n", $path => $baseWorkflow],
-            tree: READY_TO_DEPLOY_BASE_SHA,
-        );
-        readyToDeployMergeBase($fixture, ['.github/workflows/ci.yml' => "on: push\n", $path => $mergeBaseWorkflow]);
+        readyToDeployRemoteWorkflows($fixture, [...$ci, $path => $baseWorkflow], tree: READY_TO_DEPLOY_BASE_SHA);
+        readyToDeployRemoteWorkflows($fixture, $ci, tree: READY_TO_DEPLOY_STALE_BASE_SHA);
 
         try {
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
@@ -1006,47 +1065,71 @@ test(
     },
 )->with([
     'a base-branch workflow on labeled pull requests' => [
-        "on: push\n",
+        [],
         "on:\n  pull_request_target:\n    types: [labeled]\n",
+        "on: push\n",
         "on: push\n",
         'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
     'a head workflow on labeled pull requests' => [
+        [],
+        "on: push\n",
         "on:\n  pull_request:\n    types: [labeled]\n",
-        "on: push\n",
-        "on: push\n",
-        'the pull-request head workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+        "on:\n  pull_request:\n    types: [labeled]\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
     'a head workflow that names the label' => [
+        [],
+        "on: push\n",
         "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
-        "on: push\n",
-        "on: push\n",
-        'the pull-request head workflow .github/workflows/deploy.yml names the label; the operator decides',
+        "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'a workflow both sides changed' => [
-        "on: push\njobs: {}\n",
+    'a merge-ref workflow that neither the base-branch tip nor the head shows' => [
+        [],
         "on: pull_request\n",
+        "on: push\njobs: {}\n",
+        "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    ],
+    'a labeled workflow added to a release base branch after the pull request was opened' => [
+        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
+        "on:\n  pull_request:\n    types: [labeled]\n",
         "on: push\n",
-        'the pull request and its base branch both change the workflow .github/workflows/deploy.yml; the operator decides',
+        "on:\n  pull_request:\n    types: [labeled]\n",
+        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    ],
+    'a pull_request_target workflow added to a release base branch after the pull request was opened' => [
+        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
+        "on:\n  pull_request_target:\n    types: [labeled]\n",
+        "on: push\n",
+        "on: push\n",
+        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    ],
+    'a merge-ref workflow that reads the event label on a release base branch' => [
+        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
+        "on: push\n",
+        "on: push\n",
+        "on: pull_request\njobs:\n  d:\n    if: github.event.label.name == 'x'\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml reads the label of the event; the operator decides',
     ],
 ]);
 
 test(
-    'the pull request gets its label when only one side changed a workflow and no tree reacts to labels',
-    function (string $headWorkflow, string $baseWorkflow): void {
+    'the pull request gets its label when neither its base-branch tip nor its merge ref reacts to labels',
+    function (array $pullRequest, string $baseWorkflow, string $mergeWorkflow): void {
         $path = '.github/workflows/deploy.yml';
         $fixture = readyToDeployFixture();
         readyToDeployGithub(
             $fixture,
             [$path => $baseWorkflow],
-            ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
-            headWorkflows: [$path => $headWorkflow],
+            ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login', ...$pullRequest],
+            mergeWorkflows: [$path => $mergeWorkflow],
         );
-        readyToDeployMergeBase($fixture, [$path => "on: push\n"]);
-    
+
         try {
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
-    
+
             expect($process->getExitCode())->toBe(0)
                 ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
         } finally {
@@ -1054,40 +1137,86 @@ test(
         }
     },
 )->with([
-    'only the base branch changed it' => ["on: push\n", "on: pull_request\n"],
-    'only the head changed it' => ["on: pull_request\n", "on: push\n"],
+    'only the base branch changed a workflow' => [[], "on: pull_request\n", "on: pull_request\n"],
+    'only the head changed a workflow' => [[], "on: push\n", "on: pull_request\n"],
+    'a release base branch' => [['baseRefName' => 'release/2.0'], "on: pull_request\n", "on: pull_request\n"],
 ]);
 
-test('the pull request gets no label when the trees of its base branch, its head, or their merge base cannot be read', function (string $case): void {
-    $path = '.github/workflows/deploy.yml';
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub(
-        $fixture,
-        [$path => "on: push\n"],
-        ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login'],
-        headWorkflows: [$path => "on: pull_request\n"],
-    );
-    readyToDeployRemoteWorkflows($fixture, [$path => "on: workflow_dispatch\n"], tree: READY_TO_DEPLOY_BASE_SHA);
-    readyToDeployMergeBase($fixture, [$path => "on: push\n"]);
-    $api = $fixture['state'] . '/api/';
-    $pullRequest = $fixture['state'] . '/pr-12.json';
-    match ($case) {
-        'head tree' => unlink($api . 'repos_acme_app_git_trees_' . READY_TO_DEPLOY_HEAD_SHA . '_recursive_1'),
-        'base tree' => unlink($api . 'repos_acme_app_git_trees_' . READY_TO_DEPLOY_BASE_SHA . '_recursive_1'),
-        'merge base' => unlink($api . 'repos_acme_app_compare_' . READY_TO_DEPLOY_BASE_SHA . '...' . READY_TO_DEPLOY_HEAD_SHA),
-        default => file_put_contents($pullRequest, str_replace(READY_TO_DEPLOY_HEAD_SHA, '', (string) file_get_contents($pullRequest))),
-    };
+test(
+    'the pull request gets no label when its base-branch tip or its merge ref cannot be read or does not merge the current base with the head',
+    function (string $case): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub(
+            $fixture,
+            ['.github/workflows/ci.yml' => "on: push\n"],
+            ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login'],
+        );
+        $api = $fixture['state'] . '/api/repos_acme_app_';
+        $pullRequest = $fixture['state'] . '/pr-12.json';
+        match ($case) {
+            'base-branch tree' => unlink($api . 'git_trees_' . READY_TO_DEPLOY_BASE_SHA . '_recursive_1'),
+            'merge tree' => unlink($api . 'git_trees_' . READY_TO_DEPLOY_MERGE_TREE_SHA . '_recursive_1'),
+            'base-branch ref' => unlink($api . 'git_ref_heads_master'),
+            'merge ref' => unlink($api . 'git_ref_pull_12_merge'),
+            'merge commit' => unlink($api . 'git_commits_' . READY_TO_DEPLOY_MERGE_SHA),
+            'merge ref on a stale base' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_STALE_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]),
+            'merge ref on another head' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_BASE_SHA, READY_TO_DEPLOY_STALE_BASE_SHA]),
+            'merge ref with reversed parents' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_HEAD_SHA, READY_TO_DEPLOY_BASE_SHA]),
+            'merge ref with one parent' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_BASE_SHA]),
+            'merge ref with a third parent' => readyToDeployMergeRef(
+                $fixture,
+                [READY_TO_DEPLOY_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA, READY_TO_DEPLOY_STALE_BASE_SHA],
+            ),
+            'merge ref that is not a commit' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA], 'tag'),
+            'base branch name that is not a branch name' => readyToDeployBaseBranch($fixture, 'release/../master'),
+            '.github as a symbolic link in the merge tree' => readyToDeployTreeEntry(
+                $fixture,
+                READY_TO_DEPLOY_MERGE_TREE_SHA,
+                ['mode' => '120000', 'path' => '.github', 'sha' => 'link', 'type' => 'blob'],
+            ),
+            '.github/workflows as a submodule in the base-branch tip' => readyToDeployTreeEntry(
+                $fixture,
+                READY_TO_DEPLOY_BASE_SHA,
+                ['mode' => '160000', 'path' => '.github/workflows', 'sha' => 'module', 'type' => 'commit'],
+            ),
+            '.GitHub/Workflows as a symbolic link in another letter case' => readyToDeployTreeEntry(
+                $fixture,
+                READY_TO_DEPLOY_MERGE_TREE_SHA,
+                ['mode' => '120000', 'path' => '.GitHub/Workflows', 'sha' => 'link', 'type' => 'blob'],
+            ),
+            default => file_put_contents($pullRequest, str_replace(READY_TO_DEPLOY_HEAD_SHA, '', (string) file_get_contents($pullRequest))),
+        };
 
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
-        expect($process->getOutput())->toMatch('/' . preg_quote(READY_TO_DEPLOY_PR, '/') . ' \\| label \\| not applied — the [a-z -]+ could not be read/')
-            ->and($process->getOutput())->toContain('https://github.com/acme/app/issues/11 | label "ready to deploy" | applied')
-            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with(['head tree', 'base tree', 'merge base', 'no head commit']);
+            expect($process->getOutput())->toMatch(
+                '/' . preg_quote(READY_TO_DEPLOY_PR, '/') . ' \\| label \\| not applied — the [a-z -]+ (could not be read|does not merge the base-branch tip with the head)/',
+            )
+                ->and($process->getOutput())->toContain('https://github.com/acme/app/issues/11 | label "ready to deploy" | applied')
+                ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'base-branch tree',
+    'merge tree',
+    'base-branch ref',
+    'merge ref',
+    'merge commit',
+    'merge ref on a stale base',
+    'merge ref on another head',
+    'merge ref with reversed parents',
+    'merge ref with one parent',
+    'merge ref with a third parent',
+    'merge ref that is not a commit',
+    'base branch name that is not a branch name',
+    '.github as a symbolic link in the merge tree',
+    '.github/workflows as a submodule in the base-branch tip',
+    '.GitHub/Workflows as a symbolic link in another letter case',
+    'no head commit',
+]);
 
 test('a bot pull-request author receives no assignee write on any item', function (): void {
     $fixture = readyToDeployFixture();
