@@ -19,6 +19,13 @@
 #       reaches stdout or stderr. The search requests summary, not key: key is a top-level
 #       attribute, and acli answers a search whose only requested field is key with [null], so a
 #       matching issue would read as no match.
+#
+#   github_login_is_bot <login>
+#       Exit 0 when the GitHub login is empty, starts with `app/`, or ends with `[bot]`.
+#
+#   github_login_is_operator <login>
+#       Exit 0 when the login equals, in any letter case, the account `gh api user` reports.
+#       Exit 1 for an empty login and when `gh` cannot name its account.
 
 jira_extract_key() {
   local input="${1:-}"
@@ -57,4 +64,18 @@ jira_issue_matches_jql() {
   fi
 
   printf '%s' "$result" | jq -e --arg key "$key" '[.. | objects | .key? // empty] | index($key) != null' >/dev/null
+}
+
+github_login_is_bot() {
+  local login="${1:-}"
+
+  [[ -z "$login" || "$login" == app/* || "$login" == *"[bot]" ]]
+}
+
+github_login_is_operator() {
+  local login="${1:-}" operator
+
+  [[ -n "$login" ]] || return 1
+  operator="$(gh api user --jq .login 2>/dev/null)" || return 1
+  [[ -n "$operator" && "$(printf '%s' "$operator" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$login" | tr '[:upper:]' '[:lower:]')" ]]
 }
