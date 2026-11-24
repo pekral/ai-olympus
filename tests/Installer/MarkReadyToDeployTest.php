@@ -832,9 +832,23 @@ test(
     },
 )->with([
     'a .yaml workflow' => ["on: issues\n", '.github/workflows/deploy.yaml', 'runs on every issue activity'],
-    'a workflow extension in capitals' => ["on: issues\n", '.github/workflows/deploy.YML', 'runs on every issue activity'],
     'a bare issues trigger' => [
         "on: issues\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n",
+        '.github/workflows/deploy.yml',
+        'runs on every issue activity',
+    ],
+    'a comment sign inside a quoted list item' => ["on: ['push #', issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a double-quoted issues key' => ["on:\n  \"issues\":\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a flow document' => ["{\"on\": \"issues\", \"jobs\": {}}\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'a flow list continued at the line start' => ["on: [push,\nissues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a flow list continued on an indented line' => ["on: [push,\n  issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a flow mapping that filters only a later event' => [
+        "on: {issues: null, pull_request: {types: [opened]}}\n",
+        '.github/workflows/deploy.yml',
+        'runs on every issue activity',
+    ],
+    'a flow mapping that filters only another event' => [
+        "on: {pull_request: {types: [opened]}, issues: null}\n",
         '.github/workflows/deploy.yml',
         'runs on every issue activity',
     ],
@@ -843,74 +857,60 @@ test(
         '.github/workflows/deploy.yml',
         'subscribes to label activity',
     ],
+    'an empty types filter' => ["on:\n  issues:\n    types:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'an empty types list' => ["on:\n  issues:\n    types: []\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'an escaped issues key' => ["on:\n  \"\\u0069ssues\":\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
     'a nested issues trigger without types' => ["on:\n  issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'an explicit on key' => ["? on\n: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'an indented document' => ["  on: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'an issues key in another letter case' => ["on:\n  Issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'an issues trigger in a flow mapping' => ["on: {issues: {}}\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a null issues trigger' => ["on:\n  issues: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a null types filter' => ["on:\n  issues:\n    types: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'an unlabeled type in a block list' => [
         "on:\n  pull_request:\n    types:\n      - unlabeled\n",
         '.github/workflows/deploy.yml',
         'subscribes to label activity',
     ],
+    'a quoted issues scalar' => ["on: \"issues\"\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a quoted labeled type in another case' => [
         "on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n",
         '.github/workflows/deploy.yml',
         'subscribes to label activity',
     ],
+    'a quoted on key' => ["'on':\n  issues:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a read of the event label' => [
         "on:\n  pull_request:\njobs:\n  d:\n    if: github.event.label.name != ''\n",
         '.github/workflows/deploy.yml',
         'reads the label of the event',
     ],
-    'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
-    'a flow mapping that filters only another event' => [
-        "on: {pull_request: {types: [opened]}, issues: null}\n",
-        '.github/workflows/deploy.yml',
-        'runs on every issue activity',
-    ],
-    'a flow mapping that filters only a later event' => [
-        "on: {issues: null, pull_request: {types: [opened]}}\n",
-        '.github/workflows/deploy.yml',
-        'runs on every issue activity',
-    ],
+    'a second document' => ["on: push\n---\non: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'a single-quoted issues list item' => ["on:\n  - push\n  - 'issues'\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a spaced flow mapping with an empty issues entry' => [
         "on: { issues: {}, pull_request: { types: [opened] } }\n",
         '.github/workflows/deploy.yml',
         'runs on every issue activity',
     ],
-    'a double-quoted issues key' => ["on:\n  \"issues\":\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a single-quoted issues list item' => ["on:\n  - push\n  - 'issues'\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a quoted issues scalar' => ["on: \"issues\"\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a flow list continued on an indented line' => ["on: [push,\n  issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a flow list continued at the line start' => ["on: [push,\nissues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a comment sign inside a quoted list item' => ["on: ['push #', issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an issues key in another letter case' => ["on:\n  Issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an empty types filter' => ["on:\n  issues:\n    types:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an empty types list' => ["on:\n  issues:\n    types: []\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a null types filter' => ["on:\n  issues:\n    types: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a types key repeated without a value' => [
-        "on:\n  issues:\n    types: [opened]\n    types:\n",
-        '.github/workflows/deploy.yml',
-        'runs on every issue activity',
-    ],
-    'a types filter of another event only' => [
-        "on:\n  issues:\n  pull_request:\n    types: [opened]\n",
-        '.github/workflows/deploy.yml',
-        'runs on every issue activity',
-    ],
-    'a quoted on key' => ["'on':\n  issues:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an escaped issues key' => ["on:\n  \"\\u0069ssues\":\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
-    'a trigger from an alias' => ["x-triggers: &t {issues: null}\non: *t\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'a tagged trigger' => ["on: !!binary aXNzdWVz\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
     'a trigger from a merge key' => [
         "x-triggers: &t {issues: null}\non:\n  <<: *t\n  push:\n",
         '.github/workflows/deploy.yml',
         'has a trigger the check cannot read',
     ],
-    'an explicit on key' => ["? on\n: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
-    'a flow document' => ["{\"on\": \"issues\", \"jobs\": {}}\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
-    'a tagged trigger' => ["on: !!binary aXNzdWVz\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
-    'an indented document' => ["  on: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
-    'a second document' => ["on: push\n---\non: issues\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'a trigger from an alias' => ["x-triggers: &t {issues: null}\non: *t\n", '.github/workflows/deploy.yml', 'has a trigger the check cannot read'],
+    'a types filter of another event only' => [
+        "on:\n  issues:\n  pull_request:\n    types: [opened]\n",
+        '.github/workflows/deploy.yml',
+        'runs on every issue activity',
+    ],
+    'a types key repeated without a value' => [
+        "on:\n  issues:\n    types: [opened]\n    types:\n",
+        '.github/workflows/deploy.yml',
+        'runs on every issue activity',
+    ],
+    'a workflow extension in capitals' => ["on: issues\n", '.github/workflows/deploy.YML', 'runs on every issue activity'],
+    'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
 ]);
 
 test(
@@ -931,16 +931,16 @@ test(
         }
     },
 )->with([
+    'an issues trigger limited by a block list' => ['.github/workflows/triage.yml', "on:\n  issues:\n    types:\n    - opened\n  push:\n"],
     'an issues trigger limited to other types' => ['.github/workflows/triage.yml', "on:\n  issues:\n    types: [opened]\n"],
     'a quoted issues trigger limited to other types' => ['.github/workflows/triage.yml', "'on':\n  \"issues\":\n    'types': [ opened ]\n"],
-    'an issues trigger limited by a block list' => ['.github/workflows/triage.yml', "on:\n  issues:\n    types:\n    - opened\n  push:\n"],
+    'a workflow outside the workflow directory' => ['.github/workflows/sub/deploy.yml', "on: issues\n"],
+    'no workflow' => ['docs/notes.yml', "on: issues\n"],
+    'pull-request CI with issue permissions' => ['.github/workflows/ci.yml', "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"],
     'the word issues outside the trigger' => [
         '.github/workflows/triage.yml',
         "on: push # issues\nenv:\n  issues: 3\njobs:\n  t:\n    name: list open issues\n    runs-on: ubuntu-latest\n",
     ],
-    'a workflow outside the workflow directory' => ['.github/workflows/sub/deploy.yml', "on: issues\n"],
-    'no workflow' => ['docs/notes.yml', "on: issues\n"],
-    'pull-request CI with issue permissions' => ['.github/workflows/ci.yml', "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"],
 ]);
 
 test('the label is not applied when the workflows of the default-branch tip cannot be read in full', function (string $case): void {
@@ -993,6 +993,12 @@ test(
         }
     },
 )->with([
+    'a base-branch workflow on labeled pull requests' => [
+        "on: push\n",
+        "on:\n  pull_request_target:\n    types: [labeled]\n",
+        "on: push\n",
+        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    ],
     'a head workflow on labeled pull requests' => [
         "on:\n  pull_request:\n    types: [labeled]\n",
         "on: push\n",
@@ -1005,12 +1011,6 @@ test(
         "on: push\n",
         'the pull-request head workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'a base-branch workflow on labeled pull requests' => [
-        "on: push\n",
-        "on:\n  pull_request_target:\n    types: [labeled]\n",
-        "on: push\n",
-        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
-    ],
     'a workflow both sides changed' => [
         "on: push\njobs: {}\n",
         "on: pull_request\n",
@@ -1019,28 +1019,31 @@ test(
     ],
 ]);
 
-test('the pull request gets its label when only one side changed a workflow and no tree reacts to labels', function (string $headWorkflow, string $baseWorkflow): void {
-    $path = '.github/workflows/deploy.yml';
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub(
-        $fixture,
-        [$path => $baseWorkflow],
-        ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
-        headWorkflows: [$path => $headWorkflow],
-    );
-    readyToDeployMergeBase($fixture, [$path => "on: push\n"]);
-
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
-
-        expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with([
-    'only the head changed it' => ["on: pull_request\n", "on: push\n"],
+test(
+    'the pull request gets its label when only one side changed a workflow and no tree reacts to labels',
+    function (string $headWorkflow, string $baseWorkflow): void {
+        $path = '.github/workflows/deploy.yml';
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub(
+            $fixture,
+            [$path => $baseWorkflow],
+            ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
+            headWorkflows: [$path => $headWorkflow],
+        );
+        readyToDeployMergeBase($fixture, [$path => "on: push\n"]);
+    
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+    
+            expect($process->getExitCode())->toBe(0)
+                ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
     'only the base branch changed it' => ["on: push\n", "on: pull_request\n"],
+    'only the head changed it' => ["on: pull_request\n", "on: push\n"],
 ]);
 
 test('the pull request gets no label when the trees of its base branch, its head, or their merge base cannot be read', function (string $case): void {
