@@ -67,3 +67,40 @@ test('the code-review skill runs the bulk-data walk it inherits (issue #223)', f
     // that list is a rule the review never reaches.
     expect($skill)->toContain('**Bulk data & batch processing (issue #223)**');
 });
+
+test('the bulk-data walk reports in-memory work that grows faster than the data (issue #680)', function (): void {
+    $section = packageSection(
+        packageSource('rules/code-review/general.md'),
+        '## Bulk Data & Batch Processing (issue #223)',
+        '## The author of the changes is the account that pushed the pull request',
+    );
+
+    // A fourth check of the same walk, never a second walk: the section owns it and states its shape.
+    expect($section)->toContain('Four defects belong here');
+    expect($section)->toContain('**Work that grows faster than the data.**');
+    expect($section)->toContain('a search through one list');
+    expect($section)->toContain('issued once per item of another list');
+    expect($section)->toContain('two nested passes over the same list');
+
+    // Only data that grows with the customer's data counts.
+    expect($section)->toContain('Both lists must grow with the customer\'s data.');
+    expect($section)->toContain('A walk over a small, fixed set (three languages, the days of a week, a handful of settings) is never a finding.');
+
+    // The finding gives the growth as a number and proposes a lookup built once.
+    expect($section)->toContain('10 times more records means 100 times more work');
+    expect($section)->toContain('build a lookup keyed by the matched value once');
+
+    // It blocks like the other findings of the section, reads only the changed lines, and anchors to the search.
+    expect($section)->toContain('Severity: **Moderate**, which blocks the merge as the other findings of this section do.');
+    expect($section)->toContain('Only the lines the diff adds or changes are checked');
+    expect($section)->toContain('anchored to the search or the nested pass, never to the loop around it');
+
+    // One finding per place, and the database cost stays with the database owners.
+    expect($section)->toContain('never the cost of a database query or a measured run time');
+    expect($section)->toContain('is never reported a second time as work that grows faster than the data');
+
+    // The core-analysis walk names the fourth check, so the review actually reaches it.
+    expect(packageSource('rules/code-review/core-analysis.md'))
+        ->toContain('Apply the four checks in `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*')
+        ->toContain('and in-memory work that grows faster than the data');
+});
