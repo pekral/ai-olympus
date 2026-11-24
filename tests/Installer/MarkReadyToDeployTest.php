@@ -609,9 +609,9 @@ test(
                 $jiraWrites,
             )));
 
-            expect($writtenKeys)->toBe(array_values(array_filter(explode(' ', $written))));
+            expect($writtenKeys)->toBe(array_values(array_filter(explode(' ', $written), static fn (string $key): bool => $key !== '')));
 
-            foreach (array_filter(explode(' ', $notWritten)) as $key) {
+            foreach (array_filter(explode(' ', $notWritten), static fn (string $key): bool => $key !== '') as $key) {
                 expect($process->getOutput())->toContain('JIRA ' . $key . ' | - | found, not written');
             }
         } finally {
