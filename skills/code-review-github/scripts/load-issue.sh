@@ -264,6 +264,9 @@ fi
 # The issues the task is linked to: the GitHub-native relations the sub-issue read does not carry (parent, blocked-by,
 # blocking), the sub-issues, and the issues of this repository that the task text names. A failed read leaves a list
 # empty and linkedIssuesComplete false, so the caller never reads a short list as a whole one. Only issues carry them.
+# The list holds only issues of this repository, each once by its URL: the trust facts of an issue (its author
+# association and its assignees) hold only in its own repository, and an issue of another repository can carry the
+# number of an issue of this one.
 LINKED_JSON='[]'
 LINKED_COMPLETE=false
 if [[ "$KIND" == "issue" ]]; then
@@ -283,8 +286,11 @@ if [[ "$KIND" == "issue" ]]; then
       --argjson association "$AUTHOR_ASSOCIATION" --arg rel "${RAW_RELATIONS:-null}" '
       include "review-trust";
       def ref($relation): {relation: $relation, number: (.number // null), title: (.title // null), url: (.url // null), state: (.state // null)};
+      def esc: gsub("\\."; "\\.");
+      def here: (.url | type) == "string"
+        and (.url | ascii_downcase | test("^https://github\\.com/\($owner | ascii_downcase | esc)/\($repo | ascii_downcase | esc)/issues/[1-9][0-9]{0,8}$"));
       def named: [ scan("(?<![A-Za-z0-9_/&])#([1-9][0-9]{0,8})(?![0-9A-Za-z_])") | .[0] | tonumber ]
-        + [ scan("https://github\\.com/\($owner | gsub("\\."; "\\."))/\($repo | gsub("\\."; "\\."))/issues/([1-9][0-9]{0,8})(?![0-9])") | .[0] | tonumber ];
+        + [ scan("https://github\\.com/\($owner | esc)/\($repo | esc)/issues/([1-9][0-9]{0,8})(?![0-9])") | .[0] | tonumber ];
       ($rel | fromjson? // null) as $r
       | ($r.data.repository.issue // null) as $i
       | ([ if ($association | write_access) then ($payload.body // "") else empty end ]
@@ -297,7 +303,8 @@ if [[ "$KIND" == "issue" ]]; then
         + [ ($i.blocking.nodes // [])[] | ref("blocks") ]
         + [ $named[] | {relation: "mentioned", number: ., title: null, url: "https://github.com/\($owner)/\($repo)/issues/\(.)", state: null} ]
         ) as $all
-      | ($all | reduce .[] as $e ([]; if any(.[]; .number == $e.number) then . else . + [$e] end) | map(select(.number != $self))) as $linked
+      | ($all | map(select(here)) | reduce .[] as $e ([]; if any(.[]; (.url | ascii_downcase) == ($e.url | ascii_downcase)) then . else . + [$e] end)
+         | map(select(.number != $self))) as $linked
       | {linked: $linked,
          complete: (($i | type) == "object" and (($i.blockedBy.nodes // []) | length) < 50 and (($i.blocking.nodes // []) | length) < 50
                     and ($named_all | length) <= 20 and $subComplete == true)}' 2>/dev/null)" \
