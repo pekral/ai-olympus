@@ -71,6 +71,8 @@ render_issue() {
     line("Priority"; .priority),
     line("Assignee"; .assignee),
     line("Reporter"; .reporter),
+    line("Resolution"; .resolution),
+    line("Description by the operator account"; (if .descriptionTrusted == true then "yes" else "no" end)),
     line("Created"; .created),
     line("Updated"; .updated),
     line("Labels"; (.labels // [] | join(", "))),
