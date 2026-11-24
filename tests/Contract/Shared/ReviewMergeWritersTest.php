@@ -14,7 +14,7 @@ printf '%q ' "$@" >> "$FAKE_GH_CALLS"
 printf '\n' >> "$FAKE_GH_CALLS"
 
 if [[ "$1" == "api" && "$2" == "user" ]]; then
-  printf '%s\n' 'bot'
+  printf '%s\n' "${FAKE_GH_LOGIN:-bot}"
   exit 0
 fi
 
@@ -63,9 +63,9 @@ function reviewMergeComment(int $id, string $author, string $body, string $issue
     ];
 }
 
-function reviewMergeMarker(string $namespace = 'cr-comment'): string
+function reviewMergeMarker(string $namespace = 'cr-comment', string $actor = 'bot'): string
 {
-    return '<!-- ' . $namespace . ':actor=bot -->';
+    return '<!-- ' . $namespace . ':actor=' . $actor . ' -->';
 }
 
 function reviewMergeFingerprint(string $line): string
@@ -574,43 +574,63 @@ test(
 ]);
 
 dataset('merge delete mention replies', [
+    'a hexadecimal reference that reads further letters as digits' => ['<div>&#x40bot finding 2 is wrong.</div>', 0, true],
     'a mention after a closing double underscore' => ['__Note__@bot finding 2 is wrong.', 4, false],
     'a mention after a closing underscore' => ['_Note_@bot finding 2 is wrong.', 4, false],
+    'a mention after a digit reference without a semicolon in an HTML block' => ['<div>&#33@bot x</div>', 4, false],
     'a mention after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot finding 2 is wrong.", 4, false],
     'a mention after a fence of a list item' => ["- Finding 2:\n\n  ```\n@bot this is wrong.", 4, false],
     'a mention after a fence of a quote' => ["> ```\n    ```\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a less-than reference without a semicolon in an HTML block' => ['<div>&lt@bot x</div>', 4, false],
+    'a mention after a named reference without a semicolon in an HTML block' => ['<div>&amp@bot finding 2 is wrong.</div>', 4, false],
     'a mention after an escaped backtick' => ['Type \\`@bot, finding 2 is wrong `.', 4, false],
+    'a mention after a no-break space reference without a semicolon in an HTML block' => ['<div>&nbsp@bot x</div>', 4, false],
     'a mention after an unmatched backtick' => ['Type `@bot to look again.', 4, false],
     'a mention after a shorter fence line inside a block' => ["````\n```\n````\n@bot finding 2 is wrong.", 4, false],
     'a mention after a slash' => ['Ask a/@bot again.', 4, false],
     'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
     'a mention between code spans of unequal length' => ['``a`b`` @bot `c`', 4, false],
     'a mention between fence lines indented by four spaces' => ["    ```\n@bot finding 2 is wrong.\n    ```", 4, false],
+    'a mention in an HTML block whose at sign is a decimal reference without a semicolon' => ['<div>&#64bot finding 2 is wrong.</div>', 4, false],
+    'a mention in an HTML block whose at sign is a hexadecimal reference without a semicolon' => ['<div>&#x40ops_bot finding 2 is wrong.</div>', 4, false, 'ops_bot'],
+    'a mention in an HTML block whose login holds a reference without a semicolon' => ['<div>@b&#111t finding 2 is wrong.</div>', 4, false],
+    'a mention in an HTML paragraph whose at sign is a zero-padded reference without a semicolon' => ['<p>&#0064bot finding 2 is wrong.</p>', 4, false],
+    'a mention in an HTML table cell whose at sign is a reference without a semicolon' => ['<table><tr><td>&#64bot finding 2 is wrong.</td></tr></table>', 4, false],
     'a mention in another letter case' => ['@BOT finding 2 is wrong.', 4, false],
     'a mention in brackets after a comma' => ['Look again,(@bot) please.', 4, false],
     'a mention inside a fenced code block' => ["```\n@bot\n```", 4, false],
     'a mention inside a fence that never closes' => ["```\n@bot finding 2 is wrong.", 4, false],
     'a mention inside an inline code span' => ['Type `@bot` to call it.', 4, false],
-    'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
+    'a mention of a login that holds a named underscore reference' => ['@acme&lowbar;bot finding 2 is wrong.', 4, false, 'acme_bot'],
+    'a mention of a login that holds an escaped underscore' => ['@acme\\_bot finding 2 is wrong.', 4, false, 'acme_bot'],
+    'a mention of a login that holds an underscore' => ['@acme_bot finding 2 is wrong.', 4, false, 'acme_bot'],
+    'a mention of a login that holds an underscore in another letter case' => ['@ACME_BOT finding 2 is wrong.', 4, false, 'acme_bot'],
+    'a mention of a login that holds an underscore reference' => ['@acme&#95bot finding 2 is wrong.', 4, false, 'acme_bot'],
+    'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 4, false],
     'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
     'a mention whose at sign is a decimal reference' => ['&#64;bot finding 2 is wrong.', 4, false],
     'a mention whose at sign is a hexadecimal reference' => ['&#x40;bot finding 2 is wrong.', 4, false],
     'a mention whose at sign is a named reference' => ['&commat;bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is a named reference without a semicolon' => ['&commatbot finding 2 is wrong.', 4, false],
     'a mention whose at sign is an upper-case hexadecimal reference' => ['&#X0040;bot finding 2 is wrong.', 4, false],
     'a mention whose at sign is a zero-padded decimal reference' => ['&#0000064;bot finding 2 is wrong.', 4, false],
+    'a mention whose login holds a backslash escape' => ['@ops\\-bot finding 2 is wrong.', 4, false, 'ops-bot'],
     'a mention whose login holds a decimal reference' => ['@&#98;ot finding 2 is wrong.', 4, false],
     'a mention whose login holds a hexadecimal reference' => ['@b&#x6F;t finding 2 is wrong.', 4, false],
-    'an address that contains the login' => ['Write to ops@bot.example please.', 0, true],
+    'a mention whose login holds a Kelvin sign' => ["@\u{212A}bot finding 2 is wrong.", 4, false, 'kbot'],
+    'a mention whose login holds a Kelvin sign reference' => ['<div>@&#8490bot finding 2 is wrong.</div>', 4, false, 'kbot'],
+    'a mention whose login holds a ligature reference' => ['@&fjlig;bot finding 2 is wrong.', 4, false, 'fjbot'],
+    'an address that contains the login' => ['Write to ops@bot.example please.', 4, false],
 ]);
 
 test(
     'the GitHub delete helper counts every mention of the operator account as a reply, inside code too',
-    function (string $reply, int $exit, bool $deleted): void {
+    function (string $reply, int $exit, bool $deleted, string $login = 'bot'): void {
         $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
-            reviewMergeComment(801, 'bot', "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(801, $login, "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker(actor: $login)),
             reviewMergeComment(802, 'reporter', $reply),
-            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
-        ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+            reviewMergeComment(803, $login, "Round 2: merged.\n\n" . reviewMergeMarker(actor: $login)),
+        ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803'], ['FAKE_GH_LOGIN' => $login]);
 
         expect($result['process']->getExitCode())->toBe($exit)
             ->and($result['deleted'])->toBe($deleted);
