@@ -31,6 +31,7 @@ This skill runs in one of four modes, selected by the caller via `MODE` (default
 - **`audit` (read-only discovery, explicit request only)** — runs only when the user asks for it (`audit tests`, `/test-audit <scope>`). It is never an automatic step of an issue, implementation, or review workflow. See *Audit mode*.
 
 > **What the `cr` lens owns in a CR:** whether each added or modified test earns its place — what it protects, the regression it catches, its owner boundary, its overlap with existing tests, the production seams it demands, and every junk pattern below. It **defers** a misplaced file or a description that does not match the assertions to `@rules/code-review/core-analysis.md` *Test organization*, a private member reached through reflection or a widened visibility to *Visibility widened for a test*, a job dispatch asserted with a payload closure to *Job-dispatch assertions carry no payload closure*, and real network or process access to `@rules/code-review/review-process.md` *Test isolation*. It never raises a finding one of those owners already raised on the same line.
+> A removed, weakened, or skipped test, and a loosened CI check, belong to `references/test-integrity.md`.
 
 ## Authoring gate
 
