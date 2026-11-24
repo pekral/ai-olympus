@@ -28,8 +28,11 @@
 #   and nothing under `.claude/run/` to build them, so no branch and no agent can widen them. Writes are refused by
 #   default. A confined role may write only:
 #     every confined role   `.claude/run/**` and `.codex/run/**` of the project (no symbolic link is created there on
-#                           macOS), the temporary directories (`/tmp`, `$TMPDIR`), the machine lock directory, and the
-#                           terminal and null devices. Never the project, its git directories, any
+#                           macOS), a private temporary directory that `exec` creates for the one command, points
+#                           `TMPDIR` at, and removes afterwards, the machine lock directory, and the terminal and null
+#                           devices. On macOS also the `sh-thd*` file of a here-document directly in `/tmp`, because
+#                           the system bash 3.2 ignores `TMPDIR` there. Never any other file in `/tmp`, the `TMPDIR` of
+#                           the session, the project, its git directories, any
 #                           worktree under `.claude/worktrees/` or `<git common dir>/worktrees/`, the home directory, a
 #                           directory on PATH, a shell startup file, or the git configuration.
 #     leonardo, splinter    the security-audit run directories below `.claude/run/security-audit/` (or `.codex/run/`)
@@ -70,7 +73,8 @@
 #   `protection=inactive reason=jq-missing strict=<true|false>`.
 #
 # Exit codes
-#   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 64 usage error
+#   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 64 usage error; 70 no
+#           private temporary directory could be created
 #   hook    0 decision printed (or none needed); 2 strict mode and the hook could not decide
 #   probe   0 the result line was printed; 64 usage error
 #   verify  0 verified; 3 refused (the line names the reason)
@@ -383,12 +387,10 @@ confinement_unavailable_reason() {
   esac
 }
 
-# Sets TMP_SYS, TMP_USER, HOME_DIR, and LOCK_DIR: the temporary directories, the home directory, and the machine lock
+# Sets TMP_SYS, HOME_DIR, and LOCK_DIR: the system temporary directory, the home directory, and the machine lock
 # directory of skills/_shared/gate-record.sh (gate_machine_dir).
 resolve_writable() {
   TMP_SYS="$(physical_dir /tmp)" || TMP_SYS=""
-  TMP_USER=""
-  [[ -n "${TMPDIR:-}" && "$TMPDIR" == /* ]] && TMP_USER="$(physical_dir "$TMPDIR")"
   HOME_DIR=""
   [[ -n "${HOME:-}" && "$HOME" == /* && "$HOME" != "/" ]] && HOME_DIR="$(physical_dir "$HOME")"
   LOCK_DIR=""
@@ -412,13 +414,8 @@ macos_profile() {
   profile='(version 1)(allow default)(deny file-write*)'
   profile+='(allow file-write* (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (literal "/dev/dtracehelper")'
   profile+=' (regex "^/dev/ttys[0-9]+$") (regex "^/dev/fd/[0-9]+$"))'
-  profile+='(allow file-write* (subpath (param "TMP_SYS")) (subpath (param "TMP_USER")))'
-  profile+='(deny file-write* (regex "/xcrun_db"))'
-  profile+='(deny file-write* (subpath (param "HOME_DIR")))'
-  if [[ -n "$TMP_USER" && -n "$HOME_DIR" && "$TMP_USER" == "$HOME_DIR"/* ]]; then
-    profile+='(allow file-write* (subpath (param "TMP_USER")))(deny file-write* (regex "/xcrun_db"))'
-  fi
-  profile+='(allow file-write* (subpath (param "LOCK_DIR")))'
+  profile+='(allow file-write* (subpath (param "PRIVATE_TMP")) (subpath (param "LOCK_DIR")))'
+  profile+='(allow file-write-data (literal (param "TMP_SYS")))(allow file-write-create file-write-unlink (regex (param "HEREDOC_RE")))'
   profile+='(deny file-write* (subpath (param "ROOT")) (subpath (param "TOP")) (subpath (param "CWD_ROOT"))'
   profile+=' (subpath (param "COMMON")) (subpath (param "PCOMMON")))'
   profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
@@ -430,6 +427,7 @@ macos_profile() {
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CLAUDE")) (vnode-type SYMLINK)))'
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CODEX")) (vnode-type SYMLINK)))'
   profile+='(deny file-write-create (require-all (regex (param "AUDIT_RE")) (vnode-type SYMLINK)))'
+  profile+='(deny file-write-create (require-all (regex (param "HEREDOC_RE")) (vnode-type SYMLINK)))'
   printf '%s' "$profile"
 }
 
@@ -439,13 +437,13 @@ run_macos() {
   /usr/bin/sandbox-exec \
     -D ROOT="$ROOT" -D TOP="$TOP" -D CWD_ROOT="$CWD_ROOT" \
     -D COMMON="${COMMON:-$NONE}" -D PCOMMON="${PCOMMON:-$NONE}" \
-    -D TMP_SYS="${TMP_SYS:-$NONE}" -D TMP_USER="${TMP_USER:-$NONE}" \
-    -D HOME_DIR="${HOME_DIR:-$NONE}" -D LOCK_DIR="${LOCK_DIR:-$NONE}" \
+    -D PRIVATE_TMP="$PRIVATE_TMP" -D LOCK_DIR="${LOCK_DIR:-$NONE}" -D TMP_SYS="${TMP_SYS:-$NONE}" \
+    -D HEREDOC_RE="^$(regex_escape "${TMP_SYS:-$NONE}")/sh-thd[^/]*\$" \
     -D HOME_CLAUDE="${HOME_DIR:-$NONE}/.claude" -D HOME_CODEX="${HOME_DIR:-$NONE}/.codex" \
     -D RUN_CLAUDE="$ROOT/.claude/run" -D RUN_CODEX="$ROOT/.codex/run" \
     -D AUDIT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*/\\.(claude|codex)/run/security-audit/.+" \
     -D LOGS="$ROOT/storage/logs" \
-    -p "$(macos_profile "$role")" /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
+    -p "$(macos_profile "$role")" /usr/bin/env PATH="$ORIGINAL_PATH" TMPDIR="$PRIVATE_TMP" /bin/bash -c "$command"
 }
 
 # Prints the security-audit run directory of every review worktree of <role> that the dispatcher prepared: a real
@@ -466,12 +464,7 @@ run_linux() {
   local role="$1" command="$2" dir
   local -a args=()
   mapfile -t args < <(bwrap_base_args)
-  [[ -n "$TMP_SYS" && -d "$TMP_SYS" ]] && args+=(--bind "$TMP_SYS" "$TMP_SYS")
-  [[ -n "$TMP_USER" && -d "$TMP_USER" ]] && args+=(--bind "$TMP_USER" "$TMP_USER")
-  [[ -n "$HOME_DIR" && -d "$HOME_DIR" ]] && args+=(--ro-bind "$HOME_DIR" "$HOME_DIR")
-  if [[ -n "$TMP_USER" && -n "$HOME_DIR" && "$TMP_USER" == "$HOME_DIR"/* && -d "$TMP_USER" ]]; then
-    args+=(--bind "$TMP_USER" "$TMP_USER")
-  fi
+  args+=(--bind "$PRIVATE_TMP" "$PRIVATE_TMP")
   [[ -n "$LOCK_DIR" && -d "$LOCK_DIR" ]] && args+=(--bind "$LOCK_DIR" "$LOCK_DIR")
   for dir in "$ROOT" "$TOP" "$CWD_ROOT" "$COMMON" "$PCOMMON"; do
     [[ -n "$dir" && -d "$dir" ]] && args+=(--ro-bind "$dir" "$dir")
@@ -485,7 +478,7 @@ run_linux() {
     done < <(review_audit_dirs "$role")
   fi
   [[ "$role" == "casey" && -d "$ROOT/storage/logs" ]] && args+=(--bind "$ROOT/storage/logs" "$ROOT/storage/logs")
-  bwrap "${args[@]}" -- /usr/bin/env PATH="$ORIGINAL_PATH" /bin/bash -c "$command"
+  bwrap "${args[@]}" -- /usr/bin/env PATH="$ORIGINAL_PATH" TMPDIR="$PRIVATE_TMP" /bin/bash -c "$command"
 }
 
 run_exec() {
@@ -513,6 +506,13 @@ run_exec() {
   fi
 
   resolve_writable
+  PRIVATE_TMP="$(mktemp -d "${TMP_SYS:-/tmp}/ai-olympus-guard-$role.XXXXXXXX" 2>/dev/null)" && PRIVATE_TMP="$(physical_dir "$PRIVATE_TMP")"
+  if [[ -z "$PRIVATE_TMP" ]]; then
+    echo "$GUARD_PREFIX cannot create the private temporary directory of $role" >&2
+    return 70
+  fi
+  # shellcheck disable=SC2064
+  trap "rm -rf -- '$PRIVATE_TMP'" EXIT
   if [[ "$(uname -s)" == "Darwin" ]]; then
     run_macos "$role" "$command"
   else
@@ -680,6 +680,11 @@ self_test() {
     mkdir -p "$tmp/home"
     (cd "$repo" && HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo -- "echo x > '$tmp/home/.gitconfig'" >/dev/null 2>&1)
     check 'the confinement refuses a write into the home directory' test ! -e "$tmp/home/.gitconfig"
+    (cd "$repo" && HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo -- "echo x > '$tmp/shared'" >/dev/null 2>&1)
+    check 'the confinement refuses a write into the shared temporary directory' test ! -e "$tmp/shared"
+    # shellcheck disable=SC2016
+    check 'the confinement gives the command a private temporary directory' \
+      env HOME="$tmp/home" "$SCRIPT_PATH" exec leonardo --project "$repo" -- 'echo x > "$TMPDIR/own" && test -s "$TMPDIR/own"'
   else
     printf 'ok    confinement checks skipped: %s (the fallback is covered by the Pest suite)\n' "$(confinement_unavailable_reason)"
   fi

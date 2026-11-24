@@ -52,7 +52,7 @@ The report follows `skills/mysql-problem-solver/templates/cr-report.md` — the 
 
 ## Runtime protection
 
-Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command, and carry its result in your handoff as `**Protection:** active` or `**Protection:** inactive (<reason>)`. When it prints `protection=inactive` together with `strict=true`, stop at once with `Blocked: runtime protection inactive — <reason>`. A command the runtime agent guard denied, or one that failed because its confinement refused a write, is a `Blocked` stop: never retry it through another tool, another interpreter, or another role (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*).
+Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command, and carry its result in your handoff as `**Protection:** active` or `**Protection:** inactive (<reason>)`. When it prints `protection=inactive` together with `strict=true`, stop at once with `Blocked: runtime protection inactive — <reason>`. A command the runtime agent guard denied, or one that failed because its confinement refused a write, is a `Blocked` stop: never retry it through another tool, another interpreter, or another role (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*). While the protection is active, write a temporary file only to `$TMPDIR`: the guard points it at a private directory for that one command and removes the directory when the command ends. A file that a later command reads goes below `.claude/run/`. The session scratchpad and `/tmp` are not writable.
 
 ## Bash boundary
 

@@ -346,6 +346,38 @@ test('a confined role cannot change a worktree or a worktree directory of git', 
     }
 })->with(agentGuardWorktreeWrites())->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
+test('a confined role cannot write the shared temporary directories', function (string $target): void {
+    $root = AgentGuardRun::repository();
+    $path = str_replace('{base}', dirname($root), $target) . bin2hex(random_bytes(4));
+
+    try {
+        AgentGuardRun::exec($root, 'leonardo', 'echo x >> ' . escapeshellarg($path));
+
+        expect(file_exists($path))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+        array_map(unlink(...), glob($path) ?: []);
+    }
+})->with([
+    '/tmp' => ['/tmp/ai-olympus-guard-test-'],
+    'a session scratchpad in the temporary directory of the session' => ['{base}/claude-scratchpad-'],
+])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('exec removes the private temporary directory of the command when the command ends', function (): void {
+    $root = AgentGuardRun::repository();
+
+    try {
+        $process = AgentGuardRun::exec($root, 'splinter', 'echo "$TMPDIR" > .claude/run/tmpdir && touch "$TMPDIR/left"');
+        $private = trim((string) file_get_contents($root . '/.claude/run/tmpdir'));
+
+        expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+            ->and($private)->toContain('ai-olympus-guard-splinter.')
+            ->and(file_exists($private))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
 test('a confined role cannot fetch into the object store of the project', function (): void {
     $root = AgentGuardRun::repository();
     $sha = AgentGuardRun::remoteOnlyCommit($root);

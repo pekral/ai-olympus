@@ -16,6 +16,7 @@ test('every confined agent runs the probe first and reports its protection in th
 
     expect($section)->toContain('Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command')
         ->and($section)->toContain('`**Protection:** active` or `**Protection:** inactive (<reason>)`')
+        ->and($section)->toContain('While the protection is active, write a temporary file only to `$TMPDIR`')
         ->and(strpos($definition, '## Runtime protection'))->toBeLessThan((int) strpos($definition, '## Bash boundary'));
 })->with(['leonardo', 'splinter', 'april', 'casey', 'shredder', 'krang']);
 
@@ -121,7 +122,7 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         '8. **Linux only:**',
         '9. **A writing role or the main session can change the guard.**',
         '10. **A changed `composer.lock`**',
-        '11. **macOS only: a process left running after the command.**',
+        '11. **macOS only: the here-document file of the system bash.**',
         '12. **`.claude/run/**` stays writable**',
         '13. **A confined `krang` does not finish the local steps after a merge.**',
     ];
