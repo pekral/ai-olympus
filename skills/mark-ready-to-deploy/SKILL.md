@@ -38,6 +38,7 @@ Merging belongs to `@skills/merge-github-pr/SKILL.md`. The deploy itself stays w
    (`.codex/run/` on Codex). The script checks that the pull request belongs to the current repository, builds the item set, and writes the label, the assignee, and the JIRA status and assignee, each followed by a re-read. It exits `0` when every attempted write was confirmed, `3` when one is not done, and `4` for a pull request of another repository.
 4. **Handle a missing label or a JIRA exit.** A `label` line that reports the label as missing names the names the driver looked for. When the operator names the project's label, run step 3 again with `--label <name>`. A `status` line that reports the status as not available means the project names its column differently. Discover the real name through the JIRA MCP server's available transitions or ask the operator, then run step 3 again with `--jira-status <name>`. The helper's deny list still applies. Every other not-done line goes to the report unchanged.
 5. **Verify the audit trail.** Run `skills/_shared/audit-trail.sh verify --file <the .audit file> --pr <PR-URL>` and resolve each `problem:` line it prints.
+6. **Report the audit lines, then remove the file.** Read the `.audit` file for the `Audit:` line of the report, then delete it with `rm -f <the .audit file>`. This run opens no pull request, so the report is the only durable copy of the trail (`@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* and *Temporary-file hygiene*).
 
 ---
 
@@ -49,6 +50,8 @@ Report to the operator in the chat, in the voice of `@skills/agent-voice/SKILL.m
 - the new label or status, or the reason it was skipped (`missing`, a workflow that runs on the label, found, not written, not done);
 - the assignee (GitHub login or JIRA display name), or the reason it stayed unchanged.
 
+One `Audit:` line: the count of lines per event class and every write target, read from the `.audit` file before step 6 removes it. It carries no e-mail address. The helpers name the pull-request author in their targets, and the trail is self-reported, so it does not capture a command outside the helpers.
+
 Add one line that acli does not show whether a JIRA workflow or automation rule ran on the transition; the re-read of the resolution is the only check. Name every not-done write as not done, and state that nothing was merged or deployed.
 
 ---
@@ -57,4 +60,5 @@ Add one line that acli does not show whether a JIRA workflow or automation rule 
 - The trigger is the operator's own sentence in the chat, quoted in step 1
 - `mark-ready-to-deploy.sh` ran once for the pull request, and `audit-trail.sh verify` printed no `problem:` line
 - The report lists every item of the driver's output with its label or status and its assignee, or the reason a write was skipped
+- The report carries the `Audit:` line, and the `.audit` file no longer exists
 - No e-mail address appears in the report, the brief, the audit trail, or a tracker
