@@ -1,0 +1,146 @@
+<?php
+
+declare(strict_types = 1);
+
+namespace Tests\Support;
+
+use Symfony\Component\Process\Process;
+
+final class AgentGuardRun
+{
+
+    private static ?bool $confinementAvailable = null;
+
+    public static function script(): string
+    {
+        return dirname(__DIR__, 2) . '/skills/_shared/agent-guard.sh';
+    }
+
+    /**
+     * @param array<array-key, mixed> $defaultBranchManifest
+     */
+    public static function repository(array $defaultBranchManifest = []): string
+    {
+        $base = (string) realpath(sys_get_temp_dir()) . '/ai-olympus-guard-' . bin2hex(random_bytes(6));
+        mkdir($base . '/home', 0777, recursive: true);
+        $root = $base . '/project';
+        $composer = $defaultBranchManifest === []
+            ? '{}'
+            : json_encode(['extra' => ['ai-olympus' => $defaultBranchManifest]], JSON_THROW_ON_ERROR);
+
+        self::git($base, 'init', '-q', '--bare', 'origin.git');
+        self::git($base, 'init', '-q', '-b', 'master', 'project');
+        file_put_contents($root . '/composer.json', $composer);
+        mkdir($root . '/.claude/run', 0777, recursive: true);
+        mkdir($root . '/.claude/skills/_shared', 0777, recursive: true);
+        file_put_contents($root . '/.claude/settings.local.json', '{}');
+        file_put_contents($root . '/.claude/skills/_shared/agent-guard.sh', 'installed copy');
+        file_put_contents($root . '/.gitignore', ".claude/\n");
+        self::git($root, 'add', '.');
+        self::git($root, 'commit', '-q', '-m', 'init');
+        self::git($root, 'remote', 'add', 'origin', $base . '/origin.git');
+        self::git($root, 'push', '-q', 'origin', 'master');
+        self::git($root, 'remote', 'set-head', 'origin', 'master');
+
+        return $root;
+    }
+
+    public static function remove(string $root): void
+    {
+        installerRemoveDirectory(dirname($root));
+    }
+
+    public static function head(string $root): string
+    {
+        return trim(self::git($root, 'rev-parse', 'HEAD')->getOutput());
+    }
+
+    public static function git(string $cwd, string ...$arguments): Process
+    {
+        $process = new Process(
+            ['git', '-c', 'user.name=Guard Test', '-c', 'user.email=guard@example.test', '-c', 'commit.gpgsign=false', ...$arguments],
+            $cwd,
+            self::environment(dirname($cwd) . '/home'),
+        );
+        $process->mustRun();
+
+        return $process;
+    }
+
+    /**
+     * @param list<string> $arguments
+     * @param array<string, string> $environment
+     */
+    public static function run(string $root, array $arguments, ?string $stdin = null, array $environment = []): Process
+    {
+        $process = new Process(['bash', self::script(), ...$arguments], $root, [...self::environment(dirname($root) . '/home'), ...$environment]);
+        $process->setInput($stdin);
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process;
+    }
+
+    public static function exec(string $root, string $role, string $command): Process
+    {
+        return self::run($root, ['exec', $role, '--', $command]);
+    }
+
+    /**
+     * @param list<string> $arguments
+     */
+    public static function runUnavailable(string $root, array $arguments): Process
+    {
+        $home = dirname($root) . '/home';
+        $environment = self::environment($home);
+        $command = ['bash', self::script(), ...$arguments];
+
+        if (PHP_OS_FAMILY === 'Darwin' && is_executable('/usr/bin/sandbox-exec')) {
+            $command = ['/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)', ...$command];
+        } else {
+            $stub = $home . '/stub-bin';
+            installerWriteFile($stub . '/bwrap', "#!/bin/sh\nexit 1\n");
+            chmod($stub . '/bwrap', 0755);
+            $environment['PATH'] = $stub . ':' . (string) getenv('PATH');
+        }
+
+        $process = new Process($command, $root, $environment);
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process;
+    }
+
+    public static function confinementAvailable(): bool
+    {
+        if (self::$confinementAvailable !== null) {
+            return self::$confinementAvailable;
+        }
+
+        $root = self::repository();
+
+        try {
+            $process = self::exec($root, 'leonardo', 'true');
+            self::$confinementAvailable = $process->getExitCode() === 0 && !str_contains($process->getErrorOutput(), 'protection inactive');
+        } finally {
+            self::remove($root);
+        }
+
+        return self::$confinementAvailable;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function environment(string $home): array
+    {
+        return [
+            'CLAUDE_PROJECT_DIR' => '',
+            'GIT_CONFIG_NOSYSTEM' => '1',
+            'GIT_TERMINAL_PROMPT' => '0',
+            'HOME' => $home,
+            'SHELL' => '/bin/sh',
+        ];
+    }
+
+}
