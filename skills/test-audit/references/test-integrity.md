@@ -68,6 +68,7 @@ An agent never removes a test, weakens what it checks, skips it, or switches off
 | `test-config-changed` | a removed line or an added `<exclude` in `phpunit.xml*` or `tests/Pest.php` |
 | `ci-changed` | a deleted workflow, a removed line in `.github/workflows/*.y*ml` or `.github/actions/**`, or an added `continue-on-error: true`, `if: false`, `\|\| true`, `\|\| exit 0`, `set +e`, or `paths-ignore` |
 | `script-removed` | a Composer script that `composer.json` of the head drops, or an entry whose words no entry of the head keeps |
+| `script-loosened` | a Composer script entry the head keeps only with an added `\|\| true`-style ending, or with a `--level` lower than the base one or than `max` where the base set none |
 | `threshold-lowered` | a `--min=` value lowered in a workflow or in `composer.json` |
 | `analysis-level-lowered` | a lowered or removed `level:` in `phpstan.neon*` |
 
