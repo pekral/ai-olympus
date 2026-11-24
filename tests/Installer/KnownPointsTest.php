@@ -230,3 +230,12 @@ test('the merge rules name the security known point as the one exception and lif
         ->toContain('**A known point is not an exclusion.**')
         ->toContain('It never moves the finding to `## Excluded per assignment`, never lowers its severity, and lifts no other part of this carve-out.');
 });
+
+test('a security known point shows only its link and its owner in every output', function (): void {
+    expect(knownPointsRule())->toContain('- **A security known point shows only its link, its owner, and one neutral sentence.**');
+    expect(packageSource('skills/code-review-github/scripts/post-inline-review.sh'))
+        ->toContain('- **Security point** — \\($link): the linked issue already tracks it, and `\\(.owner)` owns it there.')
+        ->toContain('a security row holds only a GitHub issue URL, security true, and the login of its owner');
+    expect(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point shows only its link, its owner, and one neutral sentence:**');
+    expect(packageSource('agents/leonardo.md'))->toContain('as the walkthrough row `{issue, security: true, owner}`, with no title, no place, and no sentence');
+});
