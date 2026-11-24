@@ -97,6 +97,10 @@ Review findings
   - When the issue links more than one pull request, Review findings and TL;DR sit in one h2. group per pull
     request, below any Acceptance criteria, and their headings drop to h3.
     (references/several-pull-requests.md).
+  - A stack of pull requests gets one comment for the whole run. A point that
+    several parts share stands once above the groups and names its parts, and a
+    part the run did not review is named with the reason, never given a group
+    (references/several-pull-requests.md, A stack on JIRA).
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the
     business, and the evidence in plain words (an observed value, a reproduced

@@ -43,3 +43,15 @@ Every run posts a new comment, so a run that reviewed one pull request renders o
 ## Length on JIRA
 
 The 3 000-character cap covers the whole comment. Shorten per `SKILL.md` *Length follows the facts* inside each group, starting with the group of the pull request with the longest `TL;DR` on JIRA, or `What changed` on GitHub and Bugsnag. Never drop a `Review findings` bullet, and never drop a group this run rendered.
+
+## A stack on JIRA
+
+A stack is several pull requests of one JIRA task, where the base branch of one is the head branch of another (`@rules/code-review/several-pull-requests.md` *A stack of pull requests — one JIRA comment for the whole stack* owns the rule). The caller passes the findings of every part of the stack, together with the part each belongs to, and `pr-summary` publishes one comment. The sections above apply, with these changes:
+
+1. **One comment for the run.** Render every part the run reviewed as a group in this one comment. The rule *A run that reviews one pull request* above does not apply to a stack.
+2. **Order the groups by the stack.** A part comes before the parts built on it, and parts at the same level go by pull-request number.
+3. **A shared point appears once.** A point that two or more parts share stands once at the issue level, above the groups, and names every part it concerns by its number and title. Never repeat it inside a group.
+4. **A part that was not reviewed is named, not hidden.** Render one short line at the issue level for each such part: its number and title, and the reason in plain words (for example, the review could not run, or the part was outside this run). Never render a group for it.
+5. **The comment is the whole stack, so it needs every part of the run to be finished.** The caller passes the findings only after the last part finished its review. While a part of the run is still in review, publish nothing and return the name of that part.
+6. **Voice and length are those of any JIRA comment.** The 3 000-character cap covers the whole comment, and the shortening order above applies to the whole stack.
+
