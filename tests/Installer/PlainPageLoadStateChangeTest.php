@@ -14,6 +14,10 @@ test(
             ->and($section)->toContain('The page only shows what will happen.')
             ->and($section)->toContain('The change runs only after the signed-in user confirms it in a form that carries an anti-CSRF token')
             ->and($section)->toContain('The Suggested Fix names the page and proposes this shape.')
+            ->and($section)->toContain(
+                'a page whose handler reaches a line the diff changes through an action, a service, a model event, a listener, or a synchronously dispatched job',
+            )
+            ->and($section)->toContain('the caller walk of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*')
             ->and($section)->toContain('An existing page outside the change is not a finding.')
             ->and($section)->toContain('**A page that only records a visit or a statistic is not a finding.**')
             ->and($section)->toContain('**A return from an external sign-in or connection flow is not a finding**')
@@ -43,6 +47,10 @@ test('the security review has a plain-page-load step that runs in every review r
         ->and($step)->toContain('`@rules/security/backend.md` *State Change on a Plain Page Load (issue #681)* owns the rule')
         ->and($step)->toContain('each page that a browser opens with a plain page load and that the diff adds')
         ->and($step)->toContain('whose route definition or handler the diff changes')
+        ->and($step)->toContain(
+            'whose handler reaches a line the diff changes through an action, a service, a model event, a listener, or a synchronously dispatched job',
+        )
+        ->and($step)->toContain('the caller walk of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*')
         ->and($step)->toContain('`Route::any`')
         ->and($step)->toContain('Moderate, which is Medium on the scale of this skill')
         ->and($step)->toContain('`Plain page load: not applicable — the diff changes no page that a plain page load opens`')
