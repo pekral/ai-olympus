@@ -102,9 +102,11 @@ The text has these properties:
 7. It carries no marker line. The wrapper appends the review marker, so a later review round updates this comment.
 8. It carries every line of `operatorLines`, verbatim and as a line of its own.
 
-Check the text before the publish: `skills/merge-review-comments/scripts/plan-merge.sh coverage <plan-file> <body-file>`
-lists every number and URL of the merged comments and every operator line that the text lacks. Exit `6` sends you back
-to the text. Add the missing fact, or state why a number no longer holds together with its round.
+Check the text before the publish: `skills/merge-review-comments/scripts/plan-merge.sh coverage <plan-file> <body-file>`.
+Exit `9` means the text carries an agent marker: remove it. Exit `6` lists each number of two digits or more, `#<n>`, URL,
+and operator line of the merged comments that the text lacks: add the missing fact, or state why a number no longer
+holds together with its round. `coverage` never checks a single digit, so compare every verdict, count, and round number
+of the merged comments with the text yourself. Publish only after exit `0`.
 
 ### 4. Publish and read back
 
@@ -144,6 +146,7 @@ Return, in the language of the operator, in the voice of `@skills/agent-voice/SK
 ## Done when
 
 - Only review comments of the operator's account or of an agent were merged, and every other comment is unchanged (`compare` is ok).
-- The merged comment keeps every verdict, finding, open question, number, and operator line, and `coverage` is clean.
+- The merged comment keeps every verdict, finding, open question, number, and operator line, `coverage` is clean, and you
+  compared every single-digit count and round number with the merged comments yourself.
 - No comment with a reply was deleted, and every delete came after the read-back.
 - Every changed and every deleted comment is in the report, and no status, assignee, or label changed.
