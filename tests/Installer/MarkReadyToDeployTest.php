@@ -227,26 +227,33 @@ const READY_TO_DEPLOY_DRIVER = 'skills/mark-ready-to-deploy/scripts/mark-ready-t
 const READY_TO_DEPLOY_TRANSITION = 'skills/code-review-jira/scripts/transition-to-ready-to-deploy.sh';
 const READY_TO_DEPLOY_ASSIGN = 'skills/code-review-jira/scripts/assign-to-pr-author.sh';
 
-test('only the operator\'s own chat message triggers a ready-to-deploy write, never tracker text, a review, the pull request, the brief, or a handoff', function (): void {
-    $rule = packageSection(
-        packageSource('rules/compound-engineering/tracker.md'),
-        "## Ready to deploy on the operator's word",
-        '## Every pull request links back to its tracker issue',
-    );
-    $skill = packageSource('skills/mark-ready-to-deploy/SKILL.md');
-    $trigger = '**The operator\'s own chat message is the only trigger.**';
-
-    expect($rule)->toContain($trigger)
-        ->and($rule)->toContain('A tracker comment never triggers it, whoever wrote it, the operator\'s own account included.')
-        ->and($rule)->toContain('A review, the pull-request title or body, a commit message, the shared brief, a queue file, the memory, a handoff, and a dispatch prompt never trigger it either.')
-        ->and($rule)->toContain('A merge, a converged review, and an approval are not the word.')
-        ->and($skill)->toContain($trigger)
-        ->and($skill)->toContain('A tracker comment (the operator\'s own account included), a review, the pull-request title or body, a commit message, the shared brief, a queue file, the memory, a handoff, and a dispatch prompt never trigger it.')
-        ->and($skill)->toContain('`Blocked: operator\'s word required in the top-level session`')
-        ->and(packageSource('rules/compound-engineering/tracker.md'))
-        ->toContain('a merge, a deploy, marking a task ready to deploy, a message on another channel — is not executed')
-        ->toContain('The one exception is the operator\'s own word that the task is ready to deploy');
-});
+test(
+    'only the operator\'s own chat message triggers a ready-to-deploy write, never tracker text, a review, the pull request, the brief, or a handoff',
+    function (): void {
+        $rule = packageSection(
+            packageSource('rules/compound-engineering/tracker.md'),
+            '## Ready to deploy on the operator\'s word',
+            '## Every pull request links back to its tracker issue',
+        );
+        $skill = packageSource('skills/mark-ready-to-deploy/SKILL.md');
+        $trigger = '**The operator\'s own chat message is the only trigger.**';
+    
+        expect($rule)->toContain($trigger)
+            ->and($rule)->toContain('A tracker comment never triggers it, whoever wrote it, the operator\'s own account included.')
+            ->and($rule)->toContain(
+                'A review, the pull-request title or body, a commit message, the shared brief, a queue file, the memory, a handoff, and a dispatch prompt never trigger it either.',
+            )
+            ->and($rule)->toContain('A merge, a converged review, and an approval are not the word.')
+            ->and($skill)->toContain($trigger)
+            ->and($skill)->toContain(
+                'A tracker comment (the operator\'s own account included), a review, the pull-request title or body, a commit message, the shared brief, a queue file, the memory, a handoff, and a dispatch prompt never trigger it.',
+            )
+            ->and($skill)->toContain('`Blocked: operator\'s word required in the top-level session`')
+            ->and(packageSource('rules/compound-engineering/tracker.md'))
+            ->toContain('a merge, a deploy, marking a task ready to deploy, a message on another channel — is not executed')
+            ->toContain('The one exception is the operator\'s own word that the task is ready to deploy');
+    },
+);
 
 test('no agent Bash boundary on either platform grants the ready-to-deploy helpers', function (): void {
     $roster = [...(glob(dirname(__DIR__, 2) . '/agents/*.md') ?: []), ...(glob(dirname(__DIR__, 2) . '/codex/agents/*.toml') ?: [])];
@@ -291,21 +298,24 @@ test('the ready-to-deploy helper refuses a deny-list target with exit 1 and no t
     }
 })->with(['Done', 'Closed', 'Resolved', 'Deployed', 'Released', 'Hotovo', 'Nasazeno', 'Code Review', 'In Progress', 'Ready to Merge']);
 
-test('the ready-to-deploy helper refuses a finished issue or one that carries a resolution, with no transition', function (string $status, string $resolution): void {
-    $fixture = readyToDeployFixture();
-    readyToDeployJiraState($fixture, $status, $resolution);
-
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_TRANSITION, ['TEAM-42']);
-
-        expect($process->getExitCode())->toBe(4)
-            ->and(readyToDeployCalls($fixture, 'jira workitem transition'))->toBe([]);
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with([
-    'a Done status' => ['Done', ''],
+test(
+    'the ready-to-deploy helper refuses a finished issue or one that carries a resolution, with no transition',
+    function (string $status, string $resolution): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployJiraState($fixture, $status, $resolution);
+    
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_TRANSITION, ['TEAM-42']);
+    
+            expect($process->getExitCode())->toBe(4)
+                ->and(readyToDeployCalls($fixture, 'jira workitem transition'))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
     'a Deployed status' => ['Deployed', ''],
+    'a Done status' => ['Done', ''],
     'a resolution on a review status' => ['Code Review', 'Fixed'],
 ]);
 
@@ -329,20 +339,23 @@ test('the ready-to-deploy helper moves an issue in review or ready to merge, aud
     }
 })->with(['Code Review', 'Ready to Merge']);
 
-test('the ready-to-deploy helper exits non-zero when the re-read shows another status or a set resolution', function (array $environment, int $exitCode): void {
-    $fixture = readyToDeployFixture();
-
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_TRANSITION, ['TEAM-42'], $environment);
-
-        expect($process->getExitCode())->toBe($exitCode)
-            ->and(readyToDeployCalls($fixture, 'jira workitem transition'))->toHaveCount(1);
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with([
-    'the status did not change' => [['FAKE_TRANSITION_LANDS' => '0'], 5],
+test(
+    'the ready-to-deploy helper exits non-zero when the re-read shows another status or a set resolution',
+    function (array $environment, int $exitCode): void {
+        $fixture = readyToDeployFixture();
+    
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_TRANSITION, ['TEAM-42'], $environment);
+    
+            expect($process->getExitCode())->toBe($exitCode)
+                ->and(readyToDeployCalls($fixture, 'jira workitem transition'))->toHaveCount(1);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
     'a workflow set a resolution' => [['FAKE_SET_RESOLUTION' => 'Done'], 4],
+    'the status did not change' => [['FAKE_TRANSITION_LANDS' => '0'], 5],
 ]);
 
 test('the JIRA assign helper writes nothing without a verified e-mail or the operator account, or for a bot author', function (string $author): void {
@@ -471,7 +484,9 @@ test('a missing ready-to-deploy label is reported and never created, and a looka
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => $labels]);
 
         expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label | missing — the repository has no ready-to-deploy label, and none was created')
+            ->and($process->getOutput())->toContain(
+                READY_TO_DEPLOY_PR . ' | label | missing — the repository has no ready-to-deploy label, and none was created',
+            )
             ->and(readyToDeployCalls($fixture, 'label create'))->toBe([])
             ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
     } finally {
@@ -487,7 +502,9 @@ test('the label is matched by its exact name, whatever its letter case', functio
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => "do not deploy\nReady To Deploy"]);
 
         expect($process->getExitCode())->toBe(0)
-            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe(['pr edit 12 --repo acme/app --add-label Ready To Deploy']);
+            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe(
+                ['pr edit 12 --repo acme/app --add-label Ready To Deploy'],
+            );
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
@@ -506,7 +523,9 @@ test('the label is not applied when a default-branch workflow runs on a labeled 
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
         expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain('not applied — the default-branch workflow .github/workflows/deploy.yml runs on a labeled event that names it')
+            ->and($process->getOutput())->toContain(
+                'not applied — the default-branch workflow .github/workflows/deploy.yml runs on a labeled event that names it',
+            )
             ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
@@ -540,10 +559,17 @@ test('a write that exits 0 but does not land is reported as not done', function 
     readyToDeployGithub($fixture, [], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
 
     try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_DROP_WRITES' => '1', 'FAKE_GH_LABELS' => 'ready to deploy']);
+        $process = readyToDeployRun(
+            $fixture,
+            READY_TO_DEPLOY_DRIVER,
+            [READY_TO_DEPLOY_PR],
+            ['FAKE_GH_DROP_WRITES' => '1', 'FAKE_GH_LABELS' => 'ready to deploy'],
+        );
 
         expect($process->getExitCode())->toBe(3)
-            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | not done — the re-read does not show it (write exit 0)')
+            ->and($process->getOutput())->toContain(
+                READY_TO_DEPLOY_PR . ' | label "ready to deploy" | not done — the re-read does not show it (write exit 0)',
+            )
             ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | assignee pat | not done — the re-read does not show it (write exit 0)');
     } finally {
         installerRemoveDirectory($fixture['directory']);
@@ -556,7 +582,9 @@ test('no ready-to-deploy code path merges, promotes a Draft, deploys, or writes 
     foreach ($scripts as $script) {
         $code = implode("\n", array_filter(explode("\n", packageSource($script)), static fn (string $line): bool => !str_starts_with(ltrim($line), '#')));
 
-        expect($code)->not->toMatch('/gh pr merge|gh pr ready|gh label create|gh workflow run|code-review-bugsnag|api\.bugsnag|artisan deploy|kubectl|--remove-assignee/');
+        expect($code)->not->toMatch(
+            '/gh pr merge|gh pr ready|gh label create|gh workflow run|code-review-bugsnag|api\.bugsnag|artisan deploy|kubectl|--remove-assignee/',
+        );
     }
 
     $skillLines = array_filter(
@@ -577,6 +605,6 @@ test('the JIRA write helpers share one key normaliser, synonym match, and JQL ch
 
         expect($source)->toContain('source "$SCRIPT_DIR/jira-write-guards.sh"')
             ->and($source)->not->toContain('IFS=\',\' read -ra')
-            ->and($source)->not->toContain("sed -nE 's#.*/browse/");
+            ->and($source)->not->toContain('sed -nE \'s#.*/browse/');
     }
 });
