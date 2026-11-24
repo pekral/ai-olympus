@@ -110,6 +110,10 @@ test('the bulk-data walk reports in-memory work that grows faster than the data 
     expect($foreachClause)->toContain('work that grows faster than the data stays a finding under the same section');
     expect($foreachClause)->toContain('to the search or to the comparison inside the inner pass');
 
+    // The new no-double-report sentence yields to the owners of the line and names each of them, while this section still wins against Variable Ordering.
+    expect($section)->toContain('when a line matches both, this section wins, because batching is the fix and reordering is not.');
+    expect($section)->toContain('A line that **Per-row DB operations in loops**, the **N+1 queries** walk of `@rules/code-review/core-analysis.md`, **SQL query performance non-regression**, or one of the other three checks of this section already reports is never reported a second time as work that grows faster than the data.');
+
     // The core-analysis walk names the fourth check, so the review actually reaches it.
     expect(packageSource('rules/code-review/core-analysis.md'))
         ->toContain('Apply the four checks in `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*')
