@@ -198,7 +198,7 @@ if [[ "$REVIEW_MERGE" -eq 1 ]]; then
     printf '%s\n' "$PROG: the comment does not carry this actor's cr-comment marker on a line of its own" >&2
     exit 4
   fi
-  if grep -oE '[a-z][a-z0-9-]*:actor=' <<<"$REVIEW_BODY" | grep -qv '^cr-comment:actor='; then
+  if jq -Rs -e -L "$SCRIPT_DIR" 'include "comment-reply"; other_agent_marker' <<<"$REVIEW_BODY" >/dev/null; then
     printf '%s\n' "$PROG: the comment carries another agent marker; it is no plain review comment" >&2
     exit 4
   fi
