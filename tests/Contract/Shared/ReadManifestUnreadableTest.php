@@ -4,14 +4,6 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-function manifestRepositoryGit(string $dir, string ...$arguments): string
-{
-    $process = new Process(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', ...$arguments], $dir);
-    $process->mustRun();
-
-    return trim($process->getOutput());
-}
-
 /**
  * Builds a repository whose default branch carries a composer.json in one of four states: `readable`, `unreadable`
  * (its blob is deleted, so git cannot read it), `invalid` (not JSON), or `absent` (no composer.json at all).
