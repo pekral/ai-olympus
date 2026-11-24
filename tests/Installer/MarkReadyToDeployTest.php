@@ -12,6 +12,11 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_LOG"
 state="$FAKE_STATE"
 
+if [[ "$1 $2 $3" == "jira auth status" ]]; then
+  printf 'Site: %s\nEmail: %s\n' "${FAKE_ACLI_SITE-example.atlassian.net}" "${FAKE_ACLI_EMAIL-operator@example.com}"
+  exit 0
+fi
+
 if [[ "$1 $2 $3" == "jira workitem view" ]]; then
   jq -n --arg s "$(<"$state/status")" --arg r "$(<"$state/resolution")" --arg a "$(<"$state/assignee")" \
     '{fields: {summary: "Task", status: {name: $s},
@@ -56,6 +61,12 @@ state="$FAKE_STATE"
 
 case "$1 ${2:-}" in
   "api user") printf '%s\n' "${FAKE_GH_LOGIN:-operator}"; exit 0 ;;
+  "api user/emails")
+    [[ "${FAKE_GH_EMAILS_FAIL:-0}" != 1 ]] || exit 1
+    emails='[{"email":"operator@example.com","verified":true}]'
+    printf '%s\n' "${FAKE_GH_EMAILS:-$emails}"
+    exit 0
+    ;;
   "search prs") printf '%s\n' '[]'; exit 0 ;;
   "label list") [[ -z "${FAKE_GH_LABELS:-}" ]] || printf '%s\n' "$FAKE_GH_LABELS"; exit 0 ;;
   "repo view") printf '%s\n' false; exit 0 ;;
@@ -387,6 +398,51 @@ test('the JIRA assign helper writes nothing without a verified e-mail or the ope
         installerRemoveDirectory($fixture['directory']);
     }
 })->with(['pat', 'app/dependabot', 'renovate[bot]']);
+
+test(
+    'the JIRA assign helper assigns the operator account only when its acli e-mail equals a verified e-mail of the gh account',
+    function (array $environment): void {
+        $fixture = readyToDeployFixture();
+
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_ASSIGN, ['TEAM-42', '--pr-author', 'operator'], [
+                'FAKE_GH_LOGIN' => 'operator',
+                ...$environment,
+            ]);
+
+            expect($process->getExitCode())->toBe(6)
+                ->and(readyToDeployCalls($fixture, 'jira workitem assign'))->toBe([])
+                ->and(file_get_contents($fixture['state'] . '/assignee'))->toBe('')
+                ->and($process->getOutput() . $process->getErrorOutput())->not->toContain('@example.com');
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'another person signed in to acli' => [['FAKE_ACLI_EMAIL' => 'colleague@example.com']],
+    'the matching gh e-mail is not verified' => [['FAKE_GH_EMAILS' => '[{"email":"operator@example.com","verified":false}]']],
+    'the gh e-mails cannot be read' => [['FAKE_GH_EMAILS_FAIL' => '1']],
+    'acli shows no e-mail' => [['FAKE_ACLI_EMAIL' => '']],
+    'the acli e-mail is only a part of the gh e-mail' => [['FAKE_ACLI_EMAIL' => 'perator@example.com']],
+    'the gh account carries no e-mail' => [['FAKE_GH_EMAILS' => '[]']],
+]);
+
+test('the JIRA assign helper matches the acli and gh e-mails in any letter case and among several gh e-mails', function (): void {
+    $fixture = readyToDeployFixture();
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_ASSIGN, ['TEAM-42', '--pr-author', 'operator'], [
+            'FAKE_ACLI_EMAIL' => 'Operator@Example.com',
+            'FAKE_GH_EMAILS' => '[{"email":"other@example.com","verified":true},{"email":"operator@example.com","verified":true}]',
+            'FAKE_GH_LOGIN' => 'operator',
+        ]);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(readyToDeployCalls($fixture, 'jira workitem assign'))->toBe(['jira workitem assign --key TEAM-42 --assignee @me --yes --json']);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
 
 test('the JIRA assign helper takes one validated key and passes no bulk or removal option to acli', function (): void {
     $fixture = readyToDeployFixture();

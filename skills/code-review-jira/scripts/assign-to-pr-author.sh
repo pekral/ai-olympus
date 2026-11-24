@@ -15,8 +15,9 @@
 #
 # Behavior:
 #   1. A bot author (`app/` prefix or `[bot]` suffix) gets no write: exit 6.
-#   2. When the author is the account `gh api user` reports, the acli account is the author:
-#      assign with `--assignee "@me"` and verify `assignee = currentUser()`.
+#   2. When the author is the account `gh api user` reports, and the e-mail of the acli account
+#      equals a verified e-mail of that gh account, the acli account is the author: assign with
+#      `--assignee "@me"` and verify `assignee = currentUser()`. Neither e-mail is printed.
 #   3. Otherwise, with --email: assign with `--assignee <address>` and verify
 #      `assignee = "<address>"`.
 #   4. Otherwise: no write, the assignee stays unchanged, exit 6.
@@ -38,6 +39,7 @@
 #   2  missing required tool (acli, jq, gh)
 #   3  the assignment failed, or the re-read did not confirm it
 #   6  no write: a bot author, or no verified e-mail and the author is not the operator's account
+#      with a matching acli e-mail
 set -euo pipefail
 
 PROG="assign-to-pr-author.sh"
@@ -95,7 +97,7 @@ for bin in acli jq gh; do
   fi
 done
 
-if github_login_is_operator "$AUTHOR"; then
+if github_login_is_operator "$AUTHOR" && jira_account_email_is_operator_email; then
   ASSIGNEE='@me'
   PREDICATE='assignee = currentUser()'
 elif [[ -n "$EMAIL" ]]; then

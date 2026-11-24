@@ -26,6 +26,15 @@
 #   github_login_is_operator <login>
 #       Exit 0 when the login equals, in any letter case, the account `gh api user` reports.
 #       Exit 1 for an empty login and when `gh` cannot name its account.
+#
+#   jira_account_email_is_operator_email
+#       Exit 0 when the e-mail of the account `acli jira auth status` reports equals, in any letter
+#       case, one verified e-mail of the `gh` account (`gh api user/emails`). Exit 1 otherwise, and
+#       when either side cannot be read. It prints nothing, so neither address reaches stdout or
+#       stderr.
+
+# shellcheck source=jira-actor.sh
+source "$(dirname "${BASH_SOURCE[0]}")/jira-actor.sh"
 
 jira_extract_key() {
   local input="${1:-}"
@@ -78,4 +87,13 @@ github_login_is_operator() {
   [[ -n "$login" ]] || return 1
   operator="$(gh api user --jq .login 2>/dev/null)" || return 1
   [[ -n "$operator" && "$(printf '%s' "$operator" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$login" | tr '[:upper:]' '[:lower:]')" ]]
+}
+
+jira_account_email_is_operator_email() {
+  local jira_email github_emails
+
+  jira_email="$(jira_auth_status_field "$(acli jira auth status 2>/dev/null || true)" email | tr '[:upper:]' '[:lower:]')"
+  [[ -n "$jira_email" ]] || return 1
+  github_emails="$(gh api user/emails 2>/dev/null | jq -r '.[]? | select(.verified == true) | .email // empty' 2>/dev/null | tr '[:upper:]' '[:lower:]')" || return 1
+  grep -qxF -- "$jira_email" <<<"$github_emails"
 }
