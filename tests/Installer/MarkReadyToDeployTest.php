@@ -286,7 +286,7 @@ function readyToDeployMergeRef(array $fixture, array $parents, string $type = 'c
 function readyToDeployTreeEntry(array $fixture, string $tree, array $entry): void
 {
     $file = $fixture['state'] . '/api/repos_acme_app_git_trees_' . $tree . '_recursive_1';
-    $json = json_decode((string) file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+    $json = json_decode((string) file_get_contents($file), associative: true, flags: JSON_THROW_ON_ERROR);
     assert(is_array($json) && is_array($json['tree']));
     $json['tree'][] = $entry;
     file_put_contents($file, (string) json_encode($json));
@@ -300,7 +300,7 @@ function readyToDeployTreeEntry(array $fixture, string $tree, array $entry): voi
 function readyToDeployBaseBranch(array $fixture, string $name): void
 {
     $file = $fixture['state'] . '/pr-12.json';
-    $pullRequest = json_decode((string) file_get_contents($file), true, flags: JSON_THROW_ON_ERROR);
+    $pullRequest = json_decode((string) file_get_contents($file), associative: true, flags: JSON_THROW_ON_ERROR);
     assert(is_array($pullRequest));
     file_put_contents($file, (string) json_encode([...$pullRequest, 'baseRefName' => $name]));
     readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/' . $name, [
@@ -1085,13 +1085,6 @@ test(
         "on: pull_request\nenv:\n  GATE: ready-to-deploy\n",
         'the pull-request merge workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'a merge-ref workflow that neither the base-branch tip nor the head shows' => [
-        [],
-        "on: pull_request\n",
-        "on: push\njobs: {}\n",
-        "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
-        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
-    ],
     'a labeled workflow added to a release base branch after the pull request was opened' => [
         ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
         "on:\n  pull_request:\n    types: [labeled]\n",
@@ -1099,12 +1092,12 @@ test(
         "on:\n  pull_request:\n    types: [labeled]\n",
         'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
-    'a pull_request_target workflow added to a release base branch after the pull request was opened' => [
-        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
-        "on:\n  pull_request_target:\n    types: [labeled]\n",
-        "on: push\n",
-        "on: push\n",
-        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
+    'a merge-ref workflow that neither the base-branch tip nor the head shows' => [
+        [],
+        "on: pull_request\n",
+        "on: push\njobs: {}\n",
+        "on:\n  pull_request:\n    types: [labeled]\njobs: {}\n",
+        'the pull-request merge workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
     'a merge-ref workflow that reads the event label on a release base branch' => [
         ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
@@ -1112,6 +1105,13 @@ test(
         "on: push\n",
         "on: pull_request\njobs:\n  d:\n    if: github.event.label.name == 'x'\n",
         'the pull-request merge workflow .github/workflows/deploy.yml reads the label of the event; the operator decides',
+    ],
+    'a pull_request_target workflow added to a release base branch after the pull request was opened' => [
+        ['baseRefName' => 'release/2.0', 'baseRefOid' => READY_TO_DEPLOY_STALE_BASE_SHA],
+        "on:\n  pull_request_target:\n    types: [labeled]\n",
+        "on: push\n",
+        "on: push\n",
+        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
     ],
 ]);
 
@@ -1137,9 +1137,9 @@ test(
         }
     },
 )->with([
+    'a release base branch' => [['baseRefName' => 'release/2.0'], "on: pull_request\n", "on: pull_request\n"],
     'only the base branch changed a workflow' => [[], "on: pull_request\n", "on: pull_request\n"],
     'only the head changed a workflow' => [[], "on: push\n", "on: pull_request\n"],
-    'a release base branch' => [['baseRefName' => 'release/2.0'], "on: pull_request\n", "on: pull_request\n"],
 ]);
 
 test(
@@ -1191,7 +1191,10 @@ test(
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
             expect($process->getOutput())->toMatch(
-                '/' . preg_quote(READY_TO_DEPLOY_PR, '/') . ' \\| label \\| not applied — the [a-z -]+ (could not be read|does not merge the base-branch tip with the head)/',
+                '/' . preg_quote(
+                    READY_TO_DEPLOY_PR,
+                    '/',
+                ) . ' \\| label \\| not applied — the [a-z -]+ (could not be read|does not merge the base-branch tip with the head)/',
             )
                 ->and($process->getOutput())->toContain('https://github.com/acme/app/issues/11 | label "ready to deploy" | applied')
                 ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
