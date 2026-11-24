@@ -20,14 +20,18 @@
 #      `validate_command` of project-commands.sh refuses or that sets `--log-junit` itself, and a test that is not
 #      a regular test-side file the branch changed since its merge base with the default branch. It also refuses
 #      an ignored file at a production path the branch deleted, or at a parent of that path, because the swap
-#      would write the base file over it and the restore would delete it.
+#      would write the base file over it and the restore would delete it, and a production path HEAD has that
+#      carries an assume-unchanged or skip-worktree flag or whose bytes differ from its HEAD blob, because git
+#      status does not show that edit and the swap would replace it.
 #   2. Ends unprovable (exit 4, no swap) when the runner is not `vendor/bin/pest` or `vendor/bin/phpunit`, when the
 #      branch changes a dependency manifest or lockfile, or when it changes test-side paths only.
 #   3. Holds the machine lock (gate_lock_acquire) for the swap and both runs. It never starts another wrapper of
-#      the lock, and a command it runs inherits the lock instead of waiting for it.
+#      the lock, and a command it runs inherits the lock instead of waiting for it. Once it holds the lock it runs
+#      the working-tree checks of step 1 again, so a change made during the wait is refused too.
 #   4. Puts every production path the branch changed back to the merge base (`git restore --source=<base>
-#      --worktree`, the index untouched), runs the named tests with `--log-junit`, restores HEAD, and runs them
-#      again. A trap restores HEAD on every exit, a signal included; a tree that does not return to HEAD exits 5.
+#      --worktree`, the index untouched), runs the named tests with `--log-junit`, restores HEAD on those paths
+#      only, and runs them again. A trap restores HEAD on every exit, a signal included; a tree that does not
+#      return to HEAD exits 5.
 #      Residual risk: SIGKILL cannot be trapped. A prover killed during the swap leaves the production paths at
 #      the base with no message. Every change is committed, so `git status` lists them, the next prove refuses
 #      the dirty tree, and `git restore --source=HEAD --worktree -- :/` plus removing the listed untracked files
@@ -116,6 +120,7 @@ TI_NAME_LIMIT=500
 TI_TMP=''
 TI_SWAP_ACTIVE=0
 TI_SWAP_CREATED=()
+TI_SWAP_RESTORE=()
 
 ti_usage() {
   cat >&2 <<'USAGE'
@@ -197,13 +202,16 @@ ti_prove_stop() {
   exit "$1"
 }
 
-# Bring the working tree back to HEAD after a swap: every tracked path from HEAD, every path the base created and
-# HEAD does not have removed, then a clean status. Returns 1 when the tree did not return to HEAD.
+# Bring the working tree back to HEAD after a swap: every swapped path HEAD has from HEAD, every path the base
+# created and HEAD does not have removed, then a clean status. No other path is written, so a local edit git status
+# does not show stays. Returns 1 when the tree did not return to HEAD.
 ti_restore() {
   [[ "$TI_SWAP_ACTIVE" -eq 1 ]] || return 0
   TI_SWAP_ACTIVE=0
   local path failed=0 dirty
-  git restore --source=HEAD --worktree -- :/ >/dev/null 2>&1 || failed=1
+  if [[ "${#TI_SWAP_RESTORE[@]}" -gt 0 ]]; then
+    GIT_LITERAL_PATHSPECS=1 git restore --source=HEAD --worktree -- "${TI_SWAP_RESTORE[@]}" >/dev/null 2>&1 || failed=1
+  fi
   for path in ${TI_SWAP_CREATED[@]+"${TI_SWAP_CREATED[@]}"}; do
     if gate_no_symlink "$(dirname -- "$path")" 2>/dev/null; then
       rm -f -- "$path" || failed=1
@@ -227,6 +235,42 @@ ti_swap_target_free() {
     dir="$(dirname -- "$dir")"
   done
   return 0
+}
+
+ti_require_clean_status() {
+  local dirty
+  dirty="$(git status --porcelain=v1 --untracked-files=all 2>/dev/null)" || ti_prove_stop 3 refused 'git status failed'
+  [[ -z "$dirty" ]] || ti_prove_stop 3 refused 'the working tree has a change or an untracked file; commit the fix and the test first'
+}
+
+# The bytes of a path in the working tree equal its blob at the commit $1; a submodule is left to git status.
+ti_same_as_commit() {
+  local entry blob
+  entry="$(GIT_LITERAL_PATHSPECS=1 git ls-tree "$1" -- "$2" 2>/dev/null)" || return 1
+  [[ "$entry" =~ ^(100644|100755|120000|160000)\ (blob|commit)\ ([0-9a-f]{40}([0-9a-f]{24})?)$'\t' ]] || return 1
+  blob="${BASH_REMATCH[3]}"
+  case "${BASH_REMATCH[1]}" in
+  160000) return 0 ;;
+  120000) [[ -L "$2" && "$(readlink -- "$2")" == "$(git cat-file blob "$blob")" ]] ;;
+  *) [[ -f "$2" && ! -L "$2" && "$(git hash-object -- "$2" 2>/dev/null)" == "$blob" ]] ;;
+  esac
+}
+
+# The swap and the restore write only what they can give back: a clean status, every swapped path HEAD has in the
+# index with no assume-unchanged or skip-worktree flag (git status shows no edit under either) and with the bytes of
+# its HEAD blob, and nothing at a path the swap creates. prove runs it before the lock and again once it holds it.
+ti_swap_ready() {
+  local path entry
+  ti_require_clean_status
+  for path in ${TI_SWAP_RESTORE[@]+"${TI_SWAP_RESTORE[@]}"}; do
+    entry="$(GIT_LITERAL_PATHSPECS=1 git ls-files -v -- "$path" 2>/dev/null)" || entry=''
+    [[ "$entry" == 'H '* ]] || ti_prove_stop 3 refused "a production path carries an assume-unchanged or skip-worktree flag: $path"
+    ti_same_as_commit "$1" "$path" || ti_prove_stop 3 refused "a production path differs from HEAD although git status shows no change: $path"
+  done
+  for path in ${TI_SWAP_CREATED[@]+"${TI_SWAP_CREATED[@]}"}; do
+    gate_no_symlink "$path" || ti_prove_stop 3 refused "$GATE_REASON"
+    ti_swap_target_free "$path" || ti_prove_stop 3 refused "an ignored file sits at a path the branch deleted, or at a parent of it: $path"
+  done
 }
 
 ti_blocked_message() {
@@ -261,8 +305,7 @@ ti_prove() {
 
   top="$(git rev-parse --show-toplevel 2>/dev/null)" || ti_prove_stop 3 refused 'not inside a git working tree'
   cd -- "$top" || ti_prove_stop 3 refused 'the working tree is not readable'
-  reason="$(git status --porcelain=v1 --untracked-files=all 2>/dev/null)" || ti_prove_stop 3 refused 'git status failed'
-  [[ -z "$reason" ]] || ti_prove_stop 3 refused 'the working tree has a change or an untracked file; commit the fix and the test first'
+  ti_require_clean_status
 
   load_project_manifest || ti_prove_stop 3 refused "$PROJECT_REFUSAL"
   if ! reason="$(validate_command "$command" 2>&1 >/dev/null)"; then
@@ -322,15 +365,14 @@ ti_prove() {
   for path in "${changed[@]}"; do
     ti_is_test_side "$path" && continue
     production+=("$path")
-    if ! git cat-file -e "$head:$path" 2>/dev/null; then
+    if git cat-file -e "$head:$path" 2>/dev/null; then
+      TI_SWAP_RESTORE+=("$path")
+    else
       TI_SWAP_CREATED+=("$path")
     fi
   done
   [[ "${#production[@]}" -gt 0 ]] || ti_prove_stop 4 unprovable 'no production change: the branch changes test-side paths only'
-  for path in ${TI_SWAP_CREATED[@]+"${TI_SWAP_CREATED[@]}"}; do
-    gate_no_symlink "$path" || ti_prove_stop 3 refused "$GATE_REASON"
-    ti_swap_target_free "$path" || ti_prove_stop 3 refused "an ignored file sits at a path the branch deleted, or at a parent of it: $path"
-  done
+  ti_swap_ready "$head"
 
   gate_evidence_dir write || ti_prove_stop 3 refused "$GATE_REASON"
   local dir="$GATE_EVIDENCE/regression" key record base_xml head_xml log file
@@ -356,6 +398,7 @@ ti_prove() {
   elif [[ "$status" -ne 0 ]]; then
     ti_prove_stop 3 refused "$GATE_REASON"
   fi
+  ti_swap_ready "$head"
   started_at="$(gate_now)"
 
   TI_SWAP_ACTIVE=1
@@ -1050,6 +1093,44 @@ ti_selftest_prove() {
   ti_assert 'prove: the lock is free after a TERM' ti_not test -d "$AI_OLYMPUS_LOCK_DIR/ai-olympus-gate.lock"
 }
 
+ti_wait_for_file() {
+  local tries=0
+  until [[ -f "$1" ]] && grep -q -- "$2" "$1"; do
+    tries=$((tries + 1))
+    [[ "$tries" -le 300 ]] || return 1
+    sleep 0.1
+  done
+}
+
+ti_change_calc() {
+  printf 'changed\n' >>"$TI_REPO/src/calc.txt"
+}
+
+ti_write_ignored_legacy() {
+  printf 'mine\n' >"$TI_REPO/src/legacy.txt"
+}
+
+# Run prove while another holder keeps the machine lock, run the given change once prove waits for the lock, and
+# release the lock: what prove decides after the wait is in TI_RC and TI_OUT.
+ti_prove_while_locked() {
+  local holder prover
+  rm -f -- "$TI_ROOT/held" "$TI_ROOT/release" "$TI_ROOT/wait.out"
+  # shellcheck disable=SC2016
+  env -u AI_OLYMPUS_LOCK_HELD_BY bash -c '. "$1/gate-record.sh"; gate_lock_acquire 5 || exit 1; printf "held\n" >"$2/held"
+    until [[ -f "$2/release" ]]; do sleep 0.1; done; gate_cleanup' _ "$TI_DIR" "$TI_ROOT" &
+  holder=$!
+  ti_wait_for_file "$TI_ROOT/held" held || { TI_RC=99; return; }
+  (cd "$TI_REPO" && bash "$TI_SELF" prove --command 'vendor/bin/pest' --test 'tests/CalcTest.php::it adds' >"$TI_ROOT/wait.out" 2>&1) &
+  prover=$!
+  ti_wait_for_file "$TI_ROOT/wait.out" 'waiting for the machine lock' || TI_RC=98
+  "$1"
+  : >"$TI_ROOT/release"
+  TI_RC=0
+  wait "$prover" || TI_RC=$?
+  wait "$holder" || true
+  TI_OUT="$(cat "$TI_ROOT/wait.out")"
+}
+
 ti_selftest_prove_refusals() {
   local calls
   calls="$(ti_stub_calls)"
@@ -1103,7 +1184,51 @@ ti_selftest_prove_refusals() {
   ti_assert 'prove: the refused run keeps the ignored parent file' ti_equals "$(cat "$TI_REPO/src/gone")" mine
   rm -f "$TI_REPO/src/gone"
   ti_assert 'prove: no run with an ignored file at a deleted path ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
+  ti_prove_while_locked ti_write_ignored_legacy
+  ti_assert 'prove: an ignored file written at a deleted path during the lock wait is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the ignored file written during the lock wait is kept' ti_equals "$(cat "$TI_REPO/src/legacy.txt")" mine
+  rm -f "$TI_REPO/src/legacy.txt"
   ti_git checkout -q fix
+
+  local flag
+  for flag in assume-unchanged skip-worktree; do
+    ti_git update-index "--$flag" src/calc.txt
+    printf 'LOCAL\n' >"$TI_REPO/src/calc.txt"
+    ti_prove_calc
+    ti_assert "prove: a production path flagged $flag is refused" ti_equals "$TI_RC" 3
+    ti_assert "prove: the refused run keeps the $flag edit" ti_equals "$(cat "$TI_REPO/src/calc.txt")" LOCAL
+    ti_git update-index "--no-$flag" src/calc.txt
+    ti_git checkout -q -- src/calc.txt
+  done
+  ti_git config core.trustctime false
+  ti_git config core.checkStat minimal
+  touch -t 202001010000 "$TI_REPO/src/calc.txt"
+  ti_git update-index -q --refresh
+  printf 'fixxd\n' >"$TI_REPO/src/calc.txt"
+  touch -t 202001010000 "$TI_REPO/src/calc.txt"
+  ti_prove_calc
+  ti_assert 'prove: a production path whose bytes differ from HEAD under a clean status is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the refused run keeps the edit git status does not show' ti_equals "$(cat "$TI_REPO/src/calc.txt")" fixxd
+  printf 'fixed\n' >"$TI_REPO/src/calc.txt"
+  ti_git config --unset core.trustctime
+  ti_git config --unset core.checkStat
+  ti_git update-index -q --really-refresh
+  ti_assert 'prove: no run with a hidden edit of a production path ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
+  ti_prove_while_locked ti_change_calc
+  ti_assert 'prove: a change made during the lock wait is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the change made during the lock wait is kept' ti_equals "$(tail -n 1 "$TI_REPO/src/calc.txt")" changed
+  ti_git checkout -q -- src/calc.txt
+  ti_assert 'prove: no run that saw a change after the lock wait ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
+
+  ti_git update-index --assume-unchanged composer.json
+  printf 'LOCAL\n' >"$TI_REPO/composer.json"
+  ti_prove_calc
+  ti_assert 'prove: a flagged file outside the production paths does not stop the proof' ti_equals "$TI_RC" 0
+  ti_assert 'prove: the restore keeps the edit of a flagged file outside the production paths' \
+    ti_equals "$(cat "$TI_REPO/composer.json")" LOCAL
+  ti_git update-index --no-assume-unchanged composer.json
+  ti_git checkout -q -- composer.json
+  calls="$(ti_stub_calls)"
 
   ti_git checkout -q -b deps fix
   printf '{"require": {}}\n' >"$TI_REPO/composer.json"
