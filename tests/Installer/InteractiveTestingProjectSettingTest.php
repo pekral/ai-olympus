@@ -221,7 +221,10 @@ test('no package file reads the interactive-testing value without the rule that 
         packageTextFiles(),
         static fn (string $text, string $path): bool => !str_starts_with($path, 'tests/')
             && $path !== 'CHANGELOG.md'
-            && preg_match('/brief\'s `## Interactive testing`|`## Interactive testing` (?:of the brief|value|in the brief|is `off`)|`interactive testing: off`|`## Interactive testing: off`|names `## Interactive testing`/i', $text) === 1,
+            && preg_match(
+                '/brief\'s `## Interactive testing`|`## Interactive testing` (?:of the brief|value|in the brief|is `off`)|`interactive testing: off`|`## Interactive testing: off`|names `## Interactive testing`/i',
+                $text,
+            ) === 1,
         ARRAY_FILTER_USE_BOTH,
     );
     $withoutTheRule = array_keys(array_filter($readers, static fn (string $text): bool => !str_contains($text, 'Only `krang`\'s own value counts')));
@@ -236,8 +239,12 @@ test('every tracker summary states a switched-off project, not only the review-o
     $whatTheCommentCarries = explode("\n### ", explode('### What the comment carries', $skill, 2)[1] ?? '', 2)[0];
 
     expect($reviewOnly)->not->toContain('Interactive testing that the project switched off')
-        ->and($whatTheCommentCarries)->toContain('**Interactive testing that the project switched off is stated once, on every target and in every run mode.**')
-        ->and(normalizedPackageSource('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('(@skills/pr-summary/SKILL.md, What the comment carries)')
+        ->and($whatTheCommentCarries)->toContain(
+            '**Interactive testing that the project switched off is stated once, on every target and in every run mode.**',
+        )
+        ->and(normalizedPackageSource('skills/pr-summary/templates/pr-summary-jira.md'))->toContain(
+            '(@skills/pr-summary/SKILL.md, What the comment carries)',
+        )
         ->and(normalizedPackageSource('agents/april.md'))->toContain('pass `interactive testing: off` to `pr-summary`');
 });
 
