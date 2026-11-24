@@ -66,9 +66,13 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
     expect($exceptions)
         ->toContain('### A stack of pull requests — one JIRA report')
         ->toContain('the `baseRefName` of one is the `headRefName` of another')
+        ->toContain('passed the repository ownership gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*)')
         ->toContain('1. **No part reports on its own.**')
         ->toContain('3. **Dispatch one `april` for the stack**')
         ->toContain('A stack run that published several JIRA comments, or none, is `Blocked`.');
+
+    expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
+        ->toContain('#### Repository ownership (hard gate)');
 
     expect((string) file_get_contents($packageDir . '/agents/krang.md'))
         ->toContain('whose branches chain into a stack (one JIRA report for the stack)');
