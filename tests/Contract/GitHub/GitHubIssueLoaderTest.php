@@ -334,6 +334,56 @@ test('an issue lists every linked issue once: its native relations first, then t
         ->and(decodedJsonField($output, 'linkedIssuesComplete'))->toBeTrue();
 });
 
+/**
+ * The native relations of a task with issues of other repositories: one with the number of an issue the task text
+ * names, one whose repository name starts with the task's, and one of the task repository in another letter case.
+ */
+function githubLoaderCrossRepositoryRelationsJson(): string
+{
+    $issue = static fn (string $repository, int $number): array => [
+        'number' => $number,
+        'state' => 'OPEN',
+        'title' => 'Issue ' . $number,
+        'url' => 'https://github.com/' . $repository . '/issues/' . $number,
+    ];
+
+    return (string) json_encode(['data' => ['repository' => ['issue' => [
+        'authorAssociation' => 'OWNER',
+        'blockedBy' => ['nodes' => [$issue('other/lib', 450), $issue('acme/widgets', 410)]],
+        'blocking' => ['nodes' => [$issue('acme/widgetsx', 420), $issue('ACME/Widgets', 421)]],
+        'parent' => $issue('other/lib', 400),
+        'subIssues' => ['nodes' => [$issue('other/lib', 446) + ['comments' => ['nodes' => []], 'labels' => ['nodes' => []]]]],
+    ],
+    ],
+    ],
+    ]);
+}
+
+test('the linked issue list holds only issues of the task repository, each once by its URL', function (): void {
+    $fixture = createGitHubLoaderFixture();
+
+    $output = runGitHubLoader($fixture, 'https://github.com/acme/widgets/issues/445', [
+        'FAKE_GH_GRAPHQL_JSON' => githubLoaderCrossRepositoryRelationsJson(),
+        'FAKE_GH_ISSUE_JSON' => githubLoaderNamingIssueJson(),
+    ])->getOutput();
+    removeGitHubLoaderFixture($fixture);
+
+    $linked = (array) decodedJsonField($output, 'linkedIssues');
+    $pairs = array_map(
+        static fn (mixed $entry): string => is_array($entry) ? $entry['relation'] . ' ' . $entry['url'] : '',
+        $linked,
+    );
+
+    // other/lib#450 never replaces the #450 the task names, and no issue of another repository is listed.
+    expect($pairs)->toBe([
+        'blocked-by https://github.com/acme/widgets/issues/410',
+        'blocks https://github.com/ACME/Widgets/issues/421',
+        'mentioned https://github.com/acme/widgets/issues/450',
+        'mentioned https://github.com/acme/widgets/issues/451',
+        'mentioned https://github.com/acme/widgets/issues/452',
+    ]);
+});
+
 test('a failed relation read leaves the list short and says it is not complete', function (): void {
     $fixture = createGitHubLoaderFixture();
 
