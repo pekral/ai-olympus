@@ -171,3 +171,37 @@ test('the review reports a batch walk that skips rows over a growing table once 
     expect(packageSource('rules/code-review/core-analysis.md'))
         ->toContain('offset paging while writing to the set being read or over a growing set the loop only reads');
 });
+
+test('one offset-paging call has one owner across the review, the database report, and the latency lens (issue #696)', function (): void {
+    $section = packageSection(
+        packageSource('rules/code-review/general.md'),
+        '## Bulk Data & Batch Processing (issue #223)',
+        '## The author of the changes is the account that pushed the pull request',
+    );
+
+    // The gating no longer contradicts the check: the section owns the per-batch cost of the offset walk and nothing else of a database query.
+    expect($section)->toContain(
+        'and never the cost of a database query or a measured run time, except the offset paging of a `chunk()` / `lazy()` walk, '
+        . 'which the offset-paging check above owns, also when the diff replaces `chunkById()` or `lazyById()` with it.',
+    );
+
+    // Each place that decides the cost of a query or the paging of a walk gives the same call to the same owner.
+    $owners = [
+        'rules/code-review/core-analysis.md' => 'The offset paging of a `chunk()` / `lazy()` walk stays with the Bulk data walk above, '
+            . 'so that call gets one finding.',
+        'skills/code-review/references/specialized-reviews.md' => 'rows examined (except the offset paging of a `chunk()` / `lazy()` walk, '
+            . 'which the Bulk Data walk owns)',
+        'skills/mysql-problem-solver/SKILL.md' => 'The report raises no item for the offset paging of a `chunk()` / `lazy()` walk, '
+            . 'which the review reports as a finding (`@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*), '
+            . 'and refers to that finding instead.',
+    ];
+
+    foreach ($owners as $path => $sentence) {
+        expect(packageSource($path))->toContain($sentence);
+    }
+
+    // The latency lens already defers both dimensions, so it never reports the call either.
+    expect(packageSource('skills/latency-critical-systems/SKILL.md'))
+        ->toContain('offset paging over a growing or written set')
+        ->toContain('rows examined');
+});
