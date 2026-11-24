@@ -180,7 +180,7 @@ test('leonardo scans every review and donatello states a reason for every candid
 test('a merge without a review takes the full path when the trusted scan lists a weakened test', function (string $path, string $pin): void {
     expect(packageSource($path))->toContain($pin)
         ->toContain('A `candidate` line, a last line other than `scan-verdict=complete`, or a copy that is not available')
-        ->toContain('so only added test files keep the');
+        ->toContain('so only a change that touches none of them keeps the');
 })->with([
     'FAST-tier exemption' => [
         'skills/merge-github-pr/references/merge-exemptions.md',

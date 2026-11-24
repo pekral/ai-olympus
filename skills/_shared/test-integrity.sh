@@ -57,10 +57,12 @@
 #   never a proof that nothing else was weakened: an early return before the assertions or a removed data-set
 #   row is no candidate.
 #   --without-review is the mode of a merge path that has no review. It decides on the shape of the change, not
-#   on the patterns: it adds one `existing-check-changed` candidate for each watched path the base already had
-#   and the diff changes, renames, or deletes (a test-side file, a workflow or `.github/actions/**` file,
-#   `phpunit.xml*`, `tests/Pest.php`, `phpstan.neon*`, and `composer.json` when a script of the base changes).
-#   Only a change that adds test files and touches none of those completes with no candidate.
+#   on the patterns or the content: it adds one `check-path-changed` candidate for each check path the diff adds,
+#   changes, deletes, renames (by the old and by the new path), or copies — a test-side file, a workflow or
+#   `.github/actions/**` file, `phpunit.xml*`, `tests/Pest.php`, a `.neon` file or a file whose name names
+#   PHPStan (TI_CHECK_CONFIG_RE) — and for `composer.json` when a script of the base changes. An added test runs
+#   code inside the runner, so it is a candidate too. Only a change that touches no check path completes with no
+#   candidate.
 #
 # Test-side paths
 #   One pattern, taken from the trigger of the test-value lens in
@@ -544,6 +546,7 @@ TI_RUNNER_NAME_RE='Test\.php$|\.spec\.ts$|\.test\.ts$'
 TI_COMMENT_RE='^[[:space:]]*(//|#|/\*|\*)'
 TI_MIN_RE='--min=([0-9]+)'
 TI_LEVEL_RE='^[[:space:]]*level:[[:space:]]*([0-9]+|max)'
+TI_CHECK_CONFIG_RE='\.neon(\.dist)?$|(^|/)[^/]*phpstan[^/]*$'
 
 TI_SCAN_BASE=''
 TI_SCAN_HEAD=''
@@ -568,7 +571,7 @@ ti_watch_kind() {
     printf 'ci'
   elif [[ "$1" == composer.json ]]; then
     printf 'composer'
-  elif [[ "$1" =~ (^|/)phpstan(\.dist)?\.neon(\.dist)?$ ]]; then
+  elif [[ "$1" =~ (^|/)\.?phpstan(\.dist)?\.neon(\.dist)?$ ]]; then
     printf 'phpstan'
   elif ti_is_test_side "$1"; then
     printf 'test'
@@ -763,6 +766,32 @@ ti_scripts_changed() {
   esac
 }
 
+# A path whose change can switch a check off: a test-side file, a test or CI configuration, and every PHPStan
+# configuration, its includes and baseline included.
+ti_is_check_path() {
+  case "$2" in
+  test | test-config | ci | phpstan) return 0 ;;
+  esac
+  [[ "$1" =~ $TI_CHECK_CONFIG_RE ]]
+}
+
+# --without-review: one check-path-changed candidate for each check path the diff adds, changes, deletes, renames
+# (by the old and by the new path), or copies (by the copy), and for composer.json when a script of the base
+# changes. It never reads the content, so no added file can look harmless.
+ti_scan_shape() {
+  local status="$1" old="$2" kind="$3" new="$4" new_kind="$5"
+  if [[ "$status" != C* ]]; then
+    if ti_is_check_path "$old" "$kind"; then
+      ti_candidate check-path-changed "$old" -
+    elif [[ "$kind" == composer && "$status" != A* ]] && ti_scripts_changed; then
+      ti_candidate check-path-changed "$old" -
+    fi
+  fi
+  if [[ "$new" != "$old" ]] && ti_is_check_path "$new" "$new_kind"; then
+    ti_candidate check-path-changed "$new" -
+  fi
+}
+
 ti_scan() {
   local status old new kind new_kind
   while [[ $# -gt 0 ]]; do
@@ -813,10 +842,8 @@ ti_scan() {
     if [[ "$kind" == composer && "$status" != A* ]]; then
       ti_scan_scripts
     fi
-    if [[ "$TI_SCAN_WITHOUT_REVIEW" -eq 1 && "$kind" != none && "$status" != A* && "$status" != C* ]]; then
-      if [[ "$kind" != composer ]] || ti_scripts_changed; then
-        ti_candidate existing-check-changed "$old" -
-      fi
+    if [[ "$TI_SCAN_WITHOUT_REVIEW" -eq 1 ]]; then
+      ti_scan_shape "$status" "$old" "$kind" "$new" "$new_kind"
     fi
   done <"$TI_TMP/names"
 
@@ -866,6 +893,10 @@ ti_selftest_classifier() {
   ti_assert 'path: a path that climbs out is unsafe' ti_not ti_safe_relative_path 'tests/../../etc/passwd'
   ti_assert 'path: an absolute path is unsafe' ti_not ti_safe_relative_path '/etc/passwd'
   ti_assert 'path: a plain relative path is safe' ti_safe_relative_path 'tests/Unit/CalcTest.php'
+  local name
+  for name in .phpstan.neon .phpstan.neon.dist .phpstan.dist.neon phpstan.dist.neon packages/app/phpstan.neon; do
+    ti_assert "kind: $name is a PHPStan configuration" ti_equals "$(ti_watch_kind "$name")" phpstan
+  done
 }
 
 TI_REPO=''
@@ -1187,6 +1218,11 @@ ti_selftest_scan_repo() {
   printf '%s\n' 'name: t' 'on:' '  pull_request:' 'jobs: {}' >"$TI_REPO/.github/workflows/trigger.yml"
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
   printf '%s\n' 'parameters:' '    level: 8' >"$TI_REPO/phpstan.neon"
+  printf '%s\n' 'parameters:' '    level: 8' >"$TI_REPO/.phpstan.neon.dist"
+  mkdir -p "$TI_REPO/packages/app"
+  printf '%s\n' '<phpunit>' '  <testsuites><testsuite name="all"><directory>tests</directory></testsuite></testsuites>' '</phpunit>' \
+    >"$TI_REPO/packages/app/phpunit.xml.dist"
+  printf '%s\n' 'parameters:' '    level: 8' >"$TI_REPO/packages/app/phpstan.neon.dist"
   printf 'code\n' >"$TI_REPO/src/Calc.php"
   git -C "$TI_REPO" init -q
   ti_git add -A
@@ -1245,6 +1281,38 @@ ti_selftest_scan_repo() {
   printf '%s\n' '{"require": {"php": "^8.3"}, "scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
   ti_git commit -q -am dependency
 
+  ti_git checkout -q -b production master
+  printf 'better code\n' >"$TI_REPO/src/Calc.php"
+  ti_git commit -q -am production
+
+  ti_git checkout -q -b added-checks master
+  printf '%s\n' '<phpunit>' '  <testsuites><testsuite name="all"><directory>empty</directory></testsuite></testsuites>' '</phpunit>' \
+    >"$TI_REPO/packages/app/phpunit.xml"
+  printf '%s\n' 'parameters:' '    level: 0' >"$TI_REPO/packages/app/phpstan.neon"
+  printf '%s\n' 'parameters:' '    level: 0' >"$TI_REPO/.phpstan.dist.neon"
+  printf '%s\n' 'parameters:' '    ignoreErrors: []' >"$TI_REPO/phpstan-baseline.neon"
+  printf '%s\n' '<?php' 'uses()->in(__DIR__);' >"$TI_REPO/tests/Pest.php"
+  ti_git add -A
+  ti_git commit -q -m added-checks
+
+  ti_git checkout -q -b added-test master
+  printf '%s\n' '<?php' 'register_shutdown_function(static fn () => exit(0));' "it('is new', fn () => expect(1)->toBe(1));" \
+    >"$TI_REPO/tests/Unit/ZzTest.php"
+  ti_git add -A
+  ti_git commit -q -m added-test
+
+  ti_git checkout -q -b renamed-in master
+  ti_git mv src/Calc.php tests/bootstrap.php
+  ti_git commit -q -m renamed-in
+
+  ti_git checkout -q -b renamed-out master
+  ti_git mv tests/Unit/OutTest.php src/Out.php
+  ti_git commit -q -m renamed-out
+
+  ti_git checkout -q -b dotted-level master
+  printf '%s\n' 'parameters:' '    level: 0' >"$TI_REPO/.phpstan.neon.dist"
+  ti_git commit -q -am dotted-level
+
   ti_git checkout -q -b loosened-or master
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest || true", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
   ti_git commit -q -am loosened-or
@@ -1272,6 +1340,10 @@ ti_selftest_scan_repo() {
 
 ti_scan_run() {
   ti_run bash "$TI_SELF" scan --base "$(ti_git rev-parse "$1")" --head "$(ti_git rev-parse "$2")"
+}
+
+ti_scan_shape_run() {
+  ti_run bash "$TI_SELF" scan --base "$(ti_git rev-parse "$1")" --head "$(ti_git rev-parse "$2")" --without-review
 }
 
 ti_selftest_scan() {
@@ -1313,25 +1385,43 @@ ti_selftest_scan() {
   ti_scan_run master extended
   ti_assert 'scan: a Composer script entry that keeps every word and adds one is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
 
-  TI_RC=0
-  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse quiet)" --without-review 2>&1)" \
-    || TI_RC=$?
+  ti_scan_shape_run master quiet
   ti_assert 'scan --without-review: a change to pre-existing checks completes with candidates' ti_equals "$TI_RC" 5
-  ti_assert 'scan --without-review: a changed pre-existing test is a candidate' ti_scan_has existing-check-changed tests/Unit/CalcTest.php -
-  ti_assert 'scan --without-review: a renamed pre-existing test is a candidate' ti_scan_has existing-check-changed tests/Unit/MovedTest.php -
-  ti_assert 'scan --without-review: a changed Composer script is a candidate' ti_scan_has existing-check-changed composer.json -
-  ti_assert 'scan --without-review: a changed workflow is a candidate' ti_scan_has existing-check-changed .github/workflows/ci.yml -
-  ti_assert 'scan --without-review: a changed test configuration is a candidate' ti_scan_has existing-check-changed phpunit.xml -
-  ti_assert 'scan --without-review: an added test is no candidate' ti_not ti_scan_mentions QuietNewTest.php
-  TI_RC=0
-  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse clean)" --without-review 2>&1)" \
-    || TI_RC=$?
-  ti_assert 'scan --without-review: a change that adds a test and changes production code is no candidate' \
-    ti_equals "$TI_OUT" 'scan-verdict=complete'
-  TI_RC=0
-  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse dependency)" --without-review 2>&1)" \
-    || TI_RC=$?
+  ti_assert 'scan --without-review: a changed pre-existing test is a candidate' ti_scan_has check-path-changed tests/Unit/CalcTest.php -
+  ti_assert 'scan --without-review: a renamed test is a candidate by its old path' ti_scan_has check-path-changed tests/Unit/MovedTest.php -
+  ti_assert 'scan --without-review: a renamed test is a candidate by its new path' ti_scan_has check-path-changed tests/Feature/MovedTest.php -
+  ti_assert 'scan --without-review: a changed Composer script is a candidate' ti_scan_has check-path-changed composer.json -
+  ti_assert 'scan --without-review: a changed workflow is a candidate' ti_scan_has check-path-changed .github/workflows/ci.yml -
+  ti_assert 'scan --without-review: a changed test configuration is a candidate' ti_scan_has check-path-changed phpunit.xml -
+  ti_assert 'scan --without-review: an added test is a candidate' ti_scan_has check-path-changed tests/Unit/QuietNewTest.php -
+  ti_scan_shape_run master clean
+  ti_assert 'scan --without-review: a change that adds a test beside production code is a candidate' \
+    ti_equals "$TI_OUT" "$(printf 'candidate\tcheck-path-changed\ttests/Unit/AddedTest.php\t-\nscan-verdict=complete')"
+  ti_scan_shape_run master production
+  ti_assert 'scan --without-review: a change that touches no test-side or check path is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
+  ti_scan_shape_run master dependency
   ti_assert 'scan --without-review: a composer.json change that keeps every script is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
+  ti_scan_shape_run master added-checks
+  ti_assert 'scan --without-review: an added phpunit.xml beside a phpunit.xml.dist is a candidate' \
+    ti_scan_has check-path-changed packages/app/phpunit.xml -
+  ti_assert 'scan --without-review: an added phpstan.neon beside a phpstan.neon.dist is a candidate' \
+    ti_scan_has check-path-changed packages/app/phpstan.neon -
+  ti_assert 'scan --without-review: an added dotted PHPStan configuration is a candidate' ti_scan_has check-path-changed .phpstan.dist.neon -
+  ti_assert 'scan --without-review: an added PHPStan baseline is a candidate' ti_scan_has check-path-changed phpstan-baseline.neon -
+  ti_assert 'scan --without-review: an added tests/Pest.php is a candidate' ti_scan_has check-path-changed tests/Pest.php -
+  ti_scan_shape_run master added-test
+  ti_assert 'scan --without-review: a change that only adds a test completes with candidates' ti_equals "$TI_RC" 5
+  ti_assert 'scan --without-review: an added test that ends the runner is a candidate' ti_scan_has check-path-changed tests/Unit/ZzTest.php -
+  ti_scan_shape_run master renamed-in
+  ti_assert 'scan --without-review: a production file renamed into the test side is a candidate by its new path' \
+    ti_equals "$TI_OUT" "$(printf 'candidate\tcheck-path-changed\ttests/bootstrap.php\t-\nscan-verdict=complete')"
+  ti_scan_shape_run master renamed-out
+  ti_assert 'scan --without-review: a test renamed out of the test side is a candidate by its old path' \
+    ti_scan_has check-path-changed tests/Unit/OutTest.php -
+
+  ti_scan_run master dotted-level
+  ti_assert 'scan: a lowered level in a dotted PHPStan configuration is a candidate' \
+    ti_scan_has analysis-level-lowered .phpstan.neon.dist 2
 
   ti_scan_run master loosened-or
   ti_assert 'scan: a Composer script entry that gains an or-true is a loosened script' \
