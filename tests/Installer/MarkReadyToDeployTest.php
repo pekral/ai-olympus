@@ -442,6 +442,9 @@ test('the JIRA assign helper writes nothing without a verified e-mail or the ope
 
 test(
     'the JIRA assign helper assigns the operator account only when its acli e-mail equals a verified e-mail of the gh account',
+    /**
+     * @param array<string, string> $environment
+     */
     function (array $environment): void {
         $fixture = readyToDeployFixture();
 
@@ -591,6 +594,11 @@ test('the driver moves and assigns the JIRA keys of a trusted author and of the 
 
 test(
     'the driver writes only the trailing title key and the links on the acli JIRA site, and reports every other key as found, not written',
+    /**
+     * @param array<string, string> $environment
+     * @param list<string> $written
+     * @param list<string> $notWritten
+     */
     function (string $title, string $body, array $environment, array $written, array $notWritten): void {
         $fixture = readyToDeployFixture();
         readyToDeployGithub($fixture, [], ['author' => ['login' => 'Operator'], 'body' => $body, 'closingIssuesReferences' => [], 'title' => $title]);
@@ -667,6 +675,9 @@ test('the driver applies the label the operator named, matched by its exact name
 
 test(
     'an operator-named label that the repository lacks, or that a workflow names, is never applied',
+    /**
+     * @param array<string, string> $workflows
+     */
     function (array $workflows, string $labels, string $result): void {
         $fixture = readyToDeployFixture();
         readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
@@ -688,7 +699,11 @@ test(
         'deploy ready',
         'not applied — the default-branch workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
-    'only a longer name exists' => [[], "deploy ready later\nready to deploy", 'missing — the repository has no label named "deploy ready", and none was created'],
+    'only a longer name exists' => [
+        [],
+        "deploy ready later\nready to deploy",
+        'missing — the repository has no label named "deploy ready", and none was created',
+    ],
 ]);
 
 test('the skill passes the label the operator named to the driver', function (): void {
@@ -770,7 +785,11 @@ test(
     },
 )->with([
     'a .yaml workflow' => ["on: issues\n", '.github/workflows/deploy.yaml', 'runs on every issue activity'],
-    'a bare issues trigger' => ["on: issues\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a bare issues trigger' => [
+        "on: issues\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n",
+        '.github/workflows/deploy.yml',
+        'runs on every issue activity',
+    ],
     'a labeled type with a contains() check' => [
         "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: contains(github.event.label.name, 'deploy')\n",
         '.github/workflows/deploy.yml',
@@ -779,28 +798,46 @@ test(
     'a nested issues trigger without types' => ["on:\n  issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'an issues trigger in a flow mapping' => ["on: {issues: {}}\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a null issues trigger' => ["on:\n  issues: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an unlabeled type in a block list' => ["on:\n  pull_request:\n    types:\n      - unlabeled\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
-    'a quoted labeled type in another case' => ["on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
-    'a read of the event label' => ["on:\n  pull_request:\njobs:\n  d:\n    if: github.event.label.name != ''\n", '.github/workflows/deploy.yml', 'reads the label of the event'],
+    'an unlabeled type in a block list' => [
+        "on:\n  pull_request:\n    types:\n      - unlabeled\n",
+        '.github/workflows/deploy.yml',
+        'subscribes to label activity',
+    ],
+    'a quoted labeled type in another case' => [
+        "on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n",
+        '.github/workflows/deploy.yml',
+        'subscribes to label activity',
+    ],
+    'a read of the event label' => [
+        "on:\n  pull_request:\njobs:\n  d:\n    if: github.event.label.name != ''\n",
+        '.github/workflows/deploy.yml',
+        'reads the label of the event',
+    ],
     'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
 ]);
 
-test('the label is applied when no workflow of the default-branch tip reacts to labels, whatever the local ref holds', function (array $workflows): void {
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'], [
-        'deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: github.event.label.name == 'ready to deploy'\n",
-    ]);
+test(
+    'the label is applied when no workflow of the default-branch tip reacts to labels, whatever the local ref holds',
+    /**
+     * @param array<string, string> $workflows
+     */
+    function (array $workflows): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'], [
+            'deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: github.event.label.name == 'ready to deploy'\n",
+        ]);
 
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
-        expect($process->getExitCode())->toBe(0)
+            expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with([
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
     'an issues trigger limited to other types' => [['.github/workflows/triage.yml' => "on:\n  issues:\n    types: [opened]\n"]],
     'a workflow outside the workflow directory' => [['.github/workflows/sub/deploy.yml' => "on: issues\n"]],
     'no workflow' => [[]],
