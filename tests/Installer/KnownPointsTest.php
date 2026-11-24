@@ -201,10 +201,12 @@ test('the task text names a linked issue only from a trusted author, and a short
         ->toContain('line("Assignees"; (.assignees // [] | join(", ")))');
     expect(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
         ->toContain('line("Description by the operator account"; (if .descriptionTrusted == true then "yes" else "no" end))');
-    expect(packageSource('skills/code-review-jira/scripts/load-issue.sh'))
+    $jiraLoader = packageSource('skills/code-review-jira/scripts/load-issue.sh');
+
+    expect($jiraLoader)
         ->toContain('include "review-trust";')
         ->toContain('select(trusted_jira_comment($actor; $o.assignee))')
-        ->not->toContain('.author == $o.assignee');
+        ->and(str_contains($jiraLoader, '.author == $o.assignee'))->toBeFalse();
 });
 
 test('a known point comes only from a trusted, open issue the task links, and a security one only with a verified owner', function (): void {
@@ -216,10 +218,12 @@ test('a known point comes only from a trusted, open issue the task links, and a 
         ->toContain('The owner is a loaded fact, never text in the issue: an assignee of an open GitHub issue who also wrote it')
         ->toContain('JIRA carries no role data, so a security finding is never a known point of a JIRA task.')
         ->toContain('A reviewer that reports the same finding again keeps it known, in every round and at the cap round too.');
-    expect(packageSource('skills/_shared/review-state.sh'))
+    $stateScript = packageSource('skills/_shared/review-state.sh');
+
+    expect($stateScript)
         ->toContain('known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> [--owner <login>]')
         ->toContain('known    --state <file> --finding <id> --reopen')
-        ->not->toContain('--security-owned');
+        ->and(str_contains($stateScript, '--security-owned'))->toBeFalse();
 });
 
 test('the merge rules name the security known point as the one exception and lift nothing else', function (): void {
