@@ -50,7 +50,7 @@
 #   Reads only `git diff` from the merge base of --base and --head to --head, executes nothing, and lists the
 #   places a reviewer reads: a removed or moved-out test file, a removed test declaration, an added skip, a
 #   removed assertion line of a test the base already had, a changed test configuration, a removed or loosened
-#   CI step, a removed Composer script, a lowered `--min=`, and a lowered PHPStan level. A test the change adds
+#   CI step, a removed or loosened Composer script, a lowered `--min=`, and a lowered PHPStan level. A test the change adds
 #   is never a candidate, and neither is a test moved inside the test side unchanged. A binary diff on a watched
 #   path, a path with a control character, and a git or jq error end the scan incomplete. The list is candidates,
 #   never a proof that nothing else was weakened.
@@ -706,21 +706,35 @@ ti_scan_file() {
   fi
 }
 
-# A Composer script the head drops, or an entry it drops from a script, compared through jq.
+# A Composer script the head drops, an entry it drops from a script, and an entry it keeps but loosens, compared
+# through jq. An entry is loosened when the head form gains a TI_LOOSEN_RE ending, or a `--level` / `-l` below the
+# base one; a level the base entry left to the configuration counts as lowered unless the head sets `max`.
 ti_scan_scripts() {
-  local base_json head_json count
+  local base_json head_json counts
   base_json="$(git show "$TI_SCAN_BASE:composer.json" 2>/dev/null)" || return 0
   head_json="$(git show "$TI_SCAN_HEAD:composer.json" 2>/dev/null)" || head_json='{}'
-  count="$(jq -n --argjson b "$base_json" --argjson h "$head_json" '
+  counts="$(jq -nr --argjson b "$base_json" --argjson h "$head_json" --arg loosen "$TI_LOOSEN_RE" '
     def entries(v): if (v | type) == "array" then v elif v == null then [] else [v] end;
     def words(e): e | tostring | split(" ") | map(select(length > 0));
-    def kept($e; $now): any(entries($now)[]; (words($e) - words(.)) == []);
+    def level(e): [e | tostring | scan("(?:--level=|--level[[:space:]]+|-l[[:space:]]+)([0-9]+|max)") | .[0]
+      | if . == "max" then 10 else tonumber end] | last;
+    def loosened($e; $n):
+      (($n | tostring | test($loosen)) and (($e | tostring | test($loosen)) | not))
+      or (level($n) as $after | level($e) as $before
+        | $after != null and (($before == null and $after < 10) or ($before != null and $after < $before)));
+    def state($e; $now):
+      [entries($now)[] | select((words($e) - words(.)) == [])] as $keeping
+      | if ($keeping | length) == 0 then "removed"
+        elif any($keeping[]; loosened($e; .) | not) then "kept"
+        else "loosened" end;
     ($b.scripts // {}) as $bs | ($h.scripts // {}) as $hs
     | [$bs | to_entries[] | .value as $was | $hs[.key] as $now
-      | select($now == null or any(entries($was)[]; kept(.; $now) | not))]
-    | length' 2>/dev/null)" || ti_scan_incomplete jq-error
-  [[ "$count" =~ ^[0-9]+$ ]] || ti_scan_incomplete jq-error
-  [[ "$count" -eq 0 ]] || ti_candidate script-removed composer.json -
+      | if $now == null then "removed" else entries($was)[] | state(.; $now) end] as $states
+    | "\([$states[] | select(. == "removed")] | length) \([$states[] | select(. == "loosened")] | length)"' 2>/dev/null)" \
+    || ti_scan_incomplete jq-error
+  [[ "$counts" =~ ^([0-9]+)\ ([0-9]+)$ ]] || ti_scan_incomplete jq-error
+  [[ "${BASH_REMATCH[1]}" -eq 0 ]] || ti_candidate script-removed composer.json -
+  [[ "${BASH_REMATCH[2]}" -eq 0 ]] || ti_candidate script-loosened composer.json -
 }
 
 ti_scan() {
@@ -1173,6 +1187,18 @@ ti_selftest_scan_repo() {
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest --compact", "vendor/bin/phpstan"], "lint": "vendor/bin/pint src"}}' >"$TI_REPO/composer.json"
   ti_git commit -q -am extended
 
+  ti_git checkout -q -b loosened-or master
+  printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest || true", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
+  ti_git commit -q -am loosened-or
+
+  ti_git checkout -q -b loosened-level master
+  printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan analyse --level=0"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
+  ti_git commit -q -am loosened-level
+
+  ti_git checkout -q -b raised-level master
+  printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan --level=max"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
+  ti_git commit -q -am raised-level
+
   ti_git checkout -q -b binary master
   printf 'one\000two\n' >"$TI_REPO/tests/Unit/fixture.bin"
   ti_git add -A
@@ -1225,6 +1251,15 @@ ti_selftest_scan() {
 
   ti_scan_run master extended
   ti_assert 'scan: a Composer script entry that keeps every word and adds one is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
+
+  ti_scan_run master loosened-or
+  ti_assert 'scan: a Composer script entry that gains an or-true is a loosened script' \
+    ti_equals "$TI_OUT" "$(printf 'candidate\tscript-loosened\tcomposer.json\t-\nscan-verdict=complete')"
+  ti_scan_run master loosened-level
+  ti_assert 'scan: a Composer script entry that sets a low analysis level is a loosened script' \
+    ti_equals "$TI_OUT" "$(printf 'candidate\tscript-loosened\tcomposer.json\t-\nscan-verdict=complete')"
+  ti_scan_run master raised-level
+  ti_assert 'scan: a Composer script entry that raises the analysis level to max is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
 
   ti_scan_run 'binary~1' binary
   ti_assert 'scan: a binary diff of a test-side path is incomplete' ti_equals "$TI_RC" 7
