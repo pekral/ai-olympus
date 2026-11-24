@@ -244,6 +244,85 @@ test('an ADF description is flattened into plain text and the raw tree is preser
     expect(decodedJsonField($output, 'comments.0.body'))->toContain('Reproduced on staging.');
 });
 
+/**
+ * @return array<string, mixed>
+ */
+function jiraLoaderDocument(string $text): array
+{
+    return [
+        'content' => [['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph']],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
+
+function jiraLoaderNamingViewJson(): string
+{
+    $description = 'Related: ACME-77, ACME-78 and OTHER-9, again ACME-77, itself ACME-1234, parent ACME-1, and ACME-5 (linked).';
+    $linked = ['fields' => ['issuetype' => ['name' => 'Bug'], 'status' => ['name' => 'Open'], 'summary' => 'Linked'], 'key' => 'ACME-5'];
+
+    return (string) json_encode([
+        'fields' => [
+            'assignee' => ['displayName' => 'Maintainer'],
+            'attachment' => [],
+            'created' => '2026-01-05T09:00:00.000+0100',
+            'description' => jiraLoaderDocument($description),
+            'issuelinks' => [
+                [
+                    'id' => '1',
+                    'outwardIssue' => $linked,
+                    'type' => ['inward' => 'relates to', 'name' => 'Relates', 'outward' => 'relates to'],
+                ],
+            ],
+            'issuetype' => ['name' => 'Bug'],
+            'parent' => ['fields' => ['status' => ['name' => 'Open'], 'summary' => 'Epic'], 'key' => 'ACME-1'],
+            'status' => ['name' => 'In Progress'],
+            'subtasks' => [],
+            'summary' => 'Upload validation rejects valid PDFs',
+            'updated' => '2026-01-06T09:00:00.000+0100',
+        ],
+        'key' => 'ACME-1234',
+    ]);
+}
+
+function jiraLoaderNamingCommentsJson(): string
+{
+    $comment = static fn (string $author, string $text, int $id): array => [
+        'author' => ['displayName' => $author],
+        'body' => jiraLoaderDocument($text),
+        'created' => '2026-01-06T08:00:00.000+0100',
+        'id' => (string) $id,
+    ];
+
+    return (string) json_encode(['comments' => [
+        $comment('Maintainer', 'Also ACME-80.', 10_001),
+        $comment('Stranger', 'Look at ACME-81.', 10_002),
+        $comment('Maintainer', 'Review of ACME-82. _cr-comment:actor=abc123_', 10_003),
+    ],
+    ]);
+}
+
+test('the issues of the same project that the description and the assignee comments name are listed once, without native links', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson(),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-77', 'ACME-78', 'ACME-80']);
+});
+
+test('an issue whose text names no other issue has an empty list of named keys', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234')->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe([]);
+});
+
 test('an argument that is neither a key nor a URL is rejected before any acli call', function (): void {
     $fixture = createJiraLoaderFixture();
 
