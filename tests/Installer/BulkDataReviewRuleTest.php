@@ -143,3 +143,31 @@ test('a Laravel batch walk over a growing table continues from the last record (
     expect($laravel)->toContain('`@rules/sql/optimalize.md` *Bounded reads over unbounded materialisation*');
     expect(packageSource('rules/sql/optimalize.md'))->toContain('`@rules/laravel/laravel.md` *Database and Eloquent*');
 });
+
+test('the review reports a batch walk that skips rows over a growing table once per place (issue #696)', function (): void {
+    $review = packageSection(
+        packageSource('rules/code-review/general.md'),
+        '- **Offset paging while writing to the set being read.**',
+        '- **Per-item work in a loop that the platform can do in bulk**',
+    );
+
+    // A read-only walk is a Moderate finding of the same section, anchored to the call and never to a loop, on the changed lines only.
+    expect($review)->toContain('**The same calls over a growing set that the loop only reads.**');
+    expect($review)->toContain('The fix is `chunkById()` / `lazyById()` per `@rules/laravel/laravel.md` *Database and Eloquent*.');
+    expect($review)->toContain('Severity: **Moderate**, which blocks the merge as the other findings of this section do.');
+    expect($review)->toContain('anchored to the `chunk()` / `lazy()` call, never to a loop that consumes it');
+    expect($review)->toContain('Only the lines the diff adds or changes are checked.');
+
+    // The exclusions, and one finding per place: the write case stays the Critical finding.
+    expect($review)->toContain('a set with a hard, small upper bound');
+    expect($review)->toContain(
+        'a walk that cannot continue from the last record because its order is not by a unique, ordered value, when a comment next to the call says why',
+    );
+    expect($review)->toContain(
+        'a call whose loop writes to the set it reads, which the Critical finding above already reports, so the place gets one finding',
+    );
+
+    // The walk names the case, so the review reaches it.
+    expect(packageSource('rules/code-review/core-analysis.md'))
+        ->toContain('offset paging while writing to the set being read or over a growing set the loop only reads');
+});
