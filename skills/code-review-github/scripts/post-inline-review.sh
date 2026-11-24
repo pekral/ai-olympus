@@ -79,6 +79,12 @@
 #                                  the route inventory of the security review (never from a running application), as an
 #                                  HTTP method (GET, POST, PUT, PATCH, DELETE), a path that starts with `/`, and one short
 #                                  line on what to try there. Left out, or empty, when the change touches no page or route
+#                    known_points  optional, 1 to 30 rows {title, place, issue, covers}: each finding that a linked issue
+#                                  already reports (rules/code-review/review-process.md *Known points*). `title` is the
+#                                  short name of the finding, `place` the optional `path` or `path:line`, `issue` the URL
+#                                  of the linked issue (a GitHub issue or a JIRA /browse/ link), and `covers` one sentence
+#                                  on what the issue covers and why it is the same problem. A known point is no finding:
+#                                  the Known points block lists it and no count includes it. Left out when none exists
 #
 # Behavior of post:
 #   1. Validate the findings, the walkthrough, and the record. A bad document, a record that check-cr-header.sh
@@ -125,7 +131,7 @@
 #   its own fence.
 #   The body shows nothing but the layout of templates/review-body.md: the TL;DR, the Merge Risk block, the Walkthrough
 #   block, the Where to test block (only when `test_routes` is set), and (when a finding is published) the Actionable
-#   comments block, Critical first. It carries no CI result, no pre-merge checks, no recent review information, no
+#   comments block, Critical first, and then the Known points block (only when `known_points` is set). It carries no CI result, no pre-merge checks, no recent review information, no
 #   button, no share link, and no `cr-inline` marker.
 #
 # resolve
@@ -376,7 +382,7 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 def testfile: ascii_downcase | test($test_re);
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
-| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes", "since"]) | length) == 0; "the walkthrough holds an unknown key")
+| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes", "known_points", "since"]) | length) == 0; "the walkthrough holds an unknown key")
 | req(.since == null or (.since | type == "string" and test("^[0-9a-f]{40}$")); "walkthrough since must be a full 40-character commit SHA when set")
 | req(.tldr | isstr(1000); "walkthrough tldr must be 1 to 500 characters")
 | req(.tldr | printable | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
@@ -385,7 +391,12 @@ def testfile: ascii_downcase | test($test_re);
 | req(.test_routes == null or ((.test_routes | type) == "array" and (.test_routes | length) <= 30
     and (.test_routes | all(type == "object" and ((keys - ["method", "path", "try"]) | length) == 0
       and (.method | IN("GET", "POST", "PUT", "PATCH", "DELETE")) and (.path | isstr(200) and test("^/[^\\s`<>|]*$")) and (.try | isstr(200))))); "test_routes must hold at most 30 rows of a method (GET, POST, PUT, PATCH, DELETE), a path that starts with /, and a line on what to try")
-| req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .path, .try)] | map(select(type == "string") | printable) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
+| req(.known_points == null or ((.known_points | type) == "array" and (.known_points | length) >= 1 and (.known_points | length) <= 30
+    and (.known_points | all(type == "object" and ((keys - ["title", "place", "issue", "covers"]) | length) == 0
+      and (.title | isstr(200)) and (.place == null or (.place | isstr(200) and test("^[^\\s`<>|]+$")))
+      and (.issue | isstr(300) and test("^https://(github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$"))
+      and (.covers | isstr(400))))); "known_points must hold 1 to 30 rows of a title, an optional place, the https URL of a GitHub issue or a JIRA issue, and one sentence on what the issue covers")
+| req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .path, .try), (.known_points // [] | .[] | .title, .covers)] | map(select(type == "string") | printable) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
 | req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
     and ((.files | type) == "array") and (.files | length) >= 1 and (.files | length) <= 500 and (.files | all(relpath))); "every walkthrough area needs a layer, a summary, and 1 to 500 relative file paths")
@@ -404,7 +415,9 @@ def testfile: ascii_downcase | test($test_re);
     effort: "\(.effort.level) (\(.effort.level | level_name)) | ~\(.effort.minutes) minutes",
     change_type,
     diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
-    routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"]
+    routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"],
+    known: [(.known_points // [])[] | (.issue | capture("(?:/issues/(?<n>[0-9]+)|/browse/(?<k>[A-Z][A-Z0-9_]*-[0-9]+))$")) as $ref
+        | "- **\(.title | cell)**\(if .place == null then "" else " · " + ("`\(.place | gsub("`"; ""))`" | inert) end) — [\(if $ref.n != null then "#" + $ref.n else $ref.k end)](\(.issue)): \(.covers | cell)"]
   }
 | req((.tldr | length) >= 1 and (.tldr | length) <= 500; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 500, so write it shorter")
 JQ
@@ -452,14 +465,15 @@ def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<
 | (if ($walk.routes | length) == 0 then null else collapsed("<strong>Where to test</strong>"; (["| Method and path | What to try |", "| :--- | :--- |"] + $walk.routes) | join("\n")) end) as $test_block
 | (if ($entries | length) == 0 then null
    else collapsed("<strong>Actionable comments (\($entries | length))</strong>"; $entries | join("\n\n")) end) as $actionable_block
+| (if ($walk.known | length) == 0 then null else collapsed("<strong>Known points (\($walk.known | length))</strong>"; $walk.known | join("\n")) end) as $known_block
 | {
     listed: ($entries | length),
     code_used: $coded.used,
     code_shown: ([$coded.out[] | select(.show)] | length),
     code_omitted: ([$coded.out[] | select(.show | not) | select(.suggestion != null)] | length),
     blocks: ((if $walk.diagram == null then [] else ["```mermaid\n\($walk.diagram)\n```"] end) + [$coded.out[] | select(.show) | code_block]),
-    body: ([$tldr_block, $risk.independence, $risk_block, $walk_block, $test_block, $actionable_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
-    visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries | map(select(. != null)) | join("\n\n"))
+    body: ([$tldr_block, $risk.independence, $risk_block, $walk_block, $test_block, $actionable_block, $known_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
+    visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries + $walk.known | map(select(. != null)) | join("\n\n"))
   }
 JQ
 
@@ -1113,6 +1127,43 @@ Outside the diff.
   check 'a change that touches no page or route has no Where to test block' "$(yes_if review_has '.body | contains("Where to test") | not')"
   check 'a walkthrough with no diagram renders no sequence diagram and no fenced block in the body' \
     "$(yes_if review_has '(.body | split("\n\n<!-- cr-review-meta\n")[0] | test("```|~~~|Sequence Diagram") | not) and (.body | contains("**Estimated code review effort:** 1 (Trivial) | ~5 minutes\n**Change:** Bug fix"))')"
+
+  # 4b. a known point is shown in its own block and never counted as a finding
+  jq -c '. + {known_points: [{title: "Copied step", place: "src/A.php:11", issue: "https://github.com/o/r/issues/12", covers: "Issue 12 describes the copied step in the same invitation flow."},
+    {title: "Slow export", issue: "https://acme.atlassian.net/browse/ACME-7", covers: "ACME-7 reports the same slow export."}]}' "$tmp/walk.json" >"$tmp/walk-known.json"
+  WALK_FILE="$tmp/walk-known.json" run_post "[$f_in]"
+  check 'a walkthrough with known points posts one review' "$([[ $rc -eq 0 && "$(wc -l <"$tmp/review.calls" | tr -d ' ')" == "1" ]] && echo yes || echo no)"
+  check 'the Known points block lists each known point with its link and its sentence' \
+    "$(yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | contains("<strong>Known points (2)</strong>") and contains("- **Copied step** · <code>src/A.php&#58;11</code> — [#12](https://github.com/o/r/issues/12): Issue 12 describes the copied step in the same invitation flow.") and contains("- **Slow export** — [ACME-7](https://acme.atlassian.net/browse/ACME-7): ACME-7 reports the same slow export.")')"
+  check 'the Known points block follows the Actionable comments block' \
+    "$(yes_if review_has '.body | index("<strong>Actionable comments (1)</strong>") < index("<strong>Known points (2)</strong>")')"
+  check 'a known point is in no Actionable comments count' "$(yes_if review_has '.body | contains("<strong>Actionable comments (1)</strong>")')"
+  WALK_FILE="$tmp/walk-known.json" run_post '[]'
+  check 'a round with known points and no finding shows the Known points block and no Actionable comments block' \
+    "$(yes_if review_has '.body | contains("<strong>Known points (2)</strong>") and (contains("Actionable comments") | not)')"
+  check 'a round with no known point shows no Known points block' "$(WALK_FILE="$tmp/walk.json" run_post '[]'; yes_if review_has '.body | contains("Known points") | not')"
+  jq -c '.known_points[0].covers = "Issue 12 covers <details open> | here"' "$tmp/walk-known.json" >"$tmp/walk-known-markup.json"
+  WALK_FILE="$tmp/walk-known-markup.json" run_post '[]'
+  check 'the sentence of a known point renders as text, never as markup' "$([[ $rc -eq 0 ]] && yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | contains("<details open>") | not' || echo no)"
+  local kbad
+  for kbad in \
+    '[]' \
+    '"https://github.com/o/r/issues/12"' \
+    '[{"title":"t","issue":"http://github.com/o/r/issues/12","covers":"c"}]' \
+    '[{"title":"t","issue":"https://evil.example/o/r/issues/12","covers":"c"}]' \
+    '[{"title":"t","issue":"https://github.com/o/r/pull/12","covers":"c"}]' \
+    '[{"title":"t","issue":"https://github.com/o/r/issues/12"}]' \
+    '[{"issue":"https://github.com/o/r/issues/12","covers":"c"}]' \
+    '[{"title":"t","issue":"https://github.com/o/r/issues/12","covers":"c","severity":"Critical"}]' \
+    '[{"title":"t","place":"a b","issue":"https://github.com/o/r/issues/12","covers":"c"}]' \
+    '[{"title":"t","issue":"https://github.com/o/r/issues/12","covers":"```php\necho 1;\n```"}]'; do
+    jq -c --argjson k "$kbad" '. + {known_points: $k}' "$tmp/walk.json" >"$tmp/walk-bad.json"
+    WALK_FILE="$tmp/walk-bad.json" run_post "[$f_in]"
+    check "invalid known points are refused: ${kbad:0:60}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'known_points\|walkthrough' "$tmp/stderr" && echo yes || echo no)"
+  done
+  jq -c '.known_points[0].covers = "The review-state.sh script marks it as known."' "$tmp/walk-known.json" >"$tmp/walk-known-tool.json"
+  WALK_FILE="$tmp/walk-known-tool.json" run_post '[]'
+  check 'a known point that names the package tooling is refused' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'package tooling' "$tmp/stderr" && echo yes || echo no)"
 
   # 4a. the TL;DR holds 500 code points at most, counted once the text is normalised, and is never cut
   local tl_under tl_at tl_over tl_wide tl_marker
