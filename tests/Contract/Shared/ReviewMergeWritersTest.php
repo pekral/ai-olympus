@@ -627,23 +627,30 @@ test('the JIRA delete helper refuses a review comment when the view embeds fewer
         ->and($result['deleted'])->toBeFalse();
 });
 
+/**
+ * @return array<string, mixed>
+ */
+function reviewMergeJiraLinkNode(string $type): array
+{
+    $url = 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001';
+
+    return match ($type) {
+        'link' => ['marks' => [['attrs' => ['href' => $url], 'type' => 'link']], 'text' => 'this finding', 'type' => 'text'],
+        default => ['attrs' => ['url' => $url], 'type' => $type],
+    };
+}
+
 dataset('merge delete JIRA link replies', [
-    'a block card of the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'blockCard']],
-    'a linked text that points at the comment' => [
-        [
-            'marks' => [['attrs' => ['href' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'link']],
-            'text' => 'this finding',
-            'type' => 'text',
-        ],
-    ],
-    'a smart link to the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'inlineCard']],
+    'a block card of the comment' => ['blockCard'],
+    'a linked text that points at the comment' => ['link'],
+    'a smart link to the comment' => ['inlineCard'],
 ]);
 
-test('the JIRA delete helper counts a link to the comment in a document node as a reply', function (array $node): void {
+test('the JIRA delete helper counts a link to the comment in a document node as a reply', function (string $type): void {
     $marker = reviewMergeJiraMarker();
     $before = [
         reviewMergeJiraComment('10001', 'acc-agent', 'Round 1: the limit is 2 MB. ' . $marker),
-        reviewMergeJiraComment('10002', 'acc-other', ' is wrong.', [$node]),
+        reviewMergeJiraComment('10002', 'acc-other', ' is wrong.', [reviewMergeJiraLinkNode($type)]),
         reviewMergeJiraComment('10003', 'acc-agent', 'Round 2: merged. ' . $marker),
     ];
     $result = runReviewMergeJira(
@@ -658,29 +665,29 @@ test('the JIRA delete helper counts a link to the comment in a document node as 
 })->with('merge delete JIRA link replies');
 
 dataset('merge delete JIRA carriers', [
-    'a carrier and a target of another account that quotes the marker' => [
-        static fn (string $marker): array => [
-            reviewMergeJiraComment('20001', 'acc-stranger', 'Merged. ' . $marker),
-            reviewMergeJiraComment('20002', 'acc-stranger', 'Quoted. ' . $marker),
-        ],
-        ['--review-merge', 'ACME-1234', '20002', '20001'],
-    ],
-    'a carrier of the operator account without the marker' => [
-        static fn (string $marker): array => [
-            reviewMergeJiraComment('20001', 'acc-agent', 'Round 1. ' . $marker),
-            reviewMergeJiraComment('20002', 'acc-agent', 'A note of the operator.'),
-        ],
-        ['--review-merge', 'ACME-1234', '20001', '20002'],
-    ],
+    'a carrier and a target of another account that quotes the marker' => ['acc-stranger', 'acc-stranger', 'Merged. {marker}'],
+    'a carrier of the operator account without the marker' => ['acc-agent', 'acc-agent', 'A note of the operator.'],
 ]);
 
-test('the JIRA delete helper proves the merged comment against the authenticated account', function (Closure $comments, array $arguments): void {
-    $before = $comments(reviewMergeJiraMarker());
-    $result = runReviewMergeJira('skills/code-review-jira/scripts/delete-owned-comment.sh', $before, $before, $arguments);
+test(
+    'the JIRA delete helper proves the merged comment against the authenticated account',
+    function (string $targetAccount, string $carrierAccount, string $carrierText): void {
+        $marker = reviewMergeJiraMarker();
+        $before = [
+            reviewMergeJiraComment('20001', $targetAccount, 'Round 1. ' . $marker),
+            reviewMergeJiraComment('20002', $carrierAccount, str_replace('{marker}', $marker, $carrierText)),
+        ];
+        $result = runReviewMergeJira(
+            'skills/code-review-jira/scripts/delete-owned-comment.sh',
+            $before,
+            $before,
+            ['--review-merge', 'ACME-1234', '20001', '20002'],
+        );
 
-    expect($result['process']->getExitCode())->toBe(4)
-        ->and($result['deleted'])->toBeFalse();
-})->with('merge delete JIRA carriers');
+        expect($result['process']->getExitCode())->toBe(4)
+            ->and($result['deleted'])->toBeFalse();
+    },
+)->with('merge delete JIRA carriers');
 
 test('the JIRA delete helper deletes nothing when the account ID of the acli user cannot be resolved', function (): void {
     $marker = reviewMergeJiraMarker();
