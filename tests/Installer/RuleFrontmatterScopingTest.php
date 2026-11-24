@@ -492,7 +492,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the marker family names the `pr-body-overflow` namespace, the upserted pull-request body overflow comment (issue #662).
         // Re-baselined: the Exclusion Gate sees only the Moderate findings that the findings verification kept.
         // Re-baselined: *Bulk Data & Batch Processing* gains a fourth check, in-memory work that grows faster than the data (issue #680).
-        'rules/code-review/general.md' => '72e71012b732321e0484cd10f6b2ea7ef85ad253cb02609f6f374692f142c004',
+        'rules/code-review/general.md' => 'bac64437cf562a5aa04e104f978f20e75652b517f72f557e3c9eff6722d2f027',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
