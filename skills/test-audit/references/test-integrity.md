@@ -38,7 +38,7 @@ A regression test that passes on the code before the fix proves nothing (`@skill
    - `refuted`: the test passes before the fix. Rewrite the test until it fails there, and prove again. When no rewrite fails there, report it as unprovable with the reason.
    - `incomplete` or `unprovable`: report `Regression proof: unprovable — <reason>` in the handoff and on the `Evidence:` line. The script names the reason: a dependency change, an unsupported runner, a branch that changes test-side paths only, or a test with no result on the base (for example, the base code cannot load the test).
    - `refused` or `locked`: correct what the reason names, for example a dirty tree, a test path, or an ignored file at a path the branch deleted, and run it again.
-   - `blocked`: the tree did not return to the head. Run the recovery command the output prints before any other step. Every change is committed, so nothing is lost.
+   - `blocked`: the tree did not return to the head. Before any other step, restore each `restore` path of the `blocked-path` lines from HEAD and remove each `remove` path. Every change is committed, so nothing is lost. Never restore the whole tree: that also replaces a local edit git status does not show.
 4. A fix-round commit that changes a named regression test changes the key of the record, so prove again. A rebase and a commit that changes production code only keep the record.
 
 ### How the reviewer verifies it

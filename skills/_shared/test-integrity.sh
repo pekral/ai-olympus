@@ -35,8 +35,11 @@
 #      return to HEAD exits 5.
 #      Residual risk: SIGKILL cannot be trapped. A prover killed during the swap leaves the production paths at
 #      the base with no message. Every change is committed, so `git status` lists them, the next prove refuses
-#      the dirty tree, and `git restore --source=HEAD --worktree -- :/` plus removing the listed untracked files
-#      brings the tree back.
+#      the dirty tree, and restoring each tracked path git status lists from HEAD (`git restore --source=HEAD
+#      --worktree -- <path>`) plus removing each untracked file it lists brings the tree back. A whole-tree restore
+#      would also replace an assume-unchanged or skip-worktree edit that git status does not list.
+#      Residual risk: a write to a swapped path during the base run, by an editor or the operator, is replaced by
+#      the restore with no check.
 #   5. A test is proven when it failed or errored on the base and passed on HEAD. One base pass makes the
 #      record refuted; a missing result, a skip, or a HEAD failure makes it incomplete.
 #   6. Writes `<gate-evidence>/regression/<key>.json`, `<key>.base.xml`, `<key>.head.xml`, and `<key>.log`. The key
@@ -94,7 +97,8 @@
 # Output
 #   prove   `regression-proof=<proven|refuted|incomplete|unprovable|refused|blocked|locked>`, `reason=<text>` when
 #           it stopped, `record=<absolute path>` when it wrote one, and one
-#           `test TAB <verdict> TAB base=<status> TAB head=<status> TAB <file>::<name>` line per test
+#           `test TAB <verdict> TAB base=<status> TAB head=<status> TAB <file>::<name>` line per test; `blocked` adds
+#           one `blocked-path TAB <restore|remove> TAB <path>` line per path git status lists
 #   verify  one test line per test, then `base-message TAB <file>::<name> TAB <message>`, and the last line
 #           `verify-verdict=<proven|refuted|incomplete|stale|malformed|missing|refused>` with a `reason=` line before it
 #   scan    one `candidate TAB <kind> TAB <path> TAB <line or ->` line per place, where a removed line carries its
@@ -288,8 +292,16 @@ ti_swap_ready() {
   done
 }
 
+# The blocked verdict names only the paths git status lists: a tracked one to restore from HEAD, an untracked one to
+# remove. It never advises a whole-tree restore, which would replace an edit git status does not show.
 ti_blocked_message() {
-  printf 'regression-proof=blocked\nreason=the working tree did not return to HEAD; every change is committed, so run: git restore --source=HEAD --worktree -- :/ and remove the untracked files git status --untracked-files=all lists\n'
+  local entry action
+  printf 'regression-proof=blocked\nreason=the working tree did not return to HEAD; every change is committed, so run git restore --source=HEAD --worktree -- <path> for each restore path below and remove each remove path\n'
+  while IFS= read -r -d '' entry; do
+    action=restore
+    [[ "${entry:0:2}" != '??' ]] || action=remove
+    printf 'blocked-path\t%s\t%s\n' "$action" "$(safe_display "${entry:3}")"
+  done < <(git status --porcelain=v1 -z --no-renames --untracked-files=all 2>/dev/null)
 }
 
 ti_prove_exit() {
@@ -1283,6 +1295,32 @@ ti_selftest_prove_refusals() {
   ti_git checkout -q fix
 }
 
+# The blocked verdict lists each path git status shows and no whole-tree restore; following it keeps an
+# assume-unchanged edit outside those paths.
+ti_selftest_blocked_message() {
+  local action path
+  ti_git update-index --assume-unchanged composer.json
+  printf 'LOCAL\n' >"$TI_REPO/composer.json"
+  printf 'broken\n' >"$TI_REPO/src/calc.txt"
+  printf 'base\n' >"$TI_REPO/src/legacy.txt"
+  TI_OUT="$(cd "$TI_REPO" && ti_blocked_message)"
+  ti_assert 'prove: the blocked message names a changed path to restore' ti_scan_mentions $'blocked-path\trestore\tsrc/calc.txt'
+  ti_assert 'prove: the blocked message names an untracked path to remove' ti_scan_mentions $'blocked-path\tremove\tsrc/legacy.txt'
+  ti_assert 'prove: the blocked message advises no whole-tree restore' ti_not ti_scan_mentions ':/'
+  ti_assert 'prove: the blocked message never names a path git status does not list' ti_not ti_scan_mentions composer.json
+  while IFS=$'\t' read -r _ action path; do
+    if [[ "$action" == restore ]]; then
+      ti_git restore --source=HEAD --worktree -- "$path"
+    else
+      rm -f -- "$TI_REPO/$path"
+    fi
+  done < <(grep '^blocked-path' <<<"$TI_OUT")
+  ti_assert 'prove: following the blocked message keeps an assume-unchanged edit' ti_equals "$(cat "$TI_REPO/composer.json")" LOCAL
+  ti_git update-index --no-assume-unchanged composer.json
+  ti_git checkout -q -- composer.json
+  ti_assert 'prove: following the blocked message brings the tree back to HEAD' ti_clean_tree
+}
+
 ti_selftest_verify() {
   local record master head key dir
   ti_prove_calc
@@ -1680,6 +1718,7 @@ ti_selftest() {
   ti_selftest_prove
   unset TI_STUB_PROBE
   ti_selftest_prove_refusals
+  ti_selftest_blocked_message
   ti_selftest_verify
   ti_selftest_scan
   ti_selftest_shared_definition
