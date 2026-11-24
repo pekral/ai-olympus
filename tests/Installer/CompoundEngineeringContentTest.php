@@ -1358,10 +1358,11 @@ test('no agent writes a tracker status once the code review has started, on JIRA
     expect($rule)->not->toContain('**A reopened review reverts phase 3.**');
 
     expect($orchestration)->toContain('| `leonardo` | Add the `ready to merge` label to the pull request when the review converges');
-    expect($orchestration)->toContain('every JIRA status transition outside the two sanctioned helper-driven ones');
+    expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
     expect($orchestration)->toContain('the two sanctioned helper scripts, `@rules/jira/general.md`');
 
-    expect($jira)->toContain('- Never change JIRA issue status, with two exceptions:');
+    expect($jira)->toContain('- Never change JIRA issue status, with three exceptions:');
+    expect($jira)->toContain('The one exception is the third transition above, on the operator\'s own word.');
     expect($jira)->toContain('**No status change once the code review has started.**');
     expect($jira)->not->toContain('transition-to-ready-to-merge.sh');
     expect($jira)->toContain('acli jira workitem assign --key <KEY> --assignee "@me" --yes');
