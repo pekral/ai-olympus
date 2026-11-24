@@ -107,6 +107,7 @@ function manifestCallers(): array
             'not-verified: default-branch manifest',
         ],
         'plan-parallel' => ['skills/_shared/plan-parallel.sh', '', "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
+        'resolve-interactive-testing' => ['skills/_shared/resolve-interactive-testing.sh', '', '', 'stderr', 'read-manifest.sh'],
         'resolve-voice' => ['skills/agent-voice/scripts/resolve-voice.sh', '', '', 'stderr', 'read-manifest.sh'],
         'run-fast-checks' => ['skills/_shared/run-fast-checks.sh', '', '', 'stdout', 'cannot be read as a manifest'],
         'run-validation (project-commands)' => [
