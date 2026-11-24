@@ -92,7 +92,9 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         ->and($guard)->toContain('Run `vendor/bin/ai-olympus install --no-agent-guard`.')
         ->and($guard)->toContain('**The hook never allows a command only because no deny rule matched it.**')
         ->and($guard)->toContain('**The cost:** a confined role asks the user for every command that no allow rule of the settings files covers')
-        ->and($guard)->toContain('**The git object store is not writable.**');
+        ->and($guard)->toContain('**The git object store is not writable.**')
+        ->and($guard)->toContain('Not verified: that the probe reports a `--sandbox read-only` session as `active`')
+        ->and($guard)->not->toContain('hooks are read at session start');
 
     $residuals = [
         '1. **Codex**',
@@ -135,3 +137,7 @@ test('the boundary rule, SECURITY.md, and the merge skill hand the local post-me
         'A confined `krang` hands the local steps to the session without `--agent`',
     ],
 ]);
+
+test('the install summary of the guard makes no claim about when a session reads its hooks', function (): void {
+    expect(Pekral\AiOlympus\AgentGuardOutcome::Registered->installMessage())->not->toContain('session start');
+});
