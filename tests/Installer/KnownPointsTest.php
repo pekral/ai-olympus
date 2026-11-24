@@ -31,7 +31,7 @@ test('the rule says what counts as a linked issue on every tracker, and how the 
         ->toContain('`skills/code-review-jira/scripts/load-issue.sh`)')
         ->toContain('the GitHub issue of its `linkedIssues[]` is the task')
         ->toContain('the comment of a trusted author')
-        ->toContain('A comment of another author, and an agent comment, name no linked issue.');
+        ->toContain('A body or a comment of another author, and an agent comment, name no linked issue.');
 });
 
 test('the rule keeps the match test strict and the three exceptions as new findings', function (): void {
@@ -80,7 +80,7 @@ test('krang reads the linked issues when it gathers and compares after the barri
     expect($gather)
         ->toContain('`## Linked issues`')
         ->toContain('fenced `text` block')
-        ->toContain('Write a list that a loader marks incomplete into the brief as a truncation')
+        ->toContain('Write a list that a loader marks incomplete (`linkedIssuesComplete`, `mentionedKeysComplete`) into the brief as a truncation')
         ->toContain('never search the tracker for an issue that is not linked')
         ->toContain(knownPointsOwnerHeading() === '' ? '' : '*Known points — a finding that a linked issue already reports (issue #682)*');
     expect($round)
@@ -186,4 +186,20 @@ test('the known-point rule has one owner and names no concrete project', functio
     }
 
     expect($holders)->toBe([$owner]);
+});
+
+test('the task text names a linked issue only from a trusted author, and a short list says so', function (): void {
+    expect(knownPointsRule())
+        ->toContain('The body counts on GitHub only when its `authorAssociation` holds write access, and on JIRA only when the')
+        ->toContain('`mentionedKeysComplete: false` or `commentsComplete: false` on JIRA')
+        ->toContain('The compact form of each issue carries the trust facts');
+    expect(packageSource('skills/code-review-github/scripts/gather-issue-context.sh'))
+        ->toContain('line("Author association"; (.authorAssociation // "unknown"))')
+        ->toContain('line("Assignees"; (.assignees // [] | join(", ")))');
+    expect(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
+        ->toContain('line("Description by the operator account"; (if .descriptionTrusted == true then "yes" else "no" end))');
+    expect(packageSource('skills/code-review-jira/scripts/load-issue.sh'))
+        ->toContain('include "review-trust";')
+        ->toContain('select(trusted_jira_comment($actor; $o.assignee))')
+        ->not->toContain('.author == $o.assignee');
 });

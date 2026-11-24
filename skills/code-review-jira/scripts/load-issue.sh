@@ -14,7 +14,7 @@
 #
 #   {
 #     "key", "url", "summary", "status", "issueType", "priority",
-#     "assignee", "assigneeAccountId", "reporter", "creator", "created", "updated",
+#     "assignee", "assigneeAccountId", "reporter", "reporterAccountId", "creator", "created", "updated",
 #     "resolution", "resolutionDate", "dueDate", "environment",
 #     "labels", "components", "fixVersions",
 #     "parent":  { "key", "summary", "status" } | null,
@@ -26,6 +26,8 @@
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
 #     "mentionedKeys": [ "<KEY>" ],
+#     "mentionedKeysComplete": <bool>,
+#     "descriptionTrusted": <bool>,
 #     "subtasks":    [ { "key", "summary", "status", "type",
 #                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
@@ -95,6 +97,15 @@
 #     description / comments / attachments rather than breaking the whole load.
 #   - The Atlassian CLI `--paginate` flag emits a JSON stream (one document per
 #     page) instead of a single document. We slurp with `jq -s` to merge pages.
+#   - `descriptionTrusted` is true only when the reporter, who wrote the description, is the operator's own account:
+#     `reporterAccountId` equals `jira_actor_account_id` (skills/code-review-jira/scripts/jira-actor.sh). JIRA carries
+#     no role data, so no other reporter is trusted (rules/compound-engineering/tracker.md *Resolving trust per
+#     tracker*). An account that cannot be resolved makes it false.
+#   - `mentionedKeys` lists the issues of the same project that the task text names and that no native link carries.
+#     The task text is the description when `descriptionTrusted` is true, and each comment that passes
+#     `trusted_jira_comment` of skills/_shared/review-trust.jq. At most 20 keys are listed. `mentionedKeysComplete` is
+#     false when the list reached that cap, the operator account could not be resolved, the comment list is not
+#     complete, or the shared trust filter is missing, so a short list is never read as a whole one.
 #   - `pullRequests` are resolved via `gh search prs <KEY>` and may include PRs
 #     across any GitHub repo the current `gh` auth can see.
 #
@@ -468,7 +479,7 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-jq -n \
+DOC="$(jq -n \
   --arg key "$KEY" \
   --arg host "$HOST" \
   --arg contentHost "$CONTENT_HOST" \
@@ -648,6 +659,7 @@ def viewCommentIdx:
     assignee: ($f.assignee.displayName // null),
     assigneeAccountId: ($f.assignee.accountId // null),
     reporter: ($f.reporter.displayName // null),
+    reporterAccountId: ($f.reporter.accountId // null),
     creator: ($f.creator.displayName // null),
     created: ($f.created // null),
     updated: ($f.updated // null),
@@ -746,17 +758,30 @@ def viewCommentIdx:
 | .attachmentsFetch = (if ((.attachments | length) + ([.subtasks[].attachments[]] | length)) > 0
     then "skills/code-review-jira/scripts/download-attachments.sh " + $key
     else null end)
-# The issues of the same project that the task text names: the description and the comments of the issue assignee
-# (rules/compound-engineering/tracker.md *Resolving trust per tracker*, the display-name fallback). A comment with an
-# agent marker is no task text. Keys the issue already links as its parent, a subtask, or an issue link are left out,
-# so the list holds only what the native links do not.
-| . as $o
-| (($o.key | sub("-[0-9]+$"; "")) as $project
-   | [ [$o.descriptionText] + [ $o.comments[] | select(($o.assignee // "") != "" and .author == $o.assignee
-                                                       and ((.body | type) == "string") and (.body | test("[a-z][a-z0-9-]*:actor=") | not)) | .body ]
-       | .[] | select(type == "string") | scan("(?<![A-Za-z0-9_-])(\($project)-[0-9]{1,9})(?![0-9A-Za-z_-])") | .[0] ]
-   | unique
-   | map(select(. != $o.key and . != ($o.parent.key // "")
-                and (. as $k | ([$o.subtasks[].key] + [$o.issueLinks[].linkedKey]) | index([$k]) == null)))) as $mentioned
-| .mentionedKeys = $mentioned[0:20]
-'
+')"
+
+# The issues of the same project that the task text names (the header above). The trust test is the shared one, so
+# a change to it reaches this list too. Keys the issue already links as its parent, a subtask, or an issue link are
+# left out, so the list holds only what the native links do not.
+SHARED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared"
+# shellcheck source=jira-actor.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/jira-actor.sh"
+ACTOR_ID="$(jira_actor_account_id || true)"
+if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "$SHARED_DIR" --arg actor "$ACTOR_ID" '
+  include "review-trust";
+  . as $o
+  | ($actor != "" and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId == $actor) as $trusted
+  | (($o.key | sub("-[0-9]+$"; "")) as $project
+     | [ [ if $trusted then $o.descriptionText else empty end ]
+         + [ $o.comments[] | select(trusted_jira_comment($actor; $o.assignee)) | .body ]
+         | .[] | select(type == "string") | scan("(?<![A-Za-z0-9_-])(\($project)-[0-9]{1,9})(?![0-9A-Za-z_-])") | .[0] ]
+     | unique
+     | map(select(. != $o.key and . != ($o.parent.key // "")
+                  and (. as $k | ([$o.subtasks[].key] + [$o.issueLinks[].linkedKey]) | index([$k]) == null)))) as $mentioned
+  | .descriptionTrusted = $trusted
+  | .mentionedKeys = $mentioned[0:20]
+  | .mentionedKeysComplete = (($mentioned | length) <= 20 and $actor != "" and $o.commentsComplete == true)' 2>/dev/null)"; then
+  printf '%s\n' "$OUT"
+else
+  printf '%s' "$DOC" | jq '. + {descriptionTrusted: false, mentionedKeys: [], mentionedKeysComplete: false}'
+fi

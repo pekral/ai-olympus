@@ -77,11 +77,13 @@
 #   - `linkedIssues` (for issues) lists every issue the task is linked to, once each, in this order: the parent, the
 #     sub-issues, the issues that block it, the issues it blocks (the GitHub-native relations, read by one more GraphQL
 #     call), and the issues of the same repository that the task text names as `#<N>` or as a link. The task text is
-#     the issue body and the comments of a trusted author (rules/compound-engineering/tracker.md *Resolving trust per
-#     tracker*, `trusted_github_comment` in skills/_shared/review-trust.jq); at most 20 named issues are listed, and a
-#     named issue carries only its number and URL. The list is a pointer: the caller loads each issue through this
-#     script for its text. `linkedIssuesComplete` is false when the relation read failed or any list reached its cap
-#     (50 for a relation, 20 for the named issues), so an empty list reads as unverified unless the flag is true.
+#     the issue body when its author holds write access (`authorAssociation`), and the comments of a trusted author
+#     (rules/compound-engineering/tracker.md *Resolving trust per tracker*, `write_access` and `trusted_github_comment`
+#     in skills/_shared/review-trust.jq); at most 20 named issues are listed, and a named issue carries only its number
+#     and URL. The list is a pointer: the caller loads each issue through this script for its text and its author.
+#     `linkedIssuesComplete` is false when the relation read or the sub-issue read failed (`subIssuesComplete` false),
+#     or any list reached its cap (50 for a relation, 20 for the named issues), so an empty list reads as unverified
+#     unless the flag is true.
 #   - `subIssues` (for issues) is sourced from the GraphQL `subIssues` connection
 #     (the `gh` CLI `--json` projection does not expose it). Each entry carries
 #     the sub-issue's full body and comments so the assignment context is
@@ -277,14 +279,16 @@ if [[ "$KIND" == "issue" ]]; then
   SHARED_DIR="${BASH_SOURCE[0]%/*}/../../_shared"
   if [[ -f "$SHARED_DIR/review-trust.jq" ]]; then
     if LINKED_OUT="$(jq -n -c -L "$SHARED_DIR" --arg owner "$OWNER" --arg repo "$REPO" --argjson self "$NUMBER" \
-      --argjson payload "$PAYLOAD" --argjson sub "$SUBISSUES_JSON" --arg rel "${RAW_RELATIONS:-null}" '
+      --argjson payload "$PAYLOAD" --argjson sub "$SUBISSUES_JSON" --argjson subComplete "$SUBISSUES_COMPLETE" \
+      --argjson association "$AUTHOR_ASSOCIATION" --arg rel "${RAW_RELATIONS:-null}" '
       include "review-trust";
       def ref($relation): {relation: $relation, number: (.number // null), title: (.title // null), url: (.url // null), state: (.state // null)};
       def named: [ scan("(?<![A-Za-z0-9_/&])#([1-9][0-9]{0,8})(?![0-9A-Za-z_])") | .[0] | tonumber ]
         + [ scan("https://github\\.com/\($owner | gsub("\\."; "\\."))/\($repo | gsub("\\."; "\\."))/issues/([1-9][0-9]{0,8})(?![0-9])") | .[0] | tonumber ];
       ($rel | fromjson? // null) as $r
       | ($r.data.repository.issue // null) as $i
-      | ([ ($payload.body // "") ] + [ ($payload.comments // [])[] | select(trusted_github_comment) | .body ]
+      | ([ if ($association | write_access) then ($payload.body // "") else empty end ]
+         + [ ($payload.comments // [])[] | select(trusted_github_comment) | .body ]
          | map(select(type == "string") | named) | add // [] | unique | map(select(. != $self))) as $named_all
       | ($named_all | .[0:20]) as $named
       | ( [ ($i.parent // empty) | ref("parent") ]
@@ -296,7 +300,7 @@ if [[ "$KIND" == "issue" ]]; then
       | ($all | reduce .[] as $e ([]; if any(.[]; .number == $e.number) then . else . + [$e] end) | map(select(.number != $self))) as $linked
       | {linked: $linked,
          complete: (($i | type) == "object" and (($i.blockedBy.nodes // []) | length) < 50 and (($i.blocking.nodes // []) | length) < 50
-                    and ($named_all | length) <= 20 and ($sub | length) < 50)}' 2>/dev/null)" \
+                    and ($named_all | length) <= 20 and $subComplete == true)}' 2>/dev/null)" \
       && [[ -n "$LINKED_OUT" ]]; then
       LINKED_JSON="$(printf '%s' "$LINKED_OUT" | jq -c '.linked' 2>/dev/null || printf '[]')"
       LINKED_COMPLETE="$(printf '%s' "$LINKED_OUT" | jq -c '.complete' 2>/dev/null || printf 'false')"
