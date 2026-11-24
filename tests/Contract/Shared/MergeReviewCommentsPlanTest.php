@@ -651,6 +651,24 @@ test('the coverage check reads the hidden line fingerprint of a review comment a
         ->and($result['all']->getOutput())->toBe('');
 });
 
+dataset('merge coverage agent markers', [
+    'the GitHub marker of another namespace' => ['<!-- merge-readiness:actor=bot -->'],
+    'the GitHub review marker' => ['<!-- cr-comment:actor=bot -->'],
+    'the JIRA marker of another namespace' => ['_merge-readiness:actor=0123456789abcdef_'],
+    'a marker inside a fenced code block' => ["```\n<!-- merge-readiness:actor=bot -->\n```"],
+    'a marker in the middle of a sentence' => ['The record merge-readiness:actor=bot stays.'],
+]);
+
+test('the coverage check refuses a merged text that carries an agent marker before anything is published', function (string $marker): void {
+    $result = mergePlanCoverage([
+        'comments' => [['body' => "Round 1: 14 findings.\n\n" . mergePlanMarker(), 'id' => '801']],
+        'merge' => ['801'],
+    ], "Round 1: 14 findings.\n\n" . $marker . "\n");
+
+    expect($result['all']->getExitCode())->toBe(9)
+        ->and($result['all']->getOutput())->toContain('refused: the merged text carries an agent marker');
+})->with('merge coverage agent markers');
+
 test('the plan lists the line the operator added to a review comment, and the coverage check requires it', function (): void {
     $agent = 'Round 1: the upload limit is 2 MB.';
     $operator = 'Decision: keep the 2 MB limit.';

@@ -25,9 +25,11 @@
 #   thread, when the actor cannot be resolved, or when fewer than two review comments exist.
 #
 # coverage
-#   Lists every number (two digits or more, or `#<n>`), every URL, and every operator line of the named comments of the
-#   plan (default: every comment of `merge`) that the merged body file lacks; an operator line must stand in the body as a
-#   line of its own. A line fingerprint and a marker of a comment are no content. Exit 0 when none is missing, 6 otherwise.
+#   Refuses, with exit 9, a merged body file that carries an agent marker: the publishing wrapper adds the one marker of
+#   the comment. Then it lists every number of two digits or more, every `#<n>`, every URL, and every operator line of the
+#   named comments of the plan (default: every comment of `merge`) that the merged body file lacks; an operator line must
+#   stand in the body as a line of its own. A single digit is not checked, because it matches almost any text. A line
+#   fingerprint and a marker of a comment are no content. Exit 0 when nothing is missing, 6 otherwise.
 #
 # verify-read-back
 #   Loads the item again and proves that the carrier comment is readable, is a `review` comment of the operator's account,
@@ -41,7 +43,7 @@
 # Exit codes:
 #   1 usage or argument error   2 missing tool   3 loader or account lookup failed
 #   4 the Bugsnag operator account was not named   5 the plan stopped   6 coverage gap   7 read-back failed
-#   8 the comparison found a problem
+#   8 the comparison found a problem   9 the merged body carries an agent marker
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -290,6 +292,10 @@ cmd_coverage() {
     ids="$(printf '%s\n' "$@" | jq -R . | jq -s -c .)"
   else
     ids="$(jq -c '.merge' "$plan")"
+  fi
+  if jq -Rs -e -L "$JQ_LIB" 'include "review-trust"; agent_marker' "$body" >/dev/null; then
+    grep -Eo '[a-z][a-z0-9-]*:actor=[^[:space:]]*' "$body" | sed 's/^/refused: the merged text carries an agent marker: /'
+    exit 9
   fi
   source_file="$TMP_DIR/source.txt"
   jq -r --argjson ids "$ids" '.comments[] | select(.id as $i | $ids | index($i)) | .body // empty' "$plan" >"$source_file"
