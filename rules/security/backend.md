@@ -51,9 +51,9 @@ A page that a browser opens with a plain page load (a `GET` or `HEAD` request) m
 - **A page that only records a visit or a statistic is not a finding.**
 - **A return from an external sign-in or connection flow is not a finding** when its request carries a one-time value that is bound to the user who started the flow, and the handler checks that value before anything changes. A value that is missing, that is not bound to that user, or that the handler checks only after the change does not meet this exception.
 
-**Severity.** **Moderate**, as a security finding. It is never deferred to a later pull request (*Merging* in `@rules/git/pull-requests.md`) and never lowered. This section is the one owner of that severity. The finding names the page, with its HTTP method and path, and the change that it makes.
+**Severity.** **Moderate**, as a security finding, for a page that `@rules/api/general.md` *CR Severity Rules* does not already mark Critical. It is never deferred to a later pull request (*Merging* in `@rules/git/pull-requests.md`) and never lowered. This section is the one owner of that severity. The finding names the page, with its HTTP method and path, and the change that it makes.
 
-> **Scope boundary.** *CSRF Protection* owns the anti-CSRF token and the header checks of a request that is not a plain page load. This section owns a plain page load that changes data. Raise one finding per page: a page that is already reported under *CSRF Protection* is not reported again here. The sign-in requirement of a route stays with *Route Access*.
+> **Scope boundary.** *CSRF Protection* owns the anti-CSRF token and the header checks of a request that is not a plain page load. This section owns a plain page load that changes data. Raise one finding per page: a page that is already reported under *CSRF Protection* is not reported again here. A page that is also a `GET` that mutates state under `@rules/api/general.md` *CR Severity Rules* gets that one finding at the **Critical** severity of that rule, as a security finding that is never deferred. This section raises no second finding for it, and neither lens lowers the severity. The sign-in requirement of a route stays with *Route Access*.
 
 ## Output Rendering
 - Ensure output is encoded correctly for the corresponding context.

@@ -81,7 +81,8 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // Re-baselined: the Ignition finding is decided by the result, a guard that passes anywhere but a developer's own machine.
         // Re-baselined: the file gained the `## State Change on a Plain Page Load` section and a pointer bullet in `### CSRF Protection`. Nothing else in the file moved.
         // Re-baselined: the page selection of the plain page load section also covers a page whose handler reaches a changed line.
-        'backend.md' => '1ceb93695905faf15ba344286095731669ac158ba641bfccaecf89d0ba5f7577',
+        // Re-baselined: a page that the security rule and the API rule both match gets one finding at the Critical severity of the API rule.
+        'backend.md' => '5df65d3be5149e9f9efd4622c2017d920639e5ead292cadc8bfaa7c9a69120d4',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'mobile.md' => '5ab7dccc7d2b066e1f4da8461ec8f35a2899b1429c97deb3dfca23f493146e04',
