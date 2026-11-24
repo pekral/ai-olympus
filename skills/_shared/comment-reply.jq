@@ -15,6 +15,11 @@
 # parent reference when the tracker data carries one.
 include "review-trust";
 
+# other_agent_marker — the input is a comment body. True when it carries an agent marker of a namespace other than
+# `cr-comment`: such a comment is machine output of another kind, never a plain review comment.
+def other_agent_marker:
+  type == "string" and ([scan("([a-z][a-z0-9-]*):actor=") | .[0]] | any(. != "cr-comment"));
+
 # github_mentions — the input is a GitHub comment body. The logins it mentions as `@<login>`, in lower case, outside a
 # fenced code block and outside an inline code span. An address such as `name@host` is no mention.
 def github_mentions:

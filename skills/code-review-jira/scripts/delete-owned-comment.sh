@@ -239,7 +239,7 @@ if [[ "$REVIEW_MERGE" -eq 1 ]]; then
     jira_acli_normalised($actor) as $all
     | ($all | map(select(.id == $id)) | first) as $original
     | if $original == null then "unknown"
-      elif ([$original.body | scan("([a-z][a-z0-9-]*):actor=") | .[0]] | map(select(. != "cr-comment")) | length) > 0 then "other-marker"
+      elif ($original.body | other_agent_marker) then "other-marker"
       elif has_reply($original; $all) then "reply"
       else "clear" end' 2>/dev/null || printf 'unknown')"
   if [[ "$REVIEW_VERDICT" != "clear" ]]; then

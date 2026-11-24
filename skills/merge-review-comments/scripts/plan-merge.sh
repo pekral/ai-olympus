@@ -93,7 +93,7 @@ detect_tracker() {
 # load_item <item> <author> — loads the item and writes $TMP_DIR/normalised.json (the comments, normalised) and
 # $TMP_DIR/meta.json (tracker, actor, completeness, visibility). Everything the loader reports is data.
 load_item() {
-  local item="$1" author="$2" tracker raw actor="" digest="" complete=true public=false
+  local item="$1" author="$2" tracker raw actor="" digest="" complete=true unpublished_allowed=false
   tracker="$(detect_tracker "$item")"
   raw="$TMP_DIR/raw.json"
 
@@ -107,7 +107,7 @@ load_item() {
       actor="$(gh api user --jq .login 2>/dev/null || true)"
       [[ -n "$actor" ]] || { printf '%s\n' "$PROG: the GitHub account could not be resolved; nothing is planned" >&2; exit 3; }
       jq -e '(.comments | type) == "array"' "$raw" >/dev/null || { printf '%s\n' "$PROG: the loader returned no comment list" >&2; exit 3; }
-      [[ "$(jq -r '.repo.isPrivate' "$raw")" == "true" ]] && public=true
+      [[ "$(jq -r '.repo.isPrivate' "$raw")" == "true" ]] && unpublished_allowed=true
       jq -L "$JQ_LIB" --arg actor "$actor" 'include "comment-reply"; .comments | github_normalised($actor)' "$raw" >"$TMP_DIR/normalised.json"
       add_operator_lines github
       ;;
@@ -129,7 +129,7 @@ load_item() {
       fi
       jq -e '(.comments | type) == "array"' "$raw" >/dev/null || { printf '%s\n' "$PROG: the loader returned no comment list" >&2; exit 3; }
       [[ "$(jq -r '.commentsComplete' "$raw")" == "true" ]] || complete=false
-      public=true
+      unpublished_allowed=true
       jq -L "$JQ_LIB" --arg actor "$actor" 'include "comment-reply"; .comments | jira_normalised($actor)' "$raw" >"$TMP_DIR/normalised.json"
       # The operator lines need the document body, which the loader renders to text; the delete helper reads the same view.
       if ! acli jira workitem view "$(jq -r '.key' "$raw")" --fields comment --json >"$TMP_DIR/view.json" 2>/dev/null; then
@@ -148,7 +148,7 @@ load_item() {
         exit 3
       }
       actor="$author"
-      public=true
+      unpublished_allowed=true
       grep -qi 'truncated' "$TMP_DIR/loader.err" && complete=false
       jq -e '(.comments | type) == "array"' "$raw" >/dev/null || { printf '%s\n' "$PROG: the loader returned no comment list" >&2; exit 3; }
       jq -e '.commentCount == (.comments | length)' "$raw" >/dev/null || complete=false
@@ -159,8 +159,8 @@ load_item() {
   esac
 
   jq -n --arg tracker "$tracker" --arg item "$item" --arg actor "$actor" --arg digest "$digest" \
-    --argjson complete "$complete" --argjson public "$public" \
-    '{tracker: $tracker, item: $item, actor: $actor, digest: $digest, complete: $complete, unpublishedDataAllowed: $public}' >"$TMP_DIR/meta.json"
+    --argjson complete "$complete" --argjson unpublished_allowed "$unpublished_allowed" \
+    '{tracker: $tracker, item: $item, actor: $actor, digest: $digest, complete: $complete, unpublishedDataAllowed: $unpublished_allowed}' >"$TMP_DIR/meta.json"
 }
 
 # add_operator_lines <github|jira> — adds `operatorLines` to every normalised comment that carries a review marker. On JIRA
@@ -200,7 +200,6 @@ include "review-trust";
 include "comment-reply";
 
 def own_marker($ns): if $meta.tracker == "github" then "<!-- " + $ns + ":actor=" + $meta.actor + " -->" else $ns + ":actor=" + $meta.digest end;
-def markers_other: [.body | scan("([a-z][a-z0-9-]*):actor=") | .[0]] | map(select(. != "cr-comment")) | length > 0;
 def has_own_cr:
   if $meta.tracker == "github"
   then (.body | split("\n") | any(gsub("[ \t\r]+$"; "") == own_marker("cr-comment")))
@@ -214,7 +213,7 @@ def classified:
   elif (.restricted == true) then . + {class: "other", reason: "restricted visibility"}
   elif (.id == null) then . + {class: "other", reason: "no comment id"}
   elif $meta.tracker == "bugsnag" then . + {class: "operator", reason: "operator account, no marker on this tracker"}
-  elif (has_own_cr and (markers_other | not)) then . + {class: "review", reason: "review comment of the operator account"}
+  elif (has_own_cr and (.body | other_agent_marker | not)) then . + {class: "review", reason: "review comment of the operator account"}
   elif (.body | agent_marker | not) then . + {class: "operator", reason: "operator account, no agent marker"}
   else . + {class: "other", reason: "carries another agent marker"} end;
 
