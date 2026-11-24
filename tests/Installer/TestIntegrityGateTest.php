@@ -80,7 +80,7 @@ test('donatello proves each regression test and hands the record over', function
         ->and($agent)->toContain('- **Regression proof:** on a bug fix, `<record path> — proven` or `unprovable — <reason>`')
         ->and($agent)->toContain('run `skills/_shared/test-integrity.sh prove` directly, never inside `run-gate.sh`')
         ->and($skill)->toContain('After the commit, prove the regression test (`@skills/test-audit/references/test-integrity.md`).')
-        ->and($skill)->toContain('8. **The regression test is proven** on a bug fix (`@skills/test-audit/references/test-integrity.md`).')
+        ->and($skill)->toContain('8. **Tests proven and intact** — `@skills/test-audit/references/test-integrity.md`.')
         ->and(packageSource('skills/resolve-issue/references/pre-pr-self-check.md'))->toContain('(the eight listed in the skill body)');
 });
 
@@ -89,7 +89,7 @@ test('leonardo verifies the proof only from the trusted copy and never runs the 
 
     expect($agent)->toContain('**Test-integrity agenda:**')
         ->and($agent)->toContain('A check that did not run returns `not converged — test-integrity check incomplete: <reason>`, never a clean review.')
-        ->and($agent)->toContain('run the `skills/_shared/test-integrity.sh` of that clone in its `verify` mode only, after `skills/_shared/verify-installed-copy.sh` printed `installed-copy-verdict=verified` in the same shell call')
+        ->and($agent)->toContain('of that clone in its `verify` and `scan` modes only, after `skills/_shared/verify-installed-copy.sh` printed `installed-copy-verdict=verified` in the same shell call')
         ->and($agent)->toContain('and never its `prove` mode;');
 });
 
@@ -99,3 +99,68 @@ test('both Codex agents name the prover among their helpers', function (string $
     'donatello' => ['codex/agents/donatello.toml'],
     'leonardo' => ['codex/agents/leonardo.toml'],
 ]);
+
+test('the scan proves every acceptance scenario of the weakening check in its self-test', function (): void {
+    $script = packageSource('skills/_shared/test-integrity.sh');
+
+    foreach ([
+        'scan: a deleted test file is a candidate',
+        'scan: a test file moved out of the test side is a candidate',
+        'scan: a removed test declaration is a candidate',
+        'scan: a removed assertion in a pre-existing test is a candidate',
+        'scan: an added skip is a candidate',
+        'scan: a skip written with spaces is a candidate',
+        'scan: a skip written in another case is a candidate',
+        'scan: a skip at the end of a chain is a candidate',
+        'scan: an added exclude in the test configuration is a candidate',
+        'scan: a deleted workflow is a candidate',
+        'scan: a removed workflow line is a candidate',
+        'scan: an added continue-on-error is a candidate',
+        'scan: a lowered coverage minimum is a candidate',
+        'scan: a removed Composer script entry is a candidate',
+        'scan: a lowered PHPStan level is a candidate',
+        'scan: a test file moved inside the test side unchanged is no candidate',
+        'scan: a test the change adds is no candidate',
+        'scan: the output carries no text of a diff line',
+        'scan: the output carries no escape character',
+        'scan: a binary diff of a test-side path is incomplete',
+        'scan: a path with a control character is incomplete',
+        'scan: a git error is incomplete, never clean',
+        'scan: a jq error is incomplete, never clean',
+    ] as $label) {
+        expect($script)->toContain("'" . $label . "'");
+    }
+});
+
+test('the review raises an unexplained weakened test or CI check as Critical and never twice', function (): void {
+    $rule = packageSource('rules/code-review/core-analysis.md');
+    $reference = packageSource('skills/test-audit/references/test-integrity.md');
+
+    expect($rule)->toContain('runs on every review, a diff that changes no test included')
+        ->and($rule)->toContain('**Critical:** a test the diff removes, weakens, or skips, or a CI check it switches off or loosens, with no stated reason or a reason the review rejects')
+        ->and($rule)->toContain('**Not findings:** a test removed with the behaviour the assignment removed')
+        ->and($rule)->toContain('a suppression keeps the bullet above, a junk test the pull request adds keeps the `cr` lens of `@skills/test-audit/SKILL.md`')
+        ->and($rule)->toContain('the Assignment Conformance Gate does not raise the same line again')
+        ->and(packageSource('skills/code-review/references/assignment-conformance-gate.md'))
+        ->toContain('**Gating — a weakened test or CI check.**')
+        ->and($reference)->toContain('`Test change: <path>[::<test>] — <kind> — <reason>`')
+        ->and($reference)->toContain('**A weakened security check is a security finding.**')
+        ->and($reference)->toContain('a `scan` whose last line is not `scan-verdict=complete`')
+        ->and(packageSource('skills/resolve-issue/templates/pull-request-body.md'))->toContain('Test change: <path>[::<test>] — <kind> — <reason>');
+});
+
+test('a light round still runs the test-integrity check over the whole pull request', function (): void {
+    expect(packageSource('rules/code-review/review-rounds.md'))
+        ->toContain('Four are named because narrowing them would lose a real defect')
+        ->toContain('the **test-integrity check** of `@skills/test-audit/references/test-integrity.md`');
+});
+
+test('leonardo scans every review and donatello states a reason for every candidate', function (): void {
+    $leonardo = packageSource('agents/leonardo.md');
+    $donatello = packageSource('agents/donatello.md');
+
+    expect($leonardo)->toContain('**Test-integrity agenda:** on every review, a diff that changes no test included, run `scan`')
+        ->and($leonardo)->toContain('in its `verify` and `scan` modes only')
+        ->and($donatello)->toContain('Run its `scan` before the pull request and write a `Test change:` line with the reason for each candidate')
+        ->and(packageSource('rules/code-review/hotfix-review.md'))->toContain('Its scan for a weakened test or CI check still runs.');
+});
