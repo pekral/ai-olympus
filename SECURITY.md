@@ -152,7 +152,7 @@ Codex gives a custom agent no sandbox of its own: the sandbox and the approval p
 5. **A nested sandbox:** macOS refuses `sandbox-exec` inside another sandbox, so inside the Claude Code sandbox the guard reports `inactive`.
 6. **The network.** A confined role can still reach the network (`gh` needs it). Only `--deny-network-bash` and the deny-rule check above restrict it.
 7. **Inter-process channels to unconfined processes:** the docker daemon, a tmux or screen server, `open` / `osascript` / launchd on macOS, a local application with a writing endpoint, and an MCP server.
-8. **Linux only:** `bwrap` cannot refuse a symbolic link inside `.claude/run/`, and a worktree another run creates while the command runs is not covered by its read-only mounts.
+8. **Linux only:** `bwrap` binds by directory, never by name. It cannot refuse a symbolic link inside `.claude/run/`, and it cannot refuse a new directory of another name inside `.claude/worktrees/` or the git `worktrees/` directory for `leonardo`, `splinter`, and `krang`. It keeps every existing worktree of another role read-only, but not one created while the command runs.
 9. **A writing role or the main session can change the guard.** They may edit `.claude/settings*.json` and the installed script; Claude Code asks before such a write unless the session runs with `bypassPermissions`. `agent-guard.sh verify` detects the change; it does not prevent it.
 10. **A changed `composer.lock`** on a branch with `auto-install` installs another version of the script: a deliberate change of configuration, which this protection does not cover.
 

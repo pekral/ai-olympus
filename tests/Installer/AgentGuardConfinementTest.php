@@ -247,7 +247,7 @@ test('each confined role keeps the writes its definition documents', function (s
     'splinter' => ['splinter', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-splinter HEAD'],
 ]);
 
-test('a review role cannot open the review worktree of another role', function (): void {
+test('a review role cannot open the review worktree of another role on macOS', function (): void {
     $root = AgentGuardRun::repository();
 
     try {
@@ -255,6 +255,22 @@ test('a review role cannot open the review worktree of another role', function (
 
         expect($process->getExitCode())->not->toBe(0)
             ->and(is_dir($root . '/.claude/worktrees/agent-cr-slug-leonardo/.git'))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(
+    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
+    'bwrap binds .claude/worktrees by directory, not by name, which SECURITY.md names as a residual',
+);
+
+test('a review role cannot write into the existing review worktree of another role', function (): void {
+    $root = AgentGuardRun::repository();
+    installerWriteFile($root . '/.claude/worktrees/agent-cr-slug-leonardo/review.md', 'leonardo');
+
+    try {
+        AgentGuardRun::exec($root, 'splinter', 'echo splinter > .claude/worktrees/agent-cr-slug-leonardo/review.md');
+
+        expect(file_get_contents($root . '/.claude/worktrees/agent-cr-slug-leonardo/review.md'))->toBe('leonardo');
     } finally {
         AgentGuardRun::remove($root);
     }
