@@ -89,7 +89,10 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         ->and($guard)->toContain('### Strict mode')
         ->and($guard)->toContain('### What stays outside the guard')
         ->and($guard)->toContain('On Codex the read-only limit of a role inside a writing session stays **advisory**.')
-        ->and($guard)->toContain('Run `vendor/bin/ai-olympus install --no-agent-guard`.');
+        ->and($guard)->toContain('Run `vendor/bin/ai-olympus install --no-agent-guard`.')
+        ->and($guard)->toContain('**The hook never allows a command only because no deny rule matched it.**')
+        ->and($guard)->toContain('**The cost:** a confined role asks the user for every command that no allow rule of the settings files covers')
+        ->and($guard)->toContain('**The git object store is not writable.**');
 
     $residuals = [
         '1. **Codex**',
@@ -102,6 +105,8 @@ test('SECURITY.md carries one section per platform and every residual of the gua
         '8. **Linux only:**',
         '9. **A writing role or the main session can change the guard.**',
         '10. **A changed `composer.lock`**',
+        '11. **macOS only: a process left running after the command.**',
+        '12. **`.claude/run/**` stays writable**',
     ];
 
     foreach ($residuals as $residual) {
