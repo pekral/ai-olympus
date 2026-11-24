@@ -46,6 +46,16 @@ A changed line is **off** it when it cannot be reached or influenced by an attac
 - privilege escalation
 - broken access control
 
+### State Change on a Plain Page Load (issue #681)
+This step runs in **every review round**, on the diff of that round, whatever the earlier rounds reported. `@rules/security/backend.md` *State Change on a Plain Page Load (issue #681)* owns the rule: what is a finding, the safe shape, the exceptions, the scope, and the severity. This step applies it and restates none of it.
+
+1. **Select the pages.** Take each page that a browser opens with a plain page load and that the diff adds, and each such page whose route definition or handler the diff changes. A route that accepts `GET` counts, whether it is declared with `Route::get`, with `Route::any`, or with `Route::match` that lists `GET`. A diff that changes no such page answers `Plain page load: not applicable — the diff changes no page that a plain page load opens`.
+2. **Read what the handler changes.** Follow the handler and the code it calls, statically and without running code of the head. Note each write to stored data, each call that connects or disconnects an external account or service, and each change of a setting.
+3. **Decide each page.** A page that changes data or connects an external account or service is a finding at the severity the rule states: Moderate, which is Medium on the scale of this skill. A page that only records a visit or a statistic, and a return from an external flow whose one-time value is bound to the user and checked before the change, are named with their `file:line` evidence and raise no finding. A page that the code does not settle goes under *Not verified* with the step that settles it.
+4. **One finding per page.** A page that is already reported under the anti-CSRF check is not reported again.
+
+The per-page statements go into the report under `### Plain Page Load` of `templates/audit-report.md`.
+
 ### Route Access of Changed Routes (issue #586)
 This step runs in **every review round**, on the diff of that round, whatever the earlier rounds reported. `@rules/security/backend.md` *Route Access (issue #586)* owns the rule: what an internal route is, its severity, the public-by-design exception, and the *Not verified* case. This step applies it and restates none of it.
 

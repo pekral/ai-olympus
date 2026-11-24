@@ -40,6 +40,20 @@ Apply the following rules only if authentication relies on cookies instead of to
 - Use anti-CSRF tokens for state-changing operations.
 - Validate `Origin` and `Referer` headers for non-GET requests.
 - Require re-authentication before performing sensitive actions.
+- Never change data on a plain page load. The token and the header checks above cannot protect a `GET` request, so *State Change on a Plain Page Load* below owns that surface.
+
+## State Change on a Plain Page Load (issue #681)
+A page that a browser opens with a plain page load (a `GET` or `HEAD` request) must never change data. A link, a hidden image, or a redirect on a foreign website makes the browser of a signed-in user open such a page with the user's session. The user never sees or confirms the change. Apply this section where the browser of a signed-in user sends its session cookie with the request, as in *CSRF Protection*.
+
+- **What is a finding.** A page that the diff adds or changes, that a plain page load opens, and that changes data or connects an external account or service. For example, it connects or disconnects an account, deletes a record, or changes a setting.
+- **The safe shape.** The page only shows what will happen. The change runs only after the signed-in user confirms it in a form that carries an anti-CSRF token and is sent with `POST`, `PUT`, `PATCH`, or `DELETE`. The Suggested Fix names the page and proposes this shape.
+- **Only the pages of the change are checked.** A page the diff adds, and a page whose route definition or handler the diff changes. An existing page outside the change is not a finding. `@skills/security-audit/SKILL.md` covers every existing page on request.
+- **A page that only records a visit or a statistic is not a finding.**
+- **A return from an external sign-in or connection flow is not a finding** when its request carries a one-time value that is bound to the user who started the flow, and the handler checks that value before anything changes. A value that is missing, that is not bound to that user, or that the handler checks only after the change does not meet this exception.
+
+**Severity.** **Moderate**, as a security finding. It is never deferred to a later pull request (*Merging* in `@rules/git/pull-requests.md`) and never lowered. This section is the one owner of that severity. The finding names the page, with its HTTP method and path, and the change that it makes.
+
+> **Scope boundary.** *CSRF Protection* owns the anti-CSRF token and the header checks of a request that is not a plain page load. This section owns a plain page load that changes data. Raise one finding per page: a page that is already reported under *CSRF Protection* is not reported again here. The sign-in requirement of a route stays with *Route Access*.
 
 ## Output Rendering
 - Ensure output is encoded correctly for the corresponding context.

@@ -79,7 +79,8 @@ test('the three security rule bodies stay byte-identical below the frontmatter (
         // Re-baselined: every decision point of a dashboard access path must deny a guest, gate hooks and the Ignition guard included.
         // Re-baselined: the Ignition guard rule names its three inputs, `app.debug`, the runnable-solutions flag, and the environment.
         // Re-baselined: the Ignition finding is decided by the result, a guard that passes anywhere but a developer's own machine.
-        'backend.md' => '585a09f6d20770fcadc348ae149de449d3ec07dfaaaf41c119a711bc424abaa8',
+        // Re-baselined: the file gained the `## State Change on a Plain Page Load` section and a pointer bullet in `### CSRF Protection`. Nothing else in the file moved.
+        'backend.md' => '58e1e8de1240291ff89bbba269f1f27a6ba01e27d52a639b3703736935926f67',
         'frontend.md' => 'e0e70a6cb2be15e314a933c788a333bb77f98fc00d9149fae9fe11b9d83476cf',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'mobile.md' => '5ab7dccc7d2b066e1f4da8461ec8f35a2899b1429c97deb3dfca23f493146e04',
