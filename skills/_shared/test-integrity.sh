@@ -18,7 +18,9 @@
 # prove — the implementer runs it in its own worktree, after it committed the fix and the test
 #   1. Refuses (exit 3, the tree untouched) a working tree with any change or untracked file, a command that
 #      `validate_command` of project-commands.sh refuses or that sets `--log-junit` itself, and a test that is not
-#      a regular test-side file the branch changed since its merge base with the default branch.
+#      a regular test-side file the branch changed since its merge base with the default branch. It also refuses
+#      an ignored file at a production path the branch deleted, or at a parent of that path, because the swap
+#      would write the base file over it and the restore would delete it.
 #   2. Ends unprovable (exit 4, no swap) when the runner is not `vendor/bin/pest` or `vendor/bin/phpunit`, when the
 #      branch changes a dependency manifest or lockfile, or when it changes test-side paths only.
 #   3. Holds the machine lock (gate_lock_acquire) for the swap and both runs. It never starts another wrapper of
@@ -26,6 +28,10 @@
 #   4. Puts every production path the branch changed back to the merge base (`git restore --source=<base>
 #      --worktree`, the index untouched), runs the named tests with `--log-junit`, restores HEAD, and runs them
 #      again. A trap restores HEAD on every exit, a signal included; a tree that does not return to HEAD exits 5.
+#      Residual risk: SIGKILL cannot be trapped. A prover killed during the swap leaves the production paths at
+#      the base with no message. Every change is committed, so `git status` lists them, the next prove refuses
+#      the dirty tree, and `git restore --source=HEAD --worktree -- :/` plus removing the listed untracked files
+#      brings the tree back.
 #   5. A test is proven when it failed or errored on the base and passed on HEAD. One base pass makes the
 #      record refuted; a missing result, a skip, or a HEAD failure makes it incomplete.
 #   6. Writes `<gate-evidence>/regression/<key>.json`, `<key>.base.xml`, `<key>.head.xml`, and `<key>.log`. The key
@@ -214,6 +220,19 @@ ti_restore() {
   return "$failed"
 }
 
+# The swap may create the path: nothing sits at it, and each of its parents is a directory or absent. A clean
+# status does not show an ignored file, and the swap would write over it and the restore would delete it.
+ti_swap_target_free() {
+  local dir
+  [[ ! -e "$1" && ! -L "$1" ]] || return 1
+  dir="$(dirname -- "$1")"
+  while [[ "$dir" != . && "$dir" != / ]]; do
+    [[ ! -e "$dir" || -d "$dir" ]] || return 1
+    dir="$(dirname -- "$dir")"
+  done
+  return 0
+}
+
 ti_blocked_message() {
   printf 'regression-proof=blocked\nreason=the working tree did not return to HEAD; every change is committed, so run: git restore --source=HEAD --worktree -- :/ and remove the untracked files git status --untracked-files=all lists\n'
 }
@@ -312,6 +331,10 @@ ti_prove() {
     fi
   done
   [[ "${#production[@]}" -gt 0 ]] || ti_prove_stop 4 unprovable 'no production change: the branch changes test-side paths only'
+  for path in ${TI_SWAP_CREATED[@]+"${TI_SWAP_CREATED[@]}"}; do
+    gate_no_symlink "$path" || ti_prove_stop 3 refused "$GATE_REASON"
+    ti_swap_target_free "$path" || ti_prove_stop 3 refused "an ignored file sits at a path the branch deleted, or at a parent of it: $path"
+  done
 
   gate_evidence_dir write || ti_prove_stop 3 refused "$GATE_REASON"
   local dir="$GATE_EVIDENCE/regression" key record base_xml head_xml log file
@@ -825,6 +848,8 @@ ti_selftest_repo() {
   printf '{}\n' >"$TI_REPO/composer.json"
   printf 'broken\n' >"$TI_REPO/src/calc.txt"
   printf 'legacy\n' >"$TI_REPO/src/legacy.txt"
+  mkdir -p "$TI_REPO/src/gone"
+  printf 'gone\n' >"$TI_REPO/src/gone/old.txt"
   printf 'it adds\n' >"$TI_REPO/tests/CalcTest.php"
   printf 'other\n' >"$TI_REPO/tests/OtherTest.php"
   git -C "$TI_REPO" init -q
@@ -834,7 +859,7 @@ ti_selftest_repo() {
   ti_git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/master
   ti_git checkout -q -b fix
   printf 'fixed\n' >"$TI_REPO/src/calc.txt"
-  ti_git rm -q src/legacy.txt
+  ti_git rm -q src/legacy.txt src/gone/old.txt
   printf 'helper\n' >"$TI_REPO/src/helper.txt"
   printf 'it adds\nit adds again\n' >"$TI_REPO/tests/CalcTest.php"
   ti_git add -A
@@ -995,6 +1020,23 @@ ti_selftest_prove_refusals() {
   ti_assert 'prove: a test without a name is refused' ti_equals "$TI_RC" 3
   ti_assert 'prove: no refused or unprovable call ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
   ti_assert 'prove: the tree is untouched by every refusal' ti_clean_tree
+
+  ti_git checkout -q -b ignored fix
+  printf '/src/legacy.txt\n/src/gone\n' >>"$TI_REPO/.gitignore"
+  ti_git commit -q -am ignore
+  printf 'mine\n' >"$TI_REPO/src/legacy.txt"
+  ti_prove_calc
+  ti_assert 'prove: an ignored file at a path the branch deleted is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the refused run keeps the ignored file' ti_equals "$(cat "$TI_REPO/src/legacy.txt")" mine
+  rm -f "$TI_REPO/src/legacy.txt"
+  rm -rf "$TI_REPO/src/gone"
+  printf 'mine\n' >"$TI_REPO/src/gone"
+  ti_prove_calc
+  ti_assert 'prove: an ignored file at a parent of a path the branch deleted is refused' ti_equals "$TI_RC" 3
+  ti_assert 'prove: the refused run keeps the ignored parent file' ti_equals "$(cat "$TI_REPO/src/gone")" mine
+  rm -f "$TI_REPO/src/gone"
+  ti_assert 'prove: no run with an ignored file at a deleted path ran the runner' ti_equals "$(ti_stub_calls)" "$calls"
+  ti_git checkout -q fix
 
   ti_git checkout -q -b deps fix
   printf '{"require": {}}\n' >"$TI_REPO/composer.json"
