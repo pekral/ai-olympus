@@ -88,6 +88,8 @@ SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GH_LOADER="$SKILLS_DIR/code-review-github/scripts/load-issue.sh"
 JIRA_DIR="$SKILLS_DIR/code-review-jira/scripts"
 AUDIT="$SKILLS_DIR/_shared/audit-trail.sh"
+# shellcheck source=../../code-review-jira/scripts/jira-write-guards.sh
+source "$JIRA_DIR/jira-write-guards.sh"
 
 if ! "$SKILLS_DIR/_shared/assert-current-repo.sh" "$PR_URL" >/dev/null; then
   echo "$PROG: $PR_URL does not belong to the current repository — nothing written." >&2
@@ -103,11 +105,10 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 AUTHOR="$(jq -r '.author // empty' <<<"$PR_JSON")"
 ASSOCIATION="$(jq -r '.authorAssociation // empty' <<<"$PR_JSON")"
-OPERATOR="$(gh api user --jq .login 2>/dev/null || true)"
 IS_BOT=false
-[[ -z "$AUTHOR" || "$AUTHOR" == app/* || "$AUTHOR" == *"[bot]" ]] && IS_BOT=true
+github_login_is_bot "$AUTHOR" && IS_BOT=true
 TRUSTED=false
-if [[ -n "$AUTHOR" && -n "$OPERATOR" && "$(lower "$AUTHOR")" == "$(lower "$OPERATOR")" ]] \
+if github_login_is_operator "$AUTHOR" \
   || [[ " OWNER MEMBER COLLABORATOR " == *" $ASSOCIATION "* && -n "$ASSOCIATION" ]]; then
   TRUSTED=true
 fi

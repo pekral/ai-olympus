@@ -625,3 +625,19 @@ test('the JIRA write helpers share one key normaliser, synonym match, and JQL ch
             ->and($source)->not->toContain('sed -nE \'s#.*/browse/');
     }
 });
+
+test('the driver and the assign helper share one bot test and one operator-account test', function (): void {
+    $guards = packageSource('skills/code-review-jira/scripts/jira-write-guards.sh');
+
+    expect($guards)->toContain('github_login_is_bot() {')
+        ->and($guards)->toContain('github_login_is_operator() {');
+
+    foreach ([READY_TO_DEPLOY_DRIVER, READY_TO_DEPLOY_ASSIGN] as $script) {
+        $source = packageSource($script);
+
+        expect($source)->toContain('github_login_is_bot "$AUTHOR"')
+            ->and($source)->toContain('github_login_is_operator "$AUTHOR"')
+            ->and($source)->not->toContain('== app/*')
+            ->and($source)->not->toContain('gh api user --jq');
+    }
+});

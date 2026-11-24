@@ -69,7 +69,11 @@ if [[ ! "$KEY" =~ ^[A-Z][A-Z0-9_]+-[0-9]+$ || -z "$AUTHOR" ]]; then
   exit 1
 fi
 
-if [[ "$AUTHOR" == app/* || "$AUTHOR" == *"[bot]" ]]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=jira-write-guards.sh
+source "$SCRIPT_DIR/jira-write-guards.sh"
+
+if github_login_is_bot "$AUTHOR"; then
   echo "$PROG: the pull-request author of $KEY is a bot account — assignee unchanged." >&2
   exit 6
 fi
@@ -91,15 +95,7 @@ for bin in acli jq gh; do
   fi
 done
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=jira-write-guards.sh
-source "$SCRIPT_DIR/jira-write-guards.sh"
-
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
-OPERATOR="$(gh api user --jq .login 2>/dev/null || true)"
-
-if [[ -n "$OPERATOR" && "$(lower "$OPERATOR")" == "$(lower "$AUTHOR")" ]]; then
+if github_login_is_operator "$AUTHOR"; then
   ASSIGNEE='@me'
   PREDICATE='assignee = currentUser()'
 elif [[ -n "$EMAIL" ]]; then
