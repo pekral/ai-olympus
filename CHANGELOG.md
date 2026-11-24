@@ -4,6 +4,8 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 💥 **Changed**: commit granularity follows the acceptance criteria, so a human can review a pull request commit by commit. The implementer lists the criteria of the assignment first. Each criterion lands in its own commit with its test, shared groundwork lands in a commit before them, and an assignment without explicit criteria is divided by its points. The PR *Walkthrough* rows follow the commit order. Commits stay ungated on their own, are not required to be cherry-pickable, and their division is not a review finding.
+
 - ✨ **Added**: the implementer checks the places the actual diff affects before the pull request. `resolve-issue` step 17 and `references/diff-impact-check.md` run the impact walk on the real diff, not only on the planned change. Every caller and consumer outside the diff is proven working or repaired in the same pull request. Every other place an acceptance criterion covers gets the same fix; a place no criterion covers is recorded as a deferred item.
 
 - ✨ **Added**: the `x-brand-writing` skill drafts exactly two distinct, evidence-based X post or thread variants for the host project. It applies the installed project voice when available, recommends an existing host asset for each variant, keeps optional style preferences in the host project, and never publishes to X.

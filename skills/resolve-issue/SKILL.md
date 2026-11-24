@@ -111,9 +111,13 @@ Only after Read, Map, and Verify are complete may implementation begin.
 
 ### Committing
 
-How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*).
+Divide the in-scope work by the acceptance criteria (`@rules/git/general.md` *Commit granularity*), so a human can review the pull request commit by commit:
 
-Two constraints remain, and neither is about granularity:
+1. Before the first line of code, list the acceptance criteria of the assignment and the groundwork that two or more of them share.
+2. Commit the shared groundwork first, then each criterion in its own commit with its test. The subject names the criterion.
+3. Before the pull request opens, compare `git log --oneline "origin/$DEFAULT_BRANCH"..HEAD` with the list. Regroup a commit that mixes two criteria while the branch is not under review.
+
+Two more constraints apply:
 
 - A point's test and the change that makes it pass land in the **same** commit, and no failing or simulated-failing test is ever committed (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*).
 - Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).

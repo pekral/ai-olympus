@@ -226,16 +226,20 @@ test(
     },
 );
 
-test('commit granularity is the author\'s judgment, and the package says what that costs', function (): void {
+test('commit granularity follows the acceptance criteria, without the withdrawn planning machinery', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = gitRuleContents();
     $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
 
     // The package used to mandate one commit per phase and per enumerated assignment point,
     // ordered for cherry-pickability, with no commit shipping a symbol its own tree did not call.
-    // None of it was ever a review criterion, and it cost a plan table plus a reconciliation pass
-    // on every run. Withdrawn, and the withdrawal states its own cost.
-    expect($rule)->toContain('**Commit granularity is the author\'s judgment.**');
+    // It cost a plan table plus a reconciliation pass on every run, and it was withdrawn. A human
+    // who reviews a pull request by hand still needs one commit per acceptance criterion, so that
+    // division is back — without the phases, the cherry-pick ordering, and the plan table.
+    expect($rule)->toContain('**Commit granularity follows the acceptance criteria.**');
+    expect($rule)->toContain('**One criterion, one commit.**');
+    expect($rule)->toContain('the commit division is not a review finding');
+    expect($skill)->toContain('Divide the in-scope work by the acceptance criteria');
 
     $withdrawnMandates = [
         'One phase = one commit.',
