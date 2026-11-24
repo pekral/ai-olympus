@@ -1,5 +1,9 @@
 ## Security Audit Report - <Project Name>
 
+### Plain Page Load
+- `<METHOD> <uri>` — change on load: none | records a visit or a statistic | data changed (what) | return from an external flow (one-time value `file:line`, check `file:line`) — verdict: finding | not a finding (reason) | not verified (step that settles it)
+- `Plain page load: not applicable — the diff changes no page that a plain page load opens`
+
 ### Route Access
 - `<METHOD> <uri>` — reached by: unauthenticated caller | signed-in user | privileged role — evidence: route `file:line`, middleware `file:line`, authorization `file:line` — verdict: finding | public by design (reason) | not verified (step that settles it)
 - `Route access: not applicable — the diff changes no route`
