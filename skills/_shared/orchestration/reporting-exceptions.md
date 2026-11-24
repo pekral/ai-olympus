@@ -1,6 +1,6 @@
 # Reporting exceptions of step 6a
 
-Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** `april` returns `Reporting done (already covered)`, the brief's `## Source` names no tracker, or the `april` dispatch fails on registration (step 6a). A section, a step, or a bullet this file names *above* or *below* without a file is in `agents/krang.md`.
+Extracted from `agents/krang.md` so the orchestrator does not carry it on every run. **Loading trigger:** `april` returns `Reporting done (already covered)`, the brief's `## Source` names no tracker, the `april` dispatch fails on registration, or the run holds a stack of pull requests of one JIRA task (step 6a). A section, a step, or a bullet this file names *above* or *below* without a file is in `agents/krang.md`.
 
 ### Three cases of the post-convergence report
 
@@ -9,3 +9,14 @@ Extracted from `agents/krang.md` so the orchestrator does not carry it on every 
 - **Fallback — no tracker:** when this is a described-task run with no linked tracker (you detect it in the brief's `## Source`, which carries no GitHub issue URL, no GitHub PR URL, and no JIRA key), add to the dispatch prompt: *"The source assignment is not a tracker — publish no comment; return the same summary as part of your handoff."* `april` then returns the summary in its handoff and you pass it to the user in chat.
 - **Registration dependency — an unregistered `april` is a blocker, not a note.** `april` is dispatchable only after the installer has copied `agents/april.md` into `.claude/agents/` (see `agents/april.md` *Registration dependency*). When the dispatch fails on registration and the source is a tracker, that is a refused delegation: stop `Blocked` with the named blocker *"april is not registered — the report cannot be published"* and the remediation *"install `agents/april.md` into `.claude/agents/` (`vendor/bin/ai-olympus install`) and run the reporting step again"*, per `@rules/compound-engineering/general.md` *Blocked delegation is a hard stop*.
   **Never publish the report yourself in place of `april`** — you are read-only and publishing to a tracker is its role; routing around a missing specialist by hand is exactly the silent bypass that rule forbids. *Run cleanup* runs before that `Blocked` stop. With no tracker source nothing is published today either, so an unregistered `april` is no blocker there — return the summary to the user in chat as before.
+
+### A stack of pull requests — one JIRA report
+
+`@rules/code-review/several-pull-requests.md` *A stack of pull requests — one JIRA comment for the whole stack* owns the rule. This part owns how the run carries it out. It applies only when the brief's `## Source` is a JIRA key and the run holds two or more open pull requests of that task whose branches chain: the `baseRefName` of one is the `headRefName` of another, read from `skills/code-review-github/scripts/load-issue.sh` for each pull request that passed the ownership gate. Any other run keeps step 6a as written.
+
+1. **No part reports on its own.** Every review of the run already carries `tracker-report: deferred`. Dispatch no `april` for one part while another part of the run is still in review.
+2. **Wait for the last part.** The report is due when every part the run holds has ended its review: converged with the scoped pass done, `Blocked`, or carried forward. A part that ended `Blocked` does not stop the report.
+3. **Dispatch one `april` for the stack** (ledger role `april:reporting`), with the brief path of every part, the list of the stack's parts, and the instruction to publish one report through `@skills/pr-summary/SKILL.md`. For each part the list gives the pull request and either `reviewed`, or `not reviewed` with the reason in plain words: `blocked`, `earlier review still holds`, `outside this run`, or `not in this repository`. A pull request of the task that chains to the stack and that the run does not hold is a part too.
+4. **The report is one new comment** (`--create`), in the language of the brief, so an earlier comment of the task stays unchanged. The linked-GitHub-issue mirror keeps the shape of step 6a.
+5. **The run is finished** only when `april` returned `Reporting done` with a link to that one comment. A stack run that published several JIRA comments, or none, is `Blocked`.
+
