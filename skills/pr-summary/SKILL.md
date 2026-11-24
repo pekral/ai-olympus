@@ -156,7 +156,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
 
 ### An issue with several pull requests
 
-When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them renders only that group; the groups of the others stay in the earlier comments.
+When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them renders only that group; the groups of the others stay in the earlier comments. On JIRA, a stack of pull requests is the exception: one comment carries every part the run reviewed, per `references/several-pull-requests.md` *A stack on JIRA*.
 
 ### Closing line — the PR and the source issue
 
