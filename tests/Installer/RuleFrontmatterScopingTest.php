@@ -583,7 +583,9 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the deferral boundary is the cap round of `review.max-iterations`, not a fixed round 3 (issue #225).
         // Re-baselined: the pre-existing problems of a mixed assignment follow `rules/compound-engineering/general.md` *The assignment is the scope*.
         // Re-baselined: the prompt audit of 2026-11-18 rewrote migration-relative phrasing ("no longer", "used to") as present-tense statements.
-        'rules/refactoring/general.md' => 'cecee55969d3c1dc138fdac62349c7bccba0a40ec7ea50fbe345c33f689b0e2e',
+        // Re-baselined: the dedicated test commit applies on top of `rules/git/general.md` *Commit granularity*,
+        // which follows the acceptance criteria.
+        'rules/refactoring/general.md' => '2e729edb014da8f6511add4bb37512b302282f941691a3a1e0ed651d2915fd04',
         // Re-baselined: the file gained `## A JIRA comment is written for a non-technical
         // reader` — the banned-content list, its two exceptions, the 3 000-character cap, and
         // the sentence naming the pull-request comment as where the technical evidence moves
