@@ -106,8 +106,11 @@ git_safe() {
   git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
 }
 
+# jq counts only as an executable regular file: `command -v` also names a file that exists but cannot run.
 have_jq() {
-  command -v jq >/dev/null 2>&1
+  local path
+  path="$(command -v jq 2>/dev/null)" || return 1
+  [[ -f "$path" && -x "$path" ]]
 }
 
 # A role the harness reports as `<plugin>:<role>` is the same role.
