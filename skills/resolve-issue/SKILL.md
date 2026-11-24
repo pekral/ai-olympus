@@ -111,7 +111,7 @@ Only after Read, Map, and Verify are complete may implementation begin.
 
 ### Committing
 
-Divide the in-scope work by the acceptance criteria, per `@rules/git/general.md` *Commit granularity*. Before the pull request opens, compare `git log --oneline "origin/$DEFAULT_BRANCH"..HEAD` with the criteria. Regroup a commit that mixes two criteria while the branch is not under review.
+How the in-scope work is divided into commits is your judgment (`@rules/git/general.md` *Commit granularity*).
 
 - A point's test and its change land in the **same** commit, and no failing or simulated-failing test is ever committed (`@rules/git/general.md` *The merged head is green; intermediate commits are not gated*).
 - Do not run fixers or checkers between commits — the project's gate runs once at the merge boundary (*Quality gates — deferred to the merge boundary* below).
