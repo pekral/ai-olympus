@@ -632,7 +632,8 @@ test('a missing ready-to-deploy label is reported and never created, and a looka
 
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain(
-                READY_TO_DEPLOY_PR . ' | label | missing — the repository has no ready-to-deploy label, and none was created',
+                READY_TO_DEPLOY_PR . ' | label | missing — the repository has no label named "ready to deploy", "ready for deploy", '
+                . '"ready-to-deploy", or "připraveno k nasazení", and none was created',
             )
             ->and(readyToDeployCalls($fixture, 'label create'))->toBe([])
             ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
@@ -640,6 +641,62 @@ test('a missing ready-to-deploy label is reported and never created, and a looka
         installerRemoveDirectory($fixture['directory']);
     }
 })->with(['no label at all' => '', 'lookalike labels' => "do not deploy\ndeploy-failed\nready to deploy later"]);
+
+test('the driver applies the label the operator named, matched by its exact name and still checked against the workflows', function (): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, [], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', 'deploy ready'], [
+            'FAKE_GH_LABELS' => "bug\nready to deploy\nDeploy Ready",
+        ]);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe(['pr edit 12 --repo acme/app --add-label Deploy Ready']);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('an operator-named label that the repository lacks, or that a workflow names, is never applied', function (array $workflows, string $labels, string $result): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', 'deploy ready'], ['FAKE_GH_LABELS' => $labels]);
+
+        expect($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label | ' . $result)
+            ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'only a longer name exists' => [[], "deploy ready later\nready to deploy", 'missing — the repository has no label named "deploy ready", and none was created'],
+    'a workflow names it' => [
+        ['.github/workflows/deploy.yml' => "on: push\nenv:\n  GATE: DEPLOY_READY\n"],
+        'deploy ready',
+        'not applied — the default-branch workflow .github/workflows/deploy.yml names the label; the operator decides',
+    ],
+]);
+
+test('the skill passes the label the operator named to the driver', function (): void {
+    $skill = packageSource('skills/mark-ready-to-deploy/SKILL.md');
+
+    expect($skill)->toContain('The exact label name, as `--label <name>`, only when the operator named the project\'s ready-to-deploy label.')
+        ->and($skill)->toContain('[--jira-status <name>] [--label <name>] [--email <address>]`')
+        ->and($skill)->toContain('When the operator names the project\'s label, run step 3 again with `--label <name>`.');
+});
+
+test('the driver refuses an empty operator-named label', function (): void {
+    $fixture = readyToDeployFixture();
+
+    try {
+        expect(readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', ''])->getExitCode())->toBe(1)
+            ->and(file_get_contents($fixture['log']))->toBe('');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
 
 test('the label is matched by its exact name, whatever its letter case', function (): void {
     $fixture = readyToDeployFixture();

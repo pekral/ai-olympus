@@ -4,13 +4,16 @@
 # (rules/compound-engineering/tracker.md *Ready to deploy on the operator's word*).
 #
 # Usage:
-#   mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--email <address>]
+#   mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]
 #
 # Inputs:
 #   PR-URL      https://github.com/<owner>/<repo>/pull/<N> of the current repository.
 #   --jira-key  A JIRA key the operator named in the chat, or the run's own source item. Repeatable.
 #   --jira-status  The exact ready-to-deploy status name the operator named, when the project's
 #               column is not called "Ready to Deploy". The helper's guard still applies.
+#   --label     The exact name of the project's ready-to-deploy label, as the operator named it, when
+#               the repository calls it differently. It replaces the fixed names below; the exact
+#               match and the workflow check still apply.
 #   --email     The pull-request author's e-mail address, only as the operator stated it in the chat
 #               for this assignment. It reaches only assign-to-pr-author.sh and is never printed.
 #
@@ -23,9 +26,9 @@
 #     key-shaped token and link, and every key of another author: "found, not written".
 #
 # The writes:
-#   - GitHub label: the repository label whose name equals one of "ready to deploy", "ready for
-#     deploy", "ready-to-deploy", or "připraveno k nasazení" (case-insensitive, exact). A missing
-#     label is reported and never created. No label is applied when a workflow of the default-branch
+#   - GitHub label: the repository label whose name equals the --label name, or else one of "ready
+#     to deploy", "ready for deploy", "ready-to-deploy", or "připraveno k nasazení" (case-insensitive,
+#     exact). A missing label is reported with the names looked for, and never created. No label is applied when a workflow of the default-branch
 #     tip, read through `gh api`, has a `labeled` or `unlabeled` type, an `issues` trigger without a
 #     `types` filter, or a read of the event label, or names the label in any letter case or
 #     separator; nor when those workflows cannot be read in full.
@@ -50,9 +53,11 @@ set -euo pipefail
 PROG="mark-ready-to-deploy.sh"
 LABEL_NAMES=('ready to deploy' 'ready for deploy' 'ready-to-deploy' 'připraveno k nasazení')
 
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
 usage() {
   cat >&2 <<'EOF'
-Usage: mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--email <address>]
+Usage: mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]
 EOF
 }
 
@@ -69,6 +74,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --jira-status) [[ -n "${2:-}" ]] || { usage; exit 1; }; JIRA_STATUS=("$2"); shift 2 ;;
+    --label) [[ -n "${2:-}" ]] || { usage; exit 1; }; LABEL_NAMES=("$(lower "$2")"); shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 || { usage; exit 1; } ;;
     *) usage; exit 1 ;;
   esac
@@ -104,8 +110,6 @@ if ! PR_JSON="$("$GH_LOADER" "$PR_URL")" || [[ "$(jq -r '.kind' <<<"$PR_JSON")" 
   exit 3
 fi
 
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
 AUTHOR="$(jq -r '.author // empty' <<<"$PR_JSON")"
 ASSOCIATION="$(jq -r '.authorAssociation // empty' <<<"$PR_JSON")"
 IS_BOT=false
@@ -135,7 +139,12 @@ else
       fi
     done
   done <<<"$REPO_LABELS"
-  [[ -n "$LABEL" ]] || LABEL_SKIP="missing — the repository has no ready-to-deploy label, and none was created"
+  if [[ -z "$LABEL" ]]; then
+    LOOKED_FOR="$(printf '"%s", ' "${LABEL_NAMES[@]}")"
+    LOOKED_FOR="${LOOKED_FOR%, }"
+    [[ "${#LABEL_NAMES[@]}" -lt 2 ]] || LOOKED_FOR="${LOOKED_FOR%, *}, or ${LOOKED_FOR##*, }"
+    LABEL_SKIP="missing — the repository has no label named $LOOKED_FOR, and none was created"
+  fi
 fi
 
 # $1 = workflow text, $2 = label. Prints why the workflow may run on a label write or names the
