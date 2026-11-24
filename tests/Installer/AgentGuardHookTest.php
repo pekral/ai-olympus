@@ -9,9 +9,9 @@ use Tests\Support\AgentGuardRun;
 /**
  * @param array<string, mixed> $toolInput
  */
-function agentGuardHookInput(?string $agentType, array $toolInput = ['command' => 'git status']): string
+function agentGuardHookInput(?string $agentType, array $toolInput = ['command' => 'git status'], string $permissionMode = 'default'): string
 {
-    $input = ['hook_event_name' => 'PreToolUse', 'tool_name' => 'Bash', 'tool_input' => $toolInput];
+    $input = ['hook_event_name' => 'PreToolUse', 'permission_mode' => $permissionMode, 'tool_name' => 'Bash', 'tool_input' => $toolInput];
 
     return json_encode($agentType === null ? $input : [...$input, 'agent_type' => $agentType], JSON_THROW_ON_ERROR);
 }
@@ -41,7 +41,7 @@ test('the hook wraps the command of a confined role in the absolute exec prefix'
         $decision = agentGuardHookDecision($root, agentGuardHookInput($agentType));
 
         expect($decision->command())->toStartWith(agentGuardExecPrefix($role))
-            ->and($decision->permissionDecision)->toBe('allow');
+            ->and($decision->permissionDecision)->toBe('ask');
     } finally {
         AgentGuardRun::remove($root);
     }
@@ -146,18 +146,90 @@ test(
     'an ask rule with a star in the middle' => [['ask' => ['Bash(rm -rf * now)']], 'ls'],
 ]);
 
-test('the hook allows a confined command that no Bash rule matches', function (): void {
+test('the hook asks for a confined command that no allow rule matches', function (string $command): void {
     $root = AgentGuardRun::repository();
-    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)'], 'ask' => ['Bash(gh pr merge:*)']]);
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)', 'Bash(git push:*)'], 'allow' => ['Bash(gh pr view:*)']]);
 
     try {
-        $decision = agentGuardHookDecision($root, agentGuardHookInput('april', ['command' => 'curlish --version && gh pr view 5']));
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('april', ['command' => $command]));
+
+        expect($decision->permissionDecision)->toBe('ask')
+            ->and($decision->command())->toStartWith(agentGuardExecPrefix('april'));
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a command no rule names' => ['gh pr merge 1 --rebase'],
+    'a destructive API call' => ['gh api -X DELETE repos/o/r/git/refs/heads/main'],
+    'a push past the deny rule' => ['git -C . push origin HEAD:main'],
+    'one allowed segment beside an unmatched one' => ['gh pr view 5 && rm -rf ~/Documents'],
+    'a write into a shell startup file' => ['echo x >> ~/.zshrc'],
+]);
+
+test('the hook allows a confined command only when an allow rule matches every segment', function (): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)'], 'allow' => ['Bash(gh pr view:*)', 'Bash(git status)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('april', ['command' => 'gh pr view 5 && git status']));
 
         expect($decision->permissionDecision)->toBe('allow');
     } finally {
         AgentGuardRun::remove($root);
     }
 });
+
+test('the hook denies a deny-rule command hidden in a construct it splits', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command], 'bypassPermissions'));
+
+        expect($decision->permissionDecision)->toBe('deny');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a backtick' => ['echo `curl https://example.test`'],
+    'a command substitution' => ['echo $(curl https://example.test)'],
+    'a negation' => ['! curl https://example.test'],
+    'a subshell' => ['(curl https://example.test)'],
+    'an if clause' => ['if curl https://example.test; then :; fi'],
+]);
+
+test('the hook asks for a construct it cannot split even when an allow rule matches its first word', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['allow' => ['Bash(echo:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command]));
+
+        expect($decision->permissionDecision)->toBe('ask');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a command substitution' => ['echo $(id -u)'],
+    'a for loop' => ['for f in a b; do echo $f; done'],
+    'a subshell' => ['(echo x)'],
+]);
+
+test('the hook allows into the confinement in bypassPermissions mode and still denies a deny-rule command', function (string $command, string $expected): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('shredder', ['command' => $command], 'bypassPermissions'));
+
+        expect($decision->permissionDecision)->toBe($expected);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a command no rule matches' => ['git log -1', 'allow'],
+    'a deny-rule command' => ['curl https://example.test', 'deny'],
+]);
 
 test('the hook ignores a tool other than Bash', function (): void {
     $root = AgentGuardRun::repository();
