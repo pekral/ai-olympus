@@ -278,20 +278,26 @@ test('a linked issue counts only where the task lives, and every round checks ea
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" false')
         ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" true')
-        ->toContain("echo 'refused:the linked issue is not an issue of the repository of the pull request'")
-        ->toContain("echo 'refused:the linked issue is not an issue of the project of the task'");
+        ->toContain('echo \'refused:the linked issue is not an issue of the repository of the pull request\'')
+        ->toContain('echo \'refused:the linked issue is not an issue of the project of the task\'');
     expect(packageSource('skills/code-review-github/scripts/load-issue.sh'))
         ->toContain('# The list holds only issues of this repository, each once by its URL');
 });
 
 test('the cap round is compared before its verdict and its triage take effect', function (): void {
     expect(knownPointsRule())
-        ->toContain('The cap round is compared too: `known` still marks a point when the cap verdict of that round escalated the loop on a hard blocker, and the cap-round triage runs only after the comparison.')
+        ->toContain(
+            'The cap round is compared too: `known` still marks a point when the cap verdict of that round escalated the loop on a hard blocker, and the cap-round triage runs only after the comparison.',
+        )
         ->not->toContain('stays a finding, because an escalated loop is closed');
     expect(packageSource('agents/krang.md'))
-        ->toContain('- **Run the cap-round triage after the comparison.** At the cap round, when the verdict of the round is `deferral-required`, dispatch `leonardo` once with your own line `cap triage: <head SHA>`');
+        ->toContain(
+            '- **Run the cap-round triage after the comparison.** At the cap round, when the verdict of the round is `deferral-required`, dispatch `leonardo` once with your own line `cap triage: <head SHA>`',
+        );
     expect(packageSource('agents/leonardo.md'))
-        ->toContain('the cap-round triage, *Review loop* step 6 of `@skills/process-code-review/SKILL.md`, runs only after `krang` compared the round with the linked issues')
+        ->toContain(
+            'the cap-round triage, *Review loop* step 6 of `@skills/process-code-review/SKILL.md`, runs only after `krang` compared the round with the linked issues',
+        )
         ->toContain('Run it only in a dispatch whose own `krang` line reads `cap triage: <head SHA>`');
     expect(packageSource('skills/process-code-review/references/review-state.md'))
         ->toContain('- **The cap round is compared before its verdict takes effect.**');
