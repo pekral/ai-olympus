@@ -262,6 +262,19 @@ function readyToDeployMergeBase(array $fixture, array $workflows): void
 }
 
 /**
+ * The base branch and the head of the pull request #12, each with its workflows.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ * @param array<string, string> $baseWorkflows
+ * @param array<string, string> $headWorkflows
+ */
+function readyToDeployPullRequestTrees(array $fixture, array $baseWorkflows, array $headWorkflows): void
+{
+    readyToDeployRemoteWorkflows($fixture, $baseWorkflows, tree: READY_TO_DEPLOY_BASE_SHA);
+    readyToDeployRemoteWorkflows($fixture, $headWorkflows, tree: READY_TO_DEPLOY_HEAD_SHA);
+}
+
+/**
  * The checkout of readyToDeployCheckout() with the given local workflows, the default-branch tip and
  * the base branch of the pull request with the given workflows, the head of the pull request with the
  * head workflows (the same workflows when none are given), plus the pull request #12 and its closing
@@ -282,8 +295,7 @@ function readyToDeployGithub(
 ): void {
     readyToDeployCheckout($fixture['repo'], $localWorkflows);
     readyToDeployRemoteWorkflows($fixture, $workflows);
-    readyToDeployRemoteWorkflows($fixture, $workflows, tree: READY_TO_DEPLOY_BASE_SHA);
-    readyToDeployRemoteWorkflows($fixture, $headWorkflows ?? $workflows, tree: READY_TO_DEPLOY_HEAD_SHA);
+    readyToDeployPullRequestTrees($fixture, $workflows, $headWorkflows ?? $workflows);
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'assignees' => [],
         'author' => ['login' => 'pat'],
