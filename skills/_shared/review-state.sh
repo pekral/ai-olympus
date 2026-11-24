@@ -78,7 +78,9 @@
 #                    through the loaders, and reopens one that fails them, a loader that fails included. --reopen moves
 #                    a known point back to an open finding when the orchestrator's comparison of a later round no
 #                    longer finds the same problem. `known` refuses (exit 4) a finding that is not open (with --reopen:
-#                    not known), and refuses (exit 5) an escalated loop.
+#                    not known), and refuses (exit 5) an escalated loop. The one exception is a loop that its own cap
+#                    round escalated on a hard blocker (`cap-reached-hard-blockers`): the comparison of that round
+#                    still marks a known point, and the verdict is settled again.
 #
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
@@ -1087,7 +1089,16 @@ cmd_known() {
   check_writable "$state"
   new_tmp
   load_state "$state" "$TMP/state.json"
-  [[ "$(jq -r '.status' "$TMP/state.json")" != 'escalated' ]] || fail 5 "the loop escalated; the state is closed"
+  # An escalated loop is closed. The one exception is a cap round whose own verdict escalated it on a hard blocker:
+  # the comparison of that round runs after its barrier, so a known point it marks settles the verdict again.
+  local cap_round=false
+  case "$(jq -r '"\(.status) \(.escalation_reason)"' "$TMP/state.json")" in
+  'escalated cap-reached-hard-blockers')
+    [[ "$reopen" -eq 0 ]] || fail 5 "the loop escalated; the state is closed"
+    cap_round=true
+    ;;
+  escalated\ *) fail 5 "the loop escalated; the state is closed" ;;
+  esac
 
   local finding
   finding="$(jq -c --arg id "$id" '.findings[] | select(.finding_id == $id)' "$TMP/state.json")"
@@ -1111,12 +1122,13 @@ cmd_known() {
     [[ "$verdict" == ok:* ]] \
       || fail 4 "the link is not a trusted linked issue: $(state_path_display "${verdict#refused:}"); the state is unchanged"
     jq -c -L "$HERE" --arg id "$id" --arg source "$source" --arg url "$issue" --arg covers "$covers" --arg owner "${verdict#ok:}" \
-      --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+      --argjson cap_round "$cap_round" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
       (.findings[] | select(.finding_id == $id)) as $f
       | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "known", actor: "orchestrator"}]
       | .findings = (.findings | map(if .finding_id == $id then .status = "known" else . end))
       | .known_points = (((.known_points // []) | map(select(.finding_id != $id)))
           + [{finding_id: $id, source: $source, url: $url, covers: $covers, owner: (if $owner == "" then null else $owner end)}])
+      | (if $cap_round then .status = "open" | .escalation_reason = null else . end)
       | settle($cap; $threshold; false) | refresh_round($cap; $threshold)' "$TMP/state.json" >"$TMP/next.json"
   fi
   write_state "$TMP/next.json" "$state"
@@ -1540,6 +1552,40 @@ EOF
     run_case "round $round reports the known Critical again" 0 -- record --state "$S" --input "$tmp/k$round.md" --changed-files "$tmp/changed-both"
   done
   check 'at the cap round the known Critical does not escalate and the loop converges' "$(q '.iteration == 3 and .verdict == "converged" and .status == "converged" and .escalation_reason == null and .counts.known == 1')"
+
+  # A finding that a round first reports at the cap round is compared too, before the cap verdict takes effect.
+  local F_CRIT2 F_MOD2 crit2_id mod2_id
+  F_CRIT2="$(finding Critical 'Wrong tax' 'src/Foo/Tax.php:5' "$STRUCT" 'logic-trace — the tax skips the rate')"
+  F_MOD2="$(finding Moderate 'Long method' 'src/Foo/Long.php:3' "$STRUCT" 'rule-violation — the method is too long')"
+  # cap_state <round-3 finding>... — rounds 1 and 2 report the Moderate F_STRUCT, round 3 reports only these.
+  cap_state() {
+    rm -f "$repo/$S"
+    (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+    report "$tmp/c1.md" 1 "$F_STRUCT"
+    (cd "$repo" && "$script" record --state "$S" --input "$tmp/c1.md" >/dev/null)
+    report "$tmp/c2.md" 2 "$F_STRUCT"
+    (cd "$repo" && "$script" record --state "$S" --input "$tmp/c2.md" --changed-files "$tmp/changed-both" >/dev/null)
+    report "$tmp/c3.md" 3 "$@"
+    run_case 'the cap round records its first report of a finding' 0 -- record --state "$S" --input "$tmp/c3.md" --changed-files "$tmp/changed-both"
+  }
+  cap_state "$F_CRIT"
+  check 'a non-security Critical first reported at the cap round escalates the round' "$(q '.verdict == "escalated" and .escalation_reason == "cap-reached-hard-blockers"')"
+  crit_id="$(jq -r '.blocking[0].finding_id' "$tmp/out")"
+  run_case 'it is still marked known after the cap verdict, from a verified linked issue' 0 -- known --state "$S" --finding "$crit_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the wrong total.'
+  check 'with the Critical known the cap round converges' "$(q '.verdict == "converged" and .status == "converged" and .escalation_reason == null and .counts.known == 1')"
+  check 'the round entry shows the verdict after the comparison' "$(jq -e '.rounds[-1].verdict == "converged" and .rounds[-1].remaining_blocking == 0' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  cap_state "$F_CRIT" "$F_CRIT2"
+  crit2_id="$(jq -r --arg id "$crit_id" '[.blocking[] | select(.finding_id != $id)][0].finding_id' "$tmp/out")"
+  run_case 'one of two cap-round Criticals is marked known' 0 -- known --state "$S" --finding "$crit_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the wrong total.'
+  check 'the other Critical keeps the loop escalated' "$(q --arg id "$crit2_id" '.verdict == "escalated" and .status == "escalated" and .escalation_reason == "cap-reached-hard-blockers" and .counts.known == 1 and [.blocking[].finding_id] == [$id]')"
+  run_case 'a known point of an escalated loop is not reopened' 5 -- known --state "$S" --finding "$crit_id" --reopen
+  cap_state "$F_STRUCT" "$F_MOD2"
+  check 'two Moderates at the cap round need the triage' "$(q '.verdict == "deferral-required"')"
+  mod2_id="$(jq -r --arg id "$struct_id" '[.blocking[] | select(.finding_id != $id)][0].finding_id' "$tmp/out")"
+  run_case 'a Moderate at the cap round is marked known before the triage' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.'
+  check 'the triage then sees only the Moderate the issue does not report' "$(q --arg id "$mod2_id" '.verdict == "deferral-required" and [.deferrable[].finding_id] == [$id]')"
+  run_case 'the final evaluation escalates the undeferred Moderate' 0 -- evaluate --state "$S" --final
+  run_case 'a loop the final evaluation escalated takes no known point' 5 -- known --state "$S" --finding "$mod2_id" --source "$task" --issue "$known_issue" --covers 'x'
 
   # Every round, and every evaluation, checks each known point again with the checks of `known`. A point whose
   # check fails now, a failed load included, is open again, and the round counts it.
