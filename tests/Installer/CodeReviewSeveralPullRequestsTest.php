@@ -83,8 +83,8 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
         ->toContain('- **Only a pull request of this repository is a part.**')
         ->toContain('is never named in the comment, by number, title, or URL');
     expect($reference)
-        ->toContain('Only a part that counts per *Which pull requests count, and what a title is* gets a line')
-        ->toContain('a pull request of another repository is not named at all');
+        ->toContain('Only a part per item 3 of *Which pull requests count, and what a title is* gets a line')
+        ->toContain('a pull request of another repository or from a fork is not named at all');
 
     expect((string) file_get_contents($packageDir . '/skills/code-review-github/references/cr-wrapper-contract.md'))
         ->toContain('#### Repository ownership (hard gate)');
@@ -96,7 +96,7 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
         ->toContain('you publish one JIRA comment for the whole stack and no other');
     expect((string) file_get_contents($packageDir . '/skills/code-review-jira/SKILL.md'))
         ->toContain('**When those pull requests form a stack, this is the stack\'s one comment**')
-        ->toContain('a pull request that failed the repository ownership gate is no part and is never named')
+        ->toContain('a pull request that failed the repository ownership gate, or that comes from a fork, is no part and is never named')
         ->toContain($section);
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
         ->toContain('a stack of pull requests is the exception: one comment carries every part the run reviewed');
@@ -172,4 +172,37 @@ test('no stack text lets a pull request of another repository become a named par
     'pr-summary reference' => ['skills/pr-summary/references/several-pull-requests.md'],
     'reporting exceptions' => ['skills/_shared/orchestration/reporting-exceptions.md'],
     'stack rule' => ['rules/code-review/several-pull-requests.md'],
+]);
+
+test('a pull request from a fork is no part of a stack, and a missing value counts as a fork (security attack set)', function (string $file, string $phrase): void {
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/' . $file))->toContain($phrase);
+})->with([
+    'reference item 3 states the rule' => [
+        'skills/pr-summary/references/several-pull-requests.md',
+        'its `isCrossRepository` from `skills/code-review-github/scripts/load-issue.sh` is `false`',
+    ],
+    'reference counts a missing value as cross-repository' => [
+        'skills/pr-summary/references/several-pull-requests.md',
+        'A missing or `null` value counts as cross-repository',
+    ],
+    'reference names no fork in a line' => [
+        'skills/pr-summary/references/several-pull-requests.md',
+        'a pull request of another repository or from a fork is not named at all',
+    ],
+    'stack rule' => [
+        'rules/code-review/several-pull-requests.md',
+        'has `isCrossRepository` equal to `false`; a missing value counts as cross-repository',
+    ],
+    'reporting exceptions chain' => [
+        'skills/_shared/orchestration/reporting-exceptions.md',
+        'whose `isCrossRepository` is `false` (a missing value counts as cross-repository)',
+    ],
+    'reporting exceptions parts' => [
+        'skills/_shared/orchestration/reporting-exceptions.md',
+        'comes from a fork, has no `isCrossRepository` value, or was not checked by the run is no part',
+    ],
+    'code-review-jira skipped parts' => [
+        'skills/code-review-jira/SKILL.md',
+        'or that comes from a fork, is no part and is never named',
+    ],
 ]);
