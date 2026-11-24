@@ -89,6 +89,7 @@ test('krang reads the linked issues when it gathers and compares after the barri
         ->toContain('add `--owner <login>` only for the one security case that section names')
         ->toContain('Reopen a known point whose match no longer holds with `known --reopen`.')
         ->toContain('Then run `evaluate` again: its verdict is the verdict of the round for steps 4 and 5.')
+        ->toContain('Load each linked issue again through the loaders and `gather-issue-context.sh` first, and compare against that read')
         ->toContain('`### krang — known points <head SHA>`');
     expect($krang)
         ->toContain('`@skills/process-code-review/references/close-the-defect-class.md`, and never with a known point')
@@ -262,4 +263,22 @@ test('krang may run every review-state command its known-point step names, on bo
         ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1), `evaluate`, and `known` (step 3;');
     expect(packageSource('codex/agents/krang.toml'))
         ->toContain('`review-state.sh` in its `scope`, `evaluate`, and `known` commands');
+});
+
+test('a linked issue counts only where the task lives, and every round checks each known point again', function (): void {
+    $rule = knownPointsRule();
+
+    expect($rule)
+        ->toContain('- **Only where the task lives.** A linked issue is an issue of the repository of the pull request on GitHub')
+        ->toContain('`review-state.sh known` refuses an issue of another repository, project, or site')
+        ->toContain('- **`krang` reads the linked issues in the gather phase, and again before the comparison of each round.**')
+        ->toContain('- **Every round checks each known point again.** `review-state.sh record` and `evaluate` run the checks of `known` again')
+        ->toContain('and a point whose issue cannot be loaded, is a finding again.');
+    expect(packageSource('skills/_shared/review-state.sh'))
+        ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" false')
+        ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" true')
+        ->toContain("echo 'refused:the linked issue is not an issue of the repository of the pull request'")
+        ->toContain("echo 'refused:the linked issue is not an issue of the project of the task'");
+    expect(packageSource('skills/code-review-github/scripts/load-issue.sh'))
+        ->toContain('# The list holds only issues of this repository, each once by its URL');
 });
