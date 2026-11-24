@@ -574,18 +574,28 @@ test(
 ]);
 
 dataset('merge delete mention replies', [
+    'a mention after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a fence of a list item' => ["- Finding 2:\n\n  ```\n@bot this is wrong.", 4, false],
+    'a mention after a fence of a quote' => ["> ```\n    ```\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a shorter fence line inside a block' => ["````\n```\n````\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a slash' => ['Ask a/@bot again.', 4, false],
+    'a mention after an escaped backtick' => ['Type \\`@bot, finding 2 is wrong `.', 4, false],
+    'a mention after an unmatched backtick' => ['Type `@bot to look again.', 4, false],
     'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
+    'a mention between code spans of unequal length' => ['``a`b`` @bot `c`', 4, false],
+    'a mention between fence lines indented by four spaces' => ["    ```\n@bot finding 2 is wrong.\n    ```", 4, false],
     'a mention in another letter case' => ['@BOT finding 2 is wrong.', 4, false],
     'a mention in brackets after a comma' => ['Look again,(@bot) please.', 4, false],
-    'a mention inside a fenced code block' => ["```\n@bot\n```", 0, true],
-    'a mention inside an inline code span' => ['Type `@bot` to call it.', 0, true],
+    'a mention inside a fence that never closes' => ["```\n@bot finding 2 is wrong.", 4, false],
+    'a mention inside a fenced code block' => ["```\n@bot\n```", 4, false],
+    'a mention inside an inline code span' => ['Type `@bot` to call it.', 4, false],
     'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
     'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
     'an address that contains the login' => ['Write to ops@bot.example please.', 0, true],
 ]);
 
 test(
-    'the GitHub delete helper counts a mention of the operator account outside code as a reply',
+    'the GitHub delete helper counts every mention of the operator account as a reply, inside code too',
     function (string $reply, int $exit, bool $deleted): void {
         $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
             reviewMergeComment(801, 'bot', "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker()),
@@ -597,6 +607,52 @@ test(
             ->and($result['deleted'])->toBe($deleted);
     },
 )->with('merge delete mention replies');
+
+dataset('merge delete code-held markers', [
+    'a fence line indented by four spaces does not close the fence' => ["```\n    ```\n%s\n```"],
+    'a fence line inside an HTML block shifts the fences' => ["<div>\n```\n</div>\n\n```\n%s"],
+    'a fence of a list item is followed by a fence the reading cannot place' => ["- Finding 2:\n\n  ```\n```\n%s\n```"],
+    'a fence of the other character does not close the fence' => ["```\n~~~\n%s\n```"],
+    'a shorter fence does not close the fence' => ["````\n```\n%s\n````"],
+]);
+
+test(
+    'the GitHub delete helper never takes a marker that a code block can hold as the marker of the merged comment',
+    function (string $shape): void {
+        $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . sprintf($shape, reviewMergeMarker())),
+        ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+
+        expect($result['process']->getExitCode())->toBe(4)
+            ->and($result['process']->getErrorOutput())->toContain("does not carry this actor's cr-comment marker")
+            ->and($result['deleted'])->toBeFalse();
+    },
+)->with('merge delete code-held markers');
+
+test(
+    'the GitHub delete helper never takes a marker that a code block can hold as the marker of the target',
+    function (string $shape): void {
+        $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . sprintf($shape, reviewMergeMarker())),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
+        ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+
+        expect($result['process']->getExitCode())->toBe(4)
+            ->and($result['process']->getErrorOutput())->toContain("the comment does not carry this actor's cr-comment marker")
+            ->and($result['deleted'])->toBeFalse();
+    },
+)->with('merge delete code-held markers');
+
+test('the GitHub delete helper still takes a marker that follows a closed fenced code block', function (): void {
+    $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+        reviewMergeComment(801, 'bot', "Round 1: fix it so.\n\n```php\n\$limit = 2;\n```\n\n" . reviewMergeMarker()),
+        reviewMergeComment(803, 'bot', "Round 2: merged.\n\n~~~\nkept\n~~~~\n" . reviewMergeMarker()),
+    ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and($result['deleted'])->toBeTrue();
+});
 
 test('the GitHub delete helper removes a review comment whose operator line the merged comment carries verbatim', function (): void {
     $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
