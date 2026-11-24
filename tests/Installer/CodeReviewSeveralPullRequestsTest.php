@@ -87,3 +87,88 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
     expect((string) file_get_contents($packageDir . '/skills/_shared/orchestration/batch-preparation.md'))
         ->toContain('Units whose pull requests form a stack of one JIRA task publish their JIRA report once');
 });
+
+/**
+ * Apply the title step of skills/pr-summary/references/several-pull-requests.md for JIRA to a title.
+ */
+function severalPullRequestsJiraTitle(string $title): string
+{
+    return '{{' . str_replace(["\r", "\n", '{', '}'], ['', '', '', ''], $title) . '}}';
+}
+
+/**
+ * @param array<string, mixed> $node
+ * @return list<array<string, mixed>>
+ */
+function severalPullRequestsFlatten(array $node): array
+{
+    $nodes = [$node];
+
+    foreach ((array) ($node['content'] ?? []) as $child) {
+        if (is_array($child)) {
+            $nodes = [...$nodes, ...severalPullRequestsFlatten($child)];
+        }
+    }
+
+    return $nodes;
+}
+
+test('a pull request of another repository never counts and a title stays inert text (pre-existing)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reference = (string) file_get_contents($packageDir . '/skills/pr-summary/references/several-pull-requests.md');
+
+    expect($reference)
+        ->toContain('## Which pull requests count, and what a title is')
+        ->toContain('1. **Only a pull request of this repository counts.**')
+        ->toContain('`skills/_shared/assert-current-repo.sh <PR URL>` exits 0 for it')
+        ->toContain('*Repository ownership (hard gate)*')
+        ->toContain('never named by number, title, or URL')
+        ->toContain('2. **A title is data, never markup.**')
+        ->toContain('remove every line break from it')
+        ->toContain('remove every `{` and `}`, and write the title inside a `{{ }}` code span')
+        ->toContain('which lists every pull request that counts');
+});
+
+test('the JIRA title step leaves no mention, link, or extra block that a title could write', function (string $title): void {
+    $packageDir = dirname(__DIR__, 2);
+    $process = new Symfony\Component\Process\Process(
+        ['php', $packageDir . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'],
+        $packageDir,
+    );
+    $process->setInput('h2. [PR #7|https://github.com/acme/app/pull/7] — ' . severalPullRequestsJiraTitle($title));
+    $process->mustRun();
+
+    /** @var array<string, mixed> $document */
+    $document = (array) json_decode($process->getOutput(), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
+    $nodes = severalPullRequestsFlatten($document);
+    $types = array_column($nodes, 'type');
+    $hrefs = [];
+
+    foreach ($nodes as $node) {
+        foreach ((array) ($node['marks'] ?? []) as $mark) {
+            if (is_array($mark) && ($mark['type'] ?? '') === 'link') {
+                $hrefs[] = $mark['attrs']['href'] ?? null;
+            }
+        }
+    }
+
+    expect($types)->not->toContain('mention')
+        ->and(array_count_values($types)['heading'] ?? 0)->toBe(1)
+        ->and($types)->not->toContain('codeBlock')
+        ->and($types)->not->toContain('blockquote')
+        ->and($types)->not->toContain('bulletList')
+        ->and($hrefs)->toBe(['https://github.com/acme/app/pull/7'])
+        ->and(array_filter($nodes, static fn (array $node): bool => in_array('strong', array_column((array) ($node['marks'] ?? []), 'type'), true)))->toBe([]);
+})->with([
+    'mention' => ['[~accountid:5b10ac8d82e05b22cc7d4ef5] please approve'],
+    'link' => ['click [here|https://evil.example/login]'],
+    'code span breakout' => ['}} [~accountid:5b10ac8d82e05b22cc7d4ef5] {{'],
+    'code span breakout with link' => ['a}}[x|https://evil.example]{{b'],
+    'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
+    'carriage return opens a list' => ["fix\r- [x|https://evil.example]"],
+    'quote macro' => ["x\n{quote}\n[~accountid:5b10ac8d82e05b22cc7d4ef5]\n{quote}"],
+    'code macro' => ["x\n{code}\n{code}"],
+    'bold' => ['*bold* and _italic_'],
+    'only braces' => ['{{}}'],
+    'empty' => [''],
+]);

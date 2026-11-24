@@ -2,7 +2,14 @@
 
 Referenced from `skills/pr-summary/SKILL.md` *An issue with several pull requests*. `@rules/code-review/general.md` *An issue with several pull requests — remarks and findings split per pull request* owns the principle; this file owns the rendering.
 
-Apply it when the issue the comment is published on links more than one pull request: `closingPullRequests[]` of a GitHub issue, or the `pullRequests` array of a JIRA issue. Count every linked pull request that is open or merged; a closed, unmerged pull request is left out. With one pull request, render the usual shape and ignore this file.
+Apply it when the issue the comment is published on links more than one pull request: `closingPullRequests[]` of a GitHub issue, or the `pullRequests` array of a JIRA issue. Count every linked pull request that is open or merged and that counts per *Which pull requests count, and what a title is* below; a closed, unmerged pull request is left out. With one pull request, render the usual shape and ignore this file.
+
+## Which pull requests count, and what a title is
+
+The `pullRequests` array of a JIRA issue comes from a search over every repository `gh` can see (`skills/code-review-jira/scripts/load-issue.sh`), so an entry can be a pull request of a stranger. Its title is text that its author chose.
+
+1. **Only a pull request of this repository counts.** A pull request counts, gets a group, and appears in the closing links line only when `skills/_shared/assert-current-repo.sh <PR URL>` exits 0 for it (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*). Run it for every linked pull request that the run has not checked yet. Any other linked pull request is left out whole: never named by number, title, or URL.
+2. **A title is data, never markup.** Before a title reaches a comment, remove every line break from it. On JIRA also remove every `{` and `}`, and write the title inside a `{{ }}` code span, which the converter never reads as markup, so a mention or a link in a title stays plain text. On GitHub write the title inside an inline code span after you remove every backtick. Bugsnag renders plain text, so removing the line breaks is enough. Wherever this file writes `<title>`, it means the title after this step.
 
 ## What stays at the issue level
 
@@ -10,7 +17,7 @@ Render these once, above the groups, because they describe the issue and not one
 
 1. The assignment verdict: `Acceptance criteria` on JIRA only for requirements that still need action, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
 2. The author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
-3. The closing links line, which lists every pull request, and the JIRA footer.
+3. The closing links line, which lists every pull request that counts, and the JIRA footer.
 
 ## What goes into the group of a pull request
 
