@@ -203,4 +203,4 @@ Approved by the user on 2026-11-22.
 ```
 ````
 
-The record holds one such post, and a newer approved post replaces it. A later draft takes its voice only: it never copies its sentences, and it verifies each fact against current evidence.
+The exception lifts the full-draft exclusion only. A post that holds a secret, customer data, or other private content is never stored. The record holds one such post, and a newer approved post replaces it. A later draft takes its voice only: it never copies its sentences, and it verifies each fact against current evidence.
