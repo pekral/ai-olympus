@@ -70,5 +70,7 @@ Only a worker command line or a Horizon supervisor entry that the diff adds or c
 ## Not findings in any check
 - Code outside an asynchronous process: an HTTP request, a controller, middleware, a synchronous service, a one-off CLI command. A shared service with no path to an entry point.
 - A collection that one job loads, uses, and releases. How much it holds at once belongs to `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*.
-- A `foreach`, and a line the other rules of the review already report. One finding per violation.
+- A `foreach`. A `foreach` is never a finding on its own.
+- A line on which a later job reads the stored value as its own context of identity, tenant, or permission. The rule walk and the security owners own it, and the lens reports nothing on it (`@skills/code-review/references/specialized-reviews.md` *Gating*).
+- A defect of the same job that the walk of `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)* or the latency lens owns. The lens reports only what survives the job.
 - A static property that holds a constant, a request-independent lookup, or a value of a fixed size.
