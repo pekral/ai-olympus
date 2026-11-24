@@ -363,12 +363,12 @@ dataset('merge plan replies', [
     ],
     'a line typed out again by the operator account' => ['Round 1: the upload limit is 2 MB. Fixed in the next commit.', 'bot', 'MEMBER', true],
     'a link to the comment' => ['See ' . MERGE_PLAN_ITEM . '#issuecomment-801 please.', 'reporter', 'NONE', true],
-    'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
-    'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
-    'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
     'a mention of the operator account by another account' => ['@bot why 2 MB?', 'reporter', 'NONE', true],
     'a mention of the operator account in another letter case' => ['Why 2 MB, @Bot?', 'reporter', 'NONE', true],
     'a mention of the operator account inside a fenced code block' => ["```\n@bot\n```", 'reporter', 'NONE', false],
+    'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
+    'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
+    'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
 ]);
 
 test(
@@ -652,11 +652,11 @@ test('the coverage check reads the hidden line fingerprint of a review comment a
 });
 
 dataset('merge coverage agent markers', [
+    'a marker inside a fenced code block' => ["```\n<!-- merge-readiness:actor=bot -->\n```"],
+    'a marker in the middle of a sentence' => ['The record merge-readiness:actor=bot stays.'],
     'the GitHub marker of another namespace' => ['<!-- merge-readiness:actor=bot -->'],
     'the GitHub review marker' => ['<!-- cr-comment:actor=bot -->'],
     'the JIRA marker of another namespace' => ['_merge-readiness:actor=0123456789abcdef_'],
-    'a marker inside a fenced code block' => ["```\n<!-- merge-readiness:actor=bot -->\n```"],
-    'a marker in the middle of a sentence' => ['The record merge-readiness:actor=bot stays.'],
 ]);
 
 test('the coverage check refuses a merged text that carries an agent marker before anything is published', function (string $marker): void {
@@ -672,9 +672,10 @@ test('the coverage check refuses a merged text that carries an agent marker befo
 test('the plan lists the line the operator added to a review comment, and the coverage check requires it', function (): void {
     $agent = 'Round 1: the upload limit is 2 MB.';
     $operator = 'Decision: keep the 2 MB limit.';
+    $fingerprinted = static fn (string $text): string => "\n\n<!-- cr-comment:lines=" . mergePlanFingerprint($text) . " -->\n" . mergePlanMarker();
     $result = mergePlanGitHub([
-        mergePlanComment(801, 'bot', 'MEMBER', $agent . "\n\n" . $operator . "\n\n<!-- cr-comment:lines=" . mergePlanFingerprint($agent) . " -->\n" . mergePlanMarker(), 1),
-        mergePlanComment(803, 'bot', 'MEMBER', "Round 2: the limit is raised.\n\n<!-- cr-comment:lines=" . mergePlanFingerprint('Round 2: the limit is raised.') . " -->\n" . mergePlanMarker(), 3),
+        mergePlanComment(801, 'bot', 'MEMBER', $agent . "\n\n" . $operator . $fingerprinted($agent), 1),
+        mergePlanComment(803, 'bot', 'MEMBER', 'Round 2: the limit is raised.' . $fingerprinted('Round 2: the limit is raised.'), 3),
     ]);
     $lacking = mergePlanCoverage($result['plan'], "Round 1: the upload limit is 2 MB. The operator kept it.\n");
     $carrying = mergePlanCoverage($result['plan'], "Round 1: the upload limit is 2 MB.\n\n  Decision: keep the 2 MB  limit.\n");
@@ -689,8 +690,9 @@ test('the plan lists the line the operator added to a review comment, and the co
 test('the JIRA plan lists the node the operator added to a review comment', function (): void {
     $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
     $first = mergePlanJiraComment('10001', 'acc-agent', 'Round 1: 3 findings.');
-    $first['view']['body']['content'][] = ['content' => [['text' => 'Decision: keep the limit.', 'type' => 'text']], 'type' => 'paragraph'];
-    $first['view']['body']['content'][] = ['content' => [['text' => $marker . ' lines=' . mergePlanFingerprint('Round 1: 3 findings.'), 'type' => 'text']], 'type' => 'paragraph'];
+    $paragraph = static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'];
+    $first['view']['body']['content'][] = $paragraph('Decision: keep the limit.');
+    $first['view']['body']['content'][] = $paragraph($marker . ' lines=' . mergePlanFingerprint('Round 1: 3 findings.'));
     $first['list']['body'] = $first['view']['body'];
     $second = mergePlanJiraComment('10003', 'acc-agent', 'Round 2: 0 findings. ' . $marker);
     $result = mergePlanJira([$first['view'], $second['view']], [$first['list'], $second['list']]);
