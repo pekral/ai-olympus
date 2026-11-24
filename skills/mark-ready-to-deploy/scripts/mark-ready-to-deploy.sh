@@ -25,8 +25,10 @@
 # The writes:
 #   - GitHub label: the repository label whose name equals one of "ready to deploy", "ready for
 #     deploy", "ready-to-deploy", or "připraveno k nasazení" (case-insensitive, exact). A missing
-#     label is reported and never created. When a default-branch workflow runs on a `labeled` event
-#     and names the label, no label is applied.
+#     label is reported and never created. No label is applied when a workflow of the default-branch
+#     tip, read through `gh api`, has a `labeled` or `unlabeled` type, an `issues` trigger without a
+#     `types` filter, or a read of the event label, or names the label in any letter case or
+#     separator; nor when those workflows cannot be read in full.
 #   - GitHub assignee: the pull-request author, added through `--add-assignee`; an existing
 #     assignee is never removed, and a bot author gets no write.
 #   - JIRA: transition-to-ready-to-deploy.sh, then assign-to-pr-author.sh, one key per call.
@@ -136,19 +138,86 @@ else
   [[ -n "$LABEL" ]] || LABEL_SKIP="missing — the repository has no ready-to-deploy label, and none was created"
 fi
 
-if [[ -n "$LABEL" ]]; then
-  DEFAULT_BRANCH="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's@^origin/@@' || true)"
-  if [[ -z "$DEFAULT_BRANCH" ]] || ! WORKFLOWS="$(git ls-tree -r --name-only "origin/$DEFAULT_BRANCH" -- .github/workflows 2>/dev/null)"; then
-    LABEL_SKIP="not applied — the default-branch workflows could not be read"
+# $1 = workflow text, $2 = label. Prints why the workflow may run on a label write or names the
+# label, and nothing otherwise. It fails closed: a form it cannot read as filtered counts as a hit.
+workflow_label_reason() {
+  local content="$1" squeezed_label
+
+  if grep -qiE '(^|[^[:alnum:]_])(un)?labeled([^[:alnum:]_]|$)' <<<"$content"; then
+    echo "subscribes to label activity"
+  elif grep -qiE 'event\.label([^[:alnum:]_]|$)' <<<"$content"; then
+    echo "reads the label of the event"
+  elif [[ "$(workflow_has_unfiltered_issue_trigger <<<"$content")" == 1 ]]; then
+    echo "runs on every issue activity"
   else
-    while IFS= read -r workflow; do
-      [[ "$workflow" == *.yml || "$workflow" == *.yaml ]] || continue
-      content="$(git show "origin/$DEFAULT_BRANCH:$workflow" 2>/dev/null || true)"
-      if grep -qiE '(^|[^[:alnum:]_])labeled([^[:alnum:]_]|$)' <<<"$content" && grep -qiF -- "$LABEL" <<<"$content"; then
-        LABEL_SKIP="not applied — the default-branch workflow $workflow runs on a labeled event that names it; the operator decides"
+    squeezed_label="$(squeeze "$2")"
+    if grep -qF -- "$squeezed_label" <<<"$(squeeze "$content")"; then
+      echo "names the label"
+    fi
+  fi
+}
+
+# Lower-cases the text and removes blanks, `_`, `.`, `-`, and quotes, so `READY_TO_DEPLOY` and
+# `ready to deploy` compare equal.
+squeeze() { lower "$1" | sed -E "s/[[:space:]_.'\"-]+//g"; }
+
+# Reads a workflow on stdin and prints 1 when it subscribes to the `issues` event without a `types`
+# filter (GitHub then runs it on every issue activity, `labeled` included), 0 otherwise.
+workflow_has_unfiltered_issue_trigger() {
+  awk '
+    function indent(text) { match(text, /^[[:space:]]*/); return RLENGTH }
+    {
+      line = $0
+      if (line ~ /^[[:space:]]*#/) next
+      sub(/[[:space:]]+#.*$/, "", line)
+      if (line ~ /^[[:space:]]*$/) next
+      if (in_issues) {
+        if (indent(line) <= issues_indent) { if (!has_types) found = 1; in_issues = 0 }
+        else if (line ~ /^[[:space:]]*types[[:space:]]*:/) has_types = 1
+      }
+      if (in_issues) next
+      if (line ~ /^[[:space:]]*["\047]?on["\047]?[[:space:]]*:/) {
+        value = line
+        sub(/^[[:space:]]*["\047]?on["\047]?[[:space:]]*:[[:space:]]*/, "", value)
+        if (value ~ /^[[{]/) {
+          gsub(/[][{}[:space:]]/, "", value)
+          count = split(value, parts, /[,:]/)
+          for (i = 1; i <= count; i++) if (parts[i] == "issues" && value !~ /types/) found = 1
+        } else if (value == "issues") found = 1
+      } else if (line ~ /^[[:space:]]*-[[:space:]]*issues[[:space:]]*$/) {
+        found = 1
+      } else if (line ~ /^[[:space:]]*issues[[:space:]]*:[[:space:]]*$/) {
+        issues_indent = indent(line); in_issues = 1; has_types = 0
+      } else if (line ~ /^[[:space:]]*issues[[:space:]]*:/) {
+        value = line
+        sub(/^[[:space:]]*issues[[:space:]]*:[[:space:]]*/, "", value)
+        if (value !~ /^(read|write|none)$/ && value !~ /types/) found = 1
+      }
+    }
+    END { if (in_issues && !has_types) found = 1; print found + 0 }
+  '
+}
+
+# The workflows are read from the tip of the default branch on GitHub, never from a local ref.
+if [[ -n "$LABEL" ]]; then
+  WORKFLOWS_UNREADABLE="not applied — the default-branch workflows could not be read"
+  if ! DEFAULT_BRANCH="$(gh api "repos/$NWO" </dev/null 2>/dev/null | jq -r '.default_branch // empty')" \
+    || [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] \
+    || ! TREE="$(gh api "repos/$NWO/git/trees/$DEFAULT_BRANCH?recursive=1" </dev/null 2>/dev/null)" \
+    || ! jq -e '.truncated == false and (.tree | type == "array")' <<<"$TREE" >/dev/null 2>&1; then
+    LABEL_SKIP="$WORKFLOWS_UNREADABLE"
+  else
+    while IFS=$'\t' read -r workflow sha; do
+      if ! content="$(gh api -H 'Accept: application/vnd.github.raw+json' "repos/$NWO/git/blobs/$sha" </dev/null 2>/dev/null)"; then
+        LABEL_SKIP="not applied — the default-branch workflow $workflow could not be read"
         break
       fi
-    done <<<"$WORKFLOWS"
+      reason="$(workflow_label_reason "$content" "$LABEL")"
+      if [[ -n "$reason" ]]; then
+        LABEL_SKIP="not applied — the default-branch workflow $workflow $reason; the operator decides"
+        break
+      fi
+    done < <(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"))) | [.path, .sha] | @tsv' <<<"$TREE")
   fi
 fi
 
