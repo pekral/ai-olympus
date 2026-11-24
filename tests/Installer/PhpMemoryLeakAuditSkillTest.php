@@ -112,3 +112,16 @@ test('the lens output carries the fields of the review template and defines none
         ->and(packageSource('skills/code-review/references/specialized-reviews.md'))
         ->toContain('opens its `Impact` with `Risk:`, with `Evidence: logic-trace`');
 });
+
+test('the worker recycle check reads only the worker setting the diff adds or changes (issue #668)', function (): void {
+    $checks = packageSource('skills/php-memory-leak-audit/references/checks.md');
+    $ml5 = packageSection($checks, '## ML-5 — Worker recycle bounds', "\n## Not findings in any check");
+    $sentence = 'only a worker command line or a Horizon supervisor entry that the diff adds or changes';
+
+    expect($ml5)->toContain('Only a worker command line or a Horizon supervisor entry that the diff adds or changes is read')
+        ->and($ml5)->toContain('every other line of the same file is left alone')
+        ->and($ml5)->not->toContain('Only a changed file that starts or configures a worker is read')
+        ->and(strtolower(packageSource('skills/php-memory-leak-audit/SKILL.md')))->toContain($sentence)
+        ->and(strtolower(packageSource('skills/code-review/references/specialized-reviews.md')))->toContain($sentence)
+        ->and(packageSource('skills/php-memory-leak-audit/SKILL.md'))->not->toContain('worker flags only in a file the diff changes');
+});
