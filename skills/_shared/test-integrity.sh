@@ -68,16 +68,21 @@
 #   on the patterns or the content: it adds one `check-path-changed` candidate for each check path the diff adds,
 #   changes, deletes, renames (by the old and by the new path), or copies — a test-side file, a workflow or
 #   `.github/actions/**` file, `phpunit.xml*`, `tests/Pest.php`, a `.neon` file or a file whose name names
-#   PHPStan (TI_CHECK_CONFIG_RE), a checker configuration (CHECKER_CONFIG_RE) — and for `composer.json` when a
-#   script of the base changes. An added test runs code inside the runner, so it is a candidate too. Only a change
-#   that touches no check path completes with no candidate, so a change the classifier grades `tests-only` or
-#   formatting by a checker configuration always has one.
+#   PHPStan (TI_CHECK_CONFIG_RE), a pytest, Jest, Vitest, or RSpec configuration (TI_RUNNER_CONFIG_RE), a checker
+#   configuration or an `.editorconfig`, `.gitignore`, or `.gitattributes` at any depth (FORMAT_RE) — and for `composer.json` when a script of the base changes. An added test runs code
+#   inside the runner, so it is a candidate too. Only a change that touches no check path completes with no
+#   candidate, so a change the classifier grades `tests-only` or `formatting-metadata-only` always has one, and a
+#   file a runner collects by default is never graded `documentation-only` (RUNNER_COLLECTED_RE).
+#   Limit: the scan knows the default collection patterns only, so a file that only a pattern the project sets
+#   itself collects (a custom doctest glob) is no candidate. That pattern lives in a runner configuration, which
+#   is a check path, so the change that sets it takes the review.
 #
 # Test-side paths
 #   One definition: TEST_RE of `domain-vocabulary.sh`, matched on the lower-cased path, which `classify-risk.sh`
 #   reads for its `tests-only` signal. It covers a `test/`, `tests/`, or `spec/` directory at any depth, a
 #   `*Test.php` file, a `.test.*`, `.spec.*`, or `_test.*` file, a `test_*.py` file, and the PHPUnit and Pest
-#   configuration. Every subcommand classifies a path with it, so the scan never sees fewer tests than the
+#   configuration, a pytest doctest file (`test*.txt`) and `conftest.py`, a Jest `__tests__` directory, and a Go
+#   `testdata` directory. Every subcommand classifies a path with it, so the scan never sees fewer tests than the
 #   classifier counts. The trusted copy reads `domain-vocabulary.sh` beside this script.
 #
 # TRUST MODEL — what a record proves, and what it does not
@@ -617,13 +622,17 @@ TI_COMMENT_RE='^[[:space:]]*(//|#|/\*|\*)'
 TI_MIN_RE='--min=([0-9]+)'
 TI_LEVEL_RE='^[[:space:]]*level:[[:space:]]*([0-9]+|max)'
 TI_CHECK_CONFIG_RE='\.neon(\.dist)?$|(^|/)[^/]*phpstan[^/]*$'
+# The files where pytest, Jest, Vitest, and RSpec read a collection pattern a project sets itself.
+TI_RUNNER_CONFIG_RE='(^|/)(pytest\.ini|tox\.ini|setup\.cfg|pyproject\.toml|package\.json|\.rspec)$|(^|/)(jest|vitest|vite)\.config\.[a-z.]+$|(^|/)vitest\.workspace\.[a-z.]+$'
 
 TI_SCAN_BASE=''
 TI_SCAN_HEAD=''
 TI_SCAN_CANDIDATES=0
 TI_SCAN_WITHOUT_REVIEW=0
+TI_SCAN_VERDICT=0
 
 ti_scan_incomplete() {
+  TI_SCAN_VERDICT=1
   printf 'scan-verdict=incomplete reason=%s\n' "$1"
   exit "${2:-7}"
 }
@@ -836,13 +845,14 @@ ti_scripts_changed() {
   esac
 }
 
-# A path whose change can switch a check off: a test-side file, a test or CI configuration, every PHPStan
-# configuration, its includes and baseline included, and every checker configuration of CHECKER_CONFIG_RE.
+# A path whose change can switch a check off: a test-side file, a test, runner, or CI configuration, every
+# PHPStan configuration, its includes and baseline included, and every checker configuration and editor or git
+# metadata file of FORMAT_RE, at every depth.
 ti_is_check_path() {
   case "$2" in
   test | test-config | ci | phpstan) return 0 ;;
   esac
-  [[ "$1" =~ $TI_CHECK_CONFIG_RE || "$(ti_lower "$1")" =~ $CHECKER_CONFIG_RE ]]
+  [[ "$1" =~ $TI_CHECK_CONFIG_RE || "$1" =~ $TI_RUNNER_CONFIG_RE || "$(ti_lower "$1")" =~ $FORMAT_RE ]]
 }
 
 # --without-review: one check-path-changed candidate for each check path the diff adds, changes, deletes, renames
@@ -878,7 +888,8 @@ ti_scan() {
   git cat-file -e "$TI_SCAN_HEAD^{commit}" 2>/dev/null || ti_scan_incomplete unknown-commit
   TI_SCAN_BASE="$(git merge-base "$TI_SCAN_BASE" "$TI_SCAN_HEAD" 2>/dev/null)" || ti_scan_incomplete git-error
   ti_temp_dir || ti_scan_incomplete no-temporary-directory
-  trap 'rm -rf -- "$TI_TMP"' EXIT
+  # A stop before the verdict (an unbound variable under set -u) ends incomplete, never with exit 0.
+  trap 'rm -rf -- "$TI_TMP"; [[ "$TI_SCAN_VERDICT" -eq 1 ]] || { printf "scan-verdict=incomplete reason=internal-error\n"; exit 7; }' EXIT
   git diff -M -z --name-status --no-color "$TI_SCAN_BASE" "$TI_SCAN_HEAD" >"$TI_TMP/names" 2>/dev/null || ti_scan_incomplete git-error
   shopt -s nocasematch
 
@@ -917,6 +928,7 @@ ti_scan() {
     fi
   done <"$TI_TMP/names"
 
+  TI_SCAN_VERDICT=1
   printf 'scan-verdict=complete\n'
   [[ "$TI_SCAN_CANDIDATES" -eq 0 ]] || exit 5
   exit 0
@@ -1658,25 +1670,39 @@ ti_selftest_scan() {
   ti_assert 'scan: a ref name instead of a commit id is a usage error that ends incomplete' ti_equals "$TI_RC" 1
 }
 
-# Paths the classifier counts as a test or as a checker configuration. Each one must be a check path of the shape
-# mode, so the merge paths without a review and the classifier never disagree on what a test is.
+# Paths the classifier discounts as a test, as formatting or metadata, or as documentation. Each one must be a
+# check path of the shape mode, so the merge paths without a review and the classifier never disagree on what a
+# test or a check is.
 TI_SHARED_TEST_PATHS=(test/bootstrap.php test/unit/add.test.js spec/add_spec.rb resources/js/calc.test.js src/calc_test.go
-  test_x.py test/fixtures/expected.json tests/Unit/CalcTest.php src/Billing/CalcTest.php web/calc.spec.ts phpunit.xml.dist)
-TI_SHARED_CHECKER_PATHS=(resources/.eslintrc.json .prettierrc pint.json phpcs.xml ruleset.xml.dist rector.php .php-cs-fixer.dist.php)
+  test_x.py test/fixtures/expected.json tests/Unit/CalcTest.php src/Billing/CalcTest.php web/calc.spec.ts phpunit.xml.dist
+  src/__tests__/calc.ts pkg/testdata/golden.txt)
+TI_SHARED_CHECKER_PATHS=(resources/.eslintrc.json .prettierrc pint.json phpcs.xml ruleset.xml.dist rector.php .php-cs-fixer.dist.php
+  app/.gitignore resources/.editorconfig tests/.gitattributes src/lib/.gitattributes .gitignore .editorconfig)
+# Files a runner collects or loads in its default configuration that the documentation pattern of the classifier
+# also matches: pytest doctest files and conftest.py, pytest, Jest, Vitest, and Go tests under docs/. PHPUnit,
+# Pest, and RSpec collect only under tests/ or spec/ or by the Test.php suffix, so they add no such path.
+TI_SHARED_RUNNER_PATHS=(app/test_add.txt test_add.txt docs/test_doc.py docs/doc_test.py docs/conftest.py
+  docs/calc.test.js docs/calc.spec.ts docs/__tests__/calc.js docs/calc_test.go)
+# The files where a runner reads a collection pattern the project sets itself.
+TI_SHARED_RUNNER_CONFIG_PATHS=(pytest.ini tox.ini setup.cfg pyproject.toml package.json .rspec jest.config.js
+  vitest.config.ts vite.config.mjs docs/pytest.ini)
 
-# A path the trusted classifier grades `tests-only` or `formatting-metadata-only` when it is the only change.
+# A path the trusted classifier grades `tests-only`, `formatting-metadata-only`, or `documentation-only` when it is
+# the only change. With a signal name as the second argument, only that signal counts.
 ti_classifier_discounts() {
-  local out
+  local out signals="${2:-tests-only|formatting-metadata-only|documentation-only}"
   out="$(printf '%s\n' "$1" | bash "$TI_DIR/classify-risk.sh" --files - 2>/dev/null)" || return 1
-  grep -qE '^signal=-[0-9]+\|(tests-only|formatting-metadata-only)\|' <<<"$out"
+  grep -qE "^signal=-[0-9]+\\|($signals)\\|" <<<"$out"
 }
 
-# Every path the classifier discounts as a test or as formatting is a check-path-changed candidate of the shape
-# mode, whether the change edits it or deletes it.
+# Every path the classifier discounts as a test, as formatting, or as documentation is a check-path-changed
+# candidate of the shape mode, whether the change edits it or deletes it, and no file a runner collects by default
+# is documentation to the classifier.
 ti_selftest_shared_definition() {
   local path
   TI_REPO="$TI_ROOT/shared"
-  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
     mkdir -p "$TI_REPO/$(dirname -- "$path")"
     printf 'base\n' >"$TI_REPO/$path"
   done
@@ -1685,7 +1711,8 @@ ti_selftest_shared_definition() {
   ti_git commit -q -m base
   ti_git branch -q -M master
   ti_git checkout -q -b shapes
-  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
     printf 'exit\n' >"$TI_REPO/$path"
   done
   rm -f -- "$TI_REPO/spec/add_spec.rb"
@@ -1693,13 +1720,33 @@ ti_selftest_shared_definition() {
   ti_git commit -q -m shapes
   ti_scan_shape_run master shapes
   ti_assert 'scan --without-review: the shared shapes complete with candidates' ti_equals "$TI_RC" 5
-  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}"; do
-    ti_assert "classify-risk: $path alone is graded tests-only or formatting" ti_classifier_discounts "$path"
+  for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}"; do
+    ti_assert "classify-risk: $path alone is graded tests-only, formatting, or documentation" ti_classifier_discounts "$path"
     if ti_classifier_discounts "$path"; then
       ti_assert "scan --without-review: $path, which the classifier discounts, is a candidate" \
         ti_scan_has check-path-changed "$path" -
     fi
   done
+  for path in "${TI_SHARED_RUNNER_PATHS[@]}"; do
+    ti_assert "classify-risk: $path, which a runner collects by default, is never documentation" \
+      ti_not ti_classifier_discounts "$path" documentation-only
+  done
+  for path in "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
+    ti_assert "scan --without-review: the runner configuration $path is a candidate" ti_scan_has check-path-changed "$path" -
+  done
+}
+
+# A stop before the verdict, here a vocabulary without FORMAT_RE under set -u, ends incomplete with exit 7.
+ti_selftest_scan_stop() {
+  mkdir -p "$TI_ROOT/stoplib"
+  cp "$TI_DIR"/*.sh "$TI_ROOT/stoplib/"
+  printf 'unset FORMAT_RE\n' >>"$TI_ROOT/stoplib/domain-vocabulary.sh"
+  TI_REPO="$TI_ROOT/shared"
+  ti_run bash "$TI_ROOT/stoplib/test-integrity.sh" scan --base "$(ti_git rev-parse master)" \
+    --head "$(ti_git rev-parse shapes)" --without-review
+  ti_assert 'scan: a stop before the verdict exits 7' ti_equals "$TI_RC" 7
+  ti_assert 'scan: a stop before the verdict ends with the incomplete verdict' \
+    ti_equals "$(tail -n 1 <<<"$TI_OUT")" 'scan-verdict=incomplete reason=internal-error'
 }
 
 TI_ROOT=''
@@ -1722,6 +1769,7 @@ ti_selftest() {
   ti_selftest_verify
   ti_selftest_scan
   ti_selftest_shared_definition
+  ti_selftest_scan_stop
 
   if [[ "$TI_FAILED" -ne 0 ]]; then
     echo 'test-integrity.sh: self-test failed' >&2

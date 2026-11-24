@@ -185,6 +185,11 @@ test('the scan reads the one test definition of the classifier from the trusted 
     expect($script)->toContain('. "$TI_DIR/domain-vocabulary.sh"')
         ->and($script)->toContain('\'scan --without-review: the shared shapes complete with candidates\'')
         ->and(str_contains($script, 'TI_TEST_SIDE_RE'))->toBeFalse()
+        ->and($script)->toContain('"$(ti_lower "$1")" =~ $FORMAT_RE ]]')
+        ->and($script)->toContain('never documentation')
+        ->and($script)->toContain('\'scan: a stop before the verdict exits 7\'')
+        ->and(packageSource('skills/_shared/domain-vocabulary.sh'))->toContain('(^|/)test[^/]*\.txt$|(^|/)conftest\.py$')
+        ->and(packageSource('skills/_shared/classify-risk.sh'))->toContain('! "$lowered" =~ $RUNNER_COLLECTED_RE ]]')
         ->and(str_contains(packageSource('skills/_shared/classify-risk.sh'), 'FORMAT_RE=\''))->toBeFalse()
         ->and(packageSource('skills/test-audit/references/test-integrity.md'))
         ->toContain('`skills/_shared/read-manifest.sh`, `skills/_shared/domain-vocabulary.sh`, and `skills/_shared/junit-results.php`');
