@@ -1,0 +1,17 @@
+# Claim the issue
+
+Referenced from `skills/resolve-issue/SKILL.md` *Execution* step 1. Extracted to keep the skill body under the skill-check token limit; the procedure is unchanged.
+
+**Claim the issue immediately** (per `@rules/compound-engineering/tracker.md` *Claim a tracker issue before working on it*). Do this before any code change. The same write is phase 1 of *Tracker status tracks the phase of work* in that file: once this step succeeds, the tracker shows the issue as in progress.
+
+- **GitHub:** re-read the issue via `skills/code-review-github/scripts/load-issue.sh <URL>`. If the label `Resolve_by_AI:in-progress` is already present → another run owns it → **abort** with the message `Issue #<N> already claimed (Resolve_by_AI:in-progress) — another run is working on it`. If absent → apply it: `gh issue edit <N> --add-label "Resolve_by_AI:in-progress"`. Then **re-read and verify** the label actually landed (external writes can be silently blocked in auto-mode; verify against the tracker, not just the command exit code). If it did not land → **abort** rather than proceed unclaimed. Note:
+the apply-then-verify is not perfectly atomic (GitHub has no CAS on labels), but it collapses the race window to the gap between two loader reads — adequate to stop two long-running agent pipelines from colliding.
+- **JIRA:** run `skills/code-review-jira/scripts/transition-to-in-progress.sh <KEY|URL>`.
+  The helper moves the issue to the project's In Progress status (`Rozpracováno` on Czech boards), assigns it to the account currently authenticated in `acli` with `--assignee "@me"`, and verifies that assignment through `assignee = currentUser()`. It completes before the first code change.
+  Exit 0 = verified new claim or `currentUser()`-owned re-entry, review included. Any other in-progress/review issue exits 4 without reassignment.
+  Exit 4 = issue is finished, ready to merge, or claimed by another run → **abort** with the message `Issue <KEY> is finished, ready to merge, or claimed by another run`.
+  Exit 5 = target status name differs for this project — discover the real name via the JIRA MCP server's available-transitions and re-run with it as the `STATUS` argument, or ask a human.
+  Any other non-zero exit, including a failed or unverified self-assignment, stops the run before implementation. This is the second sanctioned status transition (the first is the Code Review transition on PR open); all others remain human-only.
+  It is JIRA's phase-1 write under `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*.
+- **Bugsnag:** no claim step, and no in-progress status write either. A Bugsnag error's `status` field is a resolution enum (`open` / `fixed` / `ignored` / `snoozed`) with no in-progress value, so there is nothing to set — this is the named exception in `@rules/compound-engineering/tracker.md` *Tracker status tracks the phase of work*, not an omission. Parallel-collision protection for Bugsnag is a known limitation — rely on the human/linked-issue workflow.
+- **Release on Blocked / abort (before PR):** if this run stops `Blocked` or aborts before a PR is opened, it must release its own GitHub claim label: `gh issue edit <N> --remove-label "Resolve_by_AI:in-progress"`. JIRA does not auto-revert (transitions back are human-only); name the issue key in the Blocked handoff so a human can reset it. If the claim was never applied (e.g. abort happened before the claim step), skip the release.

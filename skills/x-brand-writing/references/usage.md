@@ -190,3 +190,17 @@ After a user edit or explicit feedback, create or update `<host-project-root>/.x
 ```
 
 Do not store full drafts, secrets, customer data, or preferences for another project. The current brief overrides this record.
+
+The one exception is an approved tone reference. When the user explicitly asks to keep a post as a tone example, add it verbatim with the date of the approval:
+
+````md
+## Approved tone reference
+
+Approved by the user on 2026-11-22.
+
+```text
+<the approved post, verbatim>
+```
+````
+
+The exception lifts the full-draft exclusion only. A post that holds a secret, customer data, or other private content is never stored. The record holds one such post, and a newer approved post replaces it. A later draft takes its voice only: it never copies its sentences, and it verifies each fact against current evidence.
