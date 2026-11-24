@@ -370,7 +370,9 @@ test('the linked issue list holds only issues of the task repository, each once 
 
     $linked = (array) decodedJsonField($output, 'linkedIssues');
     $pairs = array_map(
-        static fn (mixed $entry): string => is_array($entry) ? $entry['relation'] . ' ' . $entry['url'] : '',
+        static fn (mixed $entry): string => is_array($entry) && is_string($entry['relation'] ?? null) && is_string($entry['url'] ?? null)
+            ? $entry['relation'] . ' ' . $entry['url']
+            : '',
         $linked,
     );
 
