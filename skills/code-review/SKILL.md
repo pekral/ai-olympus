@@ -136,7 +136,7 @@ the container lens `docker-patterns` with `MODE=cr`, the asset-build lens `vite-
 
 ### Real-Code Grounding for Every Finding (issue #97)
 
-Run this step **first** — before **Critical Findings Verification (issue #537)** and before the **Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)** below, over and above both — as the lightest, cheapest gate over every finding every preceding analysis step has produced. Apply the contract in `@rules/code-review/general.md` *Real-Code Grounding for Every Finding (issue #97)* to every finding at **Critical and Moderate alike**. This is additive to, and distinct from, **Critical Findings Verification (issue #537)** below — that gate's Moderate exemption applies only to its own `analyze-problem` confirm/refute pass; this grounding step still covers every severity.
+Run this step **first** — before **Critical Findings Verification (issue #537)** and before the **Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)** below, over and above both — as the lightest, cheapest gate over every finding every preceding analysis step has produced. Apply the contract in `@rules/code-review/general.md` *Real-Code Grounding for Every Finding (issue #97)* to every finding at **Critical and Moderate alike**. This is additive to, and distinct from, **Critical Findings Verification (issue #537)** below — that gate verifies a Critical through `analyze-problem` and a Moderate through a real check; this grounding step runs before both and covers every severity.
 
 ### Critical Findings Verification (issue #537)
 
