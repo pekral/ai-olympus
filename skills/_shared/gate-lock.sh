@@ -34,8 +34,8 @@
 # Repair — what it may stop
 #   A dead holder: repair removes the lock and stops nothing.
 #   A stuck holder: repair stops one process tree, and only after it proves all of these:
-#     1. the holder file names a wrapper of this package (run-gate.sh, run-validation.sh, or
-#        run-fast-checks.sh);
+#     1. the holder file names a wrapper of this package (run-gate.sh, run-validation.sh,
+#        run-fast-checks.sh, or test-integrity.sh);
 #     2. the live process at the recorded PID runs that wrapper, by its command line;
 #     3. its start time equals the recorded PROCESS_START (a recycled PID fails here);
 #     4. two samples, AI_OLYMPUS_GATE_PROBE seconds apart (default 5), show no progress, and
@@ -124,7 +124,7 @@ gate_holder_verified() {
   wrapper="$(gate_file_field "$dir/holder" WRAPPER)"
   recorded="$(gate_file_field "$dir/holder" PROCESS_START)"
   [[ "$pid" =~ ^[0-9]{1,7}$ && "$recorded" =~ ^[0-9]{9,12}$ ]] || return 1
-  [[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == run-fast-checks.sh ]] || return 1
+  [[ "$wrapper" == run-gate.sh || "$wrapper" == run-validation.sh || "$wrapper" == run-fast-checks.sh || "$wrapper" == test-integrity.sh ]] || return 1
   command="$(ps -o command= -p "$pid" 2>/dev/null || true)"
   # The wrapper is the script the interpreter runs (`bash <path>/run-gate.sh ...`) or the program
   # itself: its name is the first or second word, never a substring of another word.
@@ -192,7 +192,7 @@ audit_ledger_writable() {
 # the ledger, which a public PR body transcribes.
 holder_scope() {
   local wrapper="$1" project="$2" name='an unknown wrapper' where='another project'
-  [[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh ]] || name="$wrapper"
+  [[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh && "$wrapper" != test-integrity.sh ]] || name="$wrapper"
   [[ -z "$project" || "$project" != "$(gate_project_path)" ]] || where='this repository'
   printf '%s, %s' "$name" "$where"
 }
@@ -671,6 +671,20 @@ self_test() {
   check 'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package' \
     "$([[ "$code" -eq 11 && "$(jq -r .wrapper_verified <<<"$OUT")" == true ]] && echo pass)"
   { kill "$fast_checks" && wait "$fast_checks"; } 2>/dev/null || true
+
+  # The regression prover holds the lock for its swap and both runs, so a hung one can be repaired too.
+  local prover
+  printf 'sleep 300\n' >"$tmp/test-integrity.sh"
+  bash "$tmp/test-integrity.sh" &
+  prover=$!
+  SELF_TEST_PIDS+=("$prover")
+  sleep 0.3
+  printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\nPROCESS_START=%s\nWRAPPER=test-integrity.sh\nPROJECT=%s\nCOMMAND=%s\n' \
+    "$prover" "$(gate_now)" "$now_epoch" "$(gate_process_start "$prover")" "$project" 'test-integrity.sh prove' >"$lock/holder"
+  code=0; status_of || code=$?
+  check 'a stale heartbeat of test-integrity.sh reads as a stuck wrapper of this package' \
+    "$([[ "$code" -eq 11 && "$(jq -r .wrapper_verified <<<"$OUT")" == true ]] && echo pass)"
+  { kill "$prover" && wait "$prover"; } 2>/dev/null || true
 
   # A holder file of an older format carries no heartbeat and is never stuck.
   printf 'PID=%s\nSTARTED=%s\nSTARTED_EPOCH=%s\n' "$stranger" "$(gate_now)" "$now_epoch" >"$lock/holder"

@@ -131,6 +131,7 @@ Run `@skills/test-driven-development/SKILL.md` as the governing cycle for every 
 8. Write or update a test that reproduces the bug (the failing test). Follow the RED step in `@skills/test-driven-development/SKILL.md`.
 9. **Verify RED** — run the test (`run-gate.sh --exclusive`) and confirm it fails for the expected reason, not because of a syntax, setup, or typo issue. **Do not write the fix until the test is observed failing.** This step is mandatory and blocking.
 10. Apply the fix (GREEN step) — write the smallest production change that makes the test pass, then verify all relevant tests pass. Then repair the records the defect already wrote — after this fix, never before (`references/data-repair.md`).
+    After the commit, prove the regression test (`@skills/test-audit/references/test-integrity.md`).
 
 ### If feature
 8. Design a minimal implementation aligned with project architecture.
@@ -153,7 +154,7 @@ Author the change, commit it, and push. The self-checks below still run — they
 
 ## Pre-PR self-check (lightweight, deterministic)
 
-After implementation, and **before creating the pull request**, verify only what must hold before the work is handed off. The authoritative LLM review is `leonardo`'s and it happens once (`@rules/compound-engineering/orchestration.md` *Adaptive routing* → *One authoritative LLM review, not two*).
+After implementation, and **before creating the pull request**, verify only what must hold before the work is handed off.
 
 Walk these items and record each one's result in the handoff:
 
@@ -164,6 +165,7 @@ Walk these items and record each one's result in the handoff:
 5. **No accidental file is staged** — no scratch file, no local config, no committed secret or `.env`.
 6. **The diff matches the requested scope** — anything else is removed or recorded as a deferred follow-up (*Deferred-item follow-up issues* below).
 7. **Nothing obviously warrants escalation** — say so in the handoff when the change turned out to touch a security boundary, a migration, or a payment path.
+8. **The regression test is proven** on a bug fix (`@skills/test-audit/references/test-integrity.md`).
 
 **This is not a review, and it never substitutes for one.** It does **not** run `code-review` / `security-review` over its own diff, produces no severity-graded findings, and gates nothing on a finding count. Anything needing a reviewer's judgment belongs to `leonardo`, on a tier that dispatches it.
 

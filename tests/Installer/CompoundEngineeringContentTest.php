@@ -172,7 +172,7 @@ test('the pull request body states the merge danger from the merge-risk script a
         'A revert does not run `down()`: when the diff carries a migration, roll it back with `php artisan migrate:rollback` before the revert.',
     );
     expect($pullRequest)->not->toContain('<(git diff');
-    expect($pullRequest)->toContain('the `Evidence:` line is the name of the regression test that failed before the fix and passes after it');
+    expect($pullRequest)->toContain('the `Evidence:` line comes from the output of `skills/_shared/test-integrity.sh prove`');
 
     // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');

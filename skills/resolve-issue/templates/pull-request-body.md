@@ -30,7 +30,7 @@ Closes #<N>
 ## ✅ Testing
 
 <how to test>
-Evidence: <regression test that failed before the fix and passes after it, with the command that ran it>
+Evidence: <file>::<test name> — base <failed|errored>, head passed — record <path>, or unprovable — <reason>
 
 ## Security acceptance checklist
 - [x] [Critical] <item> — <file:line or test name>

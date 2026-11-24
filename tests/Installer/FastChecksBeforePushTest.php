@@ -129,7 +129,7 @@ test('every list of machine lock wrappers names the fast checks', function (stri
 })->with([
     'concurrency holder file' => [
         'rules/compound-engineering/concurrency.md',
-        '`WRAPPER` (`run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`)',
+        '`WRAPPER` (`run-gate.sh`, `run-validation.sh`, `run-fast-checks.sh`, or `test-integrity.sh`)',
     ],
     'gate-record lock entry' => [
         'skills/_shared/gate-record.sh',
@@ -137,15 +137,15 @@ test('every list of machine lock wrappers names the fast checks', function (stri
     ],
     'orchestration machine directory' => [
         'rules/compound-engineering/orchestration.md',
-        '`skills/_shared/run-validation.sh`, and `skills/_shared/run-fast-checks.sh` create and remove it',
+        '`skills/_shared/run-validation.sh`, `skills/_shared/run-fast-checks.sh`, and `skills/_shared/test-integrity.sh` create and remove it',
     ],
     'quality-gates repair conditions' => [
         'skills/resolve-issue/references/quality-gates.md',
-        'the holder file names `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh`, the live process',
+        'the holder file names `run-gate.sh`, `run-validation.sh`, `run-fast-checks.sh`, or `test-integrity.sh`, the live process',
     ],
     'stale-lock-repair report step' => [
         'skills/_shared/orchestration/stale-lock-repair.md',
-        'the `reason` of a `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` exit `6`',
+        'the `reason` of a `run-gate.sh`, `run-validation.sh`, `run-fast-checks.sh`, or `test-integrity.sh prove` exit `6`',
     ],
     'stale-lock-repair trigger 2' => [
         'skills/_shared/orchestration/stale-lock-repair.md',
@@ -153,14 +153,14 @@ test('every list of machine lock wrappers names the fast checks', function (stri
     ],
     'stale-lock-repair trigger 4' => [
         'skills/_shared/orchestration/stale-lock-repair.md',
-        '4. A `run-gate.sh`, `run-validation.sh`, or `run-fast-checks.sh` call that the harness stopped',
+        '4. A `run-gate.sh`, `run-validation.sh`, `run-fast-checks.sh`, or `test-integrity.sh prove` call that the harness stopped',
     ],
 ]);
 
 test('a stuck fast-check run is a wrapper the lock repair may stop', function (): void {
     $lock = packageSource('skills/_shared/gate-lock.sh');
 
-    expect($lock)->toContain('[[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh ]] || name="$wrapper"')
+    expect($lock)->toContain('[[ "$wrapper" != run-gate.sh && "$wrapper" != run-validation.sh && "$wrapper" != run-fast-checks.sh && "$wrapper" != test-integrity.sh ]] || name="$wrapper"')
         ->and($lock)->toContain('check \'a stale heartbeat of run-fast-checks.sh reads as a stuck wrapper of this package\'');
 });
 
