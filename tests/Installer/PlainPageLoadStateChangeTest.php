@@ -66,7 +66,9 @@ test('the security review has a plain-page-load step that runs in every review r
         ->and($step)->toContain('the caller walk of `@rules/code-review/core-analysis.md` *Behaviour changed outside the diff*')
         ->and($step)->toContain('`Route::any`')
         ->and($step)->toContain('Critical, which is Critical on the scale of this skill, for a page that is a `GET` that mutates state under ')
-        ->and($step)->toContain('`@rules/api/general.md` *CR Severity Rules*, and Moderate, which is Medium on the scale of this skill, for any other page')
+        ->and($step)->toContain(
+            '`@rules/api/general.md` *CR Severity Rules*, and Moderate, which is Medium on the scale of this skill, for any other page',
+        )
         ->and($step)->toContain('gets one finding at the Critical severity, never a second finding at the Moderate severity')
         ->and($step)->toContain('`Plain page load: not applicable — the diff changes no page that a plain page load opens`')
         ->and($step)->not->toContain('never deferred')
