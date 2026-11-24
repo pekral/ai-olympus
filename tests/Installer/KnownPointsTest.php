@@ -85,8 +85,9 @@ test('krang reads the linked issues when it gathers and compares after the barri
         ->toContain(knownPointsOwnerHeading() === '' ? '' : '*Known points — a finding that a linked issue already reports (issue #682)*');
     expect($round)
         ->toContain('`leonardo`, `splinter`, `raphael`, and `casey` alike')
-        ->toContain('review-state.sh known --state <state> --finding <id> --issue <URL> --covers <sentence>')
-        ->toContain('add `--security-owned` only for the one security case that section names')
+        ->toContain('review-state.sh known --state <state> --finding <id> --source <task URL or JIRA key> --issue <URL> --covers <sentence>')
+        ->toContain('add `--owner <login>` only for the one security case that section names')
+        ->toContain('Reopen a known point whose match no longer holds with `known --reopen`.')
         ->toContain('Then run `evaluate` again: its verdict is the verdict of the round for steps 4 and 5.')
         ->toContain('`### krang — known points <head SHA>`');
     expect($krang)
@@ -113,7 +114,9 @@ test('the merge verdict and the loop state leave a known point out', function ()
     expect($state)
         ->toContain('| `known` | A linked issue already reports the same problem (*Known points* below). | no |')
         ->toContain('- **A known point does not block.**')
-        ->toContain('- **A security finding is refused** (exit 4) unless the call passes `--security-owned`');
+        ->toContain('- **A security finding needs a verified owner.**')
+        ->toContain('- **The script checks the link itself.**')
+        ->toContain('- **A reviewer that reports the finding again keeps it known,** in every round and at the cap round');
 });
 
 test('both report templates render a Known points section with a link and the sentence on what the issue covers', function (string $template): void {
@@ -202,4 +205,28 @@ test('the task text names a linked issue only from a trusted author, and a short
         ->toContain('include "review-trust";')
         ->toContain('select(trusted_jira_comment($actor; $o.assignee))')
         ->not->toContain('.author == $o.assignee');
+});
+
+test('a known point comes only from a trusted, open issue the task links, and a security one only with a verified owner', function (): void {
+    $rule = knownPointsRule();
+
+    expect($rule)
+        ->toContain('- **Only a linked issue of a trusted author makes a known point.**')
+        ->toContain('it refuses an issue outside the task\'s link list, a closed issue, and an untrusted author')
+        ->toContain('The owner is a loaded fact, never text in the issue: an assignee of an open GitHub issue who also wrote it')
+        ->toContain('JIRA carries no role data, so a security finding is never a known point of a JIRA task.')
+        ->toContain('A reviewer that reports the same finding again keeps it known, in every round and at the cap round too.');
+    expect(packageSource('skills/_shared/review-state.sh'))
+        ->toContain('known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> [--owner <login>]')
+        ->toContain('known    --state <file> --finding <id> --reopen')
+        ->not->toContain('--security-owned');
+});
+
+test('the merge rules name the security known point as the one exception and lift nothing else', function (): void {
+    expect(packageSource('rules/git/pull-requests.md'))
+        ->toContain('- **The one exception is a security known point**')
+        ->toContain('A JIRA task has no such exception, and nothing else lifts this bullet.');
+    expect(packageSource('rules/code-review/general.md'))
+        ->toContain('**A known point is not an exclusion.**')
+        ->toContain('It never moves the finding to `## Excluded per assignment`, never lowers its severity, and lifts no other part of this carve-out.');
 });
