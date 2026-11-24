@@ -83,6 +83,9 @@ test('the lens divides the dimensions of a job with the bulk-data walk and the l
     );
 
     expect($gating)->toContain('**owns how much one job loads and releases when it ends**')
+        ->and($gating)->toContain('the memory lens owns the memory dimension of `@rules/laravel/laravel.md` *Long-Running Runtime Safety***')
+        ->and($gating)->toContain('That finding is Moderate, and the rule walk raises none on the same line.')
+        ->and($gating)->toContain('a security finding is never lowered or moved to this lens')
         ->and($gating)->toContain('**The memory lens owns what survives the job**')
         ->and($gating)->toContain('A `Model::all()` inside `handle()` carries the volume finding from the walk')
         ->and($gating)->toContain('the `laravel-horizon-audit` skill audits the configuration of the whole repository, which a review never runs.');
