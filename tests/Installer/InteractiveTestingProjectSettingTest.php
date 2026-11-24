@@ -1,0 +1,202 @@
+<?php
+
+declare(strict_types = 1);
+
+use Symfony\Component\Process\Process;
+
+function interactiveSettingSource(string $relativePath): string
+{
+    return (string) file_get_contents(dirname(__DIR__, 2) . '/' . $relativePath);
+}
+
+/**
+ * @return array{state: string, source: string}
+ */
+function interactiveSettingFromManifest(string $manifest): array
+{
+    $process = new Process([dirname(__DIR__, 2) . '/skills/_shared/resolve-interactive-testing.sh', '--stdin']);
+    $process->setInput($manifest);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0);
+
+    $lines = explode("\n", trim($process->getOutput()));
+
+    return [
+        'source' => $lines[1] ?? '',
+        'state' => $lines[0] ?? '',
+    ];
+}
+
+function interactiveSettingGit(string $directory, string ...$arguments): string
+{
+    $process = new Process(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', ...$arguments], $directory);
+    $process->mustRun();
+
+    return trim($process->getOutput());
+}
+
+/**
+ * Builds a repository whose default branch carries the given manifest in composer.json and runs the script in it.
+ *
+ * @return array{state: string, source: string}
+ */
+function interactiveSettingInRepository(string $defaultBranchManifest, ?string $workingTreeManifest = null): array
+{
+    $directory = sys_get_temp_dir() . '/ai-olympus-interactive-' . bin2hex(random_bytes(6));
+    mkdir($directory);
+    register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
+
+    interactiveSettingGit($directory, 'init', '-q');
+    file_put_contents($directory . '/composer.json', $defaultBranchManifest . "\n");
+    interactiveSettingGit($directory, 'add', 'composer.json');
+    interactiveSettingGit($directory, 'commit', '-q', '-m', 'manifest');
+    interactiveSettingGit($directory, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
+    interactiveSettingGit($directory, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
+
+    if ($workingTreeManifest !== null) {
+        file_put_contents($directory . '/composer.json', $workingTreeManifest . "\n");
+    }
+
+    $process = new Process(['bash', dirname(__DIR__, 2) . '/skills/_shared/resolve-interactive-testing.sh'], $directory);
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0);
+
+    $lines = explode("\n", trim($process->getOutput()));
+
+    return [
+        'source' => $lines[1] ?? '',
+        'state' => $lines[0] ?? '',
+    ];
+}
+
+test('the setting is on by default, and only a JSON false switches it off', function (string $manifest, string $state, string $source): void {
+    expect(interactiveSettingFromManifest($manifest))->toBe(['state' => $state, 'source' => $source]);
+})->with([
+    'array' => ['{"interactive-testing":[]}', 'interactive-testing=on', 'source=invalid'],
+    'false' => ['{"interactive-testing":false}', 'interactive-testing=off', 'source=manifest'],
+    'no key' => ['{}', 'interactive-testing=on', 'source=default'],
+    'not json' => ['not json', 'interactive-testing=on', 'source=default'],
+    'null' => ['{"interactive-testing":null}', 'interactive-testing=on', 'source=invalid'],
+    'number zero' => ['{"interactive-testing":0}', 'interactive-testing=on', 'source=invalid'],
+    'other keys only' => ['{"voice":"technical"}', 'interactive-testing=on', 'source=default'],
+    'string false' => ['{"interactive-testing":"false"}', 'interactive-testing=on', 'source=invalid'],
+    'string off' => ['{"interactive-testing":"off"}', 'interactive-testing=on', 'source=invalid'],
+    'true' => ['{"interactive-testing":true}', 'interactive-testing=on', 'source=manifest'],
+]);
+
+test('only the manifest of the default branch decides, never the working tree', function (): void {
+    $switchedOffByThePullRequest = interactiveSettingInRepository(
+        '{"extra":{"ai-olympus":{}}}',
+        '{"extra":{"ai-olympus":{"interactive-testing":false}}}',
+    );
+    $switchedOffOnTheDefaultBranch = interactiveSettingInRepository(
+        '{"extra":{"ai-olympus":{"interactive-testing":false}}}',
+        '{"extra":{"ai-olympus":{"interactive-testing":true}}}',
+    );
+
+    expect($switchedOffByThePullRequest)->toBe(['state' => 'interactive-testing=on', 'source' => 'source=default'])
+        ->and($switchedOffOnTheDefaultBranch)->toBe(['state' => 'interactive-testing=off', 'source' => 'source=manifest']);
+});
+
+test('a manifest that cannot be parsed keeps the default and is named', function (): void {
+    expect(interactiveSettingInRepository('{ not json'))
+        ->toBe(['state' => 'interactive-testing=on', 'source' => 'source=unreadable']);
+});
+
+test('the script self-test passes and an unknown option is a usage error', function (): void {
+    $script = dirname(__DIR__, 2) . '/skills/_shared/resolve-interactive-testing.sh';
+    $selfTest = new Process([$script, '--self-test']);
+    $selfTest->run();
+    $usage = new Process([$script, '--bogus']);
+    $usage->run();
+
+    expect($selfTest->getExitCode())->toBe(0)
+        ->and($usage->getExitCode())->toBe(1)
+        ->and(interactiveSettingSource('composer.json'))->toContain('skills/_shared/resolve-interactive-testing.sh');
+});
+
+test('the manifest table and the documentation state the key, its default, and how to change it', function (): void {
+    $rule = interactiveSettingSource('rules/general/general.md');
+    $installation = interactiveSettingSource('docs/installation.md');
+
+    expect($rule)->toContain('| `interactive-testing` | bool |')
+        ->and($rule)->toContain('Absent: `true`.')
+        ->and($installation)->toContain('**Interactive testing is on by default.**')
+        ->and($installation)->toContain('{ "extra": { "ai-olympus": { "interactive-testing": false } } }')
+        ->and($installation)->toContain('The installer never writes the key, so the documented default (`true`) applies until you set it.')
+        ->and($installation)->toContain('read from the default branch, so a pull request that sets it takes effect only after it is merged')
+        ->and($installation)->toContain('The code review, the security review, the tests, and CI do not change.');
+});
+
+test('the skill owns the setting and every consumer reads it through the skill', function (): void {
+    $skill = interactiveSettingSource('skills/interactive-testing/SKILL.md');
+
+    expect($skill)->toContain('## Project setting')
+        ->and($skill)->toContain('Run `skills/_shared/resolve-interactive-testing.sh` once, before any other step of this skill.')
+        ->and($skill)->toContain('never from the working tree, so a pull request cannot switch off its own testing before it is merged')
+        ->and($skill)->toContain('Return the status `Interactive testing is switched off for this project.`')
+        ->and($skill)->toContain('The code review, the security review, the tests, and CI stay as they are.')
+        ->and($skill)->toContain('so it counts as `true`')
+        ->and($skill)->toContain('The interactive-testing setting is not true or false, so interactive testing stays on.');
+
+    foreach ([
+        'agents/raphael.md',
+        'skills/merge-github-pr/references/interactive-testing-follow-up.md',
+        'skills/test-assignment/SKILL.md',
+        'skills/auto-interactive-testing/SKILL.md',
+        'skills/pr-summary/SKILL.md',
+        'rules/code-review/general.md',
+        'rules/compound-engineering/orchestration.md',
+    ] as $path) {
+        expect(interactiveSettingSource($path))->toContain('Project setting');
+    }
+});
+
+test('krang resolves the setting once and dispatches no raphael while it is off', function (): void {
+    $krang = interactiveSettingSource('agents/krang.md');
+
+    expect($krang)->toContain('## Interactive testing <on/off, with its source')
+        ->and($krang)->toContain(
+            '**Interactive testing:** resolve it once per run with `skills/_shared/resolve-interactive-testing.sh`, in the gather phase.',
+        )
+        ->and($krang)->toContain('unless the brief\'s `## Interactive testing` is `off`**: then dispatch no `raphael`, send three Task calls')
+        ->and($krang)->toContain('pass no `--runtime-acceptance` to the planner')
+        ->and($krang)->toContain('run `skills/_shared/resolve-interactive-testing.sh` (the project setting; reads the manifest, writes nothing)')
+        ->and($krang)->toContain('the sentence `Interactive testing is switched off for this project.`');
+});
+
+test('raphael stops without a walkthrough when the project switched interactive testing off', function (): void {
+    $raphael = interactiveSettingSource('agents/raphael.md');
+
+    expect($raphael)->toContain('**The project can switch you off.**')
+        ->and($raphael)->toContain('return `QA skipped (interactive testing switched off for this project)`')
+        ->and($raphael)->toContain('run `skills/_shared/resolve-interactive-testing.sh` (the project setting; reads the manifest, writes nothing)');
+});
+
+test('every report that would carry the testing result says that interactive testing is switched off', function (): void {
+    $sentence = 'Interactive testing is switched off for this project.';
+
+    foreach ([
+        'rules/code-review/general.md',
+        'skills/code-review-github/references/cr-wrapper-contract.md',
+        'skills/code-review-github/templates/pr-comment-output.md',
+        'skills/deliver-page-redesign/SKILL.md',
+    ] as $path) {
+        expect(interactiveSettingSource($path))->toContain($sentence);
+    }
+
+    expect(interactiveSettingSource('agents/leonardo.md'))->toContain('one sentence that says interactive testing is switched off for this project')
+        ->and(interactiveSettingSource('skills/pr-summary/SKILL.md'))->toContain('that interactive testing is switched off for this project')
+        ->and(interactiveSettingSource('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('switched off is stated in one sentence')
+        ->and(interactiveSettingSource('skills/merge-github-pr/references/interactive-testing-follow-up.md'))
+        ->toContain('`interactive-testing: skipped, interactive testing is switched off for this project`');
+});
+
+test('the switch removes only interactive testing and no other check', function (): void {
+    expect(interactiveSettingSource('rules/compound-engineering/orchestration.md'))
+        ->toContain('The code review, the security review, the tests, and CI run as before.')
+        ->and(interactiveSettingSource('skills/merge-github-pr/references/interactive-testing-follow-up.md'))
+        ->toContain('Merging, the review, the gate, and CI do not change.');
+});

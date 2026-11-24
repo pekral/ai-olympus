@@ -77,7 +77,7 @@ link to read the skill itself.
 | [`create-missing-tests-in-pr`](../skills/create-missing-tests-in-pr/) | A PR review already exists and its missing tests — only for a missing behavioural contract — must be completed |
 | [`rewrite-tests-pest`](../skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
 | [`e2e-testing`](../skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
-| [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser |
+| [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser; a project switches it off with the manifest key `interactive-testing` set to `false` |
 | [`auto-interactive-testing`](../skills/auto-interactive-testing/) | Working through every open `interactive-testing` issue as one unattended batch: fix the linked defects, run the scenarios, resolve and merge new defects, re-test, clean up, then report and close each issue |
 | [`test-assignment`](../skills/test-assignment/) | A task's pull request must be tested against its assignment and the test must prove that nothing else broke |
 | [`tester-cookbook`](../skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |

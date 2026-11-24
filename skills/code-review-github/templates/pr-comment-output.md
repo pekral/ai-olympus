@@ -110,7 +110,9 @@ History exposure: not run — the repository is private.  *(render this one body
 
 ## Interactive testing
 
-> Render from the `raphael` report whenever the caller passes one — every publish after a parallel CR round (`agents/krang.md` *Parallel CR round*) and every review-only run (`/report-code-review`) — also when a scenario was `Blocked`. Omit the heading when no `raphael` report exists, and when the walkthrough could not run for want of an environment (`@rules/code-review/general.md` *What a code review checks, and nothing else*). The wrapper refuses a record of only `Blocked` rows. A `Not met`, `Failed`, or `Partial` result row is also a finding above. An *Affected parts* row is a finding only as `@skills/interactive-testing/references/affected-parts.md` *Walk and report* states. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
+> Render from the `raphael` report whenever the caller passes one — every publish after a parallel CR round (`agents/krang.md` *Parallel CR round*) and every review-only run (`/report-code-review`) — also when a scenario was `Blocked`. Omit the heading when no `raphael` report exists, and when the walkthrough could not run for want of an environment (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
+>
+> When the project switched interactive testing off, render the heading with the one sentence `Interactive testing is switched off for this project.` and nothing else. The wrapper refuses a record of only `Blocked` rows. A `Not met`, `Failed`, or `Partial` result row is also a finding above. An *Affected parts* row is a finding only as `@skills/interactive-testing/references/affected-parts.md` *Walk and report* states. Never publish exploitable security details, a threat that predates the diff, or a local artifact file path.
 
 - **Tested head:** `{full SHA}` · **URL:** {project URL} · **Account:** {role}
 - **Result:**

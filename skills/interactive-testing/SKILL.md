@@ -17,6 +17,19 @@ metadata:
 - Test the running application without changing its implementation, configuration, permissions, credentials, or database directly. The exceptions are the local preparation that *Local readiness* allows, a local test account that *Sign-in and test accounts* allows, a local data change that *Missing test data* allows, and confirmed security fixes through *Check security and repair confirmed threats*. Other fixes, publishing to a tracker, deploying, or merging require a separate assignment.
 - Respect the browser tool's confirmation rules. Use reversible, clearly identified test data within the authorized workspace. Do not trigger AI processing, recurring jobs, external imports, emails, tracker comments, or destructive actions unless that specific effect is authorized for the scenario. Opening a menu is not evidence that its actions work.
 
+## Project setting
+
+This section owns the project switch for interactive testing. Every other file that runs, dispatches, or reports interactive testing references it and does not restate it.
+
+Run `skills/_shared/resolve-interactive-testing.sh` once, before any other step of this skill. It reads the manifest key `interactive-testing` from the default branch (`@rules/general/general.md` *Project manifest*), never from the working tree, so a pull request cannot switch off its own testing before it is merged. It prints `interactive-testing=on|off` and a `source=` line.
+
+- **`off`: run nothing.** Run no readiness check, no sign-in, no browser, no HTTP request, no test-data change, and no follow-up issue. Return the status `Interactive testing is switched off for this project.`, and let every report that would have carried the result say the same sentence in the language of the report, never leave the section out silently.
+- **Only the walkthrough stops.** The code review, the security review, the tests, and CI stay as they are.
+- **`on` with `source=default`:** the key is absent, so the default applies. Run as written below.
+- **`on` with `source=invalid`:** the value is not a JSON boolean, so it counts as `true`. Say in the report: `The interactive-testing setting is not true or false, so interactive testing stays on.`
+- **`on` with `source=unreadable`:** the manifest could not be read, so the default applies. Say so in the report, with the report that `read-manifest.sh` printed on stderr.
+- **A run of `krang` resolves the state once.** `krang` records it as `## Interactive testing` in the brief (`agents/krang.md`), and an agent it dispatches uses that value. Without that heading, run the script.
+
 ## Use when
 
 - A developer asks for a browser acceptance check after a feature, fix, revert, or UI change.
