@@ -236,6 +236,20 @@ dataset('merge delete refusals', [
         ],
         '801', '803', 4,
     ],
+    'the merged comment quotes the marker only inside a code block' => [
+        [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n```\n" . reviewMergeMarker() . "\n```"),
+        ],
+        '801', '803', 4,
+    ],
+    'the merged comment sits on another issue of the repository' => [
+        [
+            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker(), '43'),
+        ],
+        '801', '803', 4,
+    ],
     'the operator answers under the same account without a marker' => [
         [
             reviewMergeComment(801, 'bot', "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker()),
@@ -258,6 +272,20 @@ dataset('merge delete refusals', [
         ],
         '801', '803', 4,
     ],
+    'the target holds a line the operator added that the merged comment lacks' => [
+        [
+            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
+        ],
+        '801', '803', 4,
+    ],
+    'the target holds an operator line that the merged comment only paraphrases' => [
+        [
+            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
+            reviewMergeComment(803, 'bot', "Round 2: merged. The operator decided to keep the limit.\n\n" . reviewMergeMarker()),
+        ],
+        '801', '803', 4,
+    ],
     'the target is a comment of another account' => [
         [
             reviewMergeComment(801, 'stranger', "Round 1.\n\n" . reviewMergeMarker()),
@@ -275,34 +303,6 @@ dataset('merge delete refusals', [
     'the target is the merged comment itself' => [
         [reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker())],
         '803', '803', 4,
-    ],
-    'the merged comment sits on another issue of the repository' => [
-        [
-            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
-            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker(), '43'),
-        ],
-        '801', '803', 4,
-    ],
-    'the merged comment quotes the marker only inside a code block' => [
-        [
-            reviewMergeComment(801, 'bot', "Round 1.\n\n" . reviewMergeMarker()),
-            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n```\n" . reviewMergeMarker() . "\n```"),
-        ],
-        '801', '803', 4,
-    ],
-    'the target holds a line the operator added that the merged comment lacks' => [
-        [
-            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
-            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
-        ],
-        '801', '803', 4,
-    ],
-    'the target holds an operator line that the merged comment only paraphrases' => [
-        [
-            reviewMergeComment(801, 'bot', reviewMergeFingerprinted('Round 1: the limit is 2 MB.', 'Decision: keep the 2 MB limit.')),
-            reviewMergeComment(803, 'bot', "Round 2: merged. The operator decided to keep the limit.\n\n" . reviewMergeMarker()),
-        ],
-        '801', '803', 4,
     ],
 ]);
 
@@ -417,7 +417,10 @@ function reviewMergeJiraDocument(string $id, string $accountId, array $paragraph
     return [
         'author' => ['accountId' => $accountId, 'displayName' => 'Agent'],
         'body' => [
-            'content' => array_map(static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'], $paragraphs),
+            'content' => array_map(
+                static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'],
+                $paragraphs,
+            ),
             'type' => 'doc',
             'version' => 1,
         ],
@@ -571,13 +574,13 @@ test(
 ]);
 
 dataset('merge delete mention replies', [
-    'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
+    'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
     'a mention in another letter case' => ['@BOT finding 2 is wrong.', 4, false],
     'a mention in brackets after a comma' => ['Look again,(@bot) please.', 4, false],
-    'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
     'a mention inside a fenced code block' => ["```\n@bot\n```", 0, true],
     'a mention inside an inline code span' => ['Type `@bot` to call it.', 0, true],
     'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
+    'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
     'an address that contains the login' => ['Write to ops@bot.example please.', 0, true],
 ]);
 
@@ -625,13 +628,15 @@ test('the JIRA delete helper refuses a review comment when the view embeds fewer
 });
 
 dataset('merge delete JIRA link replies', [
-    'a linked text that points at the comment' => [[
-        'marks' => [['attrs' => ['href' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'link']],
-        'text' => 'this finding',
-        'type' => 'text',
-    ]],
-    'a smart link to the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'inlineCard']],
     'a block card of the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'blockCard']],
+    'a linked text that points at the comment' => [
+        [
+            'marks' => [['attrs' => ['href' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'link']],
+            'text' => 'this finding',
+            'type' => 'text',
+        ],
+    ],
+    'a smart link to the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'inlineCard']],
 ]);
 
 test('the JIRA delete helper counts a link to the comment in a document node as a reply', function (array $node): void {
@@ -715,7 +720,7 @@ test('the JIRA delete helper keeps a review comment until the merged comment car
     expect($result['process']->getExitCode())->toBe($exit)
         ->and($result['deleted'])->toBe($exit === 0);
 })->with([
+    'the merged comment carries the line' => ['Decision: keep the 2 MB limit.', 0],
     'the merged comment lacks the line' => ['', 4],
     'the merged comment rewords the line' => ['The operator kept the limit.', 4],
-    'the merged comment carries the line' => ['Decision: keep the 2 MB limit.', 0],
 ]);
