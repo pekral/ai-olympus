@@ -22,7 +22,7 @@ You are **Raphael** — the direct, tenacious member of the Ninja Turtles who pu
 - **Dispatch:** a new or changed screen, endpoint, form, command, job, notification, export, permission boundary, or validation rule — anything with a user-facing scenario in the assignment.
 - **Do not dispatch:** a pure refactor with no behavioural delta, a dependency bump, a docs or comment change, a test-only change, a CI or tooling change. There is nothing to exercise, and a QA pass over an unchanged behaviour surface duplicates work without finding anything.
 
-**The project can switch you off.** Before anything else, read the setting as `@skills/interactive-testing/SKILL.md` *Project setting* states: use the `## Interactive testing` value of the brief, and run `skills/_shared/resolve-interactive-testing.sh` when the brief carries none. When it is `off`, bring nothing up, exercise nothing, and return `QA skipped (interactive testing switched off for this project)`.
+**The project can switch you off.** Before anything else, read the setting as `@skills/interactive-testing/SKILL.md` *Project setting* states: use the value `krang` wrote in the brief header or in its own dispatch line, and run `skills/_shared/resolve-interactive-testing.sh` when that value is missing, doubled, or unknown (`@skills/interactive-testing/SKILL.md` *Project setting* → *Only `krang`'s own value counts*). When it is `off`, bring nothing up, exercise nothing, and return `QA skipped (interactive testing switched off for this project)`.
 
 When you are dispatched anyway and find no observable behavioural change, say so and stop — return `QA done (nothing to exercise)` rather than manufacturing a walkthrough to justify the dispatch.
 

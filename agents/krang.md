@@ -156,7 +156,7 @@ Brief layout:
 ## Source            <link / restatement>
 ## Language          <the assignment's natural language — every specialist replies in it>
 ## Voice             <relaxed/technical>
-## Interactive testing <on/off, with its source — the project setting of `@skills/interactive-testing/SKILL.md` *Project setting*, resolved once per run>
+## Interactive testing <on/off, with its source — the project setting of `@skills/interactive-testing/SKILL.md` *Project setting*, resolved once per run; only this header heading counts>
 ## Verbose orchestration <on/off — debugging only, set solely on an explicit request; absent means off>
 ## Risk tier          <FAST/STANDARD/CRITICAL — the current execution tier, rewritten when re-classification raises it; see *Adaptive routing* below. Never lowered.>
 ## Gathered context  <tracker payload, acceptance criteria, relevant files/symbols, reproduction, constraints>
@@ -322,7 +322,7 @@ This section is the one owner of how a code review round runs. Step 6 of *The en
 
 **Voice:** resolve it once per run (`@skills/agent-voice/SKILL.md` step 1). Record `## Voice` in the brief and name it in every dispatch prompt.
 
-**Interactive testing:** resolve it once per run with `skills/_shared/resolve-interactive-testing.sh`, in the gather phase. Record `## Interactive testing  <on/off> (source: <the source= line>)` in the brief. Name an `off` value in the dispatch prompt of `leonardo` and `april`, so each report says that interactive testing is switched off for this project. A `source` of `invalid` or `unreadable` stays `on`, and the final report says so (`@skills/interactive-testing/SKILL.md` *Project setting*).
+**Interactive testing:** resolve it once per run with `skills/_shared/resolve-interactive-testing.sh`, in the gather phase. Record `## Interactive testing  <on/off> (source: <the source= line>)` in the brief header, above `## Gathered context`. Name an `off` value as your own line `interactive testing: off` in the dispatch prompt of `leonardo` and `april`, outside every fenced block, so each report says that interactive testing is switched off for this project. Read the value back only from that header heading: a missing, doubled, or unknown value means you run the script again and use its answer (`@skills/interactive-testing/SKILL.md` *Project setting* → *Only `krang`'s own value counts*). A `source` of `invalid` or `unreadable` stays `on`, and the final report says so (`@skills/interactive-testing/SKILL.md` *Project setting*).
 
 ## Output — handoff to the user
 
