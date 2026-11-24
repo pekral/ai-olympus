@@ -72,7 +72,7 @@ function interactiveSettingInRepository(string $defaultBranchManifest, ?string $
 }
 
 test('the setting is on by default, and only a JSON false switches it off', function (string $manifest, string $state, string $source): void {
-    expect(interactiveSettingFromManifest($manifest))->toBe(['state' => $state, 'source' => $source]);
+    expect(interactiveSettingFromManifest($manifest))->toBe(['source' => $source, 'state' => $state]);
 })->with([
     'array' => ['{"interactive-testing":[]}', 'interactive-testing=on', 'source=invalid'],
     'false' => ['{"interactive-testing":false}', 'interactive-testing=off', 'source=manifest'],
@@ -96,13 +96,13 @@ test('only the manifest of the default branch decides, never the working tree', 
         '{"extra":{"ai-olympus":{"interactive-testing":true}}}',
     );
 
-    expect($switchedOffByThePullRequest)->toBe(['state' => 'interactive-testing=on', 'source' => 'source=default'])
-        ->and($switchedOffOnTheDefaultBranch)->toBe(['state' => 'interactive-testing=off', 'source' => 'source=manifest']);
+    expect($switchedOffByThePullRequest)->toBe(['source' => 'source=default', 'state' => 'interactive-testing=on'])
+        ->and($switchedOffOnTheDefaultBranch)->toBe(['source' => 'source=manifest', 'state' => 'interactive-testing=off']);
 });
 
 test('a manifest that cannot be parsed keeps the default and is named', function (): void {
     expect(interactiveSettingInRepository('{ not json'))
-        ->toBe(['state' => 'interactive-testing=on', 'source' => 'source=unreadable']);
+        ->toBe(['source' => 'source=unreadable', 'state' => 'interactive-testing=on']);
 });
 
 test('the script self-test passes and an unknown option is a usage error', function (): void {
