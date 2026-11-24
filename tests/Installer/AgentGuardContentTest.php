@@ -42,6 +42,20 @@ test('no writing role carries the runtime protection step', function (string $ag
     expect(agentGuardPackageFile('agents/' . $agent . '.md'))->not->toContain('## Runtime protection');
 })->with(['donatello', 'michelangelo', 'raphael']);
 
+test('the boundary rule says an agent stopped by the guard reports Blocked and never retries another way', function (): void {
+    $boundary = installerDocsSection(agentGuardPackageFile('rules/compound-engineering/orchestration.md'), '## Bash capability boundary');
+
+    expect($boundary)->toContain('**An agent stopped by the guard reports `Blocked` and never retries the action through another tool or interpreter.**');
+});
+
+test('the boundary rule names the runtime agent guard and no longer says the package ships no runtime component', function (): void {
+    $boundary = installerDocsSection(agentGuardPackageFile('rules/compound-engineering/orchestration.md'), '## Bash capability boundary');
+
+    expect($boundary)->toContain('**The runtime agent guard — the enforced layer for the read-only roles (issue #695).**')
+        ->and($boundary)->not->toContain('this instructions-only package deliberately does not ship')
+        ->and($boundary)->not->toContain('this package ships instructions, never runtime code');
+});
+
 test('krang renders one runtime protection line per dispatched confined role', function (): void {
     $data = json_encode([
         'status' => 'completed',
@@ -65,6 +79,34 @@ test('krang renders one runtime protection line per dispatched confined role', f
         '- Runtime protection: splinter — active',
         '- Runtime protection: april — inactive (bwrap is not installed)',
     ])->and(agentGuardPackageFile('agents/krang.md'))->toContain('so the completion report carries one `Runtime protection:` line per role');
+});
+
+test('SECURITY.md carries one section per platform and every residual of the guard', function (): void {
+    $guard = installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard');
+
+    expect($guard)->toContain('### Claude Code — what is enforced')
+        ->and($guard)->toContain('### Codex — what is not enforced')
+        ->and($guard)->toContain('### Strict mode')
+        ->and($guard)->toContain('### What stays outside the guard')
+        ->and($guard)->toContain('On Codex the read-only limit of a role inside a writing session stays **advisory**.')
+        ->and($guard)->toContain('Run `vendor/bin/ai-olympus install --no-agent-guard`.');
+
+    $residuals = [
+        '1. **Codex**',
+        '2. **The main session without `--agent`**',
+        '3. **A hook that does not run:**',
+        '4. **A host without confinement:**',
+        '5. **A nested sandbox:**',
+        '6. **The network.**',
+        '7. **Inter-process channels',
+        '8. **Linux only:**',
+        '9. **A writing role or the main session can change the guard.**',
+        '10. **A changed `composer.lock`**',
+    ];
+
+    foreach ($residuals as $residual) {
+        expect($guard)->toContain($residual);
+    }
 });
 
 test('the manifest table documents the strict-mode key and that only the default branch sets it', function (): void {
