@@ -20,17 +20,33 @@ include "review-trust";
 def other_agent_marker:
   type == "string" and ([scan("([a-z][a-z0-9-]*):actor=") | .[0]] | any(. != "cr-comment"));
 
-# github_mentions — the input is a GitHub comment body. Every login it names as `@<login>`, in lower case. A login
-# inside a code block or a code span counts too: the test reads no Markdown structure, so no difference from the
-# GitHub renderer can hide a mention, and a login counted in excess only keeps a comment. A word character in front of
-# the `@`, as in an address such as `name@host`, makes it no mention.
+# char_refs_decoded — the input is a GitHub comment body. Every decimal or hexadecimal character reference (`&#64;`,
+# `&#x40;`, leading zeros and either case of `x` included) becomes its character, and `&commat;` becomes `@`, in one
+# pass. No other named reference of HTML5 gives `@`, a letter, a digit, or `-`. A code point the renderer does not keep
+# becomes U+FFFD.
+def char_refs_decoded:
+  def code_point: if . >= 1 and . <= 1114111 and (. < 55296 or . > 57343) then . else 65533 end;
+  def hex_value: ascii_downcase | explode | reduce .[] as $d (0; . * 16 + (if $d >= 97 then $d - 87 else $d - 48 end));
+  gsub("&(?:#(?<dec>[0-9]+)|#[xX](?<hex>[0-9A-Fa-f]+)|(?<named>[cC][oO][mM][mM][aA][tT]));";
+    if .named != null then "@"
+    elif .dec != null then [.dec | tonumber | code_point] | implode
+    else [.hex | hex_value | code_point] | implode end);
+
+# github_mentions — the input is a GitHub comment body. Every login it names as `@<login>` once its character
+# references are decoded, in lower case. A login inside a code block or a code span counts too: the test reads no
+# Markdown structure, so no difference from the GitHub renderer can hide a mention, and a login counted in excess only
+# keeps a comment. Only an ASCII letter or digit in front of the `@`, as in an address such as `name@host`, makes it no
+# mention: every markup that can end a text run right before the `@` ends in another character (`_`, `*`, `>`, `;`), so
+# that letter or digit stands in front of the `@` in the rendered text too, where GitHub reads no mention.
 def github_mentions:
-  [ scan("(?<![A-Za-z0-9_])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)") | .[0] | ascii_downcase ] | unique;
+  [ char_refs_decoded | scan("(?<![A-Za-z0-9])@([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)") | .[0] | ascii_downcase ]
+  | unique;
 
 # marker_line($marker) — the input is a GitHub comment body. True when a line of the body is exactly $marker, trailing
-# blanks aside, and no code block can hold that line. The reading fails closed: a marker that a code block could hold
-# does not count, so a quoted marker never identifies a comment. It follows the CommonMark fence rules only where they
-# are certain for a line at column 0, where the marker stands:
+# blanks aside, and no code block can hold that line. A line ends at `\n`, `\r\n`, or a lone `\r`, as in CommonMark.
+# The reading fails closed: a marker that a code block could hold does not count, so a quoted marker never identifies a
+# comment. It follows the CommonMark fence rules only where they are certain for a line at column 0, where the marker
+# stands:
 # - a fence opens with three or more backticks or tildes at column 0 (a backtick fence has no backtick after the run),
 #   and only a line of the same character, at least as long, with at most three spaces in front and nothing after the
 #   run, closes it; an unclosed fence runs to the end of the body;
@@ -49,7 +65,7 @@ def marker_line($marker):
     elif test("^<(?i:pre|script|style|textarea)(?:[ \t>]|$)") then "(?i:</(?:pre|script|style|textarea)>)"
     else "blank" end;
   def html_closed($end): if $end == "blank" then test("^[ \t]*$") else test($end) end;
-  split("\n")
+  gsub("\r\n?"; "\n") | split("\n")
   | any(foreach .[] as $raw ({open: null, html: null, doubt: false, hit: false};
       ($raw | sub("[ \t\r]+$"; "")) as $line
       | ($line | test(prefix + "(?:```|~~~)")) as $fenceLike

@@ -69,8 +69,8 @@ deletes. It never changes a status, an assignee, or a label.
 3. `carrier` is the comment that receives the merged text, and `delete` lists the comments a delete helper may remove. The plan
    picks the newest `review` comment that has a reply, else the newest `review` comment. A reply is a later comment that
    links the comment, quotes a whole line of it, or mentions its author account: a JIRA mention, or any `@<login>` on
-   GitHub, inside code too (`skills/_shared/comment-reply.jq`). A `review` comment with a reply is never in `delete`. Its text goes
-   into the carrier, and the comment itself stays.
+   GitHub, inside code too and with its character references decoded (`skills/_shared/comment-reply.jq`). A `review`
+   comment with a reply is never in `delete`. Its text goes into the carrier, and the comment itself stays.
 4. `operatorLines` of a `review` comment lists the lines the operator added to it (`skills/_shared/operator-lines.sh`). A
    comment whose lines cannot be read has `null` there and stays.
 5. Bugsnag has no comment id, no marker, and no update or delete wrapper in this package. The merged comment is a new

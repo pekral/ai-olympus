@@ -574,6 +574,8 @@ test(
 ]);
 
 dataset('merge delete mention replies', [
+    'a mention after a closing double underscore' => ['__Note__@bot finding 2 is wrong.', 4, false],
+    'a mention after a closing underscore' => ['_Note_@bot finding 2 is wrong.', 4, false],
     'a mention after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot finding 2 is wrong.", 4, false],
     'a mention after a fence of a list item' => ["- Finding 2:\n\n  ```\n@bot this is wrong.", 4, false],
     'a mention after a fence of a quote' => ["> ```\n    ```\n@bot finding 2 is wrong.", 4, false],
@@ -591,6 +593,13 @@ dataset('merge delete mention replies', [
     'a mention inside an inline code span' => ['Type `@bot` to call it.', 4, false],
     'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
     'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is a decimal reference' => ['&#64;bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is a hexadecimal reference' => ['&#x40;bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is a named reference' => ['&commat;bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is a zero-padded decimal reference' => ['&#0000064;bot finding 2 is wrong.', 4, false],
+    'a mention whose at sign is an upper-case hexadecimal reference' => ['&#X0040;bot finding 2 is wrong.', 4, false],
+    'a mention whose login holds a decimal reference' => ['@&#98;ot finding 2 is wrong.', 4, false],
+    'a mention whose login holds a hexadecimal reference' => ['@b&#x6F;t finding 2 is wrong.', 4, false],
     'an address that contains the login' => ['Write to ops@bot.example please.', 0, true],
 ]);
 
@@ -609,6 +618,7 @@ test(
 )->with('merge delete mention replies');
 
 dataset('merge delete code-held markers', [
+    'a fence after a lone carriage return opens a fence' => ["Note\r```\n%s\n```"],
     'a fence line indented by four spaces does not close the fence' => ["```\n    ```\n%s\n```"],
     'a fence line inside an HTML block shifts the fences' => ["<div>\n```\n</div>\n\n```\n%s"],
     'a fence of a list item is followed by a fence the reading cannot place' => ["- Finding 2:\n\n  ```\n```\n%s\n```"],
