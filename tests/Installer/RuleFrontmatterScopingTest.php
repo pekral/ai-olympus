@@ -491,7 +491,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: an Actionable comments entry may carry the suggested code of its finding, the one code a review shows (issue #654).
         // Re-baselined: the marker family names the `pr-body-overflow` namespace, the upserted pull-request body overflow comment (issue #662).
         // Re-baselined: the Exclusion Gate sees only the Moderate findings that the findings verification kept.
-        'rules/code-review/general.md' => '8af7254ca9bd2206ffd6a0da2ea69a5b8c4197d1bd3c7db3997494a949b713ad',
+        // Re-baselined: *Bulk Data & Batch Processing* gains a fourth check, in-memory work that grows faster than the data (issue #680).
+        'rules/code-review/general.md' => '72e71012b732321e0484cd10f6b2ea7ef85ad253cb02609f6f374692f142c004',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
