@@ -241,7 +241,7 @@ final class InstallerProjectSettings
     {
         $settingsPath = self::resolveProjectLocalSettingsPath($projectRoot);
         $existing = InstallerSettingsFile::read($settingsPath);
-        $removed = self::stripOrphanedBashGuardHandlers($existing);
+        $removed = InstallerHookHandlers::strip($existing, self::isOrphanedBashGuardHandler(...));
 
         if ($removed === 0) {
             return 0;
@@ -305,109 +305,6 @@ final class InstallerProjectSettings
         $existing->permissions = $permissions;
 
         return true;
-    }
-
-    /**
-     * Walks every hook event, not only `PreToolUse` where the removed flag wrote its handler: the
-     * predicate identifies a handler pointing at a subcommand the binary no longer has, and such a
-     * handler is dead — and prints the same error — under whichever event it sits.
-     */
-    private static function stripOrphanedBashGuardHandlers(stdClass $existing): int
-    {
-        $hooks = $existing->hooks ?? null;
-
-        if (!$hooks instanceof stdClass) {
-            return 0;
-        }
-
-        $removed = 0;
-
-        foreach (get_object_vars($hooks) as $event => $groups) {
-            $removed += is_array($groups) ? self::stripEventGroups($hooks, $event, $groups) : 0;
-        }
-
-        // The `hooks` key outliving its last handler would leave the package's own leftover behind
-        // in a different shape, so it goes with the handler it existed to hold.
-        if ($removed > 0 && get_object_vars($hooks) === []) {
-            unset($existing->hooks);
-        }
-
-        return $removed;
-    }
-
-    /**
-     * @param array<array-key, mixed> $groups
-     */
-    private static function stripEventGroups(stdClass $hooks, string $event, array $groups): int
-    {
-        $removed = 0;
-        $retained = [];
-
-        foreach ($groups as $group) {
-            [$keepGroup, $removedFromGroup] = self::stripGroupHandlers($group);
-            $removed += $removedFromGroup;
-            $retained = $keepGroup ? [...$retained, $group] : $retained;
-        }
-
-        if ($removed === 0) {
-            return 0;
-        }
-
-        if ($retained === []) {
-            unset($hooks->{$event});
-
-            return $removed;
-        }
-
-        $hooks->{$event} = $retained;
-
-        return $removed;
-    }
-
-    /**
-     * Strips the orphaned handlers from one matcher group, in place. Returns whether the group
-     * itself survives — a group emptied by this run is dropped, while a group that was already
-     * empty before it is left exactly as the project wrote it.
-     *
-     * @return array{0: bool, 1: int}
-     */
-    private static function stripGroupHandlers(mixed $group): array
-    {
-        if (!$group instanceof stdClass) {
-            return [true, 0];
-        }
-
-        $handlers = $group->hooks ?? null;
-
-        if (!is_array($handlers)) {
-            return [true, 0];
-        }
-
-        $retained = self::retainedHandlers($handlers);
-        $removed = count($handlers) - count($retained);
-
-        if ($removed === 0) {
-            return [true, 0];
-        }
-
-        if ($retained === []) {
-            return [false, $removed];
-        }
-
-        $group->hooks = $retained;
-
-        return [true, $removed];
-    }
-
-    /**
-     * @param array<array-key, mixed> $handlers
-     * @return array<int, mixed>
-     */
-    private static function retainedHandlers(array $handlers): array
-    {
-        $isForeign = static fn (mixed $handler): bool => !self::isOrphanedBashGuardHandler($handler);
-
-        return array_values(array_filter($handlers, $isForeign));
     }
 
     private static function isOrphanedBashGuardHandler(mixed $handler): bool
