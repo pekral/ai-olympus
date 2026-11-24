@@ -21,6 +21,7 @@
 #   review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
+#   review-state.sh known    --state <file> --finding <id> --issue <https-url> --covers <text> [--security-owned]
 #   review-state.sh --self-test
 #
 #   --state          the state file. Every command that writes it refuses a path outside the `.claude/run/` or
@@ -55,6 +56,16 @@
 #                    OWNER, MEMBER, or COLLABORATOR, a comment that carries an agent marker, and a comment that does
 #                    not name the finding_id it rejects. No caller states the association.
 #
+#   known            marks an open finding as a known point: a linked issue already reports the same problem
+#                    (rules/code-review/review-process.md *Known points*). Only the orchestrator runs it, after its
+#                    own comparison of the finding with the linked issues. --issue is the https URL of that issue,
+#                    --covers is one line (1 to 300 characters) on what the issue covers, and --security-owned says
+#                    that a person already owns the security finding in the linked issue and that the change does not
+#                    widen it: without the flag a security finding is refused (exit 4). A known point is not blocking,
+#                    so it never counts in the verdict. The reviewer's next report of the same finding reopens it,
+#                    so the orchestrator compares again in every round. `known` refuses (exit 4) a finding that is
+#                    not open, and refuses (exit 5) an escalated loop.
+#
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
 #   `review.blocking-threshold` (critical, high, medium, or low; default critical). No environment variable,
@@ -65,7 +76,7 @@
 #
 # Output (stdout, one line of JSON)
 #   init      {"resumed", "iteration", "max_iterations", "blocking_threshold"}
-#   record, evaluate, dismiss, defer
+#   record, evaluate, dismiss, defer, known
 #             the verdict: {"verdict", "status", "escalation_reason", "iteration", "max_iterations",
 #             "blocking_threshold", "reason", "counts", "rounds", "blocking", "deferrable", "carried"}
 #   scope     {"scope": "delta"|"full", "reasons": [...], "baseline": <sha>|null, "depth": "light"|"full",
@@ -113,6 +124,7 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
        review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
+       review-state.sh known    --state <file> --finding <id> --issue <https-url> --covers <text> [--security-owned]
        review-state.sh --self-test
 EOF
 }
@@ -162,7 +174,7 @@ def state_errors:
      "revision", "scope", "findings", "deferrals", "transitions", "rounds"] as $keys
     | (($s.findings // []) | if type == "array" then map(.finding_id) else [] end) as $ids
     | [
-        (($s | keys) - $keys - ["operator_rounds"] | .[] | "unknown key \(.)"),
+        (($s | keys) - $keys - ["operator_rounds", "known_points"] | .[] | "unknown key \(.)"),
         ($keys - ($s | keys) | .[] | "missing key \(.)"),
         (if $s.schema == 1 then empty else "schema must be 1" end),
         (if isstr($s.repo; "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") then empty else "repo must be owner/name" end),
@@ -209,11 +221,20 @@ def state_errors:
               type == "object" and keys == ["finding_id", "url"] and (.finding_id as $id | $ids | index([$id])) != null
               and isstr(.url; "^https://\\S+$") and (.url | length) <= 500)
          then empty else "a deferral is malformed or names an unknown finding" end),
+        # The known points the orchestrator marked; an older state has none. Each names one finding of the state.
+        (if ($s | has("known_points") | not) or (($s.known_points | type) == "array"
+              and ($s.known_points | map(.finding_id?) | unique | length) == ($s.known_points | length)
+              and all($s.known_points[];
+                type == "object" and keys == ["covers", "finding_id", "url"] and (.finding_id as $id | $ids | index([$id])) != null
+                and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
+                and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")))
+         then empty else "a known point is malformed or names an unknown finding" end),
         (if ($s.transitions | type) == "array" and all($s.transitions[];
               type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
               and (.from == null or (.from | status_rank) > 0) and (.to | status_rank) > 0
               and (if .to == "dismissed" then isstr(.actor; "^trusted:(OWNER|MEMBER|COLLABORATOR)$")
+                   elif .to == "known" then .actor == "orchestrator"
                    else .actor == "reviewer" end))
          then empty else "a transition is malformed" end),
         # Every status is the end of the finding's own history: no status changes without a recorded transition.
@@ -282,6 +303,7 @@ def output($cap; $threshold; $carried):
         reopened: ($s.rounds | map(.reopened) | add // 0),
         needs_verification: ($s.findings | map(select(.status == "needs-verification")) | length),
         deferred: ($s.deferrals | length),
+        known: ($s.findings | map(select(.status == "known")) | length),
         remaining_blocking: ($v.open | length)
       },
       rounds: ($s.rounds | map({iteration, new, resolved, reopened, remaining_blocking, verdict})),
@@ -307,7 +329,7 @@ def lift: if . == "new" then "confirmed" else . end;
 def merge_reported($prev):
   . as $c | $prev[$c.finding_id] as $p
   | if $p == null then {rec: $c, from: null, carried: false}
-    elif ($p.status == "resolved" or $p.status == "dismissed") then
+    elif ($p.status == "resolved" or $p.status == "dismissed" or $p.status == "known") then
       {rec: ($c | .status = (.status | lift)), from: $p.status, carried: false}
     else
       ([($c.status | lift), ($p.status | lift)] | max_by(status_rank)) as $st
@@ -352,11 +374,13 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
   | . as $merged
   | [ $merged[] | select(.from != .rec.status)
       | {iteration: $n, finding_id: .rec.finding_id, from, to: .rec.status, actor: "reviewer"} ] as $moves
+  | ($merged | map(select(.rec.status == "known") | .rec.finding_id)) as $kept_known
   | $s
   | .iteration = $n
   | .revision = $rev
   | .scope = null
   | .findings = ($merged | map(.rec) | sort_by(.finding_id))
+  | (if has("known_points") then .known_points |= map(select(.finding_id as $id | $kept_known | index([$id]) != null)) else . end)
   | .transitions += $moves
   | . as $next
   | verdict($cap; $threshold) as $v
@@ -379,8 +403,10 @@ IFS= read -r -d '' JQ_LATE <<'EOF' || true
    + [ $s.findings[] | select($now[.finding_id] == null) | {rec: ., from: .status, carried: false} ]) as $merged
 | [ $merged[] | select(.from != .rec.status)
     | {iteration: $n, finding_id: .rec.finding_id, from, to: .rec.status, actor: "reviewer"} ] as $moves
+| ($merged | map(select(.rec.status == "known") | .rec.finding_id)) as $kept_known
 | $s
 | .findings = ($merged | map(.rec) | sort_by(.finding_id))
+| (if has("known_points") then .known_points |= map(select(.finding_id as $id | $kept_known | index([$id]) != null)) else . end)
 | .transitions += $moves
 | . as $next
 | verdict($cap; $threshold) as $v
@@ -874,6 +900,51 @@ cmd_defer() {
   jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
+cmd_known() {
+  local state='' id='' issue='' covers='' owned=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
+    --finding) [[ $# -ge 2 ]] || die_usage '--finding needs a value'; id="$2"; shift 2 ;;
+    --issue) [[ $# -ge 2 ]] || die_usage '--issue needs a value'; issue="$2"; shift 2 ;;
+    --covers) [[ $# -ge 2 ]] || die_usage '--covers needs a value'; covers="$2"; shift 2 ;;
+    --security-owned) owned=1; shift ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
+    esac
+  done
+  [[ -n "$state" ]] || die_usage '--state is required'
+  [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
+  [[ "$issue" =~ ^https://[^[:space:]]+$ && ${#issue} -le 500 ]] || die_usage '--issue must be the https URL of the linked issue'
+  [[ ${#covers} -ge 1 && ${#covers} -le 300 && ! "$covers" =~ [[:cntrl:]] ]] || die_usage '--covers must be one line of 1 to 300 characters'
+  check_writable "$state"
+  new_tmp
+  load_state "$state" "$TMP/state.json"
+  [[ "$(jq -r '.status' "$TMP/state.json")" != 'escalated' ]] || fail 5 "the loop escalated; the state is closed"
+
+  local finding
+  finding="$(jq -c --arg id "$id" '.findings[] | select(.finding_id == $id)' "$TMP/state.json")"
+  [[ -n "$finding" ]] || fail 4 "no finding $id in the review state"
+  jq -e '.status == "new" or .status == "confirmed" or .status == "needs-verification"' <<<"$finding" >/dev/null \
+    || fail 4 "finding $id is not open; the status is unchanged"
+  if [[ "$owned" -ne 1 ]]; then
+    jq -e '.security | not' <<<"$finding" >/dev/null \
+      || fail 4 "a security finding (S1-S3) is a known point only when a person already owns it in the linked issue and the change does not widen it (--security-owned); the status is unchanged"
+  fi
+
+  local config cap threshold
+  config="$(effective_config)"
+  cap="${config%% *}"
+  threshold="${config#* }"
+  jq -c -L "$HERE" --arg id "$id" --arg url "$issue" --arg covers "$covers" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
+    (.findings[] | select(.finding_id == $id)) as $f
+    | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "known", actor: "orchestrator"}]
+    | .findings = (.findings | map(if .finding_id == $id then .status = "known" else . end))
+    | .known_points = (((.known_points // []) | map(select(.finding_id != $id))) + [{finding_id: $id, url: $url, covers: $covers}])
+    | settle($cap; $threshold; false)' "$TMP/state.json" >"$TMP/next.json"
+  write_state "$TMP/next.json" "$state"
+  jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
+}
+
 # The fixtures below are Markdown that carries backticks and dollar signs; none of it is meant to expand.
 # shellcheck disable=SC2016
 self_test() {
@@ -1140,6 +1211,38 @@ EOF
   run_case 'the reviewer reports the dismissed finding again' 0 -- record --state "$S" --input "$tmp/d2.md" --changed-files "$tmp/changed-both"
   check 'a dismissed finding the code still carries reopens instead of being suppressed' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   run_case 'a deferral before the cap round is refused' 4 -- defer --state "$S" --finding "$struct_id" --url https://github.com/acme/shop/issues/9
+
+  # --- known points: a linked issue already reports the finding; never blocking, never a security finding unowned ---
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/n1.md" 1 "$F_STRUCT" "$F_SQL"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/n1.md" >/dev/null)
+  local known_issue=https://github.com/acme/shop/issues/12
+  run_case 'a finding the linked issue reports is marked known' 0 -- known --state "$S" --finding "$struct_id" --issue "$known_issue" --covers 'The issue describes the copied step.'
+  check 'a known point is not blocking and is counted on its own' "$(q '.counts.known == 1 and .counts.remaining_blocking == 1 and (.blocking | length) == 1 and .blocking[0].file == "app/Http/Orders.php"')"
+  check 'the state keeps the issue, the sentence, and an orchestrator transition' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "known"
+      and .known_points == [{finding_id: $id, url: "https://github.com/acme/shop/issues/12", covers: "The issue describes the copied step."}]
+      and any(.transitions[]; .finding_id == $id and .to == "known" and .actor == "orchestrator")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'the state with a known point is valid' 0 -- evaluate --state "$S"
+  run_case 'a known point is not marked twice' 4 -- known --state "$S" --finding "$struct_id" --issue "$known_issue" --covers 'again'
+  run_case 'a security finding is never a known point without the owner flag' 4 -- known --state "$S" --finding "$sql_id" --issue "$known_issue" --covers 'The issue describes the query.'
+  check 'the refused security finding stays blocking' "$(jq -e --arg id "$sql_id" '(.findings[] | select(.finding_id == $id) | .status) == "new"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  run_case 'an unknown finding is refused' 4 -- known --state "$S" --finding r-0000000000000000 --issue "$known_issue" --covers 'x'
+  run_case 'an issue that is not an https URL is a usage error' 1 -- known --state "$S" --finding "$sql_id" --issue 'http://x' --covers 'x'
+  run_case 'an empty sentence is a usage error' 1 -- known --state "$S" --finding "$sql_id" --issue "$known_issue" --covers ''
+  run_case 'a security finding a person owns is a known point with the owner flag' 0 -- known --state "$S" --finding "$sql_id" --issue "$known_issue" --covers 'The issue describes the query and has an owner.' --security-owned
+  check 'with every finding known the loop converges' "$(q '.verdict == "converged" and .counts.known == 2 and .counts.remaining_blocking == 0')"
+  report "$tmp/n2.md" 2 "$F_STRUCT"
+  run_case 'the reviewer reports the known finding again' 0 -- record --state "$S" --input "$tmp/n2.md" --changed-files "$tmp/changed-both"
+  check 'a known point the reviewer reports again reopens, and the orchestrator compares again' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed"
+      and ([.known_points[].finding_id] | index([$id]) == null)' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  check 'a known point the round does not report stays known' "$(jq -e --arg id "$sql_id" '(.findings[] | select(.finding_id == $id) | .status) == "known"
+      and ([.known_points[].finding_id] == [$id])' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  jq -c '.known_points[0].url = "http://insecure.example"' "$repo/$S" >"$tmp/known-bad"
+  cp "$repo/$S" "$tmp/known-good"
+  cp "$tmp/known-bad" "$repo/$S"
+  run_case 'a known point with an insecure URL makes the state invalid' 3 -- evaluate --state "$S"
+  cp "$tmp/known-good" "$repo/$S"
 
   # --- the cap and the threshold: default branch only, range-checked ---------------------------------------
   manifest '{ "review": { "max-iterations": 2, "blocking-threshold": "medium" } }'
@@ -1668,6 +1771,7 @@ late) cmd_late "$@" ;;
 evaluate) cmd_evaluate "$@" ;;
 scope) cmd_scope "$@" ;;
 dismiss) cmd_dismiss "$@" ;;
+known) cmd_known "$@" ;;
 defer) cmd_defer "$@" ;;
 -h | --help) usage ;;
 *) die_usage "unknown command: $(state_path_display "$command")" ;;

@@ -6,4 +6,4 @@
 
 def isstr($v; $re): ($v | type) == "string" and ($v | test($re));
 def severity_rank: {"low": 1, "medium": 2, "high": 3, "critical": 4}[.] // 0;
-def status_rank: {"dismissed": 1, "resolved": 2, "needs-verification": 3, "new": 4, "confirmed": 5}[.] // 0;
+def status_rank: {"dismissed": 1, "known": 1, "resolved": 2, "needs-verification": 3, "new": 4, "confirmed": 5}[.] // 0;
