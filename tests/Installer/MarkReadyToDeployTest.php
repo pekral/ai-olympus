@@ -687,6 +687,22 @@ test('the skill passes the label the operator named to the driver', function ():
         ->and($skill)->toContain('When the operator names the project\'s label, run step 3 again with `--label <name>`.');
 });
 
+test('the skill reports the audit lines without any e-mail and removes the audit file after the verify step', function (): void {
+    $skill = packageSource('skills/mark-ready-to-deploy/SKILL.md');
+    $execution = packageSection($skill, '## Execution', '## Output');
+
+    expect($execution)->toContain(
+        '6. **Report the audit lines, then remove the file.** Read the `.audit` file for the `Audit:` line of the report, then delete it with '
+        . '`rm -f <the .audit file>`.',
+    )
+        ->and(strpos($execution, '5. **Verify the audit trail.**'))->toBeLessThan((int) strpos($execution, '6. **Report the audit lines'))
+        ->and(packageSection($skill, '## Output', '## Done when'))->toContain(
+            'One `Audit:` line: the count of lines per event class and every write target, read from the `.audit` file before step 6 removes it. '
+            . 'It carries no e-mail address.',
+        )
+        ->and(substr($skill, (int) strpos($skill, '## Done when')))->toContain('- The report carries the `Audit:` line, and the `.audit` file no longer exists');
+});
+
 test('the driver refuses an empty operator-named label', function (): void {
     $fixture = readyToDeployFixture();
 
