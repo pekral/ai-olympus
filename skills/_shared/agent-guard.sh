@@ -283,11 +283,11 @@ regex_escape() {
 }
 
 bwrap_base_args() {
-  printf '%s\n' --die-with-parent --new-session
+  printf '%s\n' --die-with-parent --new-session --unshare-pid
   if bwrap --help 2>&1 | grep -q -- '--disable-userns'; then
     printf '%s\n' --unshare-user --disable-userns
   fi
-  printf '%s\n' --ro-bind / / --dev /dev
+  printf '%s\n' --ro-bind / / --dev /dev --proc /proc
 }
 
 # Prints the reason the confinement cannot be applied on this host, or nothing when it can.

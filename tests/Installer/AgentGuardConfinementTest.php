@@ -33,10 +33,11 @@ function agentGuardInterpreterWrites(): array
  */
 function agentGuardDetachedWrites(): array
 {
-    $writes = ['nohup … &' => ['nohup sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &']];
+    $wait = PHP_OS_FAMILY === 'Linux' ? ' wait $!' : '';
+    $writes = ['nohup … &' => ['nohup sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &' . $wait]];
     $setsid = trim((string) shell_exec('command -v setsid 2>/dev/null'));
 
-    return $setsid === '' ? $writes : [...$writes, 'setsid' => ['setsid sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &']];
+    return $setsid === '' ? $writes : [...$writes, 'setsid' => ['setsid sh -c \'echo x > target; touch .claude/run/done\' >/dev/null 2>&1 &' . $wait]];
 }
 
 /**
@@ -347,6 +348,19 @@ test('the hook and exec never run a tool planted in a directory on PATH', functi
         AgentGuardRun::remove($root);
     }
 })->with(['bwrap', 'git', 'jq', 'uname']);
+
+test('a confined command cannot reach the host file system through another process in /proc on Linux', function (): void {
+    $root = AgentGuardRun::repository();
+    $command = 'for p in /proc/[0-9]*; do echo x > "$p/root' . $root . '/escaped" 2>/dev/null; done; true';
+
+    try {
+        AgentGuardRun::exec($root, 'leonardo', $command);
+
+        expect(file_exists($root . '/escaped'))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(PHP_OS_FAMILY !== 'Linux' || agentGuardSkipWithoutConfinement(), 'only bwrap exposes /proc of the host this way');
 
 test('a review role cannot open the review worktree of another role on macOS', function (): void {
     $root = AgentGuardRun::repository();
