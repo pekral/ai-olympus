@@ -19,7 +19,7 @@ with --log-junit: <status> TAB <file> TAB <name> TAB <message>.
 
 Every field is data from a test run. Control characters, tabs, and line breaks are removed from
 each one, so a field never splits a line or reaches a terminal as an escape sequence. A report
-with a document type declaration is refused, so no entity is ever expanded.
+with a document type declaration is refused in every encoding, so no entity is ever expanded.
 
 exit: 0 the report was read, 1 usage error, 2 unreadable or malformed report
 
@@ -28,6 +28,7 @@ TXT;
 const JUNIT_MESSAGE_LINES = 3;
 const JUNIT_MESSAGE_LIMIT = 300;
 const JUNIT_FIELD_LIMIT = 500;
+const JUNIT_DOCTYPE_REFUSAL = 'the report carries a document type declaration';
 
 final readonly class JunitCase
 {
@@ -123,7 +124,7 @@ function junitRead(string $path, string $root): array
     }
 
     if (stripos($xml, '<!DOCTYPE') !== false) {
-        throw new UnreadableJunitReport('the report carries a document type declaration');
+        throw new UnreadableJunitReport(JUNIT_DOCTYPE_REFUSAL);
     }
 
     libxml_use_internal_errors(use_errors: true);
@@ -131,6 +132,10 @@ function junitRead(string $path, string $root): array
 
     if (!$document->loadXML($xml, LIBXML_NONET)) {
         throw new UnreadableJunitReport('the report is not well-formed XML');
+    }
+
+    if ($document->doctype !== null) {
+        throw new UnreadableJunitReport(JUNIT_DOCTYPE_REFUSAL);
     }
 
     $cases = [];
