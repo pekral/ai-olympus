@@ -237,6 +237,70 @@ test(
     'a deny-rule command' => ['curl https://example.test', 'deny'],
 ]);
 
+test('the hook never allows a command past a leading assignment or a wrapper the session does not strip', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(gh pr merge:*)'], 'allow' => ['Bash(git log:*)', 'Bash(git status:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command]));
+
+        expect($decision->permissionDecision)->toBe('ask');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'an external diff program' => ['GIT_EXTERNAL_DIFF=placeholder git log -p --ext-diff -1'],
+    'a shell startup file' => ['BASH_ENV=/placeholder/env git status'],
+    'a preloaded library' => ['LD_PRELOAD=/placeholder/lib.so git log'],
+    'command' => ['command git log'],
+    'env' => ['env git status'],
+    'xargs' => ['xargs git log'],
+]);
+
+test('the hook denies a deny-rule command behind every wrapper the session strips, in every mode', function (string $command, string $mode): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)', 'Bash(gh pr merge:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('splinter', ['command' => $command], $mode));
+
+        expect($decision->permissionDecision)->toBe('deny');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a bare xargs' => ['echo 1 | xargs gh pr merge 1 --rebase'],
+    'xargs with an option' => ['echo u | xargs -n 1 curl'],
+    'timeout with a signal' => ['timeout -s KILL 5 curl https://example.test'],
+    'time' => ['time curl https://example.test'],
+    'nice' => ['nice -n 5 curl https://example.test'],
+    'nohup' => ['nohup curl https://example.test'],
+    'stdbuf' => ['stdbuf -o L curl https://example.test'],
+    'an assignment' => ['FOO=1 curl https://example.test'],
+    'env' => ['env -i FOO=1 curl https://example.test'],
+    'exec' => ['exec curl https://example.test'],
+    'a quoted name' => ['"curl" https://example.test'],
+    'a backslash in the name' => ['c\\url https://example.test'],
+    'an empty quote in the name' => ["cu''rl https://example.test"],
+])->with(['default', 'bypassPermissions']);
+
+test('bypassPermissions asks for a command whose name the hook cannot read while a deny rule exists', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['deny' => ['Bash(curl:*)']]);
+
+    try {
+        $decision = agentGuardHookDecision($root, agentGuardHookInput('shredder', ['command' => $command], 'bypassPermissions'));
+
+        expect($decision->permissionDecision)->toBe('ask');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a variable' => ['$TOOL https://example.test'],
+    'a glob' => ['c*rl https://example.test'],
+    'an ANSI-C quote' => ["\$'cu\\x72l' https://example.test"],
+]);
+
 test('the hook ignores a tool other than Bash', function (): void {
     $root = AgentGuardRun::repository();
     $input = (string) json_encode(['tool_name' => 'Read', 'agent_type' => 'leonardo', 'tool_input' => ['file_path' => '/x']]);

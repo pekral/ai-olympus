@@ -60,9 +60,12 @@
 #   `updatedInput` with every field of the tool input kept and `command` replaced by
 #   `/bin/bash '<abs>/agent-guard.sh' exec <role> --project '<project>' -- '<original command>'`.
 #   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
-#   `;`, `|`, `|&`, `&`, a newline, `(`, `)`, `{`, `}`, and a backtick, and leading `NAME=value` words, shell
-#   keywords, and the wrappers `timeout time nice nohup stdbuf command builtin noglob` are removed before a segment is
-#   matched.
+#   `;`, `|`, `|&`, `&`, a newline, `(`, `)`, `{`, `}`, and a backtick. An allow rule is matched after only the wrappers
+#   the session itself strips (`timeout time nice nohup stdbuf`), so a leading `NAME=value` word or another wrapper
+#   never gets `allow` from a rule. A deny or ask rule is matched after every `NAME=value` word, shell keyword, and
+#   the wrappers `timeout time nice nohup stdbuf xargs env exec command builtin noglob` are removed, on the command as
+#   written and with its quotes and backslashes removed. In `bypassPermissions` a command whose name is a variable or
+#   a glob asks when a deny rule exists.
 #
 # Probe
 #   Creates `<project root>/.ai-olympus-guard-probe-<random>` and `<git common dir>/ai-olympus-guard-probe-<random>`
@@ -223,16 +226,31 @@ DECIDE_JQ='
 def keywords: ["if", "then", "elif", "else", "fi", "do", "done", "while", "until", "!"];
 def unsplittable: ["for", "case", "esac", "select", "function", "in", "coproc", "[[", "]]"];
 def norm: [splits("[ \t]+")] | map(select(length > 0));
-def drop_options: until(length == 0 or ((.[0] | startswith("-")) | not); if (.[0] == "-k" or .[0] == "-s" or .[0] == "-n") then .[2:] else .[1:] end);
-def strip:
+def drop_options($two): until(length == 0 or ((.[0] | startswith("-")) | not);
+  if (.[0] as $o | $two | index($o)) then .[2:] else .[1:] end);
+def wrapper($w): .[0] == $w;
+def strip_harness:
   if length == 0 then .
-  elif (.[0] | test("^[A-Za-z_][A-Za-z0-9_]*=")) then .[1:] | strip
-  elif (.[0] as $t | keywords | index($t)) then .[1:] | strip
-  elif .[0] == "timeout" then .[1:] | drop_options | .[1:] | strip
-  elif (.[0] == "nice" or .[0] == "stdbuf") then .[1:] | drop_options | strip
-  elif (.[0] as $t | ["time", "nohup", "command", "builtin", "noglob"] | index($t)) then .[1:] | drop_options | strip
+  elif wrapper("timeout") then .[1:] | drop_options(["-k", "-s", "--kill-after", "--signal"]) | .[1:] | strip_harness
+  elif wrapper("nice") then .[1:] | drop_options(["-n"]) | strip_harness
+  elif wrapper("stdbuf") then .[1:] | drop_options(["-i", "-o", "-e"]) | strip_harness
+  elif wrapper("time") then .[1:] | drop_options(["-f", "-o"]) | strip_harness
+  elif wrapper("nohup") then .[1:] | strip_harness
   else . end;
-def segments: [splits("\\|\\||&&|\\|&|[;|&\n(){}`]")] | map(norm | strip | join(" ")) | map(select(length > 0));
+def strip_deny:
+  if length == 0 then .
+  elif (.[0] | test("^[A-Za-z_][A-Za-z0-9_]*=")) then .[1:] | strip_deny
+  elif (.[0] as $t | keywords | index($t)) then .[1:] | strip_deny
+  elif (.[0] as $t | ["timeout", "nice", "stdbuf", "time", "nohup"] | index($t)) then strip_harness | strip_deny
+  elif wrapper("xargs") then .[1:] | drop_options(["-n", "-I", "-L", "-P", "-d", "-E", "-s", "-a"]) | strip_deny
+  elif wrapper("env") then .[1:] | drop_options(["-u", "-C"]) | strip_deny
+  elif wrapper("exec") then .[1:] | drop_options(["-a"]) | strip_deny
+  elif (.[0] as $t | ["command", "builtin", "noglob"] | index($t)) then .[1:] | drop_options([]) | strip_deny
+  else . end;
+def separators: "\\|\\||&&|\\|&|[;|&\n(){}`]";
+def segments(f): [splits(separators)] | map(norm | f | join(" ")) | map(select(length > 0));
+def dequote: gsub("[\"\\\\\u0027]"; "");
+def opaque_name: split(" ")[0] | test("[$*?\\[]");
 def unsupported_construct: test("[(){}`]") or test("(^|[;&|\n][ \t]*)!") or
   ([splits("\\|\\||&&|\\|&|[;|&\n]")] | map(norm | .[0] // "") | any(. as $w | (keywords + unsplittable) | index($w)));
 def parse_rule:
@@ -248,17 +266,19 @@ def matches($seg): if .kind == "all" then true
   elif .kind == "exact" then $seg == .value
   elif .kind == "prefix" then .value as $v | ($seg == $v or ($seg | startswith($v + " ")))
   else false end;
-(.command | segments) as $segs
+(.command | segments(strip_deny)) as $plain
+| ($plain + (.command | dequote | segments(strip_deny))) as $dsegs
+| (.command | segments(strip_harness)) as $asegs
 | (.rules.deny | map(parse_rule)) as $deny
 | (.rules.ask | map(parse_rule)) as $ask
 | (.rules.allow | map(parse_rule)) as $allow
 | (.command | unsupported_construct) as $construct
-| if any($deny[]; . as $r | any($segs[]; . as $s | $r | matches($s))) then "deny"
+| if any($deny[]; . as $r | any($dsegs[]; . as $s | $r | matches($s))) then "deny"
   elif .rules.unreadable or any(($deny + $ask)[]; .kind == "unsupported") then "ask"
-  elif any($ask[]; . as $r | any($segs[]; . as $s | $r | matches($s))) then "ask"
-  elif .mode == "bypassPermissions" and (($construct | not) or ($deny | length) == 0) then "allow"
+  elif any($ask[]; . as $r | any($dsegs[]; . as $s | $r | matches($s))) then "ask"
+  elif .mode == "bypassPermissions" and (($deny | length) == 0 or (($construct | not) and (any($plain[]; opaque_name) | not))) then "allow"
   elif $construct then "ask"
-  elif ($segs | length) > 0 and all($segs[]; . as $s | any($allow[]; matches($s))) then "allow"
+  elif ($asegs | length) > 0 and all($asegs[]; . as $s | any($allow[]; matches($s))) then "allow"
   else "ask" end
 '
 
@@ -742,6 +762,9 @@ self_test() {
   check 'a subshell asks even when an allow rule matches' test "$(decide_command '(git status)' "$tmp")" == ask
   check 'bypassPermissions allows' test "$(decide_command 'curlish x' "$tmp" bypassPermissions)" == allow
   check 'bypassPermissions keeps the deny rule' test "$(decide_command 'curl x' "$tmp" bypassPermissions)" == deny
+  check 'a leading assignment never gets allow from a rule' test "$(decide_command 'GIT_PAGER=x git status' "$tmp")" == ask
+  check 'a deny rule matches behind a bare xargs' test "$(decide_command 'echo u | xargs curl' "$tmp" bypassPermissions)" == deny
+  check 'a deny rule matches a quoted command name' test "$(decide_command '"curl" x' "$tmp" bypassPermissions)" == deny
   printf '{"permissions":{"deny":["Bash(git * --force)"]}}' >"$tmp/.claude/settings.local.json"
   check 'an unsupported rule shape asks' test "$(decide_command 'ls' "$tmp")" == ask
 
