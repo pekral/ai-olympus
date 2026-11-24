@@ -241,7 +241,8 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: *Database and Eloquent* points to the CR *N+1 queries* walk.
         // Re-baselined: a query condition applied in two or more places is a local scope on the model.
         // Re-baselined: *Carbon and Framework Helpers* reuses the classes the framework ships and states the reuse order.
-        'rules/laravel/laravel.md' => 'e9aa8c0431b3eef12115843b0ac90a0be5e7a153318340e8613c61d1abd2449c',
+        // Re-baselined: a growing table is walked from the last processed record, and a read-only loop takes the same choice as a writing one (issue #696).
+        'rules/laravel/laravel.md' => 'd6b4d5008c034737c5d3af434d31271deb4ea9cdef1e60fb10868a274ca56a07',
         // Re-baselined: the Minor bucket is retired, so the misleading-name gating no longer
         // hands a merely-less-descriptive name to a Minor default that no longer exists, and its
         // stratification citation now names the section that carries the default after the retired
@@ -288,7 +289,7 @@ test('the four rules scoped in issue #274 keep byte-identical bodies below the f
         // Re-baselined: a DDL duration is measured on production or a production-size copy, or listed
         // as not verified — never estimated (`rules/general/general.md` *Verified statements only*).
         // Re-baselined: an agent never measures on production; a production-size copy or a person with production access supplies the value.
-        'rules/sql/optimalize.md' => 'e8a9265560529e47a9bf0c73675cc96df6aeb666bc7c536206275cc23e86f906',
+        'rules/sql/optimalize.md' => 'f71fa66f0ac9f87b81f897f86123e1b7944d91fea9d4f6304e85f9afa3e6099c',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

@@ -121,3 +121,25 @@ test('the bulk-data walk reports in-memory work that grows faster than the data 
         ->toContain('Apply the four checks in `@rules/code-review/general.md` *Bulk Data & Batch Processing (issue #223)*')
         ->toContain('and in-memory work that grows faster than the data');
 });
+
+test('a Laravel batch walk over a growing table continues from the last record (issue #696)', function (): void {
+    $laravel = packageSection(
+        packageSource('rules/laravel/laravel.md'),
+        '- **Walk a table that grows with the data from the last processed record, never by offset.**',
+        '- Prefer the smallest fitting column types.',
+    );
+
+    // One clear rule for the developer, covering the batch form and the lazy form in the same words.
+    expect($laravel)->toContain('`chunk()` and `lazy()` ask the database to skip the rows already processed on every batch');
+    expect($laravel)->toContain('`chunkById()` and `lazyById()` continue from the last processed `id`, so every batch costs the same');
+    expect($laravel)->toContain('for a loop that only reads, and for a loop that writes to the table it reads');
+
+    // The three limits, so the rule does not flag a small table or a walk that cannot continue from the last record.
+    expect($laravel)->toContain('A table with a hard, small, fixed size keeps `chunk()` or `lazy()`.');
+    expect($laravel)->toContain('Pass that column to `chunkById()` or `lazyById()`.');
+    expect($laravel)->toContain('Its order is not by a unique, ordered value. A comment next to the call says why.');
+
+    // The rule extends the existing guidance on reading large sets: the SQL rule and the review point at it, and no second copy exists.
+    expect($laravel)->toContain('`@rules/sql/optimalize.md` *Bounded reads over unbounded materialisation*');
+    expect(packageSource('rules/sql/optimalize.md'))->toContain('`@rules/laravel/laravel.md` *Database and Eloquent*');
+});
