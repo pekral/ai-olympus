@@ -638,6 +638,12 @@ test('resolve-issue claims the GitHub issue before implementation and releases o
     expect($skill)->toContain('live in `references/claim-issue.md`');
     expect($skill)->toContain('- references/claim-issue.md');
 
+    // The two references that name the claim point at its new place, never at step 1.
+    $pullRequest = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/pull-request.md');
+    $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
+    expect($pullRequest)->toContain('(*Release on Blocked / abort (before PR)* in `claim-issue.md`)');
+    expect($followUp)->toContain('the claim label uses in `claim-issue.md`');
+
     // Claim happens immediately after the open-state gate.
     expect($content)->toContain('Claim the issue immediately');
     expect($content)->toContain('Resolve_by_AI:in-progress');
