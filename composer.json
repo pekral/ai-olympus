@@ -76,6 +76,7 @@
   ],
   "archive": {
     "exclude": [
+      "/.x-brand-writing",
       "/assets/ATTRIBUTION.md",
       "/assets/brands",
       "/assets/logo.png",
