@@ -366,6 +366,9 @@ dataset('merge plan replies', [
     'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
     'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
     'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
+    'a mention of the operator account by another account' => ['@bot why 2 MB?', 'reporter', 'NONE', true],
+    'a mention of the operator account in another letter case' => ['Why 2 MB, @Bot?', 'reporter', 'NONE', true],
+    'a mention of the operator account inside a fenced code block' => ["```\n@bot\n```", 'reporter', 'NONE', false],
 ]);
 
 test(

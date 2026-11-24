@@ -11,8 +11,8 @@
 #
 # The `--review-merge` form is the one delete of `skills/merge-review-comments`. The merged review comment is
 # both protected ID. The target must carry this actor's cr-comment marker as its only agent marker, and it is
-# refused when a later comment points at it: skills/_shared/comment-reply.jq owns what a reply is, and an
-# unreadable comment list refuses the delete as it does in the form above.
+# refused when a later comment points at it: skills/_shared/comment-reply.jq owns what a reply is. A view that
+# embeds fewer comments than the issue carries refuses the delete, as an unreadable list does.
 #
 # Inputs:
 #   KEY|URL        Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL, or
@@ -156,6 +156,13 @@ read_comments() {
     return 1
   fi
 
+  # The reply check of --review-merge needs every comment: a view that embeds fewer than the issue carries is no read.
+  if [[ "$REVIEW_MERGE" -eq 1 ]] && ! printf '%s' "$raw" | jq -e -s 'all(.[] | select(type == "object");
+      ((.fields.comment.total // 0) | tonumber? // 0) <= ((.fields.comment.comments // []) | length))' >/dev/null 2>&1; then
+    printf '%s\n' "$PROG: the view of $KEY embeds fewer comments than the issue carries" >&2
+    return 1
+  fi
+
   printf '%s' "$raw" | jq -c -s 'map(
       if type == "array" then .
       elif type == "object" then (.fields.comment.comments // .comments // [])
@@ -226,6 +233,7 @@ if [[ "$REVIEW_MERGE" -eq 1 ]]; then
     printf '%s\n' "$PROG: a comment that has a reply, or that carries another agent marker, is never deleted (check: $REVIEW_VERDICT)" >&2
     exit 4
   fi
+
 fi
 
 # The audit line is written at the moment of the delete, with the real exit status of `acli`.

@@ -366,9 +366,9 @@ function reviewMergeJiraComment(string $id, string $accountId, string $text, arr
 /**
  * @param array<mixed> $comments
  */
-function reviewMergeJiraView(array $comments): string
+function reviewMergeJiraView(array $comments, int $hidden = 0): string
 {
-    return (string) json_encode(['fields' => ['comment' => ['comments' => $comments, 'total' => count($comments)]], 'key' => 'ACME-1234']);
+    return (string) json_encode(['fields' => ['comment' => ['comments' => $comments, 'total' => count($comments) + $hidden]], 'key' => 'ACME-1234']);
 }
 
 /**
@@ -377,8 +377,14 @@ function reviewMergeJiraView(array $comments): string
  * @param array<mixed> $arguments
  * @return array{process: \Symfony\Component\Process\Process, deleted: bool, updated: bool}
  */
-function runReviewMergeJira(string $script, array $before, array $after, array $arguments, string $stdin = ''): array
-{
+function runReviewMergeJira(
+    string $script,
+    array $before,
+    array $after,
+    array $arguments,
+    string $stdin = '',
+    int $hidden = 0,
+): array {
     $packageDir = dirname(__DIR__, 3);
     $directory = installerCreateProjectRoot();
     installerWriteFile($directory . '/bin/acli', REVIEW_MERGE_ACLI_SCRIPT);
@@ -391,8 +397,8 @@ function runReviewMergeJira(string $script, array $before, array $after, array $
             'FAKE_ACLI_CALLS' => $directory . '/calls',
             'FAKE_ACLI_STATE' => $directory . '/deleted',
             'FAKE_ACLI_UPDATED' => $directory . '/updated',
-            'FAKE_ACLI_VIEW_AFTER_JSON' => reviewMergeJiraView($after),
-            'FAKE_ACLI_VIEW_JSON' => reviewMergeJiraView($before),
+            'FAKE_ACLI_VIEW_AFTER_JSON' => reviewMergeJiraView($after, $hidden),
+            'FAKE_ACLI_VIEW_JSON' => reviewMergeJiraView($before, $hidden),
             'PATH' => $directory . '/bin' . PATH_SEPARATOR . ($systemPath === false ? '/usr/bin:/bin' : $systemPath),
         ]);
         $process->setInput($stdin);
@@ -499,3 +505,76 @@ test(
     'a comment that is not on the issue' => ['10099', 3, false],
     'the older review comment of the actor' => ['10001', 0, true],
 ]);
+
+dataset('merge delete mention replies', [
+    'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
+    'a mention in another letter case' => ['@BOT finding 2 is wrong.', 4, false],
+    'a mention in brackets after a comma' => ['Look again,(@bot) please.', 4, false],
+    'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
+    'a mention inside a fenced code block' => ["```\n@bot\n```", 0, true],
+    'a mention inside an inline code span' => ['Type `@bot` to call it.', 0, true],
+    'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
+    'an address that contains the login' => ['Write to ops@bot.example please.', 0, true],
+]);
+
+test(
+    'the GitHub delete helper counts a mention of the operator account outside code as a reply',
+    function (string $reply, int $exit, bool $deleted): void {
+        $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+            reviewMergeComment(801, 'bot', "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(802, 'reporter', $reply),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
+        ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
+
+        expect($result['process']->getExitCode())->toBe($exit)
+            ->and($result['deleted'])->toBe($deleted);
+    },
+)->with('merge delete mention replies');
+
+test('the JIRA delete helper refuses a review comment when the view embeds fewer comments than the issue carries', function (): void {
+    $marker = reviewMergeJiraMarker();
+    $before = [
+        reviewMergeJiraComment('10001', 'acc-agent', 'Round 1: the limit is 2 MB. ' . $marker),
+        reviewMergeJiraComment('10003', 'acc-agent', 'Round 2: merged. ' . $marker),
+    ];
+    $result = runReviewMergeJira(
+        'skills/code-review-jira/scripts/delete-owned-comment.sh',
+        $before,
+        [$before[1]],
+        ['--review-merge', 'ACME-1234', '10001', '10003'],
+        hidden: 1,
+    );
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['process']->getErrorOutput())->toContain('embeds fewer comments')
+        ->and($result['deleted'])->toBeFalse();
+});
+
+dataset('merge delete JIRA link replies', [
+    'a linked text that points at the comment' => [[
+        'marks' => [['attrs' => ['href' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'link']],
+        'text' => 'this finding',
+        'type' => 'text',
+    ]],
+    'a smart link to the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'inlineCard']],
+    'a block card of the comment' => [['attrs' => ['url' => 'https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'], 'type' => 'blockCard']],
+]);
+
+test('the JIRA delete helper counts a link to the comment in a document node as a reply', function (array $node): void {
+    $marker = reviewMergeJiraMarker();
+    $before = [
+        reviewMergeJiraComment('10001', 'acc-agent', 'Round 1: the limit is 2 MB. ' . $marker),
+        reviewMergeJiraComment('10002', 'acc-other', ' is wrong.', [$node]),
+        reviewMergeJiraComment('10003', 'acc-agent', 'Round 2: merged. ' . $marker),
+    ];
+    $result = runReviewMergeJira(
+        'skills/code-review-jira/scripts/delete-owned-comment.sh',
+        $before,
+        $before,
+        ['--review-merge', 'ACME-1234', '10001', '10003'],
+    );
+
+    expect($result['process']->getExitCode())->toBe(4)
+        ->and($result['deleted'])->toBeFalse();
+})->with('merge delete JIRA link replies');
+
