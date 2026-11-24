@@ -105,6 +105,8 @@ dataset('audit wrappers', [
     'jira comment delete' => ['delete-owned-comment.sh', 'skills/code-review-jira/scripts/delete-owned-comment.sh'],
     'jira comment publisher' => ['upsert-comment.sh', 'skills/code-review-jira/scripts/upsert-comment.sh'],
     'jira in-progress transition' => ['transition-to-in-progress.sh', 'skills/code-review-jira/scripts/transition-to-in-progress.sh'],
+    'jira ready-to-deploy transition' => ['transition-to-ready-to-deploy.sh', 'skills/code-review-jira/scripts/transition-to-ready-to-deploy.sh'],
+    'jira assign to the pull-request author' => ['assign-to-pr-author.sh', 'skills/code-review-jira/scripts/assign-to-pr-author.sh'],
 ]);
 
 test('the rule names each wrapper and the wrapper calls the helper at its write', function (string $name, string $path): void {
