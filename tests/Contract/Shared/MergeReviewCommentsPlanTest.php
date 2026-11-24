@@ -84,7 +84,7 @@ function mergePlanComment(int $id, string $author, string $association, string $
 }
 
 /**
- * @param list<array<string, mixed>> $comments
+ * @param array<mixed> $comments
  */
 function mergePlanIssueJson(array $comments): string
 {
@@ -110,8 +110,34 @@ function mergePlanIssueJson(array $comments): string
 }
 
 /**
- * @param list<string> $arguments
- * @param array<string, string> $environment
+ * @param array<mixed> $values
+ * @return list<string>
+ */
+function mergePlanStrings(array $values): array
+{
+    return array_values(array_filter($values, is_string(...)));
+}
+
+/**
+ * @param array<mixed> $values
+ * @return array<string, string>
+ */
+function mergePlanEnvironment(array $values): array
+{
+    $environment = [];
+
+    foreach ($values as $name => $value) {
+        if (is_string($name) && is_string($value)) {
+            $environment[$name] = $value;
+        }
+    }
+
+    return $environment;
+}
+
+/**
+ * @param array<mixed> $arguments
+ * @param array<mixed> $environment
  */
 function runMergePlanScript(string $directory, array $arguments, array $environment = []): Process
 {
@@ -119,8 +145,8 @@ function runMergePlanScript(string $directory, array $arguments, array $environm
     $systemPath = getenv('PATH');
     $process = new Process([
         $packageDir . '/skills/merge-review-comments/scripts/plan-merge.sh',
-        ...$arguments,
-    ], $packageDir, $environment + [
+        ...mergePlanStrings($arguments),
+    ], $packageDir, mergePlanEnvironment($environment) + [
         'PATH' => $directory . '/bin' . PATH_SEPARATOR . ($systemPath === false ? '/usr/bin:/bin' : $systemPath),
     ]);
     $process->run();
@@ -129,10 +155,10 @@ function runMergePlanScript(string $directory, array $arguments, array $environm
 }
 
 /**
- * @param list<array<string, mixed>> $comments
- * @param array<string, string> $environment
- * @param list<string> $arguments
- * @return array{process: \Symfony\Component\Process\Process, plan: array<string, mixed>}
+ * @param array<mixed> $comments
+ * @param array<mixed> $environment
+ * @param array<mixed> $arguments
+ * @return array{process: \Symfony\Component\Process\Process, plan: array<mixed>}
  */
 function mergePlanGitHub(array $comments, array $environment = [], array $arguments = ['plan', MERGE_PLAN_ITEM]): array
 {
@@ -151,16 +177,63 @@ function mergePlanGitHub(array $comments, array $environment = [], array $argume
 }
 
 /**
- * @param array<string, mixed> $plan
+ * @param array<mixed> $plan
+ * @return list<array<mixed>>
+ */
+function mergePlanComments(array $plan): array
+{
+    $comments = [];
+
+    foreach (is_array($plan['comments'] ?? null) ? $plan['comments'] : [] as $comment) {
+        assert(is_array($comment));
+        $comments[] = $comment;
+    }
+
+    return $comments;
+}
+
+/**
+ * @param array<mixed> $plan
+ * @return array<mixed>
+ */
+function mergePlanCommentById(array $plan, string $id): array
+{
+    foreach (mergePlanComments($plan) as $comment) {
+        if ($comment['id'] === $id) {
+            return $comment;
+        }
+    }
+
+    return [];
+}
+
+/**
+ * @param array<mixed> $plan
+ * @return list<string>
+ */
+function mergePlanIds(array $plan, string $key): array
+{
+    $ids = [];
+
+    foreach (is_array($plan[$key] ?? null) ? $plan[$key] : [] as $id) {
+        assert(is_string($id));
+        $ids[] = $id;
+    }
+
+    return $ids;
+}
+
+/**
+ * @param array<mixed> $plan
  * @return array<string, string>
  */
 function mergePlanClasses(array $plan): array
 {
     $classes = [];
 
-    foreach ((array) ($plan['comments'] ?? []) as $comment) {
-        assert(is_array($comment));
-        $classes[(string) $comment['id']] = (string) $comment['class'];
+    foreach (mergePlanComments($plan) as $comment) {
+        assert(is_string($comment['id']) && is_string($comment['class']));
+        $classes[$comment['id']] = $comment['class'];
     }
 
     return $classes;
@@ -264,7 +337,7 @@ test('the plan decides whose comment it is from loaded facts only', function (ar
 
     expect($result['process']->getExitCode())->toBe(0)
         ->and(mergePlanClasses($result['plan']))->toBe($expected)
-        ->and($result['plan']['delete'])->not->toContain('802');
+        ->and(mergePlanIds($result['plan'], 'delete'))->not->toContain('802');
 })->with('merge plan classification');
 
 test('the plan never lists a comment of another person or a comment with a reply for deletion', function (): void {
@@ -278,7 +351,7 @@ test('the plan never lists a comment of another person or a comment with a reply
 
     expect($result['plan']['carrier'])->toBe('801')
         ->and($result['plan']['delete'])->toBe(['803', '804'])
-        ->and(array_column(array_filter((array) $result['plan']['comments'], static fn (array $c): bool => $c['id'] === '801'), 'reply'))->toBe([true]);
+        ->and(mergePlanCommentById($result['plan'], '801')['reply'])->toBeTrue();
 });
 
 dataset('merge plan replies', [
@@ -303,10 +376,9 @@ test(
             mergePlanComment(802, $author, $association, $body, 2),
             mergePlanComment(803, 'bot', 'MEMBER', "Round 2: the limit is raised.\n\n" . mergePlanMarker(), 3),
         ]);
-        $first = array_values(array_filter((array) $result['plan']['comments'], static fn (array $c): bool => $c['id'] === '801'));
-    
-        expect($first[0]['reply'])->toBe($expected)
-            ->and($result['plan']['delete'])->{$expected ? 'not' : 'toBe'}($expected ? '' : ['801']);
+
+        expect(mergePlanCommentById($result['plan'], '801')['reply'])->toBe($expected)
+            ->and(in_array('801', mergePlanIds($result['plan'], 'delete'), strict: true))->toBe(!$expected);
     },
 )->with('merge plan replies');
 
@@ -457,10 +529,10 @@ test('the comparison reports a comment that had to stay and changed, and a comme
 });
 
 /**
- * @param list<array<string, mixed>> $viewComments
- * @param list<array<string, mixed>> $listComments
- * @param array<string, string> $environment
- * @return array{process: \Symfony\Component\Process\Process, plan: array<string, mixed>}
+ * @param array<mixed> $viewComments
+ * @param array<mixed> $listComments
+ * @param array<mixed> $environment
+ * @return array{process: \Symfony\Component\Process\Process, plan: array<mixed>}
  */
 function mergePlanJira(array $viewComments, array $listComments, array $environment = []): array
 {

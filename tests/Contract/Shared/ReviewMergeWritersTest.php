@@ -69,9 +69,35 @@ function reviewMergeMarker(string $namespace = 'cr-comment'): string
 }
 
 /**
- * @param list<array<string, mixed>> $comments
- * @param list<string> $arguments
- * @param array<string, string> $environment
+ * @param array<mixed> $values
+ * @return list<string>
+ */
+function reviewMergeStrings(array $values): array
+{
+    return array_values(array_filter($values, is_string(...)));
+}
+
+/**
+ * @param array<mixed> $values
+ * @return array<string, string>
+ */
+function reviewMergeEnvironment(array $values): array
+{
+    $environment = [];
+
+    foreach ($values as $name => $value) {
+        if (is_string($name) && is_string($value)) {
+            $environment[$name] = $value;
+        }
+    }
+
+    return $environment;
+}
+
+/**
+ * @param array<mixed> $comments
+ * @param array<mixed> $arguments
+ * @param array<mixed> $environment
  * @return array{process: \Symfony\Component\Process\Process, deleted: bool, calls: string, patch: string}
  */
 function runReviewMergeGitHub(string $script, array $comments, array $arguments, array $environment = [], string $stdin = ''): array
@@ -85,7 +111,7 @@ function runReviewMergeGitHub(string $script, array $comments, array $arguments,
     $systemPath = getenv('PATH');
 
     try {
-        $process = new Process([$packageDir . '/' . $script, ...$arguments], $packageDir, $environment + [
+        $process = new Process([$packageDir . '/' . $script, ...reviewMergeStrings($arguments)], $packageDir, reviewMergeEnvironment($environment) + [
             'FAKE_GH_CALLS' => $directory . '/calls',
             'FAKE_GH_COMMENTS' => $directory . '/comments.json',
             'FAKE_GH_PATCH_BODY' => $directory . '/patch',
@@ -324,7 +350,9 @@ function reviewMergeJiraComment(string $id, string $accountId, string $text, arr
 {
     $paragraphs = [];
 
-    foreach (preg_split('/(?=_[a-z-]+:actor=)/', $text) ?: [$text] as $index => $part) {
+    $parts = preg_split('/(?=_[a-z-]+:actor=)/', $text);
+
+    foreach ($parts === false ? [$text] : $parts as $index => $part) {
         $paragraphs[] = ['content' => [...($index === 0 ? $extraNodes : []), ['text' => trim($part), 'type' => 'text']], 'type' => 'paragraph'];
     }
 
@@ -336,7 +364,7 @@ function reviewMergeJiraComment(string $id, string $accountId, string $text, arr
 }
 
 /**
- * @param list<array<string, mixed>> $comments
+ * @param array<mixed> $comments
  */
 function reviewMergeJiraView(array $comments): string
 {
@@ -344,9 +372,9 @@ function reviewMergeJiraView(array $comments): string
 }
 
 /**
- * @param list<array<string, mixed>> $before
- * @param list<array<string, mixed>> $after
- * @param list<string> $arguments
+ * @param array<mixed> $before
+ * @param array<mixed> $after
+ * @param array<mixed> $arguments
  * @return array{process: \Symfony\Component\Process\Process, deleted: bool, updated: bool}
  */
 function runReviewMergeJira(string $script, array $before, array $after, array $arguments, string $stdin = ''): array
@@ -359,7 +387,7 @@ function runReviewMergeJira(string $script, array $before, array $after, array $
     $systemPath = getenv('PATH');
 
     try {
-        $process = new Process([$packageDir . '/' . $script, ...$arguments], $packageDir, [
+        $process = new Process([$packageDir . '/' . $script, ...reviewMergeStrings($arguments)], $packageDir, [
             'FAKE_ACLI_CALLS' => $directory . '/calls',
             'FAKE_ACLI_STATE' => $directory . '/deleted',
             'FAKE_ACLI_UPDATED' => $directory . '/updated',
