@@ -58,6 +58,8 @@ When the source is a tracker reference, detect and load it read-only using `@ski
 
 **Input:** the brief path (`.claude/run/<source-slug>.md`), the PR / assignment-source link, and the language instruction (from the brief's `## Language`).
 
+**A stack of pull requests on JIRA.** When the dispatch names the parts of a stack (`skills/_shared/orchestration/reporting-exceptions.md` *A stack of pull requests — one JIRA report*), you publish one JIRA comment for the whole stack and no other. Read the brief of every part, pass `pr-summary` the findings of each reviewed part with the part they belong to, and give it the parts that were not reviewed with their reasons, as `@skills/pr-summary/references/several-pull-requests.md` *A stack on JIRA* states. Steps 4 to 7 below then apply to that one comment, and the already-covered check of step 4 reads for a comment that carries every part.
+
 **How to run:**
 
 1. **Read the brief** and take from it: `## Language` (output language), `## Source` (the assignment source), `## Gathered context` (the change description and acceptance criteria), and the `## Handoff log` — in particular the `donatello` handoff for the current head SHA (the scoped-validation handoff, or the implementation handoff when `krang` skipped that pass), which already carries the executed tests, the coverage verdict, and the acceptance-criteria statuses.

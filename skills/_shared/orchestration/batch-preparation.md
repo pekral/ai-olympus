@@ -53,7 +53,7 @@ The root session holds the `krang` role for **every** unit (`@rules/compound-eng
    The lock reason lets the startup sweep (`skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*) tell a live worktree from a dead one. When `git worktree add` fails, the unit stops with `Blocked: another run holds this unit's worktree`. The root session installs no dependency. The specialist that needs them installs them through the lock (*Gate serialisation* below).
 5. **Run each pipeline** as prepare-only mode (`skills/_shared/orchestration/merge-preparation.md`) for its unit. A unit that carries no pull request is delivered first, as that file states. Once the unit has a pull request, run *Bring a unit to the default branch tip* before step 2 of `@skills/verify-merge-readiness/SKILL.md`, with or without `--merge`.
 6. **Clean up each unit** when its pipeline ends, on every terminating path (*Worktrees* below).
-7. **Publish the aggregated report** as the final reply of the session (*The aggregated report* below). The session posts no tracker comment of its own. Each unit's `april` publishes the unit's TL;DR as in prepare-only mode.
+7. **Publish the aggregated report** as the final reply of the session (*The aggregated report* below). The session posts no tracker comment of its own. Each unit's `april` publishes the unit's TL;DR as in prepare-only mode. Units whose pull requests form a stack of one JIRA task publish their JIRA report once, for the whole stack (`skills/_shared/orchestration/reporting-exceptions.md` *A stack of pull requests — one JIRA report*).
 
 ## Worktrees
 
