@@ -2,6 +2,7 @@
 
 declare(strict_types = 1);
 
+use Symfony\Component\Process\Process;
 use Tests\Support\AgentGuardRun;
 
 const AGENT_GUARD_UNAVAILABLE = 'this host cannot apply the confinement (no usable sandbox-exec or bwrap); '
@@ -46,6 +47,24 @@ function agentGuardHookFiles(string $root): array
     $files = scandir($root . '/.git/hooks');
 
     return $files === false ? [] : $files;
+}
+
+/**
+ * @return list<string>
+ */
+function agentGuardObjectFiles(string $root): array
+{
+    $files = [];
+    $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/.git/objects', FilesystemIterator::SKIP_DOTS));
+
+    foreach ($iterator as $file) {
+        assert($file instanceof SplFileInfo);
+        $files[] = substr($file->getPathname(), strlen($root)) . ':' . hash_file('sha256', $file->getPathname());
+    }
+
+    sort($files);
+
+    return $files;
 }
 
 function agentGuardGitState(string $root): string
@@ -225,10 +244,13 @@ test('a profile file planted in the project or under .claude/run does not widen 
 
 test('each confined role keeps the writes its definition documents', function (string $role, string $extra): void {
     $root = AgentGuardRun::repository();
-    $sha = AgentGuardRun::head($root);
+    $sha = AgentGuardRun::remoteOnlyCommit($root);
+    $fetch = 'mkdir -p .claude/run/fetch/objects && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects '
+        . 'GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git fetch -q --no-write-fetch-head --no-auto-maintenance origin ' . $sha
+        . ' && GIT_OBJECT_DIRECTORY=.claude/run/fetch/objects GIT_ALTERNATE_OBJECT_DIRECTORIES="$PWD/.git/objects" git cat-file -e ' . $sha;
 
     try {
-        $process = AgentGuardRun::exec($root, $role, 'echo handoff >> .claude/run/brief.md && git fetch -q origin ' . $sha . $extra);
+        $process = AgentGuardRun::exec($root, $role, 'echo handoff >> .claude/run/brief.md && ' . $fetch . $extra);
 
         expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
             ->and(file_get_contents($root . '/.claude/run/brief.md'))->toBe("handoff\n");
@@ -246,6 +268,43 @@ test('each confined role keeps the writes its definition documents', function (s
     'shredder' => ['shredder', ''],
     'splinter' => ['splinter', ' && git worktree add -q --detach .claude/worktrees/agent-cr-slug-splinter HEAD'],
 ]);
+
+test('a confined role cannot fetch into the object store of the project', function (): void {
+    $root = AgentGuardRun::repository();
+    $sha = AgentGuardRun::remoteOnlyCommit($root);
+
+    try {
+        $process = AgentGuardRun::exec($root, 'leonardo', 'git fetch -q origin ' . $sha);
+        $present = new Process(['git', 'cat-file', '-e', $sha], $root);
+        $present->run();
+
+        expect($process->getExitCode())->not->toBe(0)
+            ->and($present->getExitCode())->not->toBe(0);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('a confined role cannot change the git object store', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::git($root, 'gc', '-q');
+    file_put_contents($root . '/loose.json', 'loose');
+    $loose = trim(AgentGuardRun::git($root, 'hash-object', '-w', 'loose.json')->getOutput());
+    $files = agentGuardObjectFiles($root);
+
+    try {
+        AgentGuardRun::exec($root, 'leonardo', str_replace('{loose}', substr($loose, 0, 2) . '/' . substr($loose, 2), $command));
+
+        expect(agentGuardObjectFiles($root))->toBe($files)
+            ->and(file_exists($root . '/.git/objects/info/alternates'))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a forged loose object' => ['chmod u+w .git/objects/{loose}; printf forged > .git/objects/{loose}'],
+    'a removed pack' => ['rm -f .git/objects/pack/*.pack'],
+    'an alternates file' => ['echo /tmp > .git/objects/info/alternates'],
+])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
 
 test('a review role cannot open the review worktree of another role on macOS', function (): void {
     $root = AgentGuardRun::repository();

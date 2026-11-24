@@ -111,6 +111,18 @@ final class AgentGuardRun
         return $process;
     }
 
+    public static function remoteOnlyCommit(string $root): string
+    {
+        $base = dirname($root);
+        self::git($base, 'clone', '-q', $base . '/origin.git', 'other');
+        file_put_contents($base . '/other/remote-only.txt', 'remote only');
+        self::git($base . '/other', 'add', '.');
+        self::git($base . '/other', 'commit', '-q', '-m', 'remote only');
+        self::git($base . '/other', 'push', '-q', 'origin', 'HEAD:refs/heads/remote-only');
+
+        return trim(self::git($base . '/other', 'rev-parse', 'HEAD')->getOutput());
+    }
+
     public static function confinementAvailable(): bool
     {
         if (self::$confinementAvailable !== null) {

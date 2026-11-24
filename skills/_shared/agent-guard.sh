@@ -22,8 +22,8 @@
 #   and nothing under `.claude/run/` to build them, so no branch and no agent can widen them. Every confined role may
 #   not write into the project root, the current git toplevel, the git common directory, `~/.claude`, or `~/.codex`.
 #   It may write:
-#     every confined role   `.claude/run/**`, `.codex/run/**` (no symbolic link is created there on macOS),
-#                           `<git common dir>/objects/**`, `<git common dir>/FETCH_HEAD` (a `git fetch <sha>`)
+#     every confined role   `.claude/run/**`, `.codex/run/**` (no symbolic link is created there on macOS); a
+#                           commit missing from the object store is fetched into a scratch object directory there
 #     leonardo, splinter    their own review worktree `.claude/worktrees/agent-cr-*-<role>` and its git directory
 #     krang                 `.claude/worktrees/**` and `<git common dir>/worktrees/**` (it removes unit worktrees)
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
@@ -297,9 +297,6 @@ macos_profile() {
   [[ -n "$COMMON" ]] && profile+='(deny file-write* (subpath (param "COMMON")))'
   [[ -n "${HOME:-}" ]] && profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
-  if [[ -n "$COMMON" ]]; then
-    profile+='(allow file-write* (subpath (param "OBJECTS")) (literal (param "FETCH_HEAD")))'
-  fi
   case "$role" in
   leonardo | splinter)
     profile+='(allow file-write* (literal (param "WT_DIR")) (regex (param "WT_RE")))'
@@ -324,7 +321,6 @@ run_macos() {
     -D ROOT="$ROOT" -D TOP="$TOP" -D COMMON="${COMMON:-/nonexistent}" \
     -D HOME_CLAUDE="${HOME:-/nonexistent}/.claude" -D HOME_CODEX="${HOME:-/nonexistent}/.codex" \
     -D RUN_CLAUDE="$ROOT/.claude/run" -D RUN_CODEX="$ROOT/.codex/run" \
-    -D OBJECTS="${COMMON:-/nonexistent}/objects" -D FETCH_HEAD="${COMMON:-/nonexistent}/FETCH_HEAD" \
     -D WT_DIR="$ROOT/.claude/worktrees" -D GIT_WT_DIR="${COMMON:-/nonexistent}/worktrees" \
     -D WT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
     -D GIT_WT_RE="^$common_re/worktrees/agent-cr-[^/]+-${role}[0-9]*(/|\$)" \
@@ -346,11 +342,6 @@ run_linux() {
   mkdir -p "$ROOT/.claude/run" 2>/dev/null || true
   args+=(--bind "$ROOT/.claude/run" "$ROOT/.claude/run")
   [[ -d "$ROOT/.codex/run" ]] && args+=(--bind "$ROOT/.codex/run" "$ROOT/.codex/run")
-  if [[ -n "$COMMON" ]]; then
-    args+=(--bind "$COMMON/objects" "$COMMON/objects")
-    [[ -e "$COMMON/FETCH_HEAD" ]] || : >>"$COMMON/FETCH_HEAD"
-    args+=(--bind "$COMMON/FETCH_HEAD" "$COMMON/FETCH_HEAD")
-  fi
   if role_allows_worktrees "$role"; then
     mkdir -p "$ROOT/.claude/worktrees" 2>/dev/null || true
     args+=(--bind "$ROOT/.claude/worktrees" "$ROOT/.claude/worktrees")
