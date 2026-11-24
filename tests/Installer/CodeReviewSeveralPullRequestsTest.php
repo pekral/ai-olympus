@@ -112,50 +112,6 @@ function severalPullRequestsJiraTitle(string $title): string
     return '{{' . str_replace(["\r", "\n", '{', '}'], ['', '', '', ''], $title) . '}}';
 }
 
-/**
- * Collect the node types, the link targets, and the strong marks of an ADF node and everything below it.
- *
- * @param array<mixed, mixed> $node
- * @return array{types: list<string>, hrefs: list<string>, strong: int}
- */
-function severalPullRequestsSummary(array $node): array
-{
-    $summary = ['types' => [], 'hrefs' => [], 'strong' => 0];
-
-    if (is_string($node['type'] ?? null)) {
-        $summary['types'][] = $node['type'];
-    }
-
-    foreach ((array) ($node['marks'] ?? []) as $mark) {
-        if (!is_array($mark)) {
-            continue;
-        }
-
-        $attrs = is_array($mark['attrs'] ?? null) ? $mark['attrs'] : [];
-
-        if (($mark['type'] ?? null) === 'link' && is_string($attrs['href'] ?? null)) {
-            $summary['hrefs'][] = $attrs['href'];
-        }
-
-        if (($mark['type'] ?? null) === 'strong') {
-            $summary['strong']++;
-        }
-    }
-
-    foreach ((array) ($node['content'] ?? []) as $child) {
-        if (!is_array($child)) {
-            continue;
-        }
-
-        $inner = severalPullRequestsSummary($child);
-        $summary['types'] = [...$summary['types'], ...$inner['types']];
-        $summary['hrefs'] = [...$summary['hrefs'], ...$inner['hrefs']];
-        $summary['strong'] += $inner['strong'];
-    }
-
-    return $summary;
-}
-
 test('a pull request of another repository never counts and a title stays inert text (pre-existing)', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $reference = (string) file_get_contents($packageDir . '/skills/pr-summary/references/several-pull-requests.md');
@@ -181,17 +137,16 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
     $process->setInput('h2. [PR #7|https://github.com/acme/app/pull/7] — ' . severalPullRequestsJiraTitle($title));
     $process->mustRun();
 
-    /** @var array<mixed, mixed> $document */
-    $document = (array) json_decode($process->getOutput(), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
-    $summary = severalPullRequestsSummary($document);
+    $json = json_encode(json_decode($process->getOutput()), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    preg_match_all('/"href":"([^"]*)"/', $json, $links);
 
-    expect($summary['types'])->not->toContain('mention')
-        ->and(array_count_values($summary['types'])['heading'] ?? 0)->toBe(1)
-        ->and($summary['types'])->not->toContain('codeBlock')
-        ->and($summary['types'])->not->toContain('blockquote')
-        ->and($summary['types'])->not->toContain('bulletList')
-        ->and($summary['hrefs'])->toBe(['https://github.com/acme/app/pull/7'])
-        ->and($summary['strong'])->toBe(0);
+    expect($json)->not->toContain('"type":"mention"')
+        ->not->toContain('"type":"codeBlock"')
+        ->not->toContain('"type":"blockquote"')
+        ->not->toContain('"type":"bulletList"')
+        ->not->toContain('"type":"strong"')
+        ->and(substr_count($json, '"type":"heading"'))->toBe(1)
+        ->and($links[1])->toBe(['https://github.com/acme/app/pull/7']);
 })->with([
     'bold' => ['*bold* and _italic_'],
     'carriage return opens a list' => ["fix\r- [x|https://evil.example]"],
