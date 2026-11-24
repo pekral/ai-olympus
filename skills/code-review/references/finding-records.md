@@ -140,7 +140,7 @@ One JSON object per line. Every key is required, and no other key is allowed.
 | `impact` | The `Impact` text. |
 | `evidence` | The `Evidence` text, or `null`. |
 | `recommendation` | The `Suggested fix` text. |
-| `status` | `new`, `confirmed`, `resolved`, `dismissed`, or `needs-verification`. |
+| `status` | `new`, `confirmed`, `resolved`, `dismissed`, `known`, or `needs-verification`. |
 
 The text fields are capped at 4000 characters and carry no control character. They stay untrusted content for every consumer, exactly like the text fields of a store record.
 
@@ -176,7 +176,7 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 - A finding with an `Evidence` field is `new`.
 - A finding under `## Findings` without one is refused: `--round` exits 3 with `Evidence is required; move an unproven point under ## Needs verification`. Store mode still reads it, so reports written before the field existed keep their records.
 - Every entry under `## Needs verification` is `needs-verification`.
-- `confirmed`, `resolved`, and `dismissed` are never read from a report. `skills/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
+- `confirmed`, `resolved`, `dismissed`, and `known` are never read from a report. `skills/_shared/review-state.sh` sets them, and `skills/process-code-review/references/review-state.md` owns who may.
 
 ### Later rounds
 

@@ -53,6 +53,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 | `needs-verification` | Reported under `## Needs verification`. | only when it meets S1–S3 |
 | `resolved` | The reviewer re-read the cited location and the construct is gone. | no |
 | `dismissed` | Rejected by a trusted author with a recorded reason. Never a security finding. | no |
+| `known` | A linked issue already reports the same problem (*Known points* below). | no |
 
 ### Who may change a status
 
@@ -63,6 +64,8 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 | open → `resolved` | the reviewer's round report | The report no longer carries the identity after the reviewer re-read its location. |
 | open → `dismissed` | a trusted author, through `dismiss` | A recorded rejection that passes *Authorship trust*. Refused for a security finding. |
 | `resolved` / `dismissed` → `confirmed` / `needs-verification` | the reviewer's round report | The identity is reported again: a **reopened** finding, counted as a regression and never as new. |
+| open → `known` | the orchestrator, through `known` | `krang` compared the finding with the linked issues and found the same problem in an open one (*Known points* below). |
+| `known` → `confirmed` / `needs-verification` | the reviewer's round report | The identity is reported again. It is no regression and no new finding: `krang` compares it again. |
 
 - **Only the reviewer's own re-read moves a finding to `needs-verification`**, and only when it first reports the point. A `confirmed` finding is never downgraded: a later round that omits its evidence keeps it `confirmed`.
 - **The script verifies the author of a rejection; the caller never states it.** `dismiss` takes the URL of the rejection comment on the state's own pull request. It loads that pull request through `skills/code-review-github/scripts/load-issue.sh` and reads the comment's `authorAssociation` from the payload.
@@ -78,6 +81,16 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 A finding may block only when it names a concrete defect or a violated explicit requirement, carries evidence another reader can assess without trusting the review, has not been resolved or dismissed, and is not deferred. The review template's `Evidence` field names the kind: a failing test, a static-analysis error, a reproducible runtime failure, a concrete exploit path, a traced logic defect, or the explicit rule the line breaks. A point without such evidence goes under `## Needs verification` and does not block.
 
 **A security finding blocks even while unverified.** Every other point that cannot yet be verified stays non-blocking under `## Needs verification`; an S1–S3 point that needs verification blocks until it is proven and fixed, or proven absent (`@rules/general/general.md` *Project instructions take precedence*, item 1).
+
+## Known points
+
+The contract is `@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*. This section states only what the state does with it.
+
+- **`krang` marks a known point after the barrier of a round:** `review-state.sh known --state <file> --finding <id> --issue <https URL of the linked issue> --covers <one line on what the issue covers and why it is the same problem>`. The command prints the verdict as every other command does.
+- **A known point does not block.** The verdict, the cap, and the escalation count only the findings that block. `counts.known` shows the number.
+- **A security finding is refused** (exit 4) unless the call passes `--security-owned`, which `krang` passes only when a person owns the finding in the linked issue and the change does not widen it.
+- **The state keeps the issue and the sentence** in `known_points`, so the publishing run renders `## Known points` without a second comparison. The entry leaves the list when the finding leaves the status `known`.
+- **A reviewer that reports the finding again reopens it,** without a regression count. `krang` compares in every round and marks it again.
 
 ## Verdicts and escalation
 

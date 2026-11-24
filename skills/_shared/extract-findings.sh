@@ -196,7 +196,7 @@ def round_record_errors:
         (if textok($r.impact) then empty else "impact must be a non-empty text of at most 4000 characters" end),
         (if $r.evidence == null or textok($r.evidence) then empty else "evidence must be null or a non-empty text of at most 4000 characters" end),
         (if textok($r.recommendation) then empty else "recommendation must be a non-empty text of at most 4000 characters" end),
-        (if ($r.status | status_rank) > 0 then empty else "status must be new, confirmed, resolved, dismissed, or needs-verification" end),
+        (if ($r.status | status_rank) > 0 then empty else "status must be new, confirmed, resolved, dismissed, known, or needs-verification" end),
         (if $r.status == "dismissed" and $r.security == true then "a security finding (S1-S3) is never dismissed" else empty end),
         (if ($r.status == "new" or $r.status == "confirmed") and $r.evidence == null then "status \($r.status) needs evidence" else empty end)
       ]
