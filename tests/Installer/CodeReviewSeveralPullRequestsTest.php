@@ -140,12 +140,11 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
     $json = json_encode(json_decode($process->getOutput()), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     preg_match_all('/"href":"([^"]*)"/', $json, $links);
 
-    expect($json)->not->toContain('"type":"mention"')
-        ->not->toContain('"type":"codeBlock"')
-        ->not->toContain('"type":"blockquote"')
-        ->not->toContain('"type":"bulletList"')
-        ->not->toContain('"type":"strong"')
-        ->and(substr_count($json, '"type":"heading"'))->toBe(1)
+    foreach (['mention', 'codeBlock', 'blockquote', 'bulletList', 'strong'] as $type) {
+        expect($json)->not->toContain('"type":"' . $type . '"');
+    }
+
+    expect(substr_count($json, '"type":"heading"'))->toBe(1)
         ->and($links[1])->toBe(['https://github.com/acme/app/pull/7']);
 })->with([
     'bold' => ['*bold* and _italic_'],
