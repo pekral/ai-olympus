@@ -93,11 +93,22 @@ test('the bulk-data walk reports in-memory work that grows faster than the data 
     // It blocks like the other findings of the section, reads only the changed lines, and anchors to the search.
     expect($section)->toContain('Severity: **Moderate**, which blocks the merge as the other findings of this section do.');
     expect($section)->toContain('Only the lines the diff adds or changes are checked');
-    expect($section)->toContain('anchored to the search or the nested pass, never to the loop around it');
 
     // One finding per place, and the database cost stays with the database owners.
     expect($section)->toContain('never the cost of a database query or a measured run time');
     expect($section)->toContain('is never reported a second time as work that grows faster than the data');
+
+    // The comparison inside the inner pass carries the finding, because a finding anchored to a loop is dropped by the `foreach` clause.
+    expect($section)->toContain('anchored to the search, or to the comparison inside the inner pass of a nested pass, never to a loop');
+    expect($section)->toContain('*A `foreach` is never a code-review finding* below drops a finding anchored to a loop');
+
+    $foreachClause = packageSection(
+        packageSource('rules/code-review/general.md'),
+        '## A `foreach` is never a code-review finding',
+        '## A review comment assigned to somebody else is left alone',
+    );
+    expect($foreachClause)->toContain('work that grows faster than the data stays a finding under the same section');
+    expect($foreachClause)->toContain('to the search or to the comparison inside the inner pass');
 
     // The core-analysis walk names the fourth check, so the review actually reaches it.
     expect(packageSource('rules/code-review/core-analysis.md'))
