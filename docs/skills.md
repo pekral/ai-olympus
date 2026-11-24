@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 74 skills this package ships, grouped by what you reach for them for. Each description is the
+All 75 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -16,7 +16,7 @@ link to read the skill itself.
 | [Databases](#databases) | 5 |
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 4 |
-| [Infrastructure & performance](#infrastructure--performance) | 3 |
+| [Infrastructure & performance](#infrastructure--performance) | 4 |
 | [Refactoring & code quality](#refactoring--code-quality) | 6 |
 | [Analysis & planning](#analysis--planning) | 5 |
 | [Meta & tooling](#meta--tooling) | 2 |
@@ -120,6 +120,7 @@ link to read the skill itself.
 |-------|----------------|
 | [`docker-patterns`](../skills/docker-patterns/) | Writing or reviewing Docker and docker-compose setups for a Laravel application |
 | [`latency-critical-systems`](../skills/latency-critical-systems/) | Working on latency-sensitive Laravel paths |
+| [`php-memory-leak-audit`](../skills/php-memory-leak-audit/) | A code review diff changes asynchronous PHP code (a queue job, a queued listener, a worker) that can keep memory alive between jobs; only `leonardo` runs it |
 | [`vite-patterns`](../skills/vite-patterns/) | Configuring or optimizing Vite (laravel-vite-plugin) asset bundling in a Laravel app |
 
 ## Refactoring & code quality
