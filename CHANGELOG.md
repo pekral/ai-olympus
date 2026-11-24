@@ -4,6 +4,7 @@ All notable changes to `ai-olympus` will be documented in this file.
 
 ## [Unreleased]
 
+- 💥 **Changed**: code review verifies every finding by a real check before it publishes it. A Critical still goes through `analyze-problem`. A Moderate is now verified too, by the check its `Evidence` kind names: a test or command run, a static-analysis run, a trace through the real code, or the rule section read against the cited line. A refuted finding is dropped, and a finding the run cannot check goes on the `Not verified:` line instead of `## Findings`.
 - 💥 **Changed**: commit granularity follows the acceptance criteria, so a human can review a pull request commit by commit. The implementer lists the criteria of the assignment first. Each criterion lands in its own commit with its test, shared groundwork lands in a commit before them, and an assignment without explicit criteria is divided by its points. The PR *Walkthrough* rows follow the commit order. Commits stay ungated on their own, are not required to be cherry-pickable, and their division is not a review finding.
 
 - ✨ **Added**: the implementer checks the places the actual diff affects before the pull request. `resolve-issue` step 17 and `references/diff-impact-check.md` run the impact walk on the real diff, not only on the planned change. Every caller and consumer outside the diff is proven working or repaired in the same pull request. Every other place an acceptance criterion covers gets the same fix; a place no criterion covers is recorded as a deferred item.

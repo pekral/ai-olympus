@@ -1027,7 +1027,21 @@ test('code-review skill verifies every Critical finding via analyze-problem befo
     );
     expect($content)->toContain('**Refuted** — Verified Facts contradict the finding');
     expect($content)->toContain('**Never silently downgrade** a Critical to Moderate on the basis of this verification');
-    expect($content)->toContain('**Moderate findings are not subject to this verification**');
+    expect($content)->not->toContain('**Moderate findings are not subject to this verification**');
+});
+
+test('code review verifies every Moderate finding by a real check before publishing', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/code-review/SKILL.md');
+    $rule = codeReviewRuleContents();
+
+    expect($rule)->toContain('5. **Every Moderate finding is verified too, by a real check.**');
+    expect($rule)->toContain('Run the check that its `Evidence` kind names, in this run, and observe the result');
+    expect($rule)->toContain('`rule-violation` — open the rule section and the cited line, and confirm that no exemption of the rule applies.');
+    expect($rule)->toContain('The check contradicts it → drop it.');
+    expect($rule)->toContain('A check that this run cannot perform leaves the point not verified');
+    expect($rule)->toContain('the published comment carries only **verified** findings, at every severity');
+    expect($skill)->toContain('and the real check that verifies every Moderate');
 });
 
 test('code review enforces translatable UI, console, and API strings (issue #553)', function (): void {
