@@ -4,7 +4,7 @@
 #
 # Builds on load-issue.sh (the JIRA data layer) and adds:
 #   - the full issue: fields, description, comments, attachments, custom fields
-#   - recursive traversal of related JIRA issues (parent, subtasks, issue links)
+#   - recursive traversal of related JIRA issues (parent, subtasks, issue links, and the keys the task text names)
 #     up to JIRA_CONTEXT_DEPTH, cycle-safe and capped
 #   - an inventory of every external URL found in descriptions and comments
 #
@@ -141,7 +141,8 @@ related_keys() {
   printf '%s' "$1" | jq -r '
     [ (.parent.key // empty),
       (.subtasks // [] | .[].key),
-      (.issueLinks // [] | .[].linkedKey) ] | .[] // empty'
+      (.issueLinks // [] | .[].linkedKey),
+      (.mentionedKeys // [] | .[]) ] | .[] // empty'
 }
 
 # Collect related JSON breadth-first up to DEPTH, capped at MAX_ISSUES.
