@@ -12,7 +12,7 @@
 #   test-integrity.sh prove --command "<runner> [<option>...]" --test "<file>::<test name>" [--test ...]
 #                           [--actor <name>]
 #   test-integrity.sh verify --record <absolute path> --base <commit id> --head <commit id>
-#   test-integrity.sh scan --base <commit id> --head <commit id>
+#   test-integrity.sh scan --base <commit id> --head <commit id> [--without-review]
 #   test-integrity.sh --self-test
 #
 # prove — the implementer runs it in its own worktree, after it committed the fix and the test
@@ -48,12 +48,19 @@
 #
 # scan — the implementer runs it before the pull request, the reviewer from the trusted copy on every review
 #   Reads only `git diff` from the merge base of --base and --head to --head, executes nothing, and lists the
-#   places a reviewer reads: a removed or moved-out test file, a removed test declaration, an added skip, a
+#   places a reviewer reads: a removed or moved-out test file (a rename that drops the runner suffix included),
+#   a removed test declaration, an added skip, a
 #   removed assertion line of a test the base already had, a changed test configuration, a removed or loosened
 #   CI step, a removed or loosened Composer script, a lowered `--min=`, and a lowered PHPStan level. A test the change adds
 #   is never a candidate, and neither is a test moved inside the test side unchanged. A binary diff on a watched
 #   path, a path with a control character, and a git or jq error end the scan incomplete. The list is candidates,
-#   never a proof that nothing else was weakened.
+#   never a proof that nothing else was weakened: an early return before the assertions or a removed data-set
+#   row is no candidate.
+#   --without-review is the mode of a merge path that has no review. It decides on the shape of the change, not
+#   on the patterns: it adds one `existing-check-changed` candidate for each watched path the base already had
+#   and the diff changes, renames, or deletes (a test-side file, a workflow or `.github/actions/**` file,
+#   `phpunit.xml*`, `tests/Pest.php`, `phpstan.neon*`, and `composer.json` when a script of the base changes).
+#   Only a change that adds test files and touches none of those completes with no candidate.
 #
 # Test-side paths
 #   One pattern, taken from the trigger of the test-value lens in
@@ -112,7 +119,7 @@ ti_usage() {
   cat >&2 <<'USAGE'
 Usage: test-integrity.sh prove --command "<runner> [<option>...]" --test "<file>::<test name>" [--test ...] [--actor <name>]
        test-integrity.sh verify --record <absolute path> --base <commit id> --head <commit id>
-       test-integrity.sh scan --base <commit id> --head <commit id>
+       test-integrity.sh scan --base <commit id> --head <commit id> [--without-review]
        test-integrity.sh --self-test
 USAGE
   exit 1
@@ -532,13 +539,16 @@ ti_verify() {
 TI_DECL_RE='^[[:space:]]*(it|test)[[:space:]]*\(|function[[:space:]]+test|#\[([A-Za-z\\]*\\)?Test\]|@test([^A-Za-z]|$)'
 TI_SKIP_RE='(->|\.)[[:space:]]*(skip[a-z]*|todo|only)[[:space:]]*\(|marktest(skipped|incomplete)|^[[:space:]]*x(it|test|describe)[[:space:]]*\('
 TI_ASSERT_RE='expect[[:space:]]*\(|->[[:space:]]*to[a-z]+[[:space:]]*\(|assert[a-z]*[[:space:]]*\('
-TI_LOOSEN_RE='continue-on-error:[[:space:]]*true|if:[[:space:]]*(false|\$\{\{[[:space:]]*false[[:space:]]*\}\})|\|\|[[:space:]]*(true|:|exit[[:space:]]+0)([^A-Za-z0-9]|$)|set[[:space:]]+\+e|paths-ignore'
+TI_LOOSEN_RE='continue-on-error:[[:space:]]*true|if:[[:space:]]*(false|\$\{\{[[:space:]]*false[[:space:]]*\}\})|\|\|[[:space:]]*(true|:|exit[[:space:]]+0)([^A-Za-z0-9]|$)|set[[:space:]]+\+e|paths-ignore|^[[:space:]]*paths:'
+TI_RUNNER_NAME_RE='Test\.php$|\.spec\.ts$|\.test\.ts$'
+TI_COMMENT_RE='^[[:space:]]*(//|#|/\*|\*)'
 TI_MIN_RE='--min=([0-9]+)'
 TI_LEVEL_RE='^[[:space:]]*level:[[:space:]]*([0-9]+|max)'
 
 TI_SCAN_BASE=''
 TI_SCAN_HEAD=''
 TI_SCAN_CANDIDATES=0
+TI_SCAN_WITHOUT_REVIEW=0
 
 ti_scan_incomplete() {
   printf 'scan-verdict=incomplete reason=%s\n' "$1"
@@ -628,9 +638,10 @@ ti_scan_file() {
     esac
   done <"$TI_TMP/diff"
 
-  local -a added_norm=()
+  local -a added_norm=() added_code_norm=()
   for text in ${added[@]+"${added[@]}"}; do
     added_norm+=("$(ti_norm "$text")")
+    [[ "$text" =~ $TI_COMMENT_RE ]] || added_code_norm+=("$(ti_norm "$text")")
   done
 
   for index in ${removed[@]+"${!removed[@]}"}; do
@@ -652,7 +663,7 @@ ti_scan_file() {
       fi
       if [[ "$text" =~ $TI_ASSERT_RE ]]; then
         found=0
-        for value in ${added_norm[@]+"${added_norm[@]}"}; do
+        for value in ${added_code_norm[@]+"${added_code_norm[@]}"}; do
           [[ "$value" != *"$norm"* ]] || { found=1; break; }
         done
         [[ "$found" -eq 1 ]] || ti_candidate assertion-changed "$old" "${removed_at[index]}"
@@ -737,12 +748,28 @@ ti_scan_scripts() {
   [[ "${BASH_REMATCH[2]}" -eq 0 ]] || ti_candidate script-loosened composer.json -
 }
 
+# A script of the base whose value the head changes or drops: `true` or `false`.
+ti_scripts_changed() {
+  local base_json head_json changed
+  base_json="$(git show "$TI_SCAN_BASE:composer.json" 2>/dev/null)" || ti_scan_incomplete git-error
+  head_json="$(git show "$TI_SCAN_HEAD:composer.json" 2>/dev/null)" || head_json='{}'
+  changed="$(jq -n --argjson b "$base_json" --argjson h "$head_json" '
+    ($b.scripts // {}) as $bs | ($h.scripts // {}) as $hs | any($bs | keys[]; $hs[.] != $bs[.])' 2>/dev/null)" \
+    || ti_scan_incomplete jq-error
+  case "$changed" in
+  true) return 0 ;;
+  false) return 1 ;;
+  *) ti_scan_incomplete jq-error ;;
+  esac
+}
+
 ti_scan() {
   local status old new kind new_kind
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --base) [[ $# -ge 2 ]] || ti_scan_incomplete usage 1; TI_SCAN_BASE="$2"; shift 2 ;;
     --head) [[ $# -ge 2 ]] || ti_scan_incomplete usage 1; TI_SCAN_HEAD="$2"; shift 2 ;;
+    --without-review) TI_SCAN_WITHOUT_REVIEW=1; shift ;;
     *) ti_scan_incomplete usage 1 ;;
     esac
   done
@@ -774,6 +801,8 @@ ti_scan() {
     R*)
       if [[ "$kind" != none && "$new_kind" != "$kind" ]]; then
         ti_scan_deleted "$kind" "$old"
+      elif [[ "$kind" == test && "$old" =~ $TI_RUNNER_NAME_RE && ! "$new" =~ $TI_RUNNER_NAME_RE ]]; then
+        ti_scan_deleted test "$old"
       elif [[ "$kind" != none && "$status" != R100 ]]; then
         ti_scan_file "$kind" "$old" "$new"
       fi
@@ -783,6 +812,11 @@ ti_scan() {
     esac
     if [[ "$kind" == composer && "$status" != A* ]]; then
       ti_scan_scripts
+    fi
+    if [[ "$TI_SCAN_WITHOUT_REVIEW" -eq 1 && "$kind" != none && "$status" != A* && "$status" != C* ]]; then
+      if [[ "$kind" != composer ]] || ti_scripts_changed; then
+        ti_candidate existing-check-changed "$old" -
+      fi
     fi
   done <"$TI_TMP/names"
 
@@ -1144,10 +1178,13 @@ ti_selftest_scan_repo() {
   printf 'gone\n' >"$TI_REPO/tests/Unit/GoneTest.php"
   printf 'moved\n' >"$TI_REPO/tests/Unit/MovedTest.php"
   printf 'out\n' >"$TI_REPO/tests/Unit/OutTest.php"
+  printf 'suffix\n' >"$TI_REPO/tests/Unit/SuffixTest.php"
+  printf '%s\n' "<?php" "it('notes', function () {" "    expect(4)->toBe(4);" "});" >"$TI_REPO/tests/Unit/CommentTest.php"
   printf '%s\n' '<phpunit>' '  <testsuites><testsuite name="all"><directory>tests</directory></testsuite></testsuites>' '</phpunit>' >"$TI_REPO/phpunit.xml"
   printf '%s\n' 'name: ci' 'on: push' 'jobs:' '  test:' '    runs-on: ubuntu-latest' '    steps:' '      - run: vendor/bin/pest --min=100' \
     '      - run: composer audit' >"$TI_REPO/.github/workflows/ci.yml"
   printf 'name: old\n' >"$TI_REPO/.github/workflows/old.yml"
+  printf '%s\n' 'name: t' 'on:' '  pull_request:' 'jobs: {}' >"$TI_REPO/.github/workflows/trigger.yml"
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
   printf '%s\n' 'parameters:' '    level: 8' >"$TI_REPO/phpstan.neon"
   printf 'code\n' >"$TI_REPO/src/Calc.php"
@@ -1166,6 +1203,9 @@ ti_selftest_scan_repo() {
   mkdir -p "$TI_REPO/tests/Feature"
   ti_git mv tests/Unit/MovedTest.php tests/Feature/MovedTest.php
   ti_git mv tests/Unit/OutTest.php src/Out.php
+  ti_git mv tests/Unit/SuffixTest.php tests/Unit/Suffix.php
+  printf '%s\n' "<?php" "it('notes', function () {" "    // expect(4)->toBe(4);" "});" >"$TI_REPO/tests/Unit/CommentTest.php"
+  printf '%s\n' 'name: t' 'on:' '  pull_request:' "    paths: ['docs/**']" 'jobs: {}' >"$TI_REPO/.github/workflows/trigger.yml"
   printf '%s\n' "<?php" "it('is new', function () {" "    expect(1)->toBe(1);" "})->skip();" >"$TI_REPO/tests/Unit/NewTest.php"
   printf '%s\n' '<phpunit>' '  <testsuites><testsuite name="all"><directory>tests</directory></testsuite></testsuites>' \
     '  <exclude>tests/Slow</exclude>' '</phpunit>' >"$TI_REPO/phpunit.xml"
@@ -1186,6 +1226,24 @@ ti_selftest_scan_repo() {
   ti_git checkout -q -b extended master
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest --compact", "vendor/bin/phpstan"], "lint": "vendor/bin/pint src"}}' >"$TI_REPO/composer.json"
   ti_git commit -q -am extended
+
+  ti_git checkout -q -b quiet master
+  printf '%s\n' "<?php" "it('adds', function () {" "    return;" "    expect(1)->toBe(1);" "});" "test('subtracts', function () {" \
+    "    expect(2)->toBe(2);" "});" "it('multiplies', function () {" "    expect(3)->toBe(3);" "});" >"$TI_REPO/tests/Unit/CalcTest.php"
+  mkdir -p "$TI_REPO/tests/Feature"
+  ti_git mv tests/Unit/MovedTest.php tests/Feature/MovedTest.php
+  printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan"], "lint": "vendor/bin/pint --test"}}' >"$TI_REPO/composer.json"
+  printf '%s\n' 'name: ci' 'on: push' 'jobs:' '  test:' '    runs-on: ubuntu-latest' '    timeout-minutes: 5' '    steps:' \
+    '      - run: vendor/bin/pest --min=100' '      - run: composer audit' >"$TI_REPO/.github/workflows/ci.yml"
+  printf '%s\n' '<phpunit>' '  <testsuites><testsuite name="all"><directory>tests</directory></testsuite></testsuites>' \
+    '  <php/>' '</phpunit>' >"$TI_REPO/phpunit.xml"
+  printf '%s\n' "<?php" "it('is new', fn () => expect(1)->toBe(1));" >"$TI_REPO/tests/Unit/QuietNewTest.php"
+  ti_git add -A
+  ti_git commit -q -m quiet
+
+  ti_git checkout -q -b dependency master
+  printf '%s\n' '{"require": {"php": "^8.3"}, "scripts": {"test": ["vendor/bin/pest", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
+  ti_git commit -q -am dependency
 
   ti_git checkout -q -b loosened-or master
   printf '%s\n' '{"scripts": {"test": ["vendor/bin/pest || true", "vendor/bin/phpstan"], "lint": "vendor/bin/pint"}}' >"$TI_REPO/composer.json"
@@ -1239,6 +1297,9 @@ ti_selftest_scan() {
   ti_assert 'scan: a removed Composer script entry is a candidate' ti_scan_has script-removed composer.json -
   ti_assert 'scan: a lowered PHPStan level is a candidate' ti_scan_has analysis-level-lowered phpstan.neon 2
   ti_assert 'scan: a test file moved inside the test side unchanged is no candidate' ti_not ti_scan_mentions MovedTest.php
+  ti_assert 'scan: a test file renamed without the runner suffix is a candidate' ti_scan_has test-file-removed tests/Unit/SuffixTest.php -
+  ti_assert 'scan: an assertion that moved into a comment is a candidate' ti_scan_has assertion-changed tests/Unit/CommentTest.php 3
+  ti_assert 'scan: an added paths filter on a workflow trigger is a candidate' ti_scan_has ci-changed .github/workflows/trigger.yml 4
   ti_assert 'scan: a test the change adds is no candidate' ti_not ti_scan_mentions NewTest.php
   ti_assert 'scan: the output carries no text of a diff line' ti_not ti_scan_mentions 'pwn'
   ti_assert 'scan: the output carries no escape character' ti_not ti_scan_mentions "$(printf '\033')"
@@ -1251,6 +1312,26 @@ ti_selftest_scan() {
 
   ti_scan_run master extended
   ti_assert 'scan: a Composer script entry that keeps every word and adds one is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
+
+  TI_RC=0
+  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse quiet)" --without-review 2>&1)" \
+    || TI_RC=$?
+  ti_assert 'scan --without-review: a change to pre-existing checks completes with candidates' ti_equals "$TI_RC" 5
+  ti_assert 'scan --without-review: a changed pre-existing test is a candidate' ti_scan_has existing-check-changed tests/Unit/CalcTest.php -
+  ti_assert 'scan --without-review: a renamed pre-existing test is a candidate' ti_scan_has existing-check-changed tests/Unit/MovedTest.php -
+  ti_assert 'scan --without-review: a changed Composer script is a candidate' ti_scan_has existing-check-changed composer.json -
+  ti_assert 'scan --without-review: a changed workflow is a candidate' ti_scan_has existing-check-changed .github/workflows/ci.yml -
+  ti_assert 'scan --without-review: a changed test configuration is a candidate' ti_scan_has existing-check-changed phpunit.xml -
+  ti_assert 'scan --without-review: an added test is no candidate' ti_not ti_scan_mentions QuietNewTest.php
+  TI_RC=0
+  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse clean)" --without-review 2>&1)" \
+    || TI_RC=$?
+  ti_assert 'scan --without-review: a change that adds a test and changes production code is no candidate' \
+    ti_equals "$TI_OUT" 'scan-verdict=complete'
+  TI_RC=0
+  TI_OUT="$(cd "$TI_REPO" && bash "$TI_SELF" scan --base "$(ti_git rev-parse master)" --head "$(ti_git rev-parse dependency)" --without-review 2>&1)" \
+    || TI_RC=$?
+  ti_assert 'scan --without-review: a composer.json change that keeps every script is no candidate' ti_equals "$TI_OUT" 'scan-verdict=complete'
 
   ti_scan_run master loosened-or
   ti_assert 'scan: a Composer script entry that gains an or-true is a loosened script' \
