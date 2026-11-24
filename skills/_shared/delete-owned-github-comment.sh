@@ -21,8 +21,9 @@
 # comment that the skill merged into another comment. The merged comment is the one protected id: it must
 # be this actor's comment on the exact target and carry this actor's cr-comment marker on a line of its own.
 # The target must carry that marker as its only agent marker, and it is refused when a later comment points
-# at it (skills/_shared/comment-reply.jq owns what a reply is). A failed listing of the comments refuses the
-# delete too.
+# at it (skills/_shared/comment-reply.jq owns what a reply is), and when it holds a line the operator added
+# that the merged comment does not carry verbatim (skills/_shared/operator-lines.sh). A failed listing of
+# the comments refuses the delete too.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -137,6 +138,7 @@ is_overflow_comment() {
 # and the issue or pull request the comment sits on.
 EXPECTED_ISSUE_URL_PREFIX="$(printf '%s' "https://api.github.com/repos/$OWNER/$REPOSITORY/issues/" | tr '[:upper:]' '[:lower:]')"
 EXPECTED_ISSUE_URL="https://api.github.com/repos/$OWNER/$REPOSITORY/issues/$NUMBER"
+MERGED_REVIEW_BODY=""
 
 if [[ "$OVERFLOW_ONLY" -eq 0 ]]; then
   for index in "${!PROTECTED_IDS[@]}"; do
@@ -167,6 +169,7 @@ if [[ "$OVERFLOW_ONLY" -eq 0 ]]; then
         printf '%s\n' "$PROG: the merged review comment $protected_id does not carry this actor's cr-comment marker on a line of its own" >&2
         exit 4
       fi
+      MERGED_REVIEW_BODY="$protected_body"
     elif [[ "$protected_body" != *"$expected_marker"* ]]; then
       printf '%s\n' "$PROG: protected comment $protected_id does not carry the required ${PROTECTED_MARKERS[$index]} marker" >&2
       exit 4
@@ -213,7 +216,21 @@ if [[ "$REVIEW_MERGE" -eq 1 ]]; then
     printf '%s\n' "$PROG: a comment that has a reply is never deleted (reply check: $HAS_REPLY)" >&2
     exit 4
   fi
-
+  command -v php >/dev/null 2>&1 || { printf '%s\n' "$PROG: required tool not found: php" >&2; exit 2; }
+  # shellcheck source=operator-lines.sh
+  source "$SCRIPT_DIR/operator-lines.sh"
+  LINES_DIR="$(mktemp -d)"
+  trap 'rm -rf "$LINES_DIR"' EXIT
+  printf '%s' "$REVIEW_BODY" >"$LINES_DIR/target.md"
+  printf '%s' "$MERGED_REVIEW_BODY" >"$LINES_DIR/merged.md"
+  if ! MISSING_LINES="$(operator_lines markdown "$LINES_DIR/target.md" "$LINES_DIR/merged.md")"; then
+    printf '%s\n' "$PROG: the operator lines of the comment could not be read; nothing is deleted" >&2
+    exit 3
+  fi
+  if [[ -n "$MISSING_LINES" ]]; then
+    printf '%s\n' "$PROG: the comment holds a line the operator added that the merged review comment does not carry; nothing is deleted" >&2
+    exit 4
+  fi
 fi
 
 # The overflow comment holds the durable copy of the pull-request body's verbatim content.

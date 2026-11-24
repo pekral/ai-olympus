@@ -13,8 +13,9 @@
 # both protected ID. The owner is the account ID of the authenticated user (jira_actor_account_id); a user it
 # cannot resolve refuses the delete. The merged review comment and the target must both be that account's and
 # carry this actor's cr-comment marker, and the target only that agent marker. The target is refused when a
-# later comment points at it (skills/_shared/comment-reply.jq owns what a reply is). A view that embeds fewer
-# comments than the issue carries refuses the delete, as an unreadable list does.
+# later comment points at it (skills/_shared/comment-reply.jq owns what a reply is), and when it holds a node
+# the operator added that the merged comment does not carry verbatim (skills/_shared/operator-lines.sh). A
+# view that embeds fewer comments than the issue carries refuses the delete, as an unreadable list does.
 #
 # Inputs:
 #   KEY|URL        Bare JIRA issue key (e.g. ACME-1234), a /browse/<KEY> URL, or
@@ -245,7 +246,21 @@ if [[ "$REVIEW_MERGE" -eq 1 ]]; then
     printf '%s\n' "$PROG: a comment that has a reply, or that carries another agent marker, is never deleted (check: $REVIEW_VERDICT)" >&2
     exit 4
   fi
-
+  # shellcheck source=../../_shared/operator-lines.sh
+  source "$SCRIPT_DIR/../../_shared/operator-lines.sh"
+  LINES_DIR="$(mktemp -d)"
+  trap 'rm -rf "$LINES_DIR"' EXIT
+  for pair in "target:$COMMENT_ID" "merged:$FINAL_TLDR_ID"; do
+    printf '%s' "$COMMENTS" | jq -c --arg id "${pair#*:}" 'map(select(((.id // "") | tostring) == $id)) | first | .body' >"$LINES_DIR/${pair%%:*}.json"
+  done
+  if ! MISSING_LINES="$(operator_lines adf "$LINES_DIR/target.json" "$LINES_DIR/merged.json")"; then
+    printf '%s\n' "$PROG: the operator lines of comment $COMMENT_ID could not be read; nothing is deleted" >&2
+    exit 3
+  fi
+  if [[ -n "$MISSING_LINES" ]]; then
+    printf '%s\n' "$PROG: comment $COMMENT_ID holds a line the operator added that the merged review comment does not carry; nothing is deleted" >&2
+    exit 4
+  fi
 fi
 
 # The audit line is written at the moment of the delete, with the real exit status of `acli`.
