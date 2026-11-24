@@ -460,12 +460,12 @@ test(
         }
     },
 )->with([
-    'another person signed in to acli' => [['FAKE_ACLI_EMAIL' => 'colleague@example.com']],
-    'the matching gh e-mail is not verified' => [['FAKE_GH_EMAILS' => '[{"email":"operator@example.com","verified":false}]']],
-    'the gh e-mails cannot be read' => [['FAKE_GH_EMAILS_FAIL' => '1']],
     'acli shows no e-mail' => [['FAKE_ACLI_EMAIL' => '']],
+    'another person signed in to acli' => [['FAKE_ACLI_EMAIL' => 'colleague@example.com']],
     'the acli e-mail is only a part of the gh e-mail' => [['FAKE_ACLI_EMAIL' => 'perator@example.com']],
     'the gh account carries no e-mail' => [['FAKE_GH_EMAILS' => '[]']],
+    'the gh e-mails cannot be read' => [['FAKE_GH_EMAILS_FAIL' => '1']],
+    'the matching gh e-mail is not verified' => [['FAKE_GH_EMAILS' => '[{"email":"operator@example.com","verified":false}]']],
 ]);
 
 test('the JIRA assign helper matches the acli and gh e-mails in any letter case and among several gh e-mails', function (): void {
@@ -613,9 +613,9 @@ test(
         }
     },
 )->with([
-    'standard names in the title' => ['fix(auth): switch token hashing to SHA-256 and UTF-8 input (TEAM-42)', '', [], ['TEAM-42'], ['SHA-256', 'UTF-8']],
-    'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', [], ['TEAM-42'], ['ACME-12']],
     'a key at the start of the title' => ['(ACME-13) fix: login', '', [], [], ['ACME-13']],
+    'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', [], ['TEAM-42'], ['ACME-12']],
+    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', [], [], ['OPS-9']],
     'a link on another JIRA host' => [
         'fix: login',
         'See https://sample.atlassian.net/browse/OPS-7 and https://example.atlassian.net/browse/TEAM-42.',
@@ -623,11 +623,11 @@ test(
         ['TEAM-42'],
         ['OPS-7'],
     ],
-    'a link with the site as user info' => ['fix: login', 'https://example.atlassian.net@evil.example/browse/OPS-8', [], [], ['OPS-8']],
-    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', [], [], ['OPS-9']],
-    'a link with no host' => ['fix: login', 'See /browse/OPS-10.', [], [], ['OPS-10']],
-    'a link while acli names no site' => ['fix: login', 'https://example.atlassian.net/browse/TEAM-42', ['FAKE_ACLI_SITE' => ''], [], ['TEAM-42']],
     'a link on the site in another letter case' => ['fix: login', 'https://EXAMPLE.atlassian.net/browse/TEAM-42', [], ['TEAM-42'], []],
+    'a link while acli names no site' => ['fix: login', 'https://example.atlassian.net/browse/TEAM-42', ['FAKE_ACLI_SITE' => ''], [], ['TEAM-42']],
+    'a link with no host' => ['fix: login', 'See /browse/OPS-10.', [], [], ['OPS-10']],
+    'a link with the site as user info' => ['fix: login', 'https://example.atlassian.net@evil.example/browse/OPS-8', [], [], ['OPS-8']],
+    'standard names in the title' => ['fix(auth): switch token hashing to SHA-256 and UTF-8 input (TEAM-42)', '', [], ['TEAM-42'], ['SHA-256', 'UTF-8']],
 ]);
 
 test('a missing ready-to-deploy label is reported and never created, and a lookalike label is never selected', function (string $labels): void {
@@ -665,25 +665,30 @@ test('the driver applies the label the operator named, matched by its exact name
     }
 });
 
-test('an operator-named label that the repository lacks, or that a workflow names, is never applied', function (array $workflows, string $labels, string $result): void {
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
-
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', 'deploy ready'], ['FAKE_GH_LABELS' => $labels]);
-
-        expect($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label | ' . $result)
-            ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-})->with([
-    'only a longer name exists' => [[], "deploy ready later\nready to deploy", 'missing — the repository has no label named "deploy ready", and none was created'],
+test(
+    'an operator-named label that the repository lacks, or that a workflow names, is never applied',
+    function (array $workflows, string $labels, string $result): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+    
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', 'deploy ready'], ['FAKE_GH_LABELS' => $labels]);
+    
+            expect($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label | ' . $result)
+                ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe(
+                    [],
+                );
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
     'a workflow names it' => [
         ['.github/workflows/deploy.yml' => "on: push\nenv:\n  GATE: DEPLOY_READY\n"],
         'deploy ready',
         'not applied — the default-branch workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
+    'only a longer name exists' => [[], "deploy ready later\nready to deploy", 'missing — the repository has no label named "deploy ready", and none was created'],
 ]);
 
 test('the skill passes the label the operator named to the driver', function (): void {
@@ -707,7 +712,9 @@ test('the skill reports the audit lines without any e-mail and removes the audit
             'One `Audit:` line: the count of lines per event class and every write target, read from the `.audit` file before step 6 removes it. '
             . 'It carries no e-mail address.',
         )
-        ->and(substr($skill, (int) strpos($skill, '## Done when')))->toContain('- The report carries the `Audit:` line, and the `.audit` file no longer exists');
+        ->and(substr($skill, (int) strpos($skill, '## Done when')))->toContain(
+            '- The report carries the `Audit:` line, and the `.audit` file no longer exists',
+        );
 });
 
 test('the driver refuses an empty operator-named label', function (): void {
@@ -751,28 +758,32 @@ test(
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
             expect($process->getExitCode())->toBe(0)
-                ->and($process->getOutput())->toContain('| label | not applied — the default-branch workflow ' . $path . ' ' . $reason . '; the operator decides')
-                ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
+                ->and($process->getOutput())->toContain(
+                    '| label | not applied — the default-branch workflow ' . $path . ' ' . $reason . '; the operator decides',
+                )
+                ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe(
+                    [],
+                );
         } finally {
             installerRemoveDirectory($fixture['directory']);
         }
     },
 )->with([
+    'a .yaml workflow' => ["on: issues\n", '.github/workflows/deploy.yaml', 'runs on every issue activity'],
     'a bare issues trigger' => ["on: issues\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a nested issues trigger without types' => ["on:\n  issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'a null issues trigger' => ["on:\n  issues: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
-    'an issues trigger in a flow mapping' => ["on: {issues: {}}\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'a labeled type with a contains() check' => [
         "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: contains(github.event.label.name, 'deploy')\n",
         '.github/workflows/deploy.yml',
         'subscribes to label activity',
     ],
-    'a quoted labeled type in another case' => ["on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
+    'a nested issues trigger without types' => ["on:\n  issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'an issues trigger in a flow mapping' => ["on: {issues: {}}\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a null issues trigger' => ["on:\n  issues: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
     'an unlabeled type in a block list' => ["on:\n  pull_request:\n    types:\n      - unlabeled\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
-    'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
+    'a quoted labeled type in another case' => ["on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
     'a read of the event label' => ["on:\n  pull_request:\njobs:\n  d:\n    if: github.event.label.name != ''\n", '.github/workflows/deploy.yml', 'reads the label of the event'],
-    'a .yaml workflow' => ["on: issues\n", '.github/workflows/deploy.yaml', 'runs on every issue activity'],
+    'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
 ]);
 
 test('the label is applied when no workflow of the default-branch tip reacts to labels, whatever the local ref holds', function (array $workflows): void {
@@ -790,10 +801,10 @@ test('the label is applied when no workflow of the default-branch tip reacts to 
         installerRemoveDirectory($fixture['directory']);
     }
 })->with([
-    'no workflow' => [[]],
-    'pull-request CI with issue permissions' => [['.github/workflows/ci.yml' => "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"]],
     'an issues trigger limited to other types' => [['.github/workflows/triage.yml' => "on:\n  issues:\n    types: [opened]\n"]],
     'a workflow outside the workflow directory' => [['.github/workflows/sub/deploy.yml' => "on: issues\n"]],
+    'no workflow' => [[]],
+    'pull-request CI with issue permissions' => [['.github/workflows/ci.yml' => "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"]],
 ]);
 
 test('the label is not applied when the workflows of the default-branch tip cannot be read in full', function (string $case): void {
@@ -803,7 +814,7 @@ test('the label is not applied when the workflows of the default-branch tip cann
     match ($case) {
         'tree' => unlink($api . 'repos_acme_app_git_trees_master_recursive_1'),
         'blob' => unlink($api . 'repos_acme_app_git_blobs_blob-' . md5('.github/workflows/ci.yml')),
-        default => readyToDeployRemoteWorkflows($fixture, ['.github/workflows/ci.yml' => "on: push\n"], true),
+        default => readyToDeployRemoteWorkflows($fixture, ['.github/workflows/ci.yml' => "on: push\n"], truncated: true),
     };
 
     try {
