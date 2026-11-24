@@ -102,6 +102,19 @@ final class AgentGuardRun
         return self::runCommand($root, $command);
     }
 
+    public static function execFrom(string $cwd, string $root, string $role, string $command): Process
+    {
+        $process = new Process(
+            ['bash', self::script(), 'exec', $role, '--project', $root, '--', $command],
+            $cwd,
+            self::environment(dirname($root) . '/home'),
+        );
+        $process->setTimeout(60);
+        $process->run();
+
+        return $process;
+    }
+
     public static function linuxBwrap(): string
     {
         return is_executable('/usr/bin/bwrap') ? '/usr/bin/bwrap' : '';

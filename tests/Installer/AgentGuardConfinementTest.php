@@ -349,6 +349,23 @@ test('the hook and exec never run a tool planted in a directory on PATH', functi
     }
 })->with(['bwrap', 'git', 'jq', 'uname']);
 
+test('exec protects the project it is given when the command starts in a nested checkout', function (): void {
+    $root = AgentGuardRun::repository();
+    $nested = $root . '/nested';
+    mkdir($nested);
+    AgentGuardRun::git($nested, 'init', '-q');
+    $composer = (string) file_get_contents($root . '/composer.json');
+
+    try {
+        $process = AgentGuardRun::execFrom($nested, $root, 'leonardo', 'echo ran; echo x >> ' . escapeshellarg($root . '/composer.json'));
+
+        expect($process->getOutput())->toBe("ran\n")
+            ->and(file_get_contents($root . '/composer.json'))->toBe($composer);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
 test('a confined command cannot reach the host file system through another process in /proc on Linux', function (): void {
     $root = AgentGuardRun::repository();
     $command = 'for p in /proc/[0-9]*; do echo x > "$p/root' . $root . '/escaped" 2>/dev/null; done; true';

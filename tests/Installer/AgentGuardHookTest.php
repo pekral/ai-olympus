@@ -21,9 +21,9 @@ function agentGuardHookDecision(string $root, string $input): AgentGuardDecision
     return AgentGuardDecision::fromHookOutput(AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root])->getOutput());
 }
 
-function agentGuardExecPrefix(string $role): string
+function agentGuardExecPrefix(string $role, string $root): string
 {
-    return '/bin/bash \'' . AgentGuardRun::script() . '\' exec ' . $role . ' -- ';
+    return '/bin/bash \'' . AgentGuardRun::script() . '\' exec ' . $role . ' --project \'' . $root . '\' -- ';
 }
 
 /**
@@ -34,13 +34,13 @@ function agentGuardWriteSettings(string $path, array $permissions): void
     installerWriteFile($path, json_encode(['permissions' => $permissions], JSON_THROW_ON_ERROR));
 }
 
-test('the hook wraps the command of a confined role in the absolute exec prefix', function (string $agentType, string $role): void {
+test('the hook wraps the command of a confined role in the absolute exec prefix with the project', function (string $agentType, string $role): void {
     $root = AgentGuardRun::repository();
 
     try {
         $decision = agentGuardHookDecision($root, agentGuardHookInput($agentType));
 
-        expect($decision->command())->toStartWith(agentGuardExecPrefix($role))
+        expect($decision->command())->toStartWith(agentGuardExecPrefix($role, $root))
             ->and($decision->permissionDecision)->toBe('ask');
     } finally {
         AgentGuardRun::remove($root);
@@ -91,7 +91,7 @@ test('the wrapped command runs the original command word for word', function (st
 
     try {
         $wrapped = agentGuardHookDecision($root, agentGuardHookInput('leonardo', ['command' => $command]))->command();
-        $echo = str_replace(agentGuardExecPrefix('leonardo'), 'printf \'%s\' ', $wrapped);
+        $echo = str_replace(agentGuardExecPrefix('leonardo', $root), 'printf \'%s\' ', $wrapped);
         $process = new Process(['sh', '-c', $echo]);
         $process->run();
 
@@ -135,7 +135,7 @@ test(
             $decision = agentGuardHookDecision($root, agentGuardHookInput('splinter', ['command' => $command]));
     
             expect($decision->permissionDecision)->toBe('ask')
-                ->and($decision->command())->toStartWith(agentGuardExecPrefix('splinter'));
+                ->and($decision->command())->toStartWith(agentGuardExecPrefix('splinter', $root));
         } finally {
             AgentGuardRun::remove($root);
         }
@@ -154,7 +154,7 @@ test('the hook asks for a confined command that no allow rule matches', function
         $decision = agentGuardHookDecision($root, agentGuardHookInput('april', ['command' => $command]));
 
         expect($decision->permissionDecision)->toBe('ask')
-            ->and($decision->command())->toStartWith(agentGuardExecPrefix('april'));
+            ->and($decision->command())->toStartWith(agentGuardExecPrefix('april', $root));
     } finally {
         AgentGuardRun::remove($root);
     }

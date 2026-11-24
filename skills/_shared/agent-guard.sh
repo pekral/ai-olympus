@@ -12,7 +12,8 @@
 #
 # Usage
 #   agent-guard.sh hook                     read the PreToolUse JSON on stdin, print the hook decision
-#   agent-guard.sh exec <role> -- <command> run <command> with `/bin/bash -c` in the confinement of <role>
+#   agent-guard.sh exec <role> [--project <dir>] -- <command>
+#                                           run <command> with `/bin/bash -c` in the confinement of <role>
 #   agent-guard.sh probe                    prove whether the current process can write into the project
 #   agent-guard.sh verify                   check the installed copy and the hook handler against the install record
 #   agent-guard.sh --self-test
@@ -50,7 +51,7 @@
 #   match, an unreadable settings file, a rule shape this check does not support, and a construct it cannot split (a
 #   subshell, a command substitution, a backtick, a leading `!`, a shell keyword). `ask` and `allow` carry
 #   `updatedInput` with every field of the tool input kept and `command` replaced by
-#   `/bin/bash '<abs>/agent-guard.sh' exec <role> -- '<original command>'`.
+#   `/bin/bash '<abs>/agent-guard.sh' exec <role> --project '<project>' -- '<original command>'`.
 #   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
 #   `;`, `|`, `|&`, `&`, a newline, `(`, `)`, `{`, `}`, and a backtick, and leading `NAME=value` words, shell
 #   keywords, and the wrappers `timeout time nice nohup stdbuf command builtin noglob` are removed before a segment is
@@ -84,7 +85,7 @@ NONE='/nonexistent-ai-olympus-guard'
 usage() {
   cat >&2 <<'EOF'
 Usage: agent-guard.sh hook
-       agent-guard.sh exec <role> -- <command>
+       agent-guard.sh exec <role> [--project <dir>] -- <command>
        agent-guard.sh probe
        agent-guard.sh verify
        agent-guard.sh --self-test
@@ -113,27 +114,38 @@ physical_dir() {
   (cd "$1" 2>/dev/null && pwd -P)
 }
 
-# Sets TOP (git toplevel of the current directory), COMMON (git common directory), and ROOT (the main project root:
-# the parent of a common directory named `.git`, otherwise TOP). Outside a git checkout every value is the current
-# directory and COMMON is empty.
+# Sets TOP (git toplevel of the current directory), COMMON (git common directory), CWD_ROOT (the main project root of
+# the current directory: the parent of a common directory named `.git`, otherwise TOP), PCOMMON (the git common
+# directory of the project given with --project), and ROOT (the project given with --project, otherwise CWD_ROOT).
+# Outside a git checkout TOP and CWD_ROOT are the current directory and COMMON is empty.
 resolve_project() {
-  local common
+  local project="${1:-}" common status=0
   TOP="$(git_safe rev-parse --show-toplevel 2>/dev/null)" || TOP=""
   if [[ -z "$TOP" ]]; then
     TOP="$(pwd -P)"
     COMMON=""
-    ROOT="$TOP"
-    return 1
-  fi
-  TOP="$(physical_dir "$TOP")"
-  common="$(git_safe rev-parse --git-common-dir 2>/dev/null)" || common=""
-  COMMON="$(physical_dir "$common")"
-  if [[ -n "$COMMON" && "${COMMON##*/}" == ".git" ]]; then
-    ROOT="${COMMON%/.git}"
+    CWD_ROOT="$TOP"
+    status=1
   else
-    ROOT="$TOP"
+    TOP="$(physical_dir "$TOP")"
+    common="$(git_safe rev-parse --git-common-dir 2>/dev/null)" || common=""
+    COMMON="$(physical_dir "$common")"
+    if [[ -n "$COMMON" && "${COMMON##*/}" == ".git" ]]; then
+      CWD_ROOT="${COMMON%/.git}"
+    else
+      CWD_ROOT="$TOP"
+    fi
   fi
-  return 0
+  ROOT="$CWD_ROOT"
+  PCOMMON=""
+  if [[ -n "$project" ]] && project="$(physical_dir "$project")" && [[ -n "$project" ]]; then
+    ROOT="$project"
+    common="$(git_safe -C "$project" rev-parse --git-common-dir 2>/dev/null)" || common=""
+    [[ -n "$common" && "$common" != /* ]] && common="$project/$common"
+    [[ -n "$common" ]] && PCOMMON="$(physical_dir "$common")"
+    [[ -z "$COMMON" && -n "$PCOMMON" ]] && COMMON="$PCOMMON"
+  fi
+  return "$status"
 }
 
 # Prints true only when the default-branch manifest sets security.strict-agent-guard to the boolean true.
@@ -247,7 +259,7 @@ hook_fail() {
 run_hook() {
   local input role command project mode decision wrapped
   input="$(cat)"
-  resolve_project >/dev/null 2>&1 || true
+  resolve_project "${CLAUDE_PROJECT_DIR:-}" >/dev/null 2>&1 || true
 
   if ! printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1; then
     hook_fail "the hook input is not a JSON object"
@@ -278,7 +290,7 @@ run_hook() {
   fi
   [[ "$decision" == "allow" ]] || decision="ask"
 
-  wrapped="/bin/bash $(shell_quote "$SCRIPT_PATH") exec $role -- $(shell_quote "$command")"
+  wrapped="/bin/bash $(shell_quote "$SCRIPT_PATH") exec $role --project $(shell_quote "$project") -- $(shell_quote "$command")"
   printf '%s' "$input" | jq -c --arg wrapped "$wrapped" --arg decision "$decision" \
     --arg reason "$GUARD_PREFIX runs this command in the read-only confinement of $role" \
     '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: $decision, permissionDecisionReason: $reason,
@@ -364,7 +376,8 @@ macos_profile() {
     profile+='(allow file-write* (subpath (param "TMP_USER")))(deny file-write* (regex "/xcrun_db"))'
   fi
   profile+='(allow file-write* (subpath (param "LOCK_DIR")))'
-  profile+='(deny file-write* (subpath (param "ROOT")) (subpath (param "TOP")) (subpath (param "COMMON")))'
+  profile+='(deny file-write* (subpath (param "ROOT")) (subpath (param "TOP")) (subpath (param "CWD_ROOT"))'
+  profile+=' (subpath (param "COMMON")) (subpath (param "PCOMMON")))'
   profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
   case "$role" in
@@ -387,7 +400,8 @@ run_macos() {
   root_re="$(regex_escape "$ROOT")"
   common_re="$(regex_escape "${COMMON:-$NONE}")"
   /usr/bin/sandbox-exec \
-    -D ROOT="$ROOT" -D TOP="$TOP" -D COMMON="${COMMON:-$NONE}" \
+    -D ROOT="$ROOT" -D TOP="$TOP" -D CWD_ROOT="$CWD_ROOT" \
+    -D COMMON="${COMMON:-$NONE}" -D PCOMMON="${PCOMMON:-$NONE}" \
     -D TMP_SYS="${TMP_SYS:-$NONE}" -D TMP_USER="${TMP_USER:-$NONE}" \
     -D HOME_DIR="${HOME_DIR:-$NONE}" -D LOCK_DIR="${LOCK_DIR:-$NONE}" \
     -D HOME_CLAUDE="${HOME_DIR:-$NONE}/.claude" -D HOME_CODEX="${HOME_DIR:-$NONE}/.codex" \
@@ -410,7 +424,7 @@ run_linux() {
     args+=(--bind "$TMP_USER" "$TMP_USER")
   fi
   [[ -n "$LOCK_DIR" && -d "$LOCK_DIR" ]] && args+=(--bind "$LOCK_DIR" "$LOCK_DIR")
-  for dir in "$ROOT" "$TOP" "$COMMON"; do
+  for dir in "$ROOT" "$TOP" "$CWD_ROOT" "$COMMON" "$PCOMMON"; do
     [[ -n "$dir" && -d "$dir" ]] && args+=(--ro-bind "$dir" "$dir")
   done
   mkdir -p "$ROOT/.claude/run" 2>/dev/null || true
@@ -436,11 +450,17 @@ run_linux() {
 }
 
 run_exec() {
-  [[ $# -ge 3 && "$2" == "--" ]] || { usage; return 64; }
-  local role="$1" command="$3" reason status
+  local role="${1:-}" project="" command reason status
+  shift || true
+  if [[ "${1:-}" == "--project" ]]; then
+    project="${2:-}"
+    shift 2 || { usage; return 64; }
+  fi
+  [[ $# -eq 2 && "$1" == "--" ]] || { usage; return 64; }
+  command="$2"
   role="$(normalize_role "$role")"
   is_confined_role "$role" || { echo "$PROG: not a confined role: $role" >&2; return 64; }
-  resolve_project || true
+  resolve_project "$project" || true
 
   reason="$(confinement_unavailable_reason)"
   if [[ -n "$reason" ]]; then
@@ -570,7 +590,7 @@ self_test() {
   out="$(hook_input leonardo "echo it's" | (CLAUDE_PROJECT_DIR="$tmp" HOME="$tmp" run_hook))"
   check 'a confined role gets the command wrapped in exec' \
     test "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.updatedInput.command')" \
-    == "/bin/bash '$SCRIPT_PATH' exec leonardo -- 'echo it'\\''s'"
+    == "/bin/bash '$SCRIPT_PATH' exec leonardo --project '$tmp' -- 'echo it'\\''s'"
   check 'a command no allow rule matches asks' test "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision')" == ask
   check 'the wrapped input keeps every other field' \
     test "$(printf '%s' "$out" | jq -c '.hookSpecificOutput.updatedInput | del(.command)')" == '{"description":"d","timeout":5000}'
