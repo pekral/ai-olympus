@@ -13,10 +13,16 @@
 # as history.
 #
 # Usage:
-#   upsert-comment.sh [--create] <NUMBER|URL> <BODY_FILE> [<MARKER_KEY>]
-#   <body-producer> | upsert-comment.sh [--create] <NUMBER|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh [--create | --comment-id <ID>] <NUMBER|URL> <BODY_FILE> [<MARKER_KEY>]
+#   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <NUMBER|URL> - [<MARKER_KEY>]
 #
 # Inputs:
+#   --comment-id <ID>
+#               Optional. PATCH exactly that comment instead of the newest one of this actor and
+#               namespace. The comment must be authored by this actor, sit on the target, and carry
+#               this actor's marker of the namespace; otherwise nothing is written and the script exits 3.
+#               `skills/merge-review-comments` uses it to put merged text into the comment that has a
+#               reply. It never combines with `--create` or with the `agent-note` namespace.
 #   --create    Optional. Always POST a new comment in the given namespace and
 #               never look up or PATCH an existing one, so nothing is carried
 #               over from an earlier comment. Every code-review report publish
@@ -98,9 +104,11 @@ PROG="upsert-comment.sh"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: upsert-comment.sh [--create] <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
+Usage: upsert-comment.sh [--create | --comment-id <ID>] <NUMBER|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
   --create    always POST a new comment; never look up or PATCH an existing one
+  --comment-id <ID>
+              PATCH exactly this comment of this actor and namespace; never POST
   NUMBER      bare GitHub issue or PR number (resolved against current git remote)
   URL         any github.com URL containing /issues/<N> or /pull/<N>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -111,9 +119,30 @@ EOF
 }
 
 CREATE_ONLY=0
-if [[ "${1:-}" == "--create" ]]; then
-  CREATE_ONLY=1
-  shift
+TARGET_COMMENT_ID=""
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --create)
+      CREATE_ONLY=1
+      shift
+      ;;
+    --comment-id)
+      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        usage
+        exit 1
+      fi
+      TARGET_COMMENT_ID="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+if [[ "$CREATE_ONLY" -eq 1 && -n "$TARGET_COMMENT_ID" ]]; then
+  usage
+  exit 1
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
@@ -127,6 +156,11 @@ MARKER_KEY="${3:-cr-comment}"
 
 if [[ ! "$MARKER_KEY" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "upsert-comment.sh: MARKER_KEY must match [a-z][a-z0-9-]* — got: $MARKER_KEY" >&2
+  exit 1
+fi
+
+if [[ -n "$TARGET_COMMENT_ID" && "$MARKER_KEY" == "agent-note" ]]; then
+  echo "upsert-comment.sh: --comment-id never combines with the create-only agent-note namespace" >&2
   exit 1
 fi
 
@@ -184,13 +218,31 @@ MARKER="<!-- ${MARKER_KEY}:actor=${ACTOR} -->"
 EXISTING_ID=""
 if [[ "$MARKER_KEY" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   ALL_COMMENTS=""
-  if ! ALL_COMMENTS="$(gh api "repos/${NWO}/issues/${NUMBER}/comments" --paginate 2>"$LOOKUP_STDERR")"; then
+  if [[ -n "$TARGET_COMMENT_ID" ]]; then
+    # One named comment: it must be this actor's own, on this target, and carry this actor's marker.
+    TARGET_COMMENT=""
+    if ! TARGET_COMMENT="$(gh api "repos/${NWO}/issues/comments/${TARGET_COMMENT_ID}" 2>"$LOOKUP_STDERR")"; then
+      echo "upsert-comment.sh: comment ${TARGET_COMMENT_ID} could not be read on ${NWO}#${NUMBER}, nothing was published: $(cat "$LOOKUP_STDERR")" >&2
+      exit 3
+    fi
+    if ! printf '%s' "$TARGET_COMMENT" | jq -e --arg actor "$ACTOR" --arg marker "$MARKER" \
+      --arg issueUrl "$(printf '%s' "https://api.github.com/repos/${NWO}/issues/${NUMBER}" | tr '[:upper:]' '[:lower:]')" \
+      '(.user.login // "") == $actor
+        and ((.issue_url // "") | ascii_downcase) == $issueUrl
+        and ((.body // "") | contains($marker))' >/dev/null 2>&1; then
+      echo "upsert-comment.sh: comment ${TARGET_COMMENT_ID} is not this actor's ${MARKER_KEY} comment on ${NWO}#${NUMBER}, nothing was published" >&2
+      exit 3
+    fi
+    ALL_COMMENTS="[${TARGET_COMMENT}]"
+  elif ! ALL_COMMENTS="$(gh api "repos/${NWO}/issues/${NUMBER}/comments" --paginate 2>"$LOOKUP_STDERR")"; then
     echo "upsert-comment.sh: comment lookup failed on ${NWO}#${NUMBER}, nothing was published: $(cat "$LOOKUP_STDERR")" >&2
     echo "upsert-comment.sh: a POST without the lookup could duplicate a comment this actor already owns; rerun once the API answers" >&2
     exit 3
   fi
 
-  if [[ -n "$ALL_COMMENTS" ]]; then
+  if [[ -n "$TARGET_COMMENT_ID" ]]; then
+    EXISTING_ID="$TARGET_COMMENT_ID"
+  elif [[ -n "$ALL_COMMENTS" ]]; then
     EXISTING_ID="$(printf '%s' "$ALL_COMMENTS" \
       | jq -s 'add // []' \
       | jq -r --arg marker "$MARKER" --arg actor "$ACTOR" \
