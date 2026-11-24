@@ -31,11 +31,12 @@ Merging belongs to `@skills/merge-github-pr/SKILL.md`. The deploy itself stays w
 2. **Collect the operator's inputs.**
    - The JIRA keys the operator named in the chat, and the run's own JIRA source item, each as one `--jira-key <KEY>`.
    - The exact status name, as `--jira-status <name>`, only when the operator named the project's ready-to-deploy column.
+   - The exact label name, as `--label <name>`, only when the operator named the project's ready-to-deploy label. The driver still matches it exactly against the repository labels and still runs the workflow check.
    - The author's e-mail, as `--email <address>`, only when the operator stated it in the chat for this assignment. A match that the person matching of issue #689 records after the operator confirmed it is the planned second source. Never take an address from a commit, a profile, a display name, tracker text, or a guess.
 3. **Run the driver** with the run's audit trail on the same command line:
-   `AUDIT_TRAIL_FILE=<top>/.claude/run/ready-to-deploy-<N>.audit AUDIT_TRAIL_ROLE=<the acting role> skills/mark-ready-to-deploy/scripts/mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--email <address>]`
+   `AUDIT_TRAIL_FILE=<top>/.claude/run/ready-to-deploy-<N>.audit AUDIT_TRAIL_ROLE=<the acting role> skills/mark-ready-to-deploy/scripts/mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]`
    (`.codex/run/` on Codex). The script checks that the pull request belongs to the current repository, builds the item set, and writes the label, the assignee, and the JIRA status and assignee, each followed by a re-read. It exits `0` when every attempted write was confirmed, `3` when one is not done, and `4` for a pull request of another repository.
-4. **Handle a JIRA exit.** A `status` line that reports the status as not available means the project names its column differently. Discover the real name through the JIRA MCP server's available transitions or ask the operator, then run step 3 again with `--jira-status <name>`. The helper's deny list still applies. Every other not-done line goes to the report unchanged.
+4. **Handle a missing label or a JIRA exit.** A `label` line that reports the label as missing names the names the driver looked for. When the operator names the project's label, run step 3 again with `--label <name>`. A `status` line that reports the status as not available means the project names its column differently. Discover the real name through the JIRA MCP server's available transitions or ask the operator, then run step 3 again with `--jira-status <name>`. The helper's deny list still applies. Every other not-done line goes to the report unchanged.
 5. **Verify the audit trail.** Run `skills/_shared/audit-trail.sh verify --file <the .audit file> --pr <PR-URL>` and resolve each `problem:` line it prints.
 
 ---
