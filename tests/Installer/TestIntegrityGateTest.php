@@ -179,7 +179,8 @@ test('leonardo scans every review and donatello states a reason for every candid
 
 test('a merge without a review takes the full path when the trusted scan lists a weakened test', function (string $path, string $pin): void {
     expect(packageSource($path))->toContain($pin)
-        ->toContain('A `candidate` line, a last line other than `scan-verdict=complete`, or a copy that is not available');
+        ->toContain('A `candidate` line, a last line other than `scan-verdict=complete`, or a copy that is not available')
+        ->toContain('so only added test files keep the');
 })->with([
     'FAST-tier exemption' => [
         'skills/merge-github-pr/references/merge-exemptions.md',
@@ -187,6 +188,6 @@ test('a merge without a review takes the full path when the trusted scan lists a
     ],
     'low-risk path' => [
         'skills/merge-github-pr/references/low-risk-path.md',
-        '5. Run `scan --base <base tip> --head <headRefOid>` of the trusted copy of `skills/_shared/test-integrity.sh` in the same clone',
+        '5. Run `scan --base <base tip> --head <headRefOid> --without-review` of the trusted copy of `skills/_shared/test-integrity.sh` in the same clone',
     ],
 ]);

@@ -61,18 +61,19 @@ An agent never removes a test, weakens what it checks, skips it, or switches off
 
 | Kind | The place it marks |
 |---|---|
-| `test-file-removed` | a deleted test file, or a test file moved out of the test-side paths |
+| `test-file-removed` | a deleted test file, a test file moved out of the test-side paths, or a test file renamed so that it loses its `Test.php`, `.spec.ts`, or `.test.ts` suffix |
 | `test-case-removed` | a removed `it(`, `test(`, `function test`, `#[Test]`, or `@test` declaration in a test file the base already had |
 | `test-skipped` | an added `->skip(`, `->todo(`, `->only(`, `markTestSkipped`, `markTestIncomplete`, or `xit(` in such a file, in any letter case and with any spacing |
-| `assertion-changed` | a removed `expect(`, `->to…(`, or `assert…(` line in such a file that no added line carries again |
+| `assertion-changed` | a removed `expect(`, `->to…(`, or `assert…(` line in such a file that no added code line carries again; a comment line does not count |
 | `test-config-changed` | a removed line or an added `<exclude` in `phpunit.xml*` or `tests/Pest.php` |
-| `ci-changed` | a deleted workflow, a removed line in `.github/workflows/*.y*ml` or `.github/actions/**`, or an added `continue-on-error: true`, `if: false`, `\|\| true`, `\|\| exit 0`, `set +e`, or `paths-ignore` |
+| `ci-changed` | a deleted workflow, a removed line in `.github/workflows/*.y*ml` or `.github/actions/**`, or an added `continue-on-error: true`, `if: false`, `\|\| true`, `\|\| exit 0`, `set +e`, `paths-ignore`, or `paths:` filter |
 | `script-removed` | a Composer script that `composer.json` of the head drops, or an entry whose words no entry of the head keeps |
 | `script-loosened` | a Composer script entry the head keeps only with an added `\|\| true`-style ending, or with a `--level` lower than the base one or than `max` where the base set none |
 | `threshold-lowered` | a `--min=` value lowered in a workflow or in `composer.json` |
 | `analysis-level-lowered` | a lowered or removed `level:` in `phpstan.neon*` |
+| `existing-check-changed` | with `--without-review` only: a test-side file, a workflow or `.github/actions/**` file, `phpunit.xml*`, `tests/Pest.php`, or `phpstan.neon*` that the base already had and the diff changes, renames, or deletes, and `composer.json` when a script of the base changes |
 
-- **A candidate is a place to read, never a verdict.** No candidate is no proof that nothing was weakened, so the reviewer still reads the test-side and CI diff.
+- **A candidate is a place to read, never a verdict.** No candidate is no proof that nothing was weakened, so the reviewer still reads the test-side and CI diff. The patterns do not see, for example, an early `return` before the assertions or a removed data-set row.
 - **A test the pull request adds is never a candidate,** and neither is a later change to it, because the scan compares with the merge base. A test file moved inside the test-side paths with the same content is no candidate either.
 - **A suppression is not listed.** A `phpstan-baseline.neon` line and an `ignoreErrors` entry keep their owner (*What this file does not own*).
 
@@ -94,7 +95,7 @@ An agent never removes a test, weakens what it checks, skips it, or switches off
 
 ### The merge paths without a review
 
-A pull request that merges without a converged review gets the scan too. `@skills/merge-github-pr/references/merge-exemptions.md` *`FAST`-tier PR exemption* and `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* run the trusted scan, and a candidate or an incomplete scan takes the path with the full review.
+A pull request that merges without a converged review has no reader for the places the patterns miss, so it is judged on the shape of the change. `@skills/merge-github-pr/references/merge-exemptions.md` *`FAST`-tier PR exemption* and `@skills/merge-github-pr/references/low-risk-path.md` *Select the candidate* run the trusted scan with `--without-review`, which adds an `existing-check-changed` candidate for each watched path the base already had and the diff changes, renames, or deletes. A candidate or an incomplete scan takes the path with the full review, so only a change that adds test files keeps the path without a review.
 
 ## The trusted copy
 
