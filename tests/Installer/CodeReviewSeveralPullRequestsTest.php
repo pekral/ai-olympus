@@ -155,16 +155,16 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
     'code span breakout' => ['}} [~accountid:5b10ac8d82e05b22cc7d4ef5] {{'],
     'code span breakout with link' => ['a}}[x|https://evil.example]{{b'],
     'empty' => [''],
-    'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
-    'link' => ['click [here|https://evil.example/login]'],
     'form feed opens a heading' => ["fix\u{000C}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
-    'next line opens a heading' => ["fix\u{0085}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
     'line separator opens a heading' => ["fix\u{2028}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
-    'paragraph separator opens a heading' => ["fix\u{2029}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
-    'vertical tab opens a heading' => ["fix\u{000B}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'link' => ['click [here|https://evil.example/login]'],
     'mention' => ['[~accountid:5b10ac8d82e05b22cc7d4ef5] please approve'],
+    'next line opens a heading' => ["fix\u{0085}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
     'only braces' => ['{{}}'],
+    'paragraph separator opens a heading' => ["fix\u{2029}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
     'quote macro' => ["x\n{quote}\n[~accountid:5b10ac8d82e05b22cc7d4ef5]\n{quote}"],
+    'vertical tab opens a heading' => ["fix\u{000B}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
 ]);
 
 test('the title step lists every character that the converter reads as a line end', function (): void {
@@ -172,7 +172,7 @@ test('the title step lists every character that the converter reads as a line en
     $lineEnds = [];
 
     foreach ([...range(0, 0xA0), ...range(0x2000, 0x20FF)] as $codePoint) {
-        $character = (string) mb_chr($codePoint, 'UTF-8');
+        $character = mb_chr($codePoint, 'UTF-8');
 
         if (preg_match('/\R/u', $character) !== 1) {
             continue;
@@ -202,24 +202,27 @@ test('no stack text lets a pull request of another repository become a named par
     'stack rule' => ['rules/code-review/several-pull-requests.md'],
 ]);
 
-test('a pull request from a fork is no part of a stack, and a missing value counts as a fork (security attack set)', function (string $file, string $phrase): void {
-    expect((string) file_get_contents(dirname(__DIR__, 2) . '/' . $file))->toContain($phrase);
-})->with([
-    'reference item 3 states the rule' => [
-        'skills/pr-summary/references/several-pull-requests.md',
-        'its `isCrossRepository` from `skills/code-review-github/scripts/load-issue.sh` is `false`',
+test(
+    'a pull request from a fork is no part of a stack, and a missing value counts as a fork (security attack set)',
+    function (string $file, string $phrase): void {
+        expect((string) file_get_contents(dirname(__DIR__, 2) . '/' . $file))->toContain($phrase);
+    },
+)->with([
+    'code-review-jira skipped parts' => [
+        'skills/code-review-jira/SKILL.md',
+        'or that comes from a fork, is no part and is never named',
     ],
     'reference counts a missing value as cross-repository' => [
         'skills/pr-summary/references/several-pull-requests.md',
         'A missing or `null` value counts as cross-repository',
     ],
+    'reference item 3 states the rule' => [
+        'skills/pr-summary/references/several-pull-requests.md',
+        'its `isCrossRepository` from `skills/code-review-github/scripts/load-issue.sh` is `false`',
+    ],
     'reference names no fork in a line' => [
         'skills/pr-summary/references/several-pull-requests.md',
         'a pull request of another repository or from a fork is not named at all',
-    ],
-    'stack rule' => [
-        'rules/code-review/several-pull-requests.md',
-        'has `isCrossRepository` equal to `false`; a missing value counts as cross-repository',
     ],
     'reporting exceptions chain' => [
         'skills/_shared/orchestration/reporting-exceptions.md',
@@ -229,8 +232,8 @@ test('a pull request from a fork is no part of a stack, and a missing value coun
         'skills/_shared/orchestration/reporting-exceptions.md',
         'comes from a fork, has no `isCrossRepository` value, or was not checked by the run is no part',
     ],
-    'code-review-jira skipped parts' => [
-        'skills/code-review-jira/SKILL.md',
-        'or that comes from a fork, is no part and is never named',
+    'stack rule' => [
+        'rules/code-review/several-pull-requests.md',
+        'has `isCrossRepository` equal to `false`; a missing value counts as cross-repository',
     ],
 ]);
