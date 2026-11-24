@@ -71,6 +71,14 @@ case "$1 ${2:-}" in
   "label list") [[ -z "${FAKE_GH_LABELS:-}" ]] || printf '%s\n' "$FAKE_GH_LABELS"; exit 0 ;;
   "repo view") printf '%s\n' false; exit 0 ;;
   "api --method") exit 0 ;;
+  "api -H" | "api repos/"*)
+    path="$2"
+    [[ "$2" != -H ]] || path="$4"
+    file="$state/api/$(printf '%s' "$path" | tr '/?=&' '____')"
+    [[ -f "$file" ]] || exit 1
+    cat "$file"
+    exit 0
+    ;;
   "api graphql")
     printf '{"data":{"repository":{"pullRequest":{"authorAssociation":"%s"}}}}\n' "${FAKE_GH_ASSOCIATION:-NONE}"
     exit 0
@@ -205,16 +213,42 @@ function readyToDeployCheckout(string $repo, array $workflows): void
 }
 
 /**
- * The checkout of readyToDeployCheckout(), plus the pull request #12 and its closing issue #11 as
- * the fake `gh` serves them.
+ * The workflow files of the default-branch tip of `acme/app` as the fake `gh api` serves them: the
+ * repository, its recursive tree, and one blob per file.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ * @param array<string, string> $workflows
+ */
+function readyToDeployRemoteWorkflows(array $fixture, array $workflows, bool $truncated = false): void
+{
+    $api = $fixture['state'] . '/api';
+    installerEnsureDirectory($api);
+    file_put_contents($api . '/repos_acme_app', '{"default_branch":"master"}');
+    $tree = [['path' => 'README.md', 'sha' => 'readme', 'type' => 'blob']];
+
+    foreach ($workflows as $path => $content) {
+        $sha = 'blob-' . md5($path);
+        $tree[] = ['path' => $path, 'sha' => $sha, 'type' => 'blob'];
+        file_put_contents($api . '/repos_acme_app_git_blobs_' . $sha, $content);
+    }
+
+    file_put_contents($api . '/repos_acme_app_git_trees_master_recursive_1', (string) json_encode(['tree' => $tree, 'truncated' => $truncated]));
+}
+
+/**
+ * The checkout of readyToDeployCheckout() with the given local workflows, the default-branch tip of
+ * readyToDeployRemoteWorkflows() with the given workflows, plus the pull request #12 and its closing
+ * issue #11 as the fake `gh` serves them.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
  * @param array<string, string> $workflows
  * @param array<string, mixed> $pullRequest
+ * @param array<string, string> $localWorkflows
  */
-function readyToDeployGithub(array $fixture, array $workflows = [], array $pullRequest = []): void
+function readyToDeployGithub(array $fixture, array $workflows = [], array $pullRequest = [], array $localWorkflows = []): void
 {
-    readyToDeployCheckout($fixture['repo'], $workflows);
+    readyToDeployCheckout($fixture['repo'], $localWorkflows);
+    readyToDeployRemoteWorkflows($fixture, $workflows);
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'assignees' => [],
         'author' => ['login' => 'pat'],
@@ -623,27 +657,84 @@ test('the label is matched by its exact name, whatever its letter case', functio
     }
 });
 
-test('the label is not applied when a default-branch workflow runs on a labeled event that names it', function (): void {
+test(
+    'the label is not applied when a workflow of the default-branch tip may run on label activity or names the label',
+    function (string $workflow, string $path, string $reason): void {
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: push\n", $path => $workflow], [
+            'body' => '',
+            'closingIssuesReferences' => [],
+            'title' => 'fix: login',
+        ]);
+
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+            expect($process->getExitCode())->toBe(0)
+                ->and($process->getOutput())->toContain('| label | not applied — the default-branch workflow ' . $path . ' ' . $reason . '; the operator decides')
+                ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'a bare issues trigger' => ["on: issues\njobs:\n  deploy:\n    runs-on: ubuntu-latest\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'issues in a trigger list' => ["on: [push, issues]\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a nested issues trigger without types' => ["on:\n  issues:\n  push:\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a null issues trigger' => ["on:\n  issues: null\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'an issues trigger in a flow mapping' => ["on: {issues: {}}\n", '.github/workflows/deploy.yml', 'runs on every issue activity'],
+    'a labeled type with a contains() check' => [
+        "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: contains(github.event.label.name, 'deploy')\n",
+        '.github/workflows/deploy.yml',
+        'subscribes to label activity',
+    ],
+    'a quoted labeled type in another case' => ["on:\n  pull_request_target:\n    types: [ \"Labeled\" ]\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
+    'an unlabeled type in a block list' => ["on:\n  pull_request:\n    types:\n      - unlabeled\n", '.github/workflows/deploy.yml', 'subscribes to label activity'],
+    'the label name in another form' => ["on: push\nenv:\n  GATE: READY_TO_DEPLOY\n", '.github/workflows/deploy.yml', 'names the label'],
+    'a read of the event label' => ["on:\n  pull_request:\njobs:\n  d:\n    if: github.event.label.name != ''\n", '.github/workflows/deploy.yml', 'reads the label of the event'],
+    'a .yaml workflow' => ["on: issues\n", '.github/workflows/deploy.yaml', 'runs on every issue activity'],
+]);
+
+test('the label is applied when no workflow of the default-branch tip reacts to labels, whatever the local ref holds', function (array $workflows): void {
     $fixture = readyToDeployFixture();
-    $workflow = "on:\n  pull_request:\n    types: [labeled]\njobs:\n  deploy:\n    if: github.event.label.name == 'ready to deploy'\n";
-    readyToDeployGithub($fixture, ['deploy.yml' => $workflow, 'ci.yml' => "on:\n  pull_request:\n    types: [unlabeled]\n"], [
-        'body' => '',
-        'closingIssuesReferences' => [],
-        'title' => 'fix: login',
+    readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'], [
+        'deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: github.event.label.name == 'ready to deploy'\n",
     ]);
 
     try {
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
         expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain(
-                'not applied — the default-branch workflow .github/workflows/deploy.yml runs on a labeled event that names it',
-            )
+            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'no workflow' => [[]],
+    'pull-request CI with issue permissions' => [['.github/workflows/ci.yml' => "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"]],
+    'an issues trigger limited to other types' => [['.github/workflows/triage.yml' => "on:\n  issues:\n    types: [opened]\n"]],
+    'a workflow outside the workflow directory' => [['.github/workflows/sub/deploy.yml' => "on: issues\n"]],
+]);
+
+test('the label is not applied when the workflows of the default-branch tip cannot be read in full', function (string $case): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: push\n"], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+    $api = $fixture['state'] . '/api/';
+    match ($case) {
+        'tree' => unlink($api . 'repos_acme_app_git_trees_master_recursive_1'),
+        'blob' => unlink($api . 'repos_acme_app_git_blobs_blob-' . md5('.github/workflows/ci.yml')),
+        default => readyToDeployRemoteWorkflows($fixture, ['.github/workflows/ci.yml' => "on: push\n"], true),
+    };
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+        expect($process->getOutput())->toMatch('/\\| label \\| not applied — the default-branch workflow(s| \\S+) could not be read/')
             ->and(array_filter(readyToDeployCalls($fixture, 'pr edit'), static fn (string $call): bool => str_contains($call, '--add-label')))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-});
+})->with(['tree', 'blob', 'truncated']);
 
 test('a bot pull-request author receives no assignee write on any item', function (): void {
     $fixture = readyToDeployFixture();
