@@ -17,9 +17,10 @@
 # The item set, derived from trusted data only:
 #   - the pull request;
 #   - its closing issues in the same repository (any other repository: "found, not written");
-#   - the --jira-key keys, plus the keys of the pull-request title and of the /browse/<KEY> links in
-#     its body when the author is the operator's `gh` account or holds OWNER, MEMBER, or
-#     COLLABORATOR (otherwise: "found, not written").
+#   - the --jira-key keys, plus the trailing `(<KEY>)` reference of the pull-request title and the
+#     /browse/<KEY> links of its body whose host is the site of `acli jira auth status`, when the
+#     author is the operator's `gh` account or holds OWNER, MEMBER, or COLLABORATOR. Every other
+#     key-shaped token and link, and every key of another author: "found, not written".
 #
 # The writes:
 #   - GitHub label: the repository label whose name equals one of "ready to deploy", "ready for
@@ -217,9 +218,31 @@ while IFS= read -r issue_url; do
   fi
 done < <(jq -r '.closingIssues[]?.url // empty' <<<"$PR_JSON")
 
-# --- JIRA: the operator's keys, plus the pull-request keys of a trusted author only. ---
-TEXT_KEYS="$( { jq -r '.title // ""' <<<"$PR_JSON" | grep -oE '[A-Z][A-Z0-9_]+-[0-9]+' || true
-  jq -r '.body // ""' <<<"$PR_JSON" | grep -oE '/browse/[A-Z][A-Z0-9_]+-[0-9]+' | sed 's#^/browse/##' || true; } | sort -u)"
+# --- JIRA: the operator's keys, plus the trailing title key and the JIRA-site links of a trusted author. ---
+JIRA_SITE_HOST="$(lower "$(jira_auth_status_field "$(acli jira auth status 2>/dev/null || true)" site | sed -E 's#^https?://##; s#/.*$##')")"
+TITLE="$(jq -r '.title // ""' <<<"$PR_JSON")"
+TITLE_KEY="$(sed -nE 's/.*\(([A-Z][A-Z0-9_]+-[0-9]+)\)[[:space:]]*$/\1/p' <<<"$TITLE")"
+ELIGIBLE_KEYS=()
+FOUND_KEYS=()
+while IFS= read -r key; do
+  [[ -n "$key" ]] || continue
+  if [[ "$key" == "$TITLE_KEY" ]]; then
+    ELIGIBLE_KEYS+=("$key")
+  else
+    FOUND_KEYS+=("$key|not the trailing tracker reference of the title")
+  fi
+done < <(grep -oE '[A-Z][A-Z0-9_]+-[0-9]+' <<<"$TITLE" || true)
+while IFS= read -r link; do
+  [[ -n "$link" ]] || continue
+  key="${link##*/browse/}"
+  host="$(lower "$(sed -nE 's#^https?://([^/:@]+)(:[0-9]+)?/browse/[A-Z][A-Z0-9_]+-[0-9]+$#\1#p' <<<"$link")")"
+  if [[ -n "$JIRA_SITE_HOST" && "$host" == "$JIRA_SITE_HOST" ]]; then
+    ELIGIBLE_KEYS+=("$key")
+  else
+    FOUND_KEYS+=("$key|the link is not on the JIRA site of the acli account")
+  fi
+done < <(jq -r '.body // ""' <<<"$PR_JSON" | grep -oE '[^[:space:]()<>"]*/browse/[A-Z][A-Z0-9_]+-[0-9]+' || true)
+
 while IFS= read -r key; do
   [[ -n "$key" ]] || continue
   if [[ " ${JIRA_KEYS[*]:-} " == *" $key "* ]]; then
@@ -229,7 +252,13 @@ while IFS= read -r key; do
   else
     report "JIRA $key" "-" "found, not written — the pull-request author is not a trusted author"
   fi
-done <<<"$TEXT_KEYS"
+done < <(printf '%s\n' "${ELIGIBLE_KEYS[@]:-}" | sort -u)
+
+while IFS='|' read -r key reason; do
+  [[ -n "$key" ]] || continue
+  [[ " ${JIRA_KEYS[*]:-} ${ELIGIBLE_KEYS[*]:-} " == *" $key "* ]] && continue
+  report "JIRA $key" "-" "found, not written — $reason"
+done < <(printf '%s\n' "${FOUND_KEYS[@]:-}" | sort -t'|' -k1,1 -u)
 
 ASSIGN_ARGS=(--pr-author "$AUTHOR")
 [[ -z "$EMAIL" ]] || ASSIGN_ARGS+=(--email "$EMAIL")
