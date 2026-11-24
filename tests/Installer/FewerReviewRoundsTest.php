@@ -293,7 +293,9 @@ test('the delta lists name a rename under both paths, and krang may compute the 
         ->toContain('with `git fetch origin <head SHA>` and `git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into')
         ->toContain('step 2 against the round\'s head SHA in `${BRIEF%.md}.delta`');
     expect(fewerRoundsFile('agents/krang.md'))
-        ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1), `evaluate`, and `known` (step 3; `known` reads the task and the linked issue through the loaders), each writing only the loop state that step names')
+        ->toContain(
+            '`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1), `evaluate`, and `known` (step 3; `known` reads the task and the linked issue through the loaders), each writing only the loop state that step names',
+        )
         ->toContain('From round 2 on, first run `skills/_shared/review-state.sh scope` on the loop state the last `leonardo` handoff names');
 });
 

@@ -349,18 +349,19 @@ test('the description of a reporter who is not the operator names no issue', fun
     expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-80'])
         ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeFalse();
 })->with([
-    'another reporter' => ['acc-stranger', jiraLoaderOperatorSearchJson()],
     'an operator account that cannot be resolved' => ['acc-operator', null],
+    'another reporter' => ['acc-stranger', jiraLoaderOperatorSearchJson()],
 ]);
 
 test('a comment of the operator account names an issue even when the operator is not the assignee', function (): void {
     $fixture = createJiraLoaderFixture();
-    $comments = (string) json_encode(['comments' => [[
-        'author' => ['accountId' => 'acc-operator', 'displayName' => 'Operator'],
-        'body' => jiraLoaderDocument('Also ACME-83.'),
-        'created' => '2026-01-06T08:00:00.000+0100',
-        'id' => '10004',
-    ],
+    $comments = (string) json_encode(['comments' => [
+        [
+            'author' => ['accountId' => 'acc-operator', 'displayName' => 'Operator'],
+            'body' => jiraLoaderDocument('Also ACME-83.'),
+            'created' => '2026-01-06T08:00:00.000+0100',
+            'id' => '10004',
+        ],
     ],
     ]);
 
@@ -388,8 +389,8 @@ test('a list that reaches the cap of 20 named keys says it is not complete', fun
     expect(decodedJsonField($output, 'mentionedKeys'))->toHaveCount(min($count, 20))
         ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBe($complete);
 })->with([
-    'the limit' => [20, true],
     'one over the limit' => [21, false],
+    'the limit' => [20, true],
 ]);
 
 test('an issue whose text names no other issue has an empty list of named keys', function (): void {
