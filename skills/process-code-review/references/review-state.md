@@ -65,7 +65,7 @@ Every command except `scope` prints the verdict as one line of JSON. Act on its 
 | open → `dismissed` | a trusted author, through `dismiss` | A recorded rejection that passes *Authorship trust*. Refused for a security finding. |
 | `resolved` / `dismissed` → `confirmed` / `needs-verification` | the reviewer's round report | The identity is reported again: a **reopened** finding, counted as a regression and never as new. |
 | open → `known` | the orchestrator, through `known` | `krang` compared the finding with the linked issues and found the same problem in an open one (*Known points* below). |
-| `known` → `confirmed` / `needs-verification` | the reviewer's round report | The identity is reported again. It is no regression and no new finding: `krang` compares it again. |
+| `known` → `confirmed` / `needs-verification` | the orchestrator, through `known --reopen` | `krang` compared again and the match no longer holds. A reviewer's report keeps a known point known, unless the report makes it a security finding that has no owner: that report reopens it. |
 
 - **Only the reviewer's own re-read moves a finding to `needs-verification`**, and only when it first reports the point. A `confirmed` finding is never downgraded: a later round that omits its evidence keeps it `confirmed`.
 - **The script verifies the author of a rejection; the caller never states it.** `dismiss` takes the URL of the rejection comment on the state's own pull request. It loads that pull request through `skills/code-review-github/scripts/load-issue.sh` and reads the comment's `authorAssociation` from the payload.
@@ -86,11 +86,12 @@ A finding may block only when it names a concrete defect or a violated explicit 
 
 The contract is `@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*. This section states only what the state does with it.
 
-- **`krang` marks a known point after the barrier of a round:** `review-state.sh known --state <file> --finding <id> --issue <https URL of the linked issue> --covers <one line on what the issue covers and why it is the same problem>`. The command prints the verdict as every other command does.
+- **`krang` marks a known point after the barrier of a round:** `review-state.sh known --state <file> --finding <id> --source <task: GitHub issue URL or JIRA key> --issue <URL of the linked issue> --covers <one line on what the issue covers and why it is the same problem>`. The command prints the verdict as every other command does.
+- **The script checks the link itself.** It loads the task and the linked issue through the loaders, and it refuses (exit 4) an issue outside the task's link list, a closed issue, and an author who fails *Authorship trust*: a GitHub `authorAssociation` other than `OWNER`, `MEMBER`, or `COLLABORATOR`, or a JIRA reporter that is not the operator account. No caller states any of these facts.
 - **A known point does not block.** The verdict, the cap, and the escalation count only the findings that block. `counts.known` shows the number.
-- **A security finding is refused** (exit 4) unless the call passes `--security-owned`, which `krang` passes only when a person owns the finding in the linked issue and the change does not widen it.
-- **The state keeps the issue and the sentence** in `known_points`, so the publishing run renders `## Known points` without a second comparison. The entry leaves the list when the finding leaves the status `known`.
-- **A reviewer that reports the finding again reopens it,** without a regression count. `krang` compares in every round and marks it again.
+- **A security finding needs a verified owner.** The call passes `--owner <login>`, and the script refuses (exit 4) a login that is not an assignee of the linked GitHub issue who also wrote it. A security finding of a JIRA task is always refused. `krang` passes `--owner` only when the change does not widen the finding.
+- **The state keeps the issue, the sentence, and the owner** in `known_points`, so the publishing run renders `## Known points` without a second comparison. `state_errors` refuses a security known point with no owner. The entry leaves the list when the finding leaves the status `known`.
+- **A reviewer that reports the finding again keeps it known,** in every round and at the cap round, so it never escalates the loop. A report that makes it a security finding with no owner reopens it. `krang` compares in every round and runs `known --reopen` when the match no longer holds.
 
 ## Verdicts and escalation
 
