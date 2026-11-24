@@ -630,7 +630,13 @@ test('transition-to-in-progress claims the current acli user and catches false p
 
 test('resolve-issue claims the GitHub issue before implementation and releases on Blocked (issue #704)', function (): void {
     $packageDir = dirname(__DIR__, 2);
-    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/claim-issue.md');
+
+    // The skill keeps the decision and its place in step 1; the listed reference keeps the procedure.
+    expect($skill)->toContain('**Claim the issue immediately**');
+    expect($skill)->toContain('live in `references/claim-issue.md`');
+    expect($skill)->toContain('- references/claim-issue.md');
 
     // Claim happens immediately after the open-state gate.
     expect($content)->toContain('Claim the issue immediately');
@@ -2043,6 +2049,7 @@ test('the resolve-issue skill body names the link-back obligation it delegates',
 test('resolve-issue ties every tracker call site to the phase invariant, Bugsnag included', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md')
+        . "\n" . (string) file_get_contents($packageDir . '/skills/resolve-issue/references/claim-issue.md')
         . "\n" . (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
 
     // Phase 1: the claim write is also the in-progress signal, for GitHub and JIRA alike.
