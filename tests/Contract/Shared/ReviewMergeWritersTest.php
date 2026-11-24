@@ -577,17 +577,17 @@ dataset('merge delete mention replies', [
     'a mention after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot finding 2 is wrong.", 4, false],
     'a mention after a fence of a list item' => ["- Finding 2:\n\n  ```\n@bot this is wrong.", 4, false],
     'a mention after a fence of a quote' => ["> ```\n    ```\n@bot finding 2 is wrong.", 4, false],
-    'a mention after a shorter fence line inside a block' => ["````\n```\n````\n@bot finding 2 is wrong.", 4, false],
-    'a mention after a slash' => ['Ask a/@bot again.', 4, false],
     'a mention after an escaped backtick' => ['Type \\`@bot, finding 2 is wrong `.', 4, false],
     'a mention after an unmatched backtick' => ['Type `@bot to look again.', 4, false],
+    'a mention after a shorter fence line inside a block' => ["````\n```\n````\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a slash' => ['Ask a/@bot again.', 4, false],
     'a mention at the end of a later line' => ["Finding 2 is wrong.\nPlease check, @bot", 4, false],
     'a mention between code spans of unequal length' => ['``a`b`` @bot `c`', 4, false],
     'a mention between fence lines indented by four spaces' => ["    ```\n@bot finding 2 is wrong.\n    ```", 4, false],
     'a mention in another letter case' => ['@BOT finding 2 is wrong.', 4, false],
     'a mention in brackets after a comma' => ['Look again,(@bot) please.', 4, false],
-    'a mention inside a fence that never closes' => ["```\n@bot finding 2 is wrong.", 4, false],
     'a mention inside a fenced code block' => ["```\n@bot\n```", 4, false],
+    'a mention inside a fence that never closes' => ["```\n@bot finding 2 is wrong.", 4, false],
     'a mention inside an inline code span' => ['Type `@bot` to call it.', 4, false],
     'a mention of a longer login' => ['@bot-helper finding 2 is wrong.', 0, true],
     'a mention of the operator account' => ['@bot finding 2 is wrong.', 4, false],
@@ -625,7 +625,7 @@ test(
         ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
 
         expect($result['process']->getExitCode())->toBe(4)
-            ->and($result['process']->getErrorOutput())->toContain("does not carry this actor's cr-comment marker")
+            ->and($result['process']->getErrorOutput())->toContain('does not carry this actor\'s cr-comment marker')
             ->and($result['deleted'])->toBeFalse();
     },
 )->with('merge delete code-held markers');
@@ -639,7 +639,7 @@ test(
         ], ['--review-merge', REVIEW_MERGE_ITEM, '801', '803']);
 
         expect($result['process']->getExitCode())->toBe(4)
-            ->and($result['process']->getErrorOutput())->toContain("the comment does not carry this actor's cr-comment marker")
+            ->and($result['process']->getErrorOutput())->toContain('the comment does not carry this actor\'s cr-comment marker')
             ->and($result['deleted'])->toBeFalse();
     },
 )->with('merge delete code-held markers');
