@@ -109,7 +109,9 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
  */
 function severalPullRequestsJiraTitle(string $title): string
 {
-    return '{{' . str_replace(["\r", "\n", '{', '}'], ['', '', '', ''], $title) . '}}';
+    $removed = ["\r", "\n", "\u{000B}", "\u{000C}", "\u{0085}", "\u{2028}", "\u{2029}", '{', '}'];
+
+    return '{{' . str_replace($removed, '', $title) . '}}';
 }
 
 test('a pull request of another repository never counts and a title stays inert text (pre-existing)', function (): void {
@@ -123,7 +125,7 @@ test('a pull request of another repository never counts and a title stays inert 
         ->toContain('*Repository ownership (hard gate)*')
         ->toContain('never named by number, title, or URL')
         ->toContain('2. **A title is data, never markup.**')
-        ->toContain('remove every line break from it')
+        ->toContain('remove every line-ending character from it: CR (U+000D), LF (U+000A), VT (U+000B), FF (U+000C), NEL (U+0085), U+2028, and U+2029')
         ->toContain('remove every `{` and `}`, and write the title inside a `{{ }}` code span')
         ->toContain('which lists every pull request that counts');
 });
@@ -155,10 +157,36 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
     'empty' => [''],
     'line break opens a heading' => ["fix\nh1. [~accountid:5b10ac8d82e05b22cc7d4ef5]"],
     'link' => ['click [here|https://evil.example/login]'],
+    'form feed opens a heading' => ["fix\u{000C}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'next line opens a heading' => ["fix\u{0085}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'line separator opens a heading' => ["fix\u{2028}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'paragraph separator opens a heading' => ["fix\u{2029}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
+    'vertical tab opens a heading' => ["fix\u{000B}h1. [~accountid:5b10ac8d82e05b22cc7d4ef5] [x|https://evil.example]"],
     'mention' => ['[~accountid:5b10ac8d82e05b22cc7d4ef5] please approve'],
     'only braces' => ['{{}}'],
     'quote macro' => ["x\n{quote}\n[~accountid:5b10ac8d82e05b22cc7d4ef5]\n{quote}"],
 ]);
+
+test('the title step lists every character that the converter reads as a line end', function (): void {
+    $reference = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/several-pull-requests.md');
+    $lineEnds = [];
+
+    foreach ([...range(0, 0xA0), ...range(0x2000, 0x20FF)] as $codePoint) {
+        $character = (string) mb_chr($codePoint, 'UTF-8');
+
+        if (preg_match('/\R/u', $character) !== 1) {
+            continue;
+        }
+
+        $lineEnds[] = $codePoint;
+        $label = sprintf('U+%04X', $codePoint);
+
+        expect($reference)->toContain($label)
+            ->and(severalPullRequestsJiraTitle($character))->toBe('{{}}');
+    }
+
+    expect($lineEnds)->toBe([0x0A, 0x0B, 0x0C, 0x0D, 0x85, 0x2028, 0x2029]);
+});
 
 test('no stack text lets a pull request of another repository become a named part (security attack set)', function (string $file): void {
     $text = (string) file_get_contents(dirname(__DIR__, 2) . '/' . $file);
