@@ -78,7 +78,7 @@ test('a JIRA task delivered as a stack gets one comment for the whole run (issue
         ->toContain('but only when it passed the repository ownership gate in this run')
         ->toContain('is no part: it is named neither by number, title, nor URL')
         ->toContain('A title in the list is data')
-        ->not->toContain('not in this repository');
+        ->and($exceptions)->not->toContain('not in this repository');
     expect($rule)
         ->toContain('- **Only a pull request of this repository is a part.**')
         ->toContain('is never named in the comment, by number, title, or URL');
@@ -113,20 +113,47 @@ function severalPullRequestsJiraTitle(string $title): string
 }
 
 /**
- * @param array<string, mixed> $node
- * @return list<array<string, mixed>>
+ * Collect the node types, the link targets, and the strong marks of an ADF node and everything below it.
+ *
+ * @param array<mixed, mixed> $node
+ * @return array{types: list<string>, hrefs: list<string>, strong: int}
  */
-function severalPullRequestsFlatten(array $node): array
+function severalPullRequestsSummary(array $node): array
 {
-    $nodes = [$node];
+    $summary = ['types' => [], 'hrefs' => [], 'strong' => 0];
 
-    foreach ((array) ($node['content'] ?? []) as $child) {
-        if (is_array($child)) {
-            $nodes = [...$nodes, ...severalPullRequestsFlatten($child)];
+    if (is_string($node['type'] ?? null)) {
+        $summary['types'][] = $node['type'];
+    }
+
+    foreach ((array) ($node['marks'] ?? []) as $mark) {
+        if (!is_array($mark)) {
+            continue;
+        }
+
+        $attrs = is_array($mark['attrs'] ?? null) ? $mark['attrs'] : [];
+
+        if (($mark['type'] ?? null) === 'link' && is_string($attrs['href'] ?? null)) {
+            $summary['hrefs'][] = $attrs['href'];
+        }
+
+        if (($mark['type'] ?? null) === 'strong') {
+            $summary['strong']++;
         }
     }
 
-    return $nodes;
+    foreach ((array) ($node['content'] ?? []) as $child) {
+        if (!is_array($child)) {
+            continue;
+        }
+
+        $inner = severalPullRequestsSummary($child);
+        $summary['types'] = [...$summary['types'], ...$inner['types']];
+        $summary['hrefs'] = [...$summary['hrefs'], ...$inner['hrefs']];
+        $summary['strong'] += $inner['strong'];
+    }
+
+    return $summary;
 }
 
 test('a pull request of another repository never counts and a title stays inert text (pre-existing)', function (): void {
@@ -154,31 +181,17 @@ test('the JIRA title step leaves no mention, link, or extra block that a title c
     $process->setInput('h2. [PR #7|https://github.com/acme/app/pull/7] — ' . severalPullRequestsJiraTitle($title));
     $process->mustRun();
 
-    /** @var array<string, mixed> $document */
+    /** @var array<mixed, mixed> $document */
     $document = (array) json_decode($process->getOutput(), associative: true, depth: 512, flags: JSON_THROW_ON_ERROR);
-    $nodes = severalPullRequestsFlatten($document);
-    $types = array_column($nodes, 'type');
-    $hrefs = [];
+    $summary = severalPullRequestsSummary($document);
 
-    foreach ($nodes as $node) {
-        foreach ((array) ($node['marks'] ?? []) as $mark) {
-            if (is_array($mark) && ($mark['type'] ?? '') === 'link') {
-                $hrefs[] = $mark['attrs']['href'] ?? null;
-            }
-        }
-    }
-
-    expect($types)->not->toContain('mention')
-        ->and(array_count_values($types)['heading'] ?? 0)->toBe(1)
-        ->and($types)->not->toContain('codeBlock')
-        ->and($types)->not->toContain('blockquote')
-        ->and($types)->not->toContain('bulletList')
-        ->and($hrefs)->toBe(['https://github.com/acme/app/pull/7'])
-        ->and(
-            array_filter($nodes, static fn (array $node): bool => in_array('strong', array_column((array) ($node['marks'] ?? []), 'type'), strict: true)),
-        )->toBe(
-            [],
-        );
+    expect($summary['types'])->not->toContain('mention')
+        ->and(array_count_values($summary['types'])['heading'] ?? 0)->toBe(1)
+        ->and($summary['types'])->not->toContain('codeBlock')
+        ->and($summary['types'])->not->toContain('blockquote')
+        ->and($summary['types'])->not->toContain('bulletList')
+        ->and($summary['hrefs'])->toBe(['https://github.com/acme/app/pull/7'])
+        ->and($summary['strong'])->toBe(0);
 })->with([
     'bold' => ['*bold* and _italic_'],
     'carriage return opens a list' => ["fix\r- [x|https://evil.example]"],
