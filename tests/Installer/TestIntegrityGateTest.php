@@ -24,6 +24,7 @@ test('the regression prover proves every acceptance scenario of the proof in its
         'prove: a production file as the test is refused',
         'prove: a test the branch does not change is refused',
         'prove: a dependency change is unprovable',
+        'prove: a production path whose local line a clean filter hides is refused',
         'verify: a record that claims a base failure its base report does not show is malformed',
         'verify: a JUnit report that does not match its hash is malformed',
         'verify: a test changed after the proof is stale',
