@@ -104,3 +104,33 @@ test('without strict mode the hook lets a Bash call it cannot decide pass and sa
         AgentGuardRun::remove($root);
     }
 });
+
+test('strict mode makes the hook stop a Bash call when jq is missing', function (): void {
+    $root = AgentGuardRun::repository(['security' => ['strict-agent-guard' => true]]);
+
+    try {
+        $process = AgentGuardRun::runWithoutJq($root, ['hook'], '{"tool_name":"Bash","agent_type":"leonardo","tool_input":{"command":"true"}}');
+
+        expect($process->getExitCode())->toBe(2)
+            ->and($process->getOutput())->toBe('')
+            ->and($process->getErrorOutput())->toContain('strict mode stopped this command: jq is not installed');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(PHP_OS_FAMILY === 'Linux' && AgentGuardRun::linuxBwrap() === '', 'hiding jq on Linux needs bwrap, which the CI workflow installs');
+
+test('probe names a missing jq and strict mode of the default branch', function (array $manifest, string $expected): void {
+    $root = AgentGuardRun::repository($manifest);
+
+    try {
+        $process = AgentGuardRun::runWithoutJq($root, ['probe']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($process->getOutput())->toBe($expected);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'not strict' => [[], "protection=inactive reason=jq-missing strict=false\n"],
+    'strict' => [['security' => ['strict-agent-guard' => true]], "protection=inactive reason=jq-missing strict=true\n"],
+])->skip(PHP_OS_FAMILY === 'Linux' && AgentGuardRun::linuxBwrap() === '', 'hiding jq on Linux needs bwrap, which the CI workflow installs');

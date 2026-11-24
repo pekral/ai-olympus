@@ -9,6 +9,8 @@ use Symfony\Component\Process\Process;
 final class AgentGuardRun
 {
 
+    private const JQ = '/usr/bin/jq';
+
     private static ?bool $confinementAvailable = null;
 
     public static function script(): string
@@ -100,6 +102,23 @@ final class AgentGuardRun
         }
 
         return self::runCommand($root, $command);
+    }
+
+    /**
+     * @param list<string> $arguments
+     */
+    public static function runWithoutJq(string $root, array $arguments, ?string $stdin = null): Process
+    {
+        $command = ['bash', self::script(), ...$arguments];
+
+        if (PHP_OS_FAMILY === 'Darwin') {
+            $profile = '(version 1)(allow default)(deny process-exec (literal "' . self::JQ . '"))(deny file-read-metadata (literal "' . self::JQ . '"))';
+            $command = ['/usr/bin/sandbox-exec', '-p', $profile, ...$command];
+        } else {
+            $command = [self::linuxBwrap(), '--dev-bind', '/', '/', '--ro-bind', '/dev/null', self::JQ, '--', ...$command];
+        }
+
+        return self::runCommand($root, $command, $stdin);
     }
 
     public static function execFrom(string $cwd, string $root, string $role, string $command): Process

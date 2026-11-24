@@ -44,8 +44,9 @@
 # Strict mode
 #   Only `extra.ai-olympus.security.strict-agent-guard: true` on the default branch switches it on, read through
 #   read-manifest.sh beside this script. The manifest is read only when the confinement cannot be applied (or the
-#   hook cannot decide), never on the path where it can. Strict: the command does not run and the reason is printed
-#   on stderr (exec exit 5, hook exit 2). Not strict: the command runs and stderr carries exactly one line
+#   hook cannot decide), never on the path where it can. Without jq the value is read from the raw default-branch
+#   composer.json, and any `"strict-agent-guard": true` in it counts. Strict: the command does not run and the reason
+#   is printed on stderr (exec exit 5, hook exit 2). Not strict: the command runs and stderr carries exactly one line
 #   `ai-olympus agent-guard: protection inactive (<reason>)`.
 #
 # Hook decision (Claude Code PreToolUse)
@@ -66,7 +67,8 @@
 # Probe
 #   Creates `<project root>/.ai-olympus-guard-probe-<random>` and `<git common dir>/ai-olympus-guard-probe-<random>`
 #   without overwriting anything, and removes what it created on every exit path. Prints `protection=active` only when
-#   both writes were refused; otherwise `protection=inactive reason=<reason> strict=<true|false>`.
+#   both writes were refused; otherwise `protection=inactive reason=<reason> strict=<true|false>`. Without jq it prints
+#   `protection=inactive reason=jq-missing strict=<true|false>`.
 #
 # Exit codes
 #   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 6 the command changed
@@ -102,6 +104,10 @@ EOF
 # git without the configuration that runs a program: no fsmonitor, no hooks.
 git_safe() {
   git -c core.fsmonitor=false -c core.hooksPath=/dev/null "$@"
+}
+
+have_jq() {
+  command -v jq >/dev/null 2>&1
 }
 
 # A role the harness reports as `<plugin>:<role>` is the same role.
@@ -155,17 +161,25 @@ resolve_project() {
   return "$status"
 }
 
-# Prints true only when the default-branch manifest sets security.strict-agent-guard to the boolean true.
+# Prints true only when the default-branch manifest sets security.strict-agent-guard to the boolean true. Without jq
+# the raw default-branch composer.json is searched, so any `"strict-agent-guard": true` in it switches strict mode on.
 strict_mode() {
   local manifest=""
-  if [[ -r "$SCRIPT_DIR/read-manifest.sh" ]]; then
+  [[ -r "$SCRIPT_DIR/read-manifest.sh" ]] || { printf 'false'; return 0; }
+  if have_jq; then
     manifest="$(cd "$ROOT" 2>/dev/null && /bin/bash "$SCRIPT_DIR/read-manifest.sh" 2>/dev/null)" || true
-  fi
-  if [[ -n "$manifest" ]] && printf '%s' "$manifest" | jq -e '.security["strict-agent-guard"] == true' >/dev/null 2>&1; then
-    printf 'true'
+    if [[ -n "$manifest" ]] && printf '%s' "$manifest" | jq -e '.security["strict-agent-guard"] == true' >/dev/null 2>&1; then
+      printf 'true'
+      return 0
+    fi
   else
-    printf 'false'
+    manifest="$(cd "$ROOT" 2>/dev/null && /bin/bash "$SCRIPT_DIR/read-manifest.sh" --raw 2>/dev/null)" || true
+    if printf '%s' "$manifest" | tr -d '[:space:]' | grep -q '"strict-agent-guard":true'; then
+      printf 'true'
+      return 0
+    fi
   fi
+  printf 'false'
 }
 
 # --- the hook ---------------------------------------------------------------------------------------------------
@@ -268,6 +282,10 @@ run_hook() {
   input="$(cat)"
   resolve_project "${CLAUDE_PROJECT_DIR:-}" >/dev/null 2>&1 || true
 
+  if ! have_jq; then
+    hook_fail "jq is not installed"
+    return $?
+  fi
   if ! printf '%s' "$input" | jq -e 'type == "object"' >/dev/null 2>&1; then
     hook_fail "the hook input is not a JSON object"
     return $?
@@ -610,6 +628,10 @@ run_probe() {
     printf 'protection=inactive reason=not-a-git-checkout strict=%s\n' "$(strict_mode)"
     return 0
   fi
+  if ! have_jq; then
+    printf 'protection=inactive reason=jq-missing strict=%s\n' "$(strict_mode)"
+    return 0
+  fi
   suffix="$RANDOM$RANDOM$$"
   probe_write "$ROOT/.ai-olympus-guard-probe-$suffix" && tree_written=true
   probe_write "$COMMON/ai-olympus-guard-probe-$suffix" && git_written=true
@@ -745,22 +767,26 @@ self_test() {
 }
 
 main() {
-  if ! command -v jq >/dev/null 2>&1; then
-    if [[ "${1:-}" == "hook" ]]; then
-      echo "$GUARD_PREFIX protection inactive (jq is not installed)" >&2
-      return 0
-    fi
-    echo "$PROG: required tool not found: jq" >&2
-    return 2
-  fi
-
   case "${1:-}" in
-  hook) run_hook ;;
+  hook)
+    run_hook
+    return $?
+    ;;
   exec)
     shift
     run_exec "$@"
+    return $?
     ;;
-  probe) run_probe ;;
+  probe)
+    run_probe
+    return $?
+    ;;
+  esac
+  if ! have_jq; then
+    echo "$PROG: required tool not found: jq" >&2
+    return 2
+  fi
+  case "${1:-}" in
   verify) run_verify ;;
   --self-test) self_test ;;
   *)
