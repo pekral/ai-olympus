@@ -197,7 +197,9 @@ Write the report in the language of the request:
 - **Approval** — the number of design rounds and the user's approval text.
 - **State coverage** — the states designed and the states verified.
 - **Interactive testing** — a table with the columns `Scenario`, `Viewport`, and `Result`
-  (`Passed`, `Failed`, or `Blocked`).
+  (`Passed`, `Failed`, or `Blocked`). When the project switched interactive testing off
+  (@skills/interactive-testing/SKILL.md, Project setting), `krang` dispatches no `raphael`, and this
+  line is the sentence `Interactive testing is switched off for this project.` in place of the table.
 - **Remaining issues** — only unresolved problems or blockers. When there are none, write
   `No known remaining UI/UX issues.`
 

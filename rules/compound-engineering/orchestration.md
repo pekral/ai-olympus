@@ -329,6 +329,7 @@ A test suite and a review read artifacts; only a walkthrough of the running appl
 
 - **`raphael` runs whenever the answer is yes**, at `FAST`, `STANDARD`, and `CRITICAL` alike. `krang` passes `--runtime-acceptance` to the planner, which places the stage after the scoped validation.
 - **A user-visible change is always checked in the UI.** `raphael` drives a real browser whenever the change reaches a page, and it signs in through `@skills/interactive-testing/SKILL.md` *Sign-in and test accounts*, so a missing login never ends the check.
+- **A project can switch it off.** The manifest key `interactive-testing` set to `false` removes `raphael` from every tier: `krang` dispatches no `raphael`, passes no `--runtime-acceptance`, and every report that would carry the result says that interactive testing is switched off for this project (`@skills/interactive-testing/SKILL.md` *Project setting*). The code review, the security review, the tests, and CI run as before.
 - **A change with nothing to observe buys nothing.** A pure refactor, a dependency bump, a docs change, a test-only change, and a CI change get no acceptance pass at any tier.
 - **A re-classification never replays it.** The lower tier's plan already carried the stage, so an escalation owes it nothing.
 

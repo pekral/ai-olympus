@@ -2,6 +2,8 @@
 
 Some projects ask for a follow-up issue labelled `interactive-testing` after a merge, so an agent clicks the change through in a real browser. Create that issue only when the merged diff changes the front-end UI. Otherwise create none, and the merge report says `interactive-testing: skipped, no front-end UI change`.
 
+**First, read the project setting** (`@skills/interactive-testing/SKILL.md` *Project setting*). When `skills/_shared/resolve-interactive-testing.sh` prints `interactive-testing=off`, create no issue for any diff, and the merge report says `interactive-testing: skipped, interactive testing is switched off for this project`. Merging, the review, the gate, and CI do not change. When `source=invalid` or `source=unreadable`, the setting counts as `on`, and the merge report says so.
+
 - **A front-end UI change** is a changed file on the frontend surface that `@skills/code-review/references/specialized-reviews.md` *Frontend surface detected in the diff* defines, or one of these files the step adds to it:
   - a script under `resources/js/**`, or a `*.vue`, `*.jsx`, or `*.tsx` component under `resources/**`,
   - a public asset under `public/` that a page loads,

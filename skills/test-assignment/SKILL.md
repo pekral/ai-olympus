@@ -88,6 +88,7 @@ metadata:
 
 ### 6. Exercise the running application — `raphael`
 
+- **The project can switch this step off** (`@skills/interactive-testing/SKILL.md` *Project setting*). When the setting is `off`, dispatch no `raphael`, mark every row that only `raphael` could exercise as `Not run — interactive testing is switched off for this project`, and say the same in the report. Steps 5 and 7 stay as they are.
 - When the test suite resets local services that the application shares, run this step after step 5. Before the walkthrough, confirm that the development data still matches the seeds.
 - Dispatch `raphael` with the matrix, the input map, and the instruction to run a base-branch comparison. It follows `@skills/interactive-testing/SKILL.md` and the project's own testing guidelines.
 - `raphael` serves the branch under test from the main checkout. It exercises every matrix row through the real interface — the API with a real HTTP client, the UI in a browser — and records the exact request and response.

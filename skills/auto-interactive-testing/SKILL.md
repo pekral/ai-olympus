@@ -14,6 +14,7 @@ metadata:
 - Apply `@skills/agent-voice/SKILL.md` to the prose of every comment this skill publishes. Every marker, heading, field, identifier, link, and language rule stated in this skill stays unchanged.
 - Apply `@rules/git/general.md`. Process one issue at a time in the current working tree. Never create a worktree, and never run two issues in parallel: the local application serves this tree.
 - `@skills/interactive-testing/SKILL.md` owns how the scenarios of one issue run: sign-in, test accounts, test data, browser use, side-effect limits, and verdicts. This skill adds the batch, the fix loop, and the tracker close-out. It never restates or relaxes that skill.
+- **The project can switch interactive testing off** (`@skills/interactive-testing/SKILL.md` *Project setting*). Read the setting before step 1. When it is `off`, work on no issue, change no label, post no comment, and report `Interactive testing is switched off for this project.`
 - A fix reaches the default branch only through a pull request and `@skills/merge-github-pr/SKILL.md`. Never push to the default branch.
 - Local target only. Never deploy, never send e-mail to a real recipient, and never change a real customer's data.
 - The run is unattended. It never waits for the user. A decision that the assignment and the project instructions cannot settle leaves that issue open with the question, and the run continues with the next issue.
