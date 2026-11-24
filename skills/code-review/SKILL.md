@@ -140,7 +140,7 @@ Run this step **first** — before **Critical Findings Verification (issue #537)
 
 ### Critical Findings Verification (issue #537)
 
-Run this step **after every preceding analysis step has produced its findings** and **before** the Output assembly. Walk every **Critical** finding through `@skills/analyze-problem/SKILL.md` to confirm it reflects a real problem before it blocks the PR; the binary keep / drop procedure (Confirmed → keep verbatim, Refuted → drop entirely, never silently downgrade, Moderate exempt) is defined in `@rules/code-review/review-process.md` *Critical Findings Verification (issue #537) — procedure*.
+Run this step **after every preceding analysis step has produced its findings** and **before** the Output assembly. Walk every **Critical** finding through `@skills/analyze-problem/SKILL.md` to confirm it reflects a real problem before it blocks the PR; the binary keep / drop procedure (Confirmed → keep verbatim, Refuted → drop entirely, never silently downgrade) and the real check that verifies every Moderate is defined in `@rules/code-review/review-process.md` *Critical Findings Verification (issue #537) — procedure*.
 
 ### Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)
 
