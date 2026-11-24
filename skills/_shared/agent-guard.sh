@@ -29,6 +29,13 @@
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
 #   Every write outside the project stays free: `gh` keeps its configuration and a cache keeps its files.
 #
+# Strict mode
+#   Only `extra.ai-olympus.security.strict-agent-guard: true` on the default branch switches it on, read through
+#   read-manifest.sh beside this script. The manifest is read only when the confinement cannot be applied (or the
+#   hook cannot decide), never on the path where it can. Strict: the command does not run and the reason is printed
+#   on stderr (exec exit 5, hook exit 2). Not strict: the command runs and stderr carries exactly one line
+#   `ai-olympus agent-guard: protection inactive (<reason>)`.
+#
 # Hook decision (Claude Code PreToolUse)
 #   A role outside the confined set, an absent or empty `agent_type` (the main session), and a tool other than Bash:
 #   exit 0, no output. A confined role gets `allow` with `updatedInput`: every field of the tool input is kept and
@@ -40,8 +47,8 @@
 #   both writes were refused; otherwise `protection=inactive reason=<reason> strict=<true|false>`.
 #
 # Exit codes
-#   exec    the exit code of the command; 64 usage error
-#   hook    0 decision printed (or none needed)
+#   exec    the exit code of the command; 5 strict mode refused to run it without confinement; 64 usage error
+#   hook    0 decision printed (or none needed); 2 strict mode and the hook could not decide
 #   probe   0 the result line was printed; 64 usage error
 #   verify  0 verified; 3 refused (the line names the reason)
 #   other   1 usage error; 2 missing required tool (jq)
@@ -104,9 +111,17 @@ resolve_project() {
   return 0
 }
 
-# Prints true only when strict mode is on. This version reads no strict mode yet.
+# Prints true only when the default-branch manifest sets security.strict-agent-guard to the boolean true.
 strict_mode() {
-  printf 'false'
+  local manifest=""
+  if [[ -x "$SCRIPT_DIR/read-manifest.sh" || -r "$SCRIPT_DIR/read-manifest.sh" ]]; then
+    manifest="$(cd "$ROOT" 2>/dev/null && bash "$SCRIPT_DIR/read-manifest.sh" 2>/dev/null)" || true
+  fi
+  if [[ -n "$manifest" ]] && printf '%s' "$manifest" | jq -e '.security["strict-agent-guard"] == true' >/dev/null 2>&1; then
+    printf 'true'
+  else
+    printf 'false'
+  fi
 }
 
 # --- the hook ---------------------------------------------------------------------------------------------------

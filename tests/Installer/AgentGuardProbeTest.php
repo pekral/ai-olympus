@@ -52,6 +52,18 @@ test('probe reports active only when both the working-tree write and the git-dir
     'only the working tree refused' => [0755, "protection=inactive reason=git-dir-writable strict=false\n"],
 ])->skip(posix_geteuid() === 0, 'a superuser writes into a directory of mode 0555');
 
+test('probe names strict mode of the default branch on an inactive protection', function (): void {
+    $root = AgentGuardRun::repository(['security' => ['strict-agent-guard' => true]]);
+
+    try {
+        $process = AgentGuardRun::run($root, ['probe']);
+
+        expect($process->getOutput())->toBe("protection=inactive reason=working-tree-writable strict=true\n");
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
+
 test('probe reports an active protection inside the confinement and leaves no probe file', function (): void {
     $root = AgentGuardRun::repository();
 
