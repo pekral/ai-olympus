@@ -2247,3 +2247,24 @@ test('front-matter is readable for every shipped skill (issue #104)', function (
     // passes, because they compare the catalog against that same shrunken set.
     expect(array_keys(skillFrontMatterDescriptions()))->toEqualCanonicalizing($skillDirectories);
 });
+
+test('the resolve-issue skill checks the places the actual diff affects before the pull request', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $skill = (string) file_get_contents($packageDir . '/skills/resolve-issue/SKILL.md');
+    $reference = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/diff-impact-check.md');
+
+    expect($skill)->toContain('17. Check the places the actual diff affects, per `references/diff-impact-check.md`.');
+    expect($skill)->toContain('- references/diff-impact-check.md');
+
+    // The walk has one owner; the reference runs it on the real diff instead of restating it.
+    expect($reference)->toContain('`@rules/code-review/core-analysis.md` *Behaviour changed outside the diff* owns the walk');
+    expect($reference)->toContain('**The assignment asks for the change.**');
+    expect($reference)->toContain('**The diff broke the place.**');
+    expect($reference)->toContain('**The assignment does not ask for the change, and nothing is broken.**');
+    expect($reference)->toContain('A place that an acceptance criterion covers gets the same fix in this pull request');
+    expect($reference)->toContain('A place that no criterion covers stays unchanged. Record it as a deferred item');
+
+    // A second copy of a security defect is a vulnerability, never a public deferred item.
+    expect($reference)->toContain('A place that carries a security vulnerability follows `references/pre-existing-issue-handling.md` instead.');
+    expect($reference)->toContain('It never enters the pull request body or any other public text, and step 5 does not record it.');
+});

@@ -15,6 +15,7 @@ It runs after the tests of step 16 and before the Pre-PR self-check. It is not a
 4. Search the project by behaviour for every other place that carries the defect or the gap the diff fixes: a second entry point, a sibling class, a copy of the same logic.
    - A place that an acceptance criterion covers gets the same fix in this pull request, with its own test.
    - A place that no criterion covers stays unchanged. Record it as a deferred item (`@rules/compound-engineering/general.md` *The assignment is the scope*).
+   - A place that carries a security vulnerability follows `references/pre-existing-issue-handling.md` instead. It never enters the pull request body or any other public text, and step 5 does not record it.
 5. Record the result in the handoff and in the **Testing** section of the pull request: each affected place as `file:line`, its outcome, and the test that proves it. When the walk finds no affected place, write that the walk ran and found none.
 
 ## Stop conditions
