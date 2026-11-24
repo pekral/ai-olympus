@@ -239,3 +239,10 @@ test('a security known point shows only its link and its owner in every output',
     expect(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point shows only its link, its owner, and one neutral sentence:**');
     expect(packageSource('agents/leonardo.md'))->toContain('as the walkthrough row `{issue, security: true, owner}`, with no title, no place, and no sentence');
 });
+
+test('krang may run every review-state command its known-point step names, on both platforms', function (): void {
+    expect(packageSource('agents/krang.md'))
+        ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1), `evaluate`, and `known` (step 3;');
+    expect(packageSource('codex/agents/krang.toml'))
+        ->toContain('`review-state.sh` in its `scope`, `evaluate`, and `known` commands');
+});
