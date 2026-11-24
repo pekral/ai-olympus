@@ -64,6 +64,7 @@ A bug regression test must, in this order:
 
 - **Observe RED before the fix** whenever the workflow may change production code (`@skills/test-driven-development/SKILL.md` *VERIFY RED*). RED is a state of the working tree, never a commit (`@rules/git/general.md`).
 - **Never add a regression test that passes before the fix.** It proves the mock, not the fix.
+- **Prove it with a record, never with a sentence.** A bug fix carries the regression proof of `references/test-integrity.md`, and the review verifies that record.
 - **One observable regression, one primary regression test at the owner boundary.** Do not replay the same scenario in a controller, Action, service, and repository test. A second test of the same bug is allowed only for a distinct failure mode.
 
 ## Coverage
