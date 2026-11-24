@@ -101,12 +101,12 @@ dataset('audit wrappers', [
     'deferred moderate filing' => ['file-deferred-moderate.sh', 'skills/process-code-review/scripts/file-deferred-moderate.sh'],
     'github comment delete' => ['delete-owned-github-comment.sh', 'skills/_shared/delete-owned-github-comment.sh'],
     'github comment publisher' => ['upsert-comment.sh', 'skills/code-review-github/scripts/upsert-comment.sh'],
+    'jira assign to the pull-request author' => ['assign-to-pr-author.sh', 'skills/code-review-jira/scripts/assign-to-pr-author.sh'],
     'jira code-review transition' => ['transition-to-code-review.sh', 'skills/code-review-jira/scripts/transition-to-code-review.sh'],
     'jira comment delete' => ['delete-owned-comment.sh', 'skills/code-review-jira/scripts/delete-owned-comment.sh'],
     'jira comment publisher' => ['upsert-comment.sh', 'skills/code-review-jira/scripts/upsert-comment.sh'],
     'jira in-progress transition' => ['transition-to-in-progress.sh', 'skills/code-review-jira/scripts/transition-to-in-progress.sh'],
     'jira ready-to-deploy transition' => ['transition-to-ready-to-deploy.sh', 'skills/code-review-jira/scripts/transition-to-ready-to-deploy.sh'],
-    'jira assign to the pull-request author' => ['assign-to-pr-author.sh', 'skills/code-review-jira/scripts/assign-to-pr-author.sh'],
 ]);
 
 test('the rule names each wrapper and the wrapper calls the helper at its write', function (string $name, string $path): void {
