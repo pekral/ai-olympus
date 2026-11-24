@@ -112,6 +112,7 @@ exit 1
 BASH;
 
 const READY_TO_DEPLOY_EMAIL = 'pat.author@example.com';
+const READY_TO_DEPLOY_SITE = 'example.atlassian.net';
 
 /**
  * @return array{bin: string, directory: string, log: string, repo: string, state: string}
@@ -442,16 +443,13 @@ test('the JIRA assign helper writes nothing without a verified e-mail or the ope
 
 test(
     'the JIRA assign helper assigns the operator account only when its acli e-mail equals a verified e-mail of the gh account',
-    /**
-     * @param array<string, string> $environment
-     */
-    function (array $environment): void {
+    function (string $variable, string $value): void {
         $fixture = readyToDeployFixture();
 
         try {
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_ASSIGN, ['TEAM-42', '--pr-author', 'operator'], [
+                $variable => $value,
                 'FAKE_GH_LOGIN' => 'operator',
-                ...$environment,
             ]);
 
             expect($process->getExitCode())->toBe(6)
@@ -463,12 +461,12 @@ test(
         }
     },
 )->with([
-    'acli shows no e-mail' => [['FAKE_ACLI_EMAIL' => '']],
-    'another person signed in to acli' => [['FAKE_ACLI_EMAIL' => 'colleague@example.com']],
-    'the acli e-mail is only a part of the gh e-mail' => [['FAKE_ACLI_EMAIL' => 'perator@example.com']],
-    'the gh account carries no e-mail' => [['FAKE_GH_EMAILS' => '[]']],
-    'the gh e-mails cannot be read' => [['FAKE_GH_EMAILS_FAIL' => '1']],
-    'the matching gh e-mail is not verified' => [['FAKE_GH_EMAILS' => '[{"email":"operator@example.com","verified":false}]']],
+    'acli shows no e-mail' => ['FAKE_ACLI_EMAIL', ''],
+    'another person signed in to acli' => ['FAKE_ACLI_EMAIL', 'colleague@example.com'],
+    'the acli e-mail is only a part of the gh e-mail' => ['FAKE_ACLI_EMAIL', 'perator@example.com'],
+    'the gh account carries no e-mail' => ['FAKE_GH_EMAILS', '[]'],
+    'the gh e-mails cannot be read' => ['FAKE_GH_EMAILS_FAIL', '1'],
+    'the matching gh e-mail is not verified' => ['FAKE_GH_EMAILS', '[{"email":"operator@example.com","verified":false}]'],
 ]);
 
 test('the JIRA assign helper matches the acli and gh e-mails in any letter case and among several gh e-mails', function (): void {
@@ -594,26 +592,26 @@ test('the driver moves and assigns the JIRA keys of a trusted author and of the 
 
 test(
     'the driver writes only the trailing title key and the links on the acli JIRA site, and reports every other key as found, not written',
-    /**
-     * @param array<string, string> $environment
-     * @param list<string> $written
-     * @param list<string> $notWritten
-     */
-    function (string $title, string $body, array $environment, array $written, array $notWritten): void {
+    function (string $title, string $body, string $site, string $written, string $notWritten): void {
         $fixture = readyToDeployFixture();
         readyToDeployGithub($fixture, [], ['author' => ['login' => 'Operator'], 'body' => $body, 'closingIssuesReferences' => [], 'title' => $title]);
 
         try {
-            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy', ...$environment]);
+            $process = readyToDeployRun(
+                $fixture,
+                READY_TO_DEPLOY_DRIVER,
+                [READY_TO_DEPLOY_PR],
+                ['FAKE_ACLI_SITE' => $site, 'FAKE_GH_LABELS' => 'ready to deploy'],
+            );
             $jiraWrites = [...readyToDeployCalls($fixture, 'jira workitem transition'), ...readyToDeployCalls($fixture, 'jira workitem assign')];
             $writtenKeys = array_values(array_unique(array_map(
                 static fn (string $call): string => (string) preg_replace('/^.* --key ([A-Z0-9_-]+) .*$/', '$1', $call),
                 $jiraWrites,
             )));
 
-            expect($writtenKeys)->toBe($written);
+            expect($writtenKeys)->toBe(preg_split('/ /', $written, -1, PREG_SPLIT_NO_EMPTY));
 
-            foreach ($notWritten as $key) {
+            foreach (preg_split('/ /', $notWritten, -1, PREG_SPLIT_NO_EMPTY) as $key) {
                 expect($process->getOutput())->toContain('JIRA ' . $key . ' | - | found, not written');
             }
         } finally {
@@ -621,21 +619,27 @@ test(
         }
     },
 )->with([
-    'a key at the start of the title' => ['(ACME-13) fix: login', '', [], [], ['ACME-13']],
-    'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', [], ['TEAM-42'], ['ACME-12']],
-    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', [], [], ['OPS-9']],
+    'a key at the start of the title' => ['(ACME-13) fix: login', '', READY_TO_DEPLOY_SITE, '', 'ACME-13'],
+    'a key in the scope of the title' => ['fix(ACME-12): parse dates (TEAM-42)', '', READY_TO_DEPLOY_SITE, 'TEAM-42', 'ACME-12'],
+    'a link on a host that only starts with the site' => ['fix: login', 'https://example.atlassian.net.evil.example/browse/OPS-9', READY_TO_DEPLOY_SITE, '', 'OPS-9'],
     'a link on another JIRA host' => [
         'fix: login',
         'See https://sample.atlassian.net/browse/OPS-7 and https://example.atlassian.net/browse/TEAM-42.',
-        [],
-        ['TEAM-42'],
-        ['OPS-7'],
+        READY_TO_DEPLOY_SITE,
+        'TEAM-42',
+        'OPS-7',
     ],
-    'a link on the site in another letter case' => ['fix: login', 'https://EXAMPLE.atlassian.net/browse/TEAM-42', [], ['TEAM-42'], []],
-    'a link while acli names no site' => ['fix: login', 'https://example.atlassian.net/browse/TEAM-42', ['FAKE_ACLI_SITE' => ''], [], ['TEAM-42']],
-    'a link with no host' => ['fix: login', 'See /browse/OPS-10.', [], [], ['OPS-10']],
-    'a link with the site as user info' => ['fix: login', 'https://example.atlassian.net@evil.example/browse/OPS-8', [], [], ['OPS-8']],
-    'standard names in the title' => ['fix(auth): switch token hashing to SHA-256 and UTF-8 input (TEAM-42)', '', [], ['TEAM-42'], ['SHA-256', 'UTF-8']],
+    'a link on the site in another letter case' => ['fix: login', 'https://EXAMPLE.atlassian.net/browse/TEAM-42', READY_TO_DEPLOY_SITE, 'TEAM-42', ''],
+    'a link while acli names no site' => ['fix: login', 'https://example.atlassian.net/browse/TEAM-42', '', '', 'TEAM-42'],
+    'a link with no host' => ['fix: login', 'See /browse/OPS-10.', READY_TO_DEPLOY_SITE, '', 'OPS-10'],
+    'a link with the site as user info' => ['fix: login', 'https://example.atlassian.net@evil.example/browse/OPS-8', READY_TO_DEPLOY_SITE, '', 'OPS-8'],
+    'standard names in the title' => [
+        'fix(auth): switch token hashing to SHA-256 and UTF-8 input (TEAM-42)',
+        '',
+        READY_TO_DEPLOY_SITE,
+        'TEAM-42',
+        'SHA-256 UTF-8',
+    ],
 ]);
 
 test('a missing ready-to-deploy label is reported and never created, and a lookalike label is never selected', function (string $labels): void {
@@ -675,12 +679,13 @@ test('the driver applies the label the operator named, matched by its exact name
 
 test(
     'an operator-named label that the repository lacks, or that a workflow names, is never applied',
-    /**
-     * @param array<string, string> $workflows
-     */
-    function (array $workflows, string $labels, string $result): void {
+    function (string $workflow, string $labels, string $result): void {
         $fixture = readyToDeployFixture();
-        readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+        readyToDeployGithub(
+            $fixture,
+            ['.github/workflows/deploy.yml' => $workflow],
+            ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
+        );
     
         try {
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR, '--label', 'deploy ready'], ['FAKE_GH_LABELS' => $labels]);
@@ -695,12 +700,12 @@ test(
     },
 )->with([
     'a workflow names it' => [
-        ['.github/workflows/deploy.yml' => "on: push\nenv:\n  GATE: DEPLOY_READY\n"],
+        "on: push\nenv:\n  GATE: DEPLOY_READY\n",
         'deploy ready',
         'not applied — the default-branch workflow .github/workflows/deploy.yml names the label; the operator decides',
     ],
     'only a longer name exists' => [
-        [],
+        "on: push\n",
         "deploy ready later\nready to deploy",
         'missing — the repository has no label named "deploy ready", and none was created',
     ],
@@ -819,12 +824,9 @@ test(
 
 test(
     'the label is applied when no workflow of the default-branch tip reacts to labels, whatever the local ref holds',
-    /**
-     * @param array<string, string> $workflows
-     */
-    function (array $workflows): void {
+    function (string $path, string $workflow): void {
         $fixture = readyToDeployFixture();
-        readyToDeployGithub($fixture, $workflows, ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'], [
+        readyToDeployGithub($fixture, [$path => $workflow], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'], [
             'deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\njobs:\n  d:\n    if: github.event.label.name == 'ready to deploy'\n",
         ]);
 
@@ -832,16 +834,16 @@ test(
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
             expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
+                ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
         } finally {
             installerRemoveDirectory($fixture['directory']);
         }
     },
 )->with([
-    'an issues trigger limited to other types' => [['.github/workflows/triage.yml' => "on:\n  issues:\n    types: [opened]\n"]],
-    'a workflow outside the workflow directory' => [['.github/workflows/sub/deploy.yml' => "on: issues\n"]],
-    'no workflow' => [[]],
-    'pull-request CI with issue permissions' => [['.github/workflows/ci.yml' => "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"]],
+    'an issues trigger limited to other types' => ['.github/workflows/triage.yml', "on:\n  issues:\n    types: [opened]\n"],
+    'a workflow outside the workflow directory' => ['.github/workflows/sub/deploy.yml', "on: issues\n"],
+    'no workflow' => ['docs/notes.yml', "on: issues\n"],
+    'pull-request CI with issue permissions' => ['.github/workflows/ci.yml', "on:\n  pull_request:\n  push:\npermissions:\n  issues: write\n"],
 ]);
 
 test('the label is not applied when the workflows of the default-branch tip cannot be read in full', function (string $case): void {
