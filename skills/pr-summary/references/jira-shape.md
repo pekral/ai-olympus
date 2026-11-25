@@ -22,5 +22,15 @@ A JIRA ticket is read by the person who asked for the work, so the report lists 
 7. **No `How to test` on JIRA.** The steps a tester follows live on the GitHub pull request, whose description carries them (`@rules/git/pull-requests.md` *Testing*). The footer under the closing links line states that the comment is generated automatically and is written for the ticket owner.
 8. **Every section is a collapsed block.** `Acceptance criteria`, `Review findings`, and `What changed and what it affects` each sit in their own collapsed block, titled with the section name and holding the whole section. The English title of `Review findings` is *Findings from the code review*. The reader opens a block only for its detail. The deploy verdict, a pull-request group heading, the closing links line, and the footer stay outside the blocks, so the verdict is always in view. Every agent still reads the text inside a block: the JIRA loader renders a block as its title followed by its content.
 9. **The agent marker is hidden in the last collapsed block.** The comment ends, after the footer, with a collapsed block titled *Technical marker for AI agents* that holds only the `{agent-marker}` slot line. The JIRA publish helper writes the marker in place of the slot (`@rules/jira/general.md` *Comments Format*), so the reader never sees the marker unless they open the block. Every agent that finds, updates, or deletes its own comment by the marker still finds it there, because each of them matches the marker anywhere in the stored comment.
+10. **Every finding opens with its change type.** A `Review findings` bullet starts with the type of the change it asks for, in parentheses and in bold, followed by a colon — `*(security):*`, `*(bug):*`, `*(tests):*`, `*(refactor):*` — and the rest of the finding text stays unchanged. The type is the same English token in every language, like a code identifier. The first row that fits the finding decides its type; an open question takes the type of the point it is about.
+
+    | Type | The finding |
+    |---|---|
+    | `security` | meets the S1–S3 security carve-out of `@rules/code-review/general.md`: a security lens raised it, it cites a rule in `@rules/security/**`, or it lands on a security surface |
+    | `bug` | the change does not do what the assignment asks, or it breaks behaviour: an unmet requirement, a failing test, a runtime failure, or a traced logic defect |
+    | `tests` | a test is missing or wrong: an uncovered changed line, a criterion no test proves, a test the test audit rejects, or a rule in `@rules/code-testing/**` |
+    | `refactor` | any other code rule the changed lines break: naming, reuse, structure, or architecture |
+    | `performance` | database optimisation: a query, an index, or a batch rule in `@rules/sql/**` |
+    | `documentation` | a documentation mismatch or a documentation request that blocks the merge |
 
 `@rules/reports/general.md` *A JIRA comment is written for a non-technical reader* is binding on this comment. It lists the content that never appears in it, its exceptions, and the 3 000-character cap. Do not restate that list here — apply it.

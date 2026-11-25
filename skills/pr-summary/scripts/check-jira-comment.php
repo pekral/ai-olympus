@@ -20,6 +20,8 @@ const JIRA_SUMMARY_MARKER_SLOT = '{agent-marker}';
 
 const JIRA_SUMMARY_LINKS_LINE = '/^\[[^|\]]+\|[^\]]+\](?: · \[[^|\]]+\|[^\]]+\])*$/u';
 
+const JIRA_SUMMARY_FINDING_TYPE = '/^\* \*\((?<type>security|bug|tests|refactor|performance|documentation)\):\* \S/u';
+
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
@@ -114,6 +116,49 @@ function jiraSummaryCriteriaViolations(?array $block): array
     $calls = array_filter($block['body'] ?? [], static fn (string $line): bool => str_contains($line, '[~accountid:'));
 
     return array_map(static fn (string $line): string => 'criteria: the block calls on nobody: ' . $line, array_values($calls));
+}
+
+/**
+ * @param array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, stray: list<string>, violations: list<string>} $layout
+ * @return list<array{title: string, group: int, body: list<string>}>
+ */
+function jiraSummaryFindingsBlocks(array $layout, bool $criteriaUnmet): array
+{
+    if ($layout['groups'] === 0) {
+        return array_slice(jiraSummaryGroupBlocks($layout['blocks'], 0), (int) $criteriaUnmet, 1);
+    }
+
+    $findings = [];
+
+    for ($group = 1; $group <= $layout['groups']; $group++) {
+        $findings = [...$findings, ...array_slice(jiraSummaryGroupBlocks($layout['blocks'], $group), 0, 1)];
+    }
+
+    $title = $findings[0]['title'] ?? null;
+
+    return [
+        ...array_filter(jiraSummaryGroupBlocks($layout['blocks'], 0), static fn (array $block): bool => $block['title'] === $title),
+        ...$findings,
+    ];
+}
+
+/**
+ * @param list<array{title: string, group: int, body: list<string>}> $blocks
+ * @return list<string>
+ */
+function jiraSummaryFindingsViolations(array $blocks): array
+{
+    $violations = [];
+
+    foreach ($blocks as $block) {
+        foreach ($block['body'] as $line) {
+            if (str_starts_with($line, '* ') && preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) !== 1) {
+                $violations[] = 'findings: a finding must open with its change type, for example *(bug):*: ' . $line;
+            }
+        }
+    }
+
+    return $violations;
 }
 
 /**
@@ -237,11 +282,13 @@ function jiraSummaryFrameViolations(array $lines): array
 function jiraSummaryViolations(string $source, bool $criteriaUnmet): array
 {
     $lines = reportCheckLines($source);
+    $layout = jiraSummaryLayout($lines);
 
     return [
         ...reportCheckLengthViolations($source, JIRA_SUMMARY_MAX_CHARACTERS),
         ...jiraSummaryFrameViolations($lines),
-        ...jiraSummaryShapeViolations(jiraSummaryLayout($lines), $criteriaUnmet),
+        ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
+        ...jiraSummaryFindingsViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet)),
         ...jiraSummaryTextViolations($lines),
     ];
 }
