@@ -140,7 +140,7 @@ A read-only agent role carries `Bash`, and Bash can write any file. The runtime 
 
 ### Codex — what is not enforced
 
-Codex gives a custom agent no sandbox of its own: the sandbox and the approval policy are inherited from the session, and a `PreToolUse` hook carries no identity of the agent. The guard therefore confines no Codex role, and the installer writes nothing for Codex. A whole Codex session started with `--sandbox read-only` is confined by Codex itself, and `agent-guard.sh probe` reports a `workspace-write` session as `inactive`. Not verified: that the probe reports a `--sandbox read-only` session as `active`; a probe run in such a Codex session settles it. On Codex the read-only limit of a role inside a writing session stays **advisory**.
+Codex gives a custom agent no sandbox of its own: the sandbox and the approval policy are inherited from the session, and a `PreToolUse` hook carries no identity of the agent. The guard therefore confines no Codex role, and the installer writes nothing for Codex. A whole Codex session started with `--sandbox read-only` is confined by Codex itself, and `agent-guard.sh probe` reports a `workspace-write` session as `inactive`. Not verified: that the probe reports a `--sandbox read-only` session as `active`; a probe run in such a Codex session settles it. A `--sandbox read-only` session cannot prepare a review worktree or fetch a head commit either, because both write the git directory, so a review that needs a worktree does not run in it. On Codex the read-only limit of a role inside a writing session stays **advisory**.
 
 ### Strict mode
 

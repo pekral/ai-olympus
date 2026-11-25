@@ -216,3 +216,8 @@ test('under an active guard the dispatching session refreshes the default-branch
     ],
     'krang' => ['agents/krang.md', 'the `git fetch origin` and the head fetch of *Review worktree*'],
 ]);
+
+test('SECURITY.md states that a read-only Codex session cannot prepare a review worktree', function (): void {
+    expect(installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard'))
+        ->toContain('A `--sandbox read-only` session cannot prepare a review worktree or fetch a head commit either');
+});
