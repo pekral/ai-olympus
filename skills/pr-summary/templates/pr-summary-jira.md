@@ -7,7 +7,7 @@
 {expand}
 
 {expand:Findings from the code review}
-* *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
+* *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". Order the bullets by type: security, bug, tests, refactor, performance, documentation. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
 * *(refactor):* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
@@ -132,7 +132,11 @@ Review findings
     remaining action; omit repaired parts and their history. An assumption, a hypothesis, or a point with no
     evidence is never listed. The rule is owned by @skills/pr-summary/SKILL.md
     (Review-only run).
-  - A point that blocks the merge comes first. Never write a severity label.
+  - Order the findings by the severity of their type: security, bug, tests,
+    refactor, performance, documentation, with the findings of one type in
+    their original order (references/jira-shape.md, item 11). The order
+    restarts under "Already reported in an earlier review". Never write a
+    severity label.
   - Interactive testing that the project switched off is stated in one sentence
     (@skills/pr-summary/SKILL.md, What the comment carries).
   - Interactive testing that did not run because no local or test environment

@@ -165,6 +165,28 @@ test('every change type the shape names passes the check', function (string $typ
         ->and($process->getExitCode())->toBe(0);
 })->with(['security', 'bug', 'tests', 'refactor', 'performance', 'documentation']);
 
+test('the findings are ordered by the severity of their type', function (string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => $replacement]), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: findings: order the findings security, bug, tests, refactor, performance, documentation; ' . $violation);
+})->with([
+    'a bug after a refactor' => ["* *(refactor):* Dva bloky kódu se opakují.\n* *(bug):* Blokuje sloučení:", '(bug) stands after (refactor)'],
+    'a security point after a test' => ["* *(tests):* Chybí test.\n* *(security):* Blokuje sloučení:", '(security) stands after (tests)'],
+    'a refactor after a documentation request' => ["* *(documentation):* Chybí popis.\n* *(refactor):* Blokuje sloučení:", '(refactor) stands after (documentation)'],
+]);
+
+test('findings of one type keep their order, and the order restarts for the already reported ones', function (string $replacement): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => $replacement]), 'none');
+
+    expect($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+})->with([
+    'two bugs in their original order' => ["* *(bug):* Druhý bod.\n* *(bug):* Blokuje sloučení:"],
+    'a security point before a bug' => ["* *(security):* Citlivé soubory nejsou chráněné.\n* *(bug):* Blokuje sloučení:"],
+    'a new refactor above an already reported bug' => ['* *(refactor):* Blokuje sloučení:'],
+]);
+
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
     $process = runJiraSummaryCheck($source, 'none');
 
