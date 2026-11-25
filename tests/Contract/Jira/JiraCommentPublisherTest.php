@@ -1817,10 +1817,10 @@ test('the JIRA publisher never claims the marker for a created comment it could 
 function jiraOperatorAdfComment(array $content): array
 {
     return [
-        'id' => '9003',
-        'created' => '2026-01-02T00:00:00.000+0000',
         'author' => ['emailAddress' => 'bot@example.com'],
         'body' => ['type' => 'doc', 'version' => 1, 'content' => $content],
+        'created' => '2026-01-02T00:00:00.000+0000',
+        'id' => '9003',
     ];
 }
 
@@ -1840,18 +1840,18 @@ test('the JIRA publisher never takes a comment written during a lagging re-read 
         ->and($result['calls'])->not->toContain('comment delete')
         ->and($result['process']->getErrorOutput())->toContain('new comments 9003 of this account on TEAM-42');
 })->with([
-    'a plain comment' => [jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday.')],
     'a comment that quotes the marker' => [
         jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday. _' . jiraActorMarker('bot@example.com') . '_'),
     ],
+    'a plain comment' => [jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday.')],
+    'no text at all' => [jiraOperatorAdfComment([['type' => 'rule']])],
+    'the marker text alone' => [jiraOperatorAdfComment([jiraAdfParagraph(jiraActorMarker('bot@example.com'))])],
     'the sent text followed by text of its own' => [jiraOperatorAdfComment([jiraAdfParagraph('Hotovo', ' Deploy it on Monday.')])],
+    'the sent text in another letter case' => [jiraOperatorAdfComment([jiraAdfParagraph('HOTOVO')])],
     'the sent text in a quote above text of its own' => [
         jiraOperatorAdfComment([['type' => 'blockquote', 'content' => [jiraAdfParagraph('Hotovo')]], jiraAdfParagraph('Agreed.')]),
     ],
-    'the sent text in another letter case' => [jiraOperatorAdfComment([jiraAdfParagraph('HOTOVO')])],
     'the sent text with a trailing space' => [jiraOperatorAdfComment([jiraAdfParagraph('Hotovo ')])],
-    'the marker text alone' => [jiraOperatorAdfComment([jiraAdfParagraph(jiraActorMarker('bot@example.com'))])],
-    'no text at all' => [jiraOperatorAdfComment([['type' => 'rule']])],
 ]);
 
 test('the JIRA publisher targets its created comment that shows only on the third re-read, beside a new comment of the account', function (): void {
