@@ -23,7 +23,9 @@
 # The target must carry that marker as its only agent marker, and it is refused when a later comment points
 # at it (skills/_shared/comment-reply.jq owns what a reply is), and when it holds a line the operator added
 # that the merged comment does not carry verbatim (skills/_shared/operator-lines.sh). A failed listing of
-# the comments refuses the delete too.
+# the comments refuses the delete too. The form takes an issue URL only, and it deletes only when GitHub reports
+# the number as an issue (github_item_kind in comment-reply.jq): a pull request, whose reviews and review comments
+# the reply check never reads, and an unreadable answer refuse the delete.
 set -euo pipefail
 
 PROG="${0##*/}"
@@ -40,7 +42,8 @@ form deletes only a pull-request body overflow comment (the pr-body-overflow or
 agent-note marker of the actor, opening with the overflow heading) that a newer
 pr-body-overflow comment of the same actor supersedes. The --review-merge form
 deletes only a review comment (the cr-comment marker of the actor, no other agent
-marker) that no later comment points at, and only beside the merged review comment.
+marker) that no later comment points at, only beside the merged review comment, and
+only on an issue that GitHub reports as an issue, never on a pull request.
 EOF
 }
 
@@ -88,9 +91,15 @@ fi
 if [[ "$TARGET_URL" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/(issues|pull)/([1-9][0-9]*)/?$ ]]; then
   OWNER="${BASH_REMATCH[1]}"
   REPOSITORY="${BASH_REMATCH[2]}"
+  TARGET_KIND="${BASH_REMATCH[3]}"
   NUMBER="${BASH_REMATCH[4]}"
 else
   printf '%s\n' "$PROG: target must be one full GitHub issue or pull-request URL" >&2
+  exit 1
+fi
+
+if [[ "$REVIEW_MERGE" -eq 1 && "$TARGET_KIND" != "issues" ]]; then
+  printf '%s\n' "$PROG: the --review-merge form takes a GitHub issue URL; a pull request is not a tracker item here, nothing is deleted" >&2
   exit 1
 fi
 
@@ -102,6 +111,18 @@ ACTUAL_NAME="$(printf '%s' "$NAME_WITH_OWNER" | tr '[:upper:]' '[:lower:]')"
 if [[ "$ACTUAL_NAME" != "$EXPECTED_NAME" ]]; then
   printf '%s\n' "$PROG: ownership guard returned a different repository" >&2
   exit 4
+fi
+
+if [[ "$REVIEW_MERGE" -eq 1 ]]; then
+  ITEM_KIND="$(gh api "repos/$OWNER/$REPOSITORY/issues/$NUMBER" 2>/dev/null \
+    | jq -L "$SCRIPT_DIR" -r --argjson number "$NUMBER" 'include "comment-reply"; github_item_kind($number)' 2>/dev/null || true)"
+  if [[ "$ITEM_KIND" == "pull" ]]; then
+    printf '%s\n' "$PROG: the issue URL names a pull request, whose replies the reply check cannot read; nothing is deleted" >&2
+    exit 4
+  elif [[ "$ITEM_KIND" != "issue" ]]; then
+    printf '%s\n' "$PROG: GitHub did not confirm that the target is an issue; nothing is deleted" >&2
+    exit 3
+  fi
 fi
 
 ACTOR="$(gh api user --jq .login)"

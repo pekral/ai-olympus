@@ -6,6 +6,7 @@ use Symfony\Component\Process\Process;
 
 // `gh` stands in for the real CLI. `$FAKE_GH_COMMENTS` holds the comments of issue 42 as the REST list returns them: the list call, the
 // single-comment read, and the delete all answer from it. A PATCH records its arguments and its payload; a delete creates `$FAKE_GH_STATE`.
+// `$FAKE_GH_ITEM_JSON` is the REST issue object that tells an issue from a pull request; `FAKE_GH_ITEM_OK=0` fails that read.
 const REVIEW_MERGE_GH_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -42,6 +43,13 @@ fi
 
 if [[ "$1" == "api" && "$2" == repos/*/issues/comments/* ]]; then
   jq -c --argjson id "${2##*/}" '.[] | select(.id == $id)' "$FAKE_GH_COMMENTS"
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" =~ ^repos/[^/]+/[^/]+/issues/[0-9]+$ ]]; then
+  [[ "${FAKE_GH_ITEM_OK:-1}" == "1" ]] || exit 1
+  issue='{"number":42,"title":"Upload validation"}'
+  printf '%s\n' "${FAKE_GH_ITEM_JSON:-$issue}"
   exit 0
 fi
 
@@ -330,6 +338,32 @@ test('the GitHub delete helper deletes nothing when the comments cannot be liste
         ->and($result['process']->getErrorOutput())->toContain('nothing is deleted')
         ->and($result['deleted'])->toBeFalse();
 });
+
+dataset('merge delete pull requests', [
+    'a pull request URL' => ['https://github.com/pekral/ai-olympus/pull/42', [], 1],
+    'a pull request named through an issue URL' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'], 4],
+    'a pull request named with a trailing slash' => [REVIEW_MERGE_ITEM . '/', ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{}}'], 4],
+    'an answer with a null pull_request field' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 4],
+    'an answer of another number' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":43}'], 3],
+    'an answer that is no issue' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"message":"Not Found"}'], 3],
+    'an answer that is not JSON' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => 'not json'], 3],
+    'a failed read' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_OK' => '0'], 3],
+]);
+
+test(
+    'the GitHub delete helper deletes nothing unless GitHub reports the target as an issue',
+    function (string $target, array $environment, int $exit): void {
+        $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [
+            reviewMergeComment(801, 'bot', "Round 1: the limit is 2 MB.\n\n" . reviewMergeMarker()),
+            reviewMergeComment(803, 'bot', "Round 2: merged.\n\n" . reviewMergeMarker()),
+        ], ['--review-merge', $target, '801', '803'], $environment);
+
+        expect($result['process']->getExitCode())->toBe($exit)
+            ->and($result['process']->getErrorOutput())->toContain('nothing is deleted')
+            ->and($result['calls'])->not->toContain('DELETE')
+            ->and($result['deleted'])->toBeFalse();
+    },
+)->with('merge delete pull requests');
 
 test('the --review-merge form needs exactly three arguments', function (): void {
     $result = runReviewMergeGitHub('skills/_shared/delete-owned-github-comment.sh', [], ['--review-merge', REVIEW_MERGE_ITEM, '801']);

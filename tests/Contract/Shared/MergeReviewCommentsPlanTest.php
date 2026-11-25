@@ -6,6 +6,7 @@ use Symfony\Component\Process\Process;
 
 // `gh` stands in for the real CLI: the GitHub loader of the package runs against it, and the plan script reads the account
 // through `gh api user`. `FAKE_GH_ACTOR_OK=0` makes the account lookup fail, `FAKE_GH_ISSUE_OK=0` the issue fetch.
+// `FAKE_GH_ITEM_JSON` is the REST issue object that tells an issue from a pull request; `FAKE_GH_ITEM_OK=0` fails that read.
 const MERGE_PLAN_GH_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -13,6 +14,13 @@ set -euo pipefail
 if [[ "$1" == "api" && "$2" == "user" ]]; then
   [[ "${FAKE_GH_ACTOR_OK:-1}" == "1" ]] || exit 1
   printf '%s\n' "${FAKE_GH_LOGIN:-bot}"
+  exit 0
+fi
+
+if [[ "$1" == "api" && "$2" =~ ^repos/[^/]+/[^/]+/issues/[0-9]+$ ]]; then
+  [[ "${FAKE_GH_ITEM_OK:-1}" == "1" ]] || exit 1
+  issue='{"number":42,"title":"Upload validation"}'
+  printf '%s\n' "${FAKE_GH_ITEM_JSON:-$issue}"
   exit 0
 fi
 
@@ -476,6 +484,35 @@ test('the plan refuses a pull request, a bare number, and a Bugsnag item without
     'a Bugsnag reference with no --author' => [['plan', 'acme/widgets/0123456789abcdef01234567'], 4],
     'a pull request' => [['plan', 'https://github.com/acme/widgets/pull/42'], 1],
 ]);
+
+dataset('merge plan pull requests through an issue URL', [
+    'a pull request' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'], 1],
+    'a pull request named with a trailing slash' => [['plan', MERGE_PLAN_ITEM . '/'], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{}}'], 1],
+    'a pull request on the read-back' => [
+        ['verify-read-back', MERGE_PLAN_ITEM, '801', __FILE__],
+        ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'],
+        1,
+    ],
+    'an answer with a null pull_request field' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 1],
+    'an answer of another number' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":43}'], 3],
+    'an answer that is no issue' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"message":"Not Found"}'], 3],
+    'an answer that is not JSON' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => 'not json'], 3],
+    'a failed read' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_OK' => '0'], 3],
+]);
+
+test(
+    'the plan asks GitHub whether the issue URL names a pull request and plans nothing unless it is an issue',
+    function (array $arguments, array $environment, int $exit): void {
+        $result = mergePlanGitHub([
+            mergePlanComment(801, 'bot', 'MEMBER', "Round 1.\n\n" . mergePlanMarker(), 1),
+            mergePlanComment(803, 'bot', 'MEMBER', "Round 2.\n\n" . mergePlanMarker(), 3),
+        ], $environment, $arguments);
+
+        expect($result['process']->getExitCode())->toBe($exit)
+            ->and($result['process']->getOutput())->toBe('')
+            ->and($result['process']->getErrorOutput())->toContain('nothing is');
+    },
+)->with('merge plan pull requests through an issue URL');
 
 test('a public or unknown repository never allows unpublished data in the merged comment', function (string $private, bool $expected): void {
     $result = mergePlanGitHub([

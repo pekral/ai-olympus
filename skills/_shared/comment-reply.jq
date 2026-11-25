@@ -16,6 +16,15 @@
 # `mentionText` (github_mention_text) and no `mentions`; a JIRA comment carries the account IDs it mentions in `mentions`.
 include "review-trust";
 
+# github_item_kind($number) — the input is the REST issue object of a GitHub item (`gh api repos/<o>/<r>/issues/<n>`).
+# "pull" when it carries a `pull_request` field, which GitHub sends for a pull request, "issue" for an issue of that
+# number, and "unknown" for anything else. The URL never decides it: an issue URL can name a pull request, and the
+# reviews and review comments of a pull request are replies this module never reads. A helper acts only on "issue".
+def github_item_kind($number):
+  if type != "object" or .number != $number then "unknown"
+  elif has("pull_request") then "pull"
+  else "issue" end;
+
 # other_agent_marker — the input is a comment body. True when it carries an agent marker of a namespace other than
 # `cr-comment`: such a comment is machine output of another kind, never a plain review comment.
 def other_agent_marker:

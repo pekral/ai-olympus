@@ -40,8 +40,10 @@ deletes. It never changes a status, an assignee, or a label.
 - Apply `@rules/reports/general.md` for the language, `@skills/agent-voice/SKILL.md` for the voice, and `@skills/unslop/SKILL.md`
   before the publish. Apply `@rules/general/general.md` *Verified statements only*: the merged comment states only what the
   merged comments, the loaded sources, and this run verified.
-- Never merge across several tracker items or pull requests (`#683` owns that). A pull request is not a tracker item here.
-  Never delete a comment of another person, and never touch a comment this skill did not merge.
+- Never merge across several tracker items or pull requests (`#683` owns that). A pull request is not a tracker item here:
+  the plan and the GitHub delete helper ask GitHub whether the issue URL names a pull request, and they stop when it does
+  or when the answer cannot be read. Never delete a comment of another person, and never touch a comment this skill did
+  not merge.
 - On JIRA, apply `@rules/jira/general.md`: the comment is written in the Wiki Markup template and the wrapper converts it to ADF.
 
 ## Workflow
@@ -53,8 +55,8 @@ deletes. It never changes a status, an assignee, or a label.
    collaborator name that the operator gave in the request; the loader cannot resolve it). Save the output to a file under a
    directory that `mktemp -d` created below `.claude/run/` and delete the directory at the end of the run.
 3. Exit `5` and a non-empty `stop` end the run: the comment list may be shorter than the thread, the account could not be
-   resolved, or fewer than two review comments exist. Delete and change nothing, and report the `stop` text. Exit `3` and `4`
-   end the run the same way. An empty or incomplete comment list is never read as "no comments".
+   resolved, or fewer than two review comments exist. Delete and change nothing, and report the `stop` text. Exit `1` (a pull
+   request), `3`, and `4` end the run the same way. An empty or incomplete comment list is never read as "no comments".
 4. Read the plan. A `review` comment is a comment of the operator's account that carries that account's own `cr-comment`
    marker and no other agent marker. An `operator` comment has no marker. An `other` comment, with its reason, never changes:
    another person's comment, a note, a link, a question, a comment with another agent marker, a comment with restricted
