@@ -68,14 +68,18 @@
 #   on the patterns or the content: it adds one `check-path-changed` candidate for each check path the diff adds,
 #   changes, deletes, renames (by the old and by the new path), or copies — a test-side file, a workflow or
 #   `.github/actions/**` file, `phpunit.xml*`, `tests/Pest.php`, a `.neon` file or a file whose name names
-#   PHPStan (TI_CHECK_CONFIG_RE), a pytest, Jest, Vitest, or RSpec configuration (TI_RUNNER_CONFIG_RE), a checker
+#   PHPStan (TI_CHECK_CONFIG_RE), a pytest, Jest, Vitest, RSpec, or CTest configuration, a `CMakeLists.txt`, and
+#   a pip requirements or constraints file or a Conan `conanfile.txt` (TI_RUNNER_CONFIG_RE, TOOL_LIST_RE), a checker
 #   configuration or an `.editorconfig`, `.gitignore`, or `.gitattributes` at any depth (FORMAT_RE) — and for `composer.json` when a script of the base changes. An added test runs code
 #   inside the runner, so it is a candidate too. Only a change that touches no check path completes with no
-#   candidate, so a change the classifier grades `tests-only` or `formatting-metadata-only` always has one, and a
-#   file a runner collects by default is never graded `documentation-only` (RUNNER_COLLECTED_RE).
+#   candidate, so a change the classifier grades `tests-only` or `formatting-metadata-only` always has one, and
+#   neither a file a runner collects by default (RUNNER_COLLECTED_RE) nor a list of tests or of dependencies
+#   (TOOL_LIST_RE) is ever graded `documentation-only`.
 #   Limit: the scan knows the default collection patterns only, so a file that only a pattern the project sets
 #   itself collects (a custom doctest glob) is no candidate. That pattern lives in a runner configuration, which
-#   is a check path, so the change that sets it takes the review.
+#   is a check path, so the change that sets it takes the review. CTest has no collection pattern: its tests are
+#   the `add_test()` calls of a `CMakeLists.txt`, and a dependency list names the checker plugins, so each of
+#   them is a check path itself.
 #
 # Test-side paths
 #   One definition: TEST_RE of `domain-vocabulary.sh`, matched on the lower-cased path, which `classify-risk.sh`
@@ -622,8 +626,9 @@ TI_COMMENT_RE='^[[:space:]]*(//|#|/\*|\*)'
 TI_MIN_RE='--min=([0-9]+)'
 TI_LEVEL_RE='^[[:space:]]*level:[[:space:]]*([0-9]+|max)'
 TI_CHECK_CONFIG_RE='\.neon(\.dist)?$|(^|/)[^/]*phpstan[^/]*$'
-# The files where pytest, Jest, Vitest, and RSpec read a collection pattern a project sets itself.
-TI_RUNNER_CONFIG_RE='(^|/)(pytest\.ini|tox\.ini|setup\.cfg|pyproject\.toml|package\.json|\.rspec)$|(^|/)(jest|vitest|vite)\.config\.[a-z.]+$|(^|/)vitest\.workspace\.[a-z.]+$'
+# The files where pytest, Jest, Vitest, and RSpec read a collection pattern a project sets itself, the CTest
+# files, and the lists of tests or of dependencies of TOOL_LIST_RE. Matched on the lower-cased path.
+TI_RUNNER_CONFIG_RE='(^|/)(pytest\.ini|tox\.ini|setup\.cfg|pyproject\.toml|package\.json|\.rspec)$|(^|/)(jest|vitest|vite)\.config\.[a-z.]+$|(^|/)vitest\.workspace\.[a-z.]+$|(^|/)ctestcustom\.cmake$|'"$TOOL_LIST_RE"
 
 TI_SCAN_BASE=''
 TI_SCAN_HEAD=''
@@ -852,7 +857,7 @@ ti_is_check_path() {
   case "$2" in
   test | test-config | ci | phpstan) return 0 ;;
   esac
-  [[ "$1" =~ $TI_CHECK_CONFIG_RE || "$1" =~ $TI_RUNNER_CONFIG_RE || "$(ti_lower "$1")" =~ $FORMAT_RE ]]
+  [[ "$1" =~ $TI_CHECK_CONFIG_RE || "$(ti_lower "$1")" =~ $TI_RUNNER_CONFIG_RE || "$(ti_lower "$1")" =~ $FORMAT_RE ]]
 }
 
 # --without-review: one check-path-changed candidate for each check path the diff adds, changes, deletes, renames
@@ -1683,9 +1688,13 @@ TI_SHARED_CHECKER_PATHS=(resources/.eslintrc.json .prettierrc pint.json phpcs.xm
 # Pest, and RSpec collect only under tests/ or spec/ or by the Test.php suffix, so they add no such path.
 TI_SHARED_RUNNER_PATHS=(app/test_add.txt test_add.txt docs/test_doc.py docs/doc_test.py docs/conftest.py
   docs/calc.test.js docs/calc.spec.ts docs/__tests__/calc.js docs/calc_test.go)
-# The files where a runner reads a collection pattern the project sets itself.
+# The files where a runner reads a collection pattern the project sets itself, or its tests (CTest).
 TI_SHARED_RUNNER_CONFIG_PATHS=(pytest.ini tox.ini setup.cfg pyproject.toml package.json .rspec jest.config.js
-  vitest.config.ts vite.config.mjs docs/pytest.ini)
+  vitest.config.ts vite.config.mjs docs/pytest.ini src/CTestCustom.cmake)
+# The `.txt` files a tool reads as its list of tests or of dependencies (TOOL_LIST_RE), which the documentation
+# pattern of the classifier also matches.
+TI_SHARED_TOOL_LIST_PATHS=(src/CMakeLists.txt CMakeLists.txt app/requirements-dev.txt app/constraints.txt
+  app/dev-requirements.txt app/requirements/base.txt app/conanfile.txt)
 
 # A path the trusted classifier grades `tests-only`, `formatting-metadata-only`, or `documentation-only` when it is
 # the only change. With a signal name as the second argument, only that signal counts.
@@ -1702,7 +1711,7 @@ ti_selftest_shared_definition() {
   local path
   TI_REPO="$TI_ROOT/shared"
   for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
-    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
     mkdir -p "$TI_REPO/$(dirname -- "$path")"
     printf 'base\n' >"$TI_REPO/$path"
   done
@@ -1712,7 +1721,7 @@ ti_selftest_shared_definition() {
   ti_git branch -q -M master
   ti_git checkout -q -b shapes
   for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
-    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
     printf 'exit\n' >"$TI_REPO/$path"
   done
   rm -f -- "$TI_REPO/spec/add_spec.rb"
@@ -1727,11 +1736,11 @@ ti_selftest_shared_definition() {
         ti_scan_has check-path-changed "$path" -
     fi
   done
-  for path in "${TI_SHARED_RUNNER_PATHS[@]}"; do
-    ti_assert "classify-risk: $path, which a runner collects by default, is never documentation" \
+  for path in "${TI_SHARED_RUNNER_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
+    ti_assert "classify-risk: $path, which a runner or a tool reads by default, is never documentation" \
       ti_not ti_classifier_discounts "$path" documentation-only
   done
-  for path in "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}"; do
+  for path in "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
     ti_assert "scan --without-review: the runner configuration $path is a candidate" ti_scan_has check-path-changed "$path" -
   done
 }
