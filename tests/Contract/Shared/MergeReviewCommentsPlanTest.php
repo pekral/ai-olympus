@@ -415,6 +415,18 @@ dataset('merge plan replies', [
     'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
     'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
     'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
+    'a tag reply with a dropped end tag in the login' => ['@b</span>ot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply with a dropped start tag in the login' => ['@b<body>ot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply with a dropped tag after the at sign' => ['@</b>bot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply with a quoted greater-than sign in the tag' => ['<div>@b</span title="a>b">ot x</div>', 'reporter', 'NONE', true],
+    'a tag reply whose at sign is a decimal reference' => ['&#64;b</td>ot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply whose at sign is a named reference' => ['&commat;</b>bot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply whose less-than sign is a decimal reference' => ['@b&#60;/b>ot why 2 MB?', 'reporter', 'NONE', true],
+    'a tag reply that mentions another login' => ['<b>@alice</b> why 2 MB?', 'reporter', 'NONE', true],
+    'a tag without an at sign' => ['<b>Why</b> 2 MB?', 'reporter', 'NONE', false],
+    'an at sign of another login without a tag' => ['@alice why 2 MB?', 'reporter', 'NONE', false],
+    'an at sign of another login with a less-than reference' => ['&lt;@alice&gt; why 2 MB?', 'reporter', 'NONE', false],
+    'a tag and an at sign of the operator account itself' => ['<b>@alice</b> why 2 MB?', 'bot', 'MEMBER', false],
 ]);
 
 test(

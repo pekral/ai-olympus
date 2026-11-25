@@ -42,10 +42,16 @@ def char_refs_decoded:
 # breaks an `@<login>` the body already holds, so each step only adds mentions.
 # The text mentions a login when it holds `@` followed directly by that login, in lower case. Nothing in front of the `@`
 # and nothing after the login is read, and a login inside a code block or a code span counts too: the test reads no
-# Markdown structure, so no difference from the GitHub renderer can hide a mention. A mention counted in excess, such as
-# `ops@bot.example` or `@bot-helper` for `bot`, only keeps a comment.
+# Markdown structure. It reads no HTML either: a text that holds both `@` and `<` counts as a mention of every login
+# (github_mention_any), because the renderer can drop a tag and join the text around it into one login. A mention
+# counted in excess, such as `ops@bot.example`, `@bot-helper` for `bot`, or `<b>@alice</b>`, only keeps a comment.
 def github_mention_text:
   char_refs_decoded | gsub("\\\\"; "") | gsub("K"; "k") | ascii_downcase;
+
+# github_mention_any — the input is a mention text. True when it holds both `@` and `<`: the test never guesses which
+# tag the renderer keeps, so such a text mentions every login. The error direction is "the comment stays".
+def github_mention_any:
+  contains("@") and contains("<");
 
 # marker_line($marker) — the input is a GitHub comment body. True when a line of the body is exactly $marker, trailing
 # blanks aside, and no code block can hold that line. A line ends at `\n`, `\r\n`, or a lone `\r`, as in CommonMark.
@@ -105,7 +111,8 @@ def quotes($reply; $original):
   | any($lines[]; . as $line | ($reply.body | contains($line)));
 
 # True when a later comment points at the original: a native parent reference, a link to its id, a quoted line, or a
-# mention of its author by another account. On GitHub the mention text holds `@` and the author login, without case.
+# mention of its author by another account. On GitHub the mention text holds `@` and the author login, without case, or
+# it holds both `@` and `<` (github_mention_any).
 def points_at($reply; $original):
   ($reply.parentId // "") == $original.id
   or ($reply.body | test("(issuecomment-|focusedCommentId=|/comments/)" + $original.id + "([^0-9]|$)"))
@@ -113,7 +120,7 @@ def points_at($reply; $original):
   or (($original.authorKey != null)
       and ($reply.authorKey != $original.authorKey)
       and (if ($reply.mentionText | type) == "string"
-           then ($reply.mentionText | contains("@" + ($original.authorKey | ascii_downcase)))
+           then ($reply.mentionText | contains("@" + ($original.authorKey | ascii_downcase)) or github_mention_any)
            else (($reply.mentions // []) | map(ascii_downcase) | index($original.authorKey | ascii_downcase)) != null end));
 
 # has_reply($original; $all) — true when a later comment that is not machine output of the operator's account points
