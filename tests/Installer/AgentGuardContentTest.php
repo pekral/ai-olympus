@@ -197,3 +197,11 @@ test('SECURITY.md states that the macOS confinement creates no symbolic link any
         ->and($guard)->toContain('8. **Linux only:** `bwrap` binds by directory, never by name.')
         ->and(agentGuardPackageFile('skills/_shared/agent-guard.sh'))->toContain("profile+='(deny file-write-create (vnode-type SYMLINK))'");
 });
+
+test('SECURITY.md names the settings sources the hook reads and the ones it does not', function (): void {
+    $guard = installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard');
+
+    expect($guard)->toContain('the user `settings.json` in `$CLAUDE_CONFIG_DIR` when the variable is set and in `~/.claude` otherwise')
+        ->and($guard)->toContain('A settings file the hook cannot read, and a user file it cannot locate, make it ask.')
+        ->and($guard)->toContain('and no managed setting outside the two `managed-settings.json` files above');
+});

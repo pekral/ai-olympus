@@ -50,10 +50,12 @@
 #   A role outside the confined set, an absent or empty `agent_type` (the main session), and a tool other than Bash:
 #   exit 0, no output. A confined role: the harness checks the permission rules against the rewritten command, not
 #   the original one, so the hook checks the original command against the Bash `deny`, `ask`, and `allow` rules of the
-#   settings files it can read. A deny match is `deny`. The hook returns `allow` only when every segment of the
-#   command matches an allow rule, or when `permission_mode` is `bypassPermissions`; every other case is `ask`: an ask
-#   match, an unreadable settings file, a rule shape this check does not support, and a construct it cannot split (a
-#   subshell, a command substitution, a backtick, a leading `!`, a shell keyword). `ask` and `allow` carry
+#   project `.claude/settings.json` and `.claude/settings.local.json`, the user `settings.json` (in `CLAUDE_CONFIG_DIR`
+#   when it is set, otherwise in `~/.claude`), and the two `managed-settings.json` files. A deny match is `deny`. The
+#   hook returns `allow` only when every segment of the command matches an allow rule, or when `permission_mode` is
+#   `bypassPermissions`; every other case is `ask`: an ask match, an unreadable settings file, a user file that cannot
+#   be located, a rule shape this check does not support, and a construct it cannot split (a subshell, a command
+#   substitution, a backtick, a leading `!`, a shell keyword). `ask` and `allow` carry
 #   `updatedInput` with every field of the tool input kept and `command` replaced by
 #   `/bin/bash '<abs>/agent-guard.sh' exec <role> --project '<project>' -- '<original command>'`.
 #   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
@@ -194,10 +196,18 @@ strict_mode() {
 
 # --- the hook ---------------------------------------------------------------------------------------------------
 
+# Prints the settings files the hook reads, one per line. The user file is `$CLAUDE_CONFIG_DIR/settings.json` when the
+# variable is set, otherwise `~/.claude/settings.json`. An empty line stands for a user file that cannot be located.
 settings_files() {
   local project="$1"
   printf '%s\n' "$project/.claude/settings.json" "$project/.claude/settings.local.json"
-  [[ -n "${HOME:-}" ]] && printf '%s\n' "$HOME/.claude/settings.json"
+  if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+    [[ "$CLAUDE_CONFIG_DIR" == /* ]] && printf '%s\n' "$CLAUDE_CONFIG_DIR/settings.json" || printf '\n'
+  elif [[ -n "${HOME:-}" && "$HOME" == /* ]]; then
+    printf '%s\n' "$HOME/.claude/settings.json"
+  else
+    printf '\n'
+  fi
   printf '%s\n' '/Library/Application Support/ClaudeCode/managed-settings.json' '/etc/claude-code/managed-settings.json'
 }
 
@@ -207,7 +217,9 @@ collect_rules() {
   local project="$1" file unreadable=false
   local -a docs=()
   while IFS= read -r file; do
-    [[ -f "$file" ]] || continue
+    [[ -n "$file" ]] || { unreadable=true; continue; }
+    [[ -e "$file" ]] || continue
+    [[ -f "$file" && -r "$file" ]] || { unreadable=true; continue; }
     if ! jq -e 'type == "object"' "$file" >/dev/null 2>&1; then
       unreadable=true
       continue

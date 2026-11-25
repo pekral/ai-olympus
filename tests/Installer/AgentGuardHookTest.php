@@ -301,6 +301,55 @@ test('bypassPermissions asks for a command whose name the hook cannot read while
     'a variable' => ['$TOOL https://example.test'],
 ]);
 
+test('the hook reads the user rules from CLAUDE_CONFIG_DIR when the session sets it', function (string $mode): void {
+    $root = AgentGuardRun::repository();
+    $config = dirname($root) . '/config';
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['allow' => ['Bash(gh pr:*)']]);
+    agentGuardWriteSettings($config . '/settings.json', ['deny' => ['Bash(gh pr merge:*)']]);
+    $input = agentGuardHookInput('april', ['command' => 'gh pr merge 1 --rebase'], $mode);
+
+    try {
+        $output = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root, 'CLAUDE_CONFIG_DIR' => $config])->getOutput();
+
+        expect(AgentGuardDecision::fromHookOutput($output)->permissionDecision)->toBe('deny');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with(['default', 'bypassPermissions']);
+
+test('the hook asks when it cannot locate the user settings', function (array $environment): void {
+    $root = AgentGuardRun::repository();
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['allow' => ['Bash(gh pr:*)']]);
+    $input = agentGuardHookInput('april', ['command' => 'gh pr view 1']);
+
+    try {
+        $output = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root, ...$environment])->getOutput();
+
+        expect(AgentGuardDecision::fromHookOutput($output)->permissionDecision)->toBe('ask');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a relative CLAUDE_CONFIG_DIR' => [['CLAUDE_CONFIG_DIR' => 'config']],
+    'no CLAUDE_CONFIG_DIR and no HOME' => [['HOME' => '']],
+]);
+
+test('the hook allows a command an allow rule matches when the user settings in CLAUDE_CONFIG_DIR carry no deny rule', function (): void {
+    $root = AgentGuardRun::repository();
+    $config = dirname($root) . '/config';
+    agentGuardWriteSettings($root . '/.claude/settings.json', ['allow' => ['Bash(gh pr:*)']]);
+    agentGuardWriteSettings($config . '/settings.json', ['allow' => ['Bash(git log:*)']]);
+    $input = agentGuardHookInput('april', ['command' => 'gh pr view 1']);
+
+    try {
+        $output = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root, 'CLAUDE_CONFIG_DIR' => $config])->getOutput();
+
+        expect(AgentGuardDecision::fromHookOutput($output)->permissionDecision)->toBe('allow');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
+
 test('the hook ignores a tool other than Bash', function (): void {
     $root = AgentGuardRun::repository();
     $input = (string) json_encode(['tool_name' => 'Read', 'agent_type' => 'leonardo', 'tool_input' => ['file_path' => '/x']]);
