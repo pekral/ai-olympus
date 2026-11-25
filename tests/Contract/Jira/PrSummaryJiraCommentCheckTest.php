@@ -29,7 +29,14 @@ function jiraSummaryTaskArguments(): array
         ...array_merge(...array_map(static fn (int $number): array => ['--pull-request', (string) $number], [27_625, 27_600, 11, 12])),
         '--jira-issue',
         'https://example.atlassian.net/browse/ACME-6720',
+        '--revision',
+        jiraSummaryRevision(),
     ];
+}
+
+function jiraSummaryRevision(): string
+{
+    return str_repeat('0123456789', 4);
 }
 
 function jiraSummaryUsage(): string
@@ -374,12 +381,12 @@ test('every link and mention the converter publishes from a passing source belon
         ->and(preg_grep($allowed, $targets, PREG_GREP_INVERT))->toBe([]);
 });
 
-function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'src/Sync/OrderSync.php'): string
+function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'src/Sync/OrderSync.php', ?string $revision = null): string
 {
-    return 'https://github.com/' . $repository . '/blob/' . str_repeat('0123456789', 4) . '/' . $path . '#L42';
+    return 'https://github.com/' . $repository . '/blob/' . ($revision ?? jiraSummaryRevision()) . '/' . $path . '#L42';
 }
 
-test('a finding outside the pull request may link its file and line at a commit of the task repository', function (): void {
+test('a finding outside the pull request may link its file and line at the reviewed commit of the task repository', function (): void {
     $source = jiraSummaryWithoutCriteria(
         ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
     );
@@ -497,17 +504,69 @@ test(
     ],
 ]);
 
-test('a code link that does not end its finding is refused', function (): void {
+test('a file link at a commit other than the reviewed one is refused', function (string $revision): void {
+    $href = jiraSummaryBlobLink(revision: $revision);
+    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . $href . ']']);
+
+    $process = runJiraSummaryCheck($source, 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain(
+            'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode($href, JSON_UNESCAPED_SLASHES),
+        );
+})->with([
+    'another full commit hash' => [str_repeat('1', 40)],
+    'a longer commit hash' => [str_repeat('0123456789abcdef', 4)],
+]);
+
+test('a file link is refused when the check names no reviewed commit', function (): void {
+    $source = jiraSummaryWithoutCriteria(
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+    );
+
+    $process = ReportCheckRun::over(
+        'skills/pr-summary/scripts/check-jira-comment.php',
+        $source,
+        '--criteria',
+        'none',
+        ...array_slice(jiraSummaryTaskArguments(), 0, -2),
+    );
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain(
+            'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode(
+                jiraSummaryBlobLink(),
+                JSON_UNESCAPED_SLASHES,
+            ),
+        );
+});
+
+test('a code link outside a finding is refused', function (string $href): void {
+    $verdict = jiraSummaryVerdict() . ' [Zobrazit v kódu →|' . $href . ']';
+
+    $process = runJiraSummaryCheck(str_replace(jiraSummaryVerdict(), $verdict, jiraSummaryWithoutCriteria()), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: links: a code link stands only at the end of a finding: ' . $verdict);
+})->with([
+    'a file link at the reviewed commit in the deploy verdict' => [jiraSummaryBlobLink()],
+    'a line in the changes in the deploy verdict' => ['https://github.com/acme/app/pull/27625/files#diff-' . hash('sha256', 'src/A.php') . 'R1'],
+]);
+
+test('a code link that does not end its finding is refused', function (string $link): void {
     $process = runJiraSummaryCheck(
         jiraSummaryWithoutCriteria(
-            ['Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink() => jiraSummaryCodeLink() . ' Oprava: nová verze ji musí umět dokončit.'],
+            ['Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink() => $link . ' Oprava: nová verze ji musí umět dokončit.'],
         ),
         'none',
     );
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: links: a code link ends a finding: ');
-});
+})->with([
+    'a line in the changes' => [jiraSummaryCodeLink()],
+    'a file link at the reviewed commit' => ['[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+]);
 
 test('a findings block without the line that links the whole change is refused', function (): void {
     $process = runJiraSummaryCheck(
@@ -728,6 +787,10 @@ test('the check refuses a wrong call and a missing source file', function (strin
         jiraSummaryUsage(),
     ],
     'unknown criteria value' => ['--criteria maybe ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
+    'a reviewed commit that is no full hash' => [
+        '--criteria none ' . implode(' ', array_slice(jiraSummaryTaskArguments(), 0, -2)) . ' --revision 0123abc /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
 ]);
 
 function jiraSummaryTaskCall(): string
@@ -751,3 +814,12 @@ test('the summary check and the support comment check read a developer token the
     'commit hash' => ['* Oprava je v commitu a3f9c2d41b.', 'developer token: a3f9c2d41b'],
     'inline code' => ['* Hodnota {{price_vat}} je špatně.', 'developer token: {{'],
 ]);
+
+test('the skill and the template pass the reviewed commit to the check before every JIRA publish', function (): void {
+    $skill = packageSource('skills/pr-summary/SKILL.md');
+    $template = (string) preg_replace('/\s+/', ' ', packageSource('skills/pr-summary/templates/pr-summary-jira.md'));
+
+    expect($skill)->toContain('--jira-issue <issue-url> --revision <commit> <source-file>`')
+        ->and($skill)->toContain('`--revision` with the `Reviewed revision:` of the code-review report')
+        ->and($template)->toContain('--jira-issue <issue-url> --revision <commit> <source-file> on the rendered source, with the Reviewed revision');
+});

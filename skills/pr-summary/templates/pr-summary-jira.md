@@ -208,8 +208,9 @@ Length
 Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
   <unmet|none> --author <account-id|none> --repository <owner/name>
-  --pull-request <number> --jira-issue <issue-url> <source-file> on the
-  rendered source, and publish only a source it accepts
+  --pull-request <number> --jira-issue <issue-url> --revision <commit>
+  <source-file> on the rendered source, with the Reviewed revision of the
+  code-review report as the commit, and publish only a source it accepts
   (@skills/pr-summary/SKILL.md, Publishing). The script checks the
   cap over the visible text of the converted comment, the one deploy-verdict paragraph, the collapsed blocks and the text
   outside them, the criteria block against the flag, the
@@ -217,7 +218,7 @@ Check before the publish
   TL;DR label, the change type and the order of every finding, the author
   mention on every refactor and tests finding and on nothing else, the whole-change line
   and the code links, every link and mention of the converted comment against
-  the task's pull requests, its JIRA site, and the author, leaked Markdown, code
+  the task's pull requests, the reviewed commit, its JIRA site, and the author, leaked Markdown, code
   macros, commit hashes, the footer, and the closing agent-marker block.
 
 No embedded blocks
