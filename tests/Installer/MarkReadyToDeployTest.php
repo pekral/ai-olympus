@@ -218,6 +218,7 @@ const READY_TO_DEPLOY_BASE_SHA = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const READY_TO_DEPLOY_HEAD_SHA = 'cccccccccccccccccccccccccccccccccccccccc';
 const READY_TO_DEPLOY_MERGE_SHA = 'dddddddddddddddddddddddddddddddddddddddd';
 const READY_TO_DEPLOY_MERGE_TREE_SHA = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const READY_TO_DEPLOY_DEFAULT_SHA = 'ffffffffffffffffffffffffffffffffffffffff';
 
 function readyToDeployBlobSha(string $path, string $content): string
 {
@@ -226,12 +227,17 @@ function readyToDeployBlobSha(string $path, string $content): string
 
 /**
  * One tree of `acme/app` as the fake `gh api` serves it: the repository, the recursive tree, and one
- * blob per file. The tree is the default branch `master`, or a commit SHA.
+ * blob per file. The tree is the tip of the default branch `master`, another commit SHA, or a bare name.
  *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
  * @param array<string, string> $workflows
  */
-function readyToDeployRemoteWorkflows(array $fixture, array $workflows, bool $truncated = false, string $tree = 'master'): void
+function readyToDeployRemoteWorkflows(
+    array $fixture,
+    array $workflows,
+    bool $truncated = false,
+    string $tree = READY_TO_DEPLOY_DEFAULT_SHA,
+): void
 {
     $api = $fixture['state'] . '/api';
     installerEnsureDirectory($api);
@@ -352,6 +358,10 @@ function readyToDeployGithub(
     assert(is_string($baseBranch));
     readyToDeployCheckout($fixture['repo'], $localWorkflows);
     readyToDeployRemoteWorkflows($fixture, $workflows);
+    readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/master', [
+        'object' => ['sha' => READY_TO_DEPLOY_DEFAULT_SHA, 'type' => 'commit'],
+        'ref' => 'refs/heads/master',
+    ]);
     readyToDeployPullRequestTrees($fixture, $workflows, $mergeWorkflows ?? $workflows, $baseBranch);
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'assignees' => [],
@@ -1025,11 +1035,20 @@ test(
 
 test('the label is not applied when the workflows of the default-branch tip cannot be read in full', function (string $case): void {
     $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: push\n"], ['body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login']);
+    readyToDeployGithub(
+        $fixture,
+        ['.github/workflows/ci.yml' => "on: push\n"],
+        ['baseRefName' => 'release/2.0', 'body' => '', 'closingIssuesReferences' => [], 'title' => 'fix: login'],
+    );
     $api = $fixture['state'] . '/api/';
     match ($case) {
-        'tree' => unlink($api . 'repos_acme_app_git_trees_master_recursive_1'),
+        'tree' => unlink($api . 'repos_acme_app_git_trees_' . READY_TO_DEPLOY_DEFAULT_SHA . '_recursive_1'),
         'blob' => unlink($api . 'repos_acme_app_git_blobs_' . readyToDeployBlobSha('.github/workflows/ci.yml', "on: push\n")),
+        'ref' => unlink($api . 'repos_acme_app_git_ref_heads_master'),
+        'ref to a tag' => readyToDeployApi($fixture, 'repos/acme/app/git/ref/heads/master', [
+            'object' => ['sha' => READY_TO_DEPLOY_DEFAULT_SHA, 'type' => 'tag'],
+            'ref' => 'refs/heads/master',
+        ]),
         default => readyToDeployRemoteWorkflows($fixture, ['.github/workflows/ci.yml' => "on: push\n"], truncated: true),
     };
 
@@ -1041,7 +1060,7 @@ test('the label is not applied when the workflows of the default-branch tip cann
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-})->with(['tree', 'blob', 'truncated']);
+})->with(['tree', 'blob', 'ref', 'ref to a tag', 'truncated']);
 
 test(
     'the pull request gets no label when its base-branch tip or its merge ref may run on label activity, and its issue still does',
@@ -1071,12 +1090,6 @@ test(
         }
     },
 )->with([
-    'a base-branch workflow on labeled pull requests' => [
-        'master',
-        "on:\n  pull_request_target:\n    types: [labeled]\n",
-        "on: push\n",
-        'the base-branch workflow .github/workflows/deploy.yml subscribes to label activity; the operator decides',
-    ],
     'a head workflow on labeled pull requests, in the merge ref' => [
         'master',
         "on: push\n",
@@ -1149,14 +1162,19 @@ test(
         readyToDeployGithub(
             $fixture,
             ['.github/workflows/ci.yml' => "on: push\n"],
-            ['body' => '', 'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']], 'title' => 'fix: login'],
+            [
+                'baseRefName' => 'release/2.0',
+                'body' => '',
+                'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']],
+                'title' => 'fix: login',
+            ],
         );
         $api = $fixture['state'] . '/api/repos_acme_app_';
         $pullRequest = $fixture['state'] . '/pr-12.json';
         match ($case) {
             'base-branch tree' => unlink($api . 'git_trees_' . READY_TO_DEPLOY_BASE_SHA . '_recursive_1'),
             'merge tree' => unlink($api . 'git_trees_' . READY_TO_DEPLOY_MERGE_TREE_SHA . '_recursive_1'),
-            'base-branch ref' => unlink($api . 'git_ref_heads_master'),
+            'base-branch ref' => unlink($api . 'git_ref_heads_release_2.0'),
             'merge ref' => unlink($api . 'git_ref_pull_12_merge'),
             'merge commit' => unlink($api . 'git_commits_' . READY_TO_DEPLOY_MERGE_SHA),
             'merge ref on a stale base' => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_STALE_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]),
@@ -1265,6 +1283,30 @@ test('a merged pull request gets no label when its base-branch tip may run on la
             READY_TO_DEPLOY_PR . ' | label | not applied — the base-branch workflow .github/workflows/deploy.yml subscribes to label activity',
         )
             ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('the closing issue gets no label when the default-branch tip may run on label activity, whatever a tree of the bare branch name shows', function (): void {
+    $ci = ['.github/workflows/ci.yml' => "on: push\n"];
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, $ci, [
+        'baseRefName' => 'release/2.0',
+        'body' => '',
+        'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']],
+        'title' => 'fix: login',
+    ]);
+    readyToDeployRemoteWorkflows($fixture, [...$ci, '.github/workflows/deploy.yml' => "on:\n  issues:\n    types: [labeled]\n"]);
+    readyToDeployRemoteWorkflows($fixture, $ci, tree: 'master');
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+        expect($process->getOutput())->toContain(
+            'https://github.com/acme/app/issues/11 | label | not applied — the default-branch workflow .github/workflows/deploy.yml subscribes to label activity',
+        )
+            ->and(readyToDeployCalls($fixture, 'issue edit 11 --repo acme/app --add-label'))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
