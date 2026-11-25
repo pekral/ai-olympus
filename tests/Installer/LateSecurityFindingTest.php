@@ -28,7 +28,7 @@ test('the review-state self-test proves each rule of a late security finding (is
     'a late report for a round that is no longer the last is refused',
     'a late report that reads another revision than the recorded round is refused',
     'a finding the classifier does not tag as security:F_STRUCT',
-    'a history-exposure finding without a security keyword:F_HIST',
+    'a finding of the history-exposure lens:F_HIST',
     'a point that needs verification:F_SEC_NOEV',
     'the next round of a late finding the classifier did not tag never escalates with cap-spent-after-convergence',
     'a late finding open in the state makes the next round run every lens',
