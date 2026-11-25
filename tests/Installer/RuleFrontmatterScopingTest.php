@@ -496,7 +496,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the offset-paging check also covers a growing set that the loop only reads, and the gating gives that call to this section alone (issue #696).
         // Re-baselined: a project that switched interactive testing off gets the one switched-off sentence in the review (issue #666).
         // Re-baselined: floor item 1 of *Conflict resolution* points at its one exception, the switched-off walkthrough (issue #666).
-        'rules/code-review/general.md' => 'ce66a10e55c525ec46e8773534fecc2bfe267f3b9c828b28f16abbf5001783e6',
+        'rules/code-review/general.md' => 'b394c0eb5a5a20e6fd9b534d35ab56cd083203dabca043f09bb87278ba8fca84',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file

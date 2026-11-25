@@ -276,7 +276,7 @@ The latency budget of the changed path and the freshness of its data stay with t
   2. a DRY finding — logic the diff repeats where *Reuse Existing Logic* above names an existing implementation.
 
   The run never writes the missing test itself; the author of the changes writes it. On GitHub its Actionable comments entry ends with the mention (`skills/code-review-github/scripts/post-inline-review.sh` renders the `author` key); the record keeps the `Author` field. On GitHub and Bugsnag the tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
-- **Third exception: a `(refactor)` finding on JIRA.** Every JIRA comment mentions the author right after the type of each `(refactor)` finding, and on JIRA no other finding names the author (`@skills/pr-summary/references/jira-shape.md` item 12).
+- **Third exception: a `(refactor)` or a `(tests)` finding on JIRA.** Every JIRA comment mentions the author right after the type of each `(refactor)` and `(tests)` finding, and on JIRA no other finding names the author (`@skills/pr-summary/references/jira-shape.md` item 12).
 
 ## An issue with several pull requests — remarks and findings split per pull request
 

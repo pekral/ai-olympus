@@ -271,8 +271,11 @@ test('findings of one type keep their order, and the order restarts for the alre
     'two bugs in their original order' => ["* *(bug):* Druhý bod.\n* *(bug):* Blokuje sloučení:"],
 ]);
 
-test('a refactor finding mentions the author right after its type', function (): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] '), 'none', jiraSummaryAuthor());
+test('a refactor and a tests finding mention the author right after their type', function (): void {
+    $mention = '[~accountid:' . jiraSummaryAuthor() . '] ';
+    $source = str_replace('* *(bug):* Druhý bod.', "* *(bug):* Druhý bod.\n* *(tests):* " . $mention . 'Chybí test synchronizace.', jiraSummaryWithRefactor($mention));
+
+    $process = runJiraSummaryCheck($source, 'none', jiraSummaryAuthor());
 
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
@@ -287,37 +290,48 @@ test('only a refactor finding mentions anyone, and only the author', function (s
     'a mention in the deploy verdict' => [
         str_replace('Za mě je to', '[~accountid:' . jiraSummaryAuthor() . '] za mě je to', jiraSummaryWithoutCriteria()),
         jiraSummaryAuthor(),
-        'only a (refactor) finding mentions anyone, the author right after its type',
+        'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
     ],
     'a mention on a bug finding' => [
         jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(bug):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
         jiraSummaryAuthor(),
-        'only a (refactor) finding mentions anyone, the author right after its type',
+        'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
     ],
     'a mention with no matching account' => [jiraSummaryWithRefactor(
         '[~accountid:' . jiraSummaryAuthor() . '] ',
-    ), 'none', 'only a (refactor) finding mentions anyone, the author right after its type',
+    ), 'none', 'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
     ],
     'another account than the author' => [jiraSummaryWithRefactor(
         '[~accountid:acc-someone-else] ',
-    ), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type',
+    ), jiraSummaryAuthor(), 'a (refactor) or (tests) finding mentions the author right after its type',
+    ],
+    'a tests finding without the mention' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(tests):* Blokuje sloučení:"]),
+        jiraSummaryAuthor(),
+        'a (refactor) or (tests) finding mentions the author right after its type: * *(tests):* Blokuje sloučení:',
+    ],
+    'a mention on a security finding' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(security):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
+        jiraSummaryAuthor(),
+        'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
     ],
     'a refactor finding without the mention' => [jiraSummaryWithRefactor(
         '',
-    ), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type',
+    ), jiraSummaryAuthor(), 'a (refactor) or (tests) finding mentions the author right after its type',
     ],
     'the mention after the finding text' => [
         jiraSummaryWithoutCriteria(
             ['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(refactor):* Blokuje [~accountid:" . jiraSummaryAuthor() . '] sloučení:'],
         ),
         jiraSummaryAuthor(),
-        'a (refactor) finding mentions the author right after its type',
+        'a (refactor) or (tests) finding mentions the author right after its type',
     ],
 ]);
 
 test('every link and mention the converter publishes from a passing source belongs to the task', function (): void {
     $source = jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] ');
     $allowed = '#^(?:link https://github\.com/acme/app/pull/(?:27625|27600)(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?'
+        . '|link https://github\.com/acme/app/blob/[0-9a-f]{40}/[A-Za-z0-9/._-]+\#L[1-9][0-9]*'
         . '|link https://example\.atlassian\.net/browse/ACME-[0-9]+|mention ' . preg_quote(jiraSummaryAuthor(), '#') . ')$#D';
 
     $targets = jiraSummaryPublishedTargets(jiraSummaryPublishedAdf($source));
@@ -328,6 +342,37 @@ test('every link and mention the converter publishes from a passing source belon
         ->and($targets)->toHaveCount(7)
         ->and(preg_grep($allowed, $targets, PREG_GREP_INVERT))->toBe([]);
 });
+
+function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'src/Sync/OrderSync.php'): string
+{
+    return 'https://github.com/' . $repository . '/blob/' . str_repeat('0123456789', 4) . '/' . $path . '#L42';
+}
+
+test('a finding outside the pull request may link its file and line at a commit of the task repository', function (): void {
+    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']']);
+
+    $process = runJiraSummaryCheck($source, 'none');
+
+    expect(jiraSummaryPublishedTargets(jiraSummaryPublishedAdf($source)))->toContain('link ' . jiraSummaryBlobLink())
+        ->and($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
+test('every code link the link builder prints passes the link check', function (string ...$arguments): void {
+    $packageDir = dirname(__DIR__, 3);
+    $builder = new Process(['php', $packageDir . '/skills/pr-summary/scripts/pr-code-link.php', 'https://github.com/acme/app/pull/27625', ...$arguments], $packageDir);
+    $builder->mustRun();
+    $source = jiraSummaryWithoutCriteria([jiraSummaryCodeLink() => '[Zobrazit v kódu →|' . trim($builder->getOutput()) . ']']);
+
+    $process = runJiraSummaryCheck($source, 'none');
+
+    expect($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+})->with([
+    'the whole change' => [],
+    'a line in the changes' => ['src/Sync/Order Sync.php', '42'],
+    'a line at the reviewed commit' => ['src/Sync/Order Sync.php', '42', str_repeat('0123456789', 4)],
+]);
 
 test(
     'every link of the comment points into the pull request or the issue of the task',
@@ -349,10 +394,24 @@ test(
         '[Zobrazit v kódu →|https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567]',
         'https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567',
     ],
-    'a link to a file outside the pull request' => [
+    'a file link on a branch instead of a commit' => [
         jiraSummaryCodeLink(),
         '[Zobrazit v kódu →|https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42]',
         'https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42',
+    ],
+    'a file link into another repository' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink('stranger/fork') . ']', jiraSummaryBlobLink('stranger/fork')],
+    'a file link that climbs out' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src/../A.php') . ']', jiraSummaryBlobLink(path: 'src/../A.php')],
+    'a file link with a dot segment' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: './A.php') . ']', jiraSummaryBlobLink(path: './A.php')],
+    'a file link with an encoded dot segment' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src/%2e%2e/A.php') . ']',
+        jiraSummaryBlobLink(path: 'src/%2e%2e/A.php'),
+    ],
+    'a file link with an encoded slash' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src%2FA.php') . ']', jiraSummaryBlobLink(path: 'src%2FA.php')],
+    'a file link without https' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|' . str_replace('https://', 'http://', jiraSummaryBlobLink()) . ']',
+        str_replace('https://', 'http://', jiraSummaryBlobLink()),
     ],
     'a link to another repository' => [
         jiraSummaryCodeLink(),

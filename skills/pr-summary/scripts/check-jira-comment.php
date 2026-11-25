@@ -29,6 +29,9 @@ const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 const JIRA_SUMMARY_PULL_REQUEST_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(?<number>[1-9][0-9]*)'
     . '(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?$#D';
 
+const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?:[0-9a-f]{40}|[0-9a-f]{64})/'
+    . '(?<path>[A-Za-z0-9._~%-]+(?:/[A-Za-z0-9._~%-]+)*)\#L[1-9][0-9]*$#D';
+
 const JIRA_SUMMARY_ISSUE_LINK = '#^https://(?<host>[a-z0-9]+(?:[.-][a-z0-9]+)*)/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*$#D';
 
 const JIRA_SUMMARY_CONVERTER = __DIR__ . '/../../code-review-jira/scripts/wiki-markup-to-adf.php';
@@ -37,7 +40,7 @@ const JIRA_SUMMARY_WHOLE_CHANGE_LINK = '#\|https://github\.com/[^\]]+/pull/[1-9]
 
 const JIRA_SUMMARY_MENTION = '[~accountid:';
 
-const JIRA_SUMMARY_REFACTOR_PREFIX = '* *(refactor):* ';
+const JIRA_SUMMARY_MENTIONED_TYPES = ['refactor', 'tests'];
 
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
@@ -48,7 +51,7 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none
     . "  Checks the Wiki Markup source of a pr-summary JIRA comment before it is published.\n"
     . "  --criteria unmet   an explicit requirement still needs a change or an answer\n"
     . "  --criteria none    no requirement needs action, so the comment has no criteria section\n"
-    . "  --author <id>      the JIRA account ID of the author of the changes; every (refactor) finding mentions it\n"
+    . "  --author <id>      the JIRA account ID of the author of the changes; every (refactor) and (tests) finding mentions it\n"
     . "  --author none      no JIRA account matches the author, so no line mentions anyone (the default)\n"
     . "  --repository       the task repository, from a pull-request URL that assert-current-repo.sh accepted\n"
     . "  --pull-request     a pull request of that repository a link may point into, once per pull request\n"
@@ -161,24 +164,23 @@ function jiraSummaryBodyLines(array $blocks): array
  */
 function jiraSummaryMentionViolations(array $findings, array $lines, string $author): array
 {
-    $refactor = array_values(array_filter(
-        jiraSummaryBodyLines($findings),
-        static fn (string $line): bool => str_starts_with($line, JIRA_SUMMARY_REFACTOR_PREFIX),
-    ));
-    $prefix = JIRA_SUMMARY_REFACTOR_PREFIX . JIRA_SUMMARY_MENTION . $author . '] ';
+    $typePrefix = static fn (string $line): ?string => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line, $match) === 1
+        && in_array($match['type'], JIRA_SUMMARY_MENTIONED_TYPES, strict: true) ? '* *(' . $match['type'] . '):* ' : null;
+    $addressed = array_values(array_filter(jiraSummaryBodyLines($findings), static fn (string $line): bool => $typePrefix($line) !== null));
+    $mentionsAuthor = static fn (string $line): bool => str_starts_with($line, $typePrefix($line) . JIRA_SUMMARY_MENTION . $author . '] ');
     $mentioned = $author === 'none' ? [] : array_filter(
-        $refactor,
-        static fn (string $line): bool => str_starts_with($line, $prefix) && substr_count($line, JIRA_SUMMARY_MENTION) === 1,
+        $addressed,
+        static fn (string $line): bool => $mentionsAuthor($line) && substr_count($line, JIRA_SUMMARY_MENTION) === 1,
     );
-    $unmentioned = $author === 'none' ? [] : array_filter($refactor, static fn (string $line): bool => !str_starts_with($line, $prefix));
+    $unmentioned = $author === 'none' ? [] : array_filter($addressed, static fn (string $line): bool => !$mentionsAuthor($line));
     $violations = array_map(
-        static fn (string $line): string => 'mention: a (refactor) finding mentions the author right after its type: ' . $line,
+        static fn (string $line): string => 'mention: a (refactor) or (tests) finding mentions the author right after its type: ' . $line,
         array_values($unmentioned),
     );
     $mentions = array_sum(array_map(static fn (string $line): int => substr_count($line, JIRA_SUMMARY_MENTION), $lines));
 
     if ($mentions > count($mentioned)) {
-        $violations[] = 'mention: only a (refactor) finding mentions anyone, the author right after its type';
+        $violations[] = 'mention: only a (refactor) or (tests) finding mentions anyone, the author right after its type';
     }
 
     return $violations;
@@ -251,7 +253,24 @@ final readonly class JiraSummaryTask
                 && in_array($pullRequest['number'], $this->pullRequests, strict: true);
         }
 
+        if (preg_match(JIRA_SUMMARY_FILE_LINK, $href, $file) === 1) {
+            return strcasecmp($file['repository'], $this->repository) === 0 && $this->isCanonicalPath($file['path']);
+        }
+
         return preg_match(JIRA_SUMMARY_ISSUE_LINK, $href, $issue) === 1 && $issue['host'] === $this->jiraHost;
+    }
+
+    private function isCanonicalPath(string $path): bool
+    {
+        foreach (explode('/', $path) as $segment) {
+            $decoded = rawurldecode($segment);
+
+            if (in_array($decoded, ['.', '..'], strict: true) || str_contains($decoded, '/') || rawurlencode($decoded) !== $segment) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 }
