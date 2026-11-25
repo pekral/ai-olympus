@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 76 skills this package ships, grouped by what you reach for them for. Each description is the
+All 77 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -9,17 +9,17 @@ link to read the skill itself.
 
 | Group | Skills |
 |---|---|
-| [Issue → PR workflow](#issue--pr-workflow) | 14 |
+| [Issue → PR workflow](#issue--pr-workflow) | 16 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 8 |
 | [Testing](#testing) | 10 |
-| [Databases](#databases) | 5 |
+| [Databases](#databases) | 6 |
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 4 |
 | [Infrastructure & performance](#infrastructure--performance) | 4 |
 | [Refactoring & code quality](#refactoring--code-quality) | 6 |
-| [Analysis & planning](#analysis--planning) | 5 |
-| [Meta & tooling](#meta--tooling) | 2 |
+| [Analysis & planning](#analysis--planning) | 6 |
+| [Meta & tooling](#meta--tooling) | 1 |
 
 ## Issue → PR workflow
 
