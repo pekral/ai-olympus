@@ -435,6 +435,9 @@ dataset('merge plan replies', [
     'a tag reply with a dropped tag after the at sign' => ['@</b>bot why 2 MB?', 'reporter', 'NONE', true],
     'a tag reply with a quoted greater-than sign in the tag' => ['<div>@b</span title="a>b">ot x</div>', 'reporter', 'NONE', true],
     'a tag without an at sign' => ['<b>Why</b> 2 MB?', 'reporter', 'NONE', false],
+    'a mention after a leading NUL' => ["\u{0}@bot why 2 MB?", 'reporter', 'NONE', true],
+    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> why 2 MB?", 'reporter', 'NONE', true],
+    'a NUL inside the login of the operator account' => ["@b\u{0}ot why 2 MB?", 'reporter', 'NONE', false],
 ]);
 
 test(
@@ -450,6 +453,39 @@ test(
             ->and(in_array('801', mergePlanIds($result['plan'], 'delete'), strict: true))->toBe(!$expected);
     },
 )->with('merge plan replies');
+
+dataset('merge plan NUL quotes', [
+    'the review line holds a NUL that the reply shows as a replacement character' => [
+        "the upload\u{0} limit is 2 MB.",
+        "the upload\u{FFFD} limit is 2 MB.",
+    ],
+    'the reply holds a NUL where the review line holds a replacement character' => [
+        "the upload\u{FFFD} limit is 2 MB.",
+        "the upload\u{0} limit is 2 MB.",
+    ],
+]);
+
+test('a quoted line counts as a reply when a NUL stands where the other side shows a replacement character', function (string $line, string $quote): void {
+    $result = mergePlanGitHub([
+        mergePlanComment(801, 'bot', 'MEMBER', "Round 1: {$line}\n\n" . mergePlanMarker(), 1),
+        mergePlanComment(802, 'reporter', 'NONE', "> Round 1: {$quote}\n\nWhy?", 2),
+        mergePlanComment(803, 'bot', 'MEMBER', "Round 2: the limit is raised.\n\n" . mergePlanMarker(), 3),
+    ]);
+
+    expect(mergePlanCommentById($result['plan'], '801')['reply'])->toBeTrue()
+        ->and(in_array('801', mergePlanIds($result['plan'], 'delete'), strict: true))->toBeFalse();
+})->with('merge plan NUL quotes');
+
+test('the mention text of a GitHub comment holds no NUL, so no comparison stops at one', function (): void {
+    $process = new Process(
+        ['jq', '-n', '-r', '-L', 'skills/_shared', 'include "comment-reply"; "\\u0000@b\\u0000ot <b>" | github_mention_text'],
+        dirname(__DIR__, 3),
+    );
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getOutput())->toBe("\u{FFFD}@b\u{FFFD}ot <b>\n");
+});
 
 test('the plan stops and prints nothing to change when fewer than two review comments exist', function (): void {
     $result = mergePlanGitHub([

@@ -30,6 +30,10 @@ def github_item_kind($number):
 def other_agent_marker:
   type == "string" and ([scan("([a-z][a-z0-9-]*):actor=") | .[0]] | any(. != "cr-comment"));
 
+# nul_replaced — the input is a comment body. Every U+0000 becomes U+FFFD, as CommonMark renders it. The mention text
+# and both bodies of `quotes` pass through it, so no `contains` compares a string that holds a NUL.
+def nul_replaced: explode | map(if . == 0 then 65533 else . end) | implode;
+
 # char_refs_decoded — the input is a GitHub comment body. Every decimal or hexadecimal character reference becomes its
 # character, with or without its `;`, as an HTML block decodes it: the digits are read greedily, leading zeros and either
 # case of `x` included (`&#64`, `&#x40;`, `&#X0040`). The named references of HTML5 that give `@`, `_`, or a letter
@@ -45,17 +49,17 @@ def char_refs_decoded:
     else [.hex | hex_value | code_point] | implode end);
 
 # github_mention_text — the input is a GitHub comment body. The text that the mention test of points_at reads: the body
-# with its character references decoded, every backslash removed (a Markdown escape such as `@name\-x` renders as
-# `@name-x`), the KELVIN SIGN U+212A read as `k` (GitHub reads it as `k` in a login, and it is the only non-ASCII
-# character whose lower case is an ASCII letter), and in lower case. Removing a character that no login holds never
-# breaks an `@<login>` the body already holds, so each step only adds mentions.
+# with every NUL read as U+FFFD (nul_replaced), its character references decoded, every backslash removed (a Markdown
+# escape such as `@name\-x` renders as `@name-x`), the KELVIN SIGN U+212A read as `k` (GitHub reads it as `k` in a
+# login, and it is the only non-ASCII character whose lower case is an ASCII letter), and in lower case. Removing a
+# character that no login holds never breaks an `@<login>` the body already holds, so each step only adds mentions.
 # The text mentions a login when it holds `@` followed directly by that login, in lower case. Nothing in front of the `@`
 # and nothing after the login is read, and a login inside a code block or a code span counts too: the test reads no
 # Markdown structure. It reads no HTML either: a text that holds both `@` and `<` counts as a mention of every login
 # (github_mention_any), because the renderer can drop a tag and join the text around it into one login. A mention
 # counted in excess, such as `ops@bot.example`, `@bot-helper` for `bot`, or `<b>@alice</b>`, only keeps a comment.
 def github_mention_text:
-  char_refs_decoded | gsub("\\\\"; "") | gsub("K"; "k") | ascii_downcase;
+  nul_replaced | char_refs_decoded | gsub("\\\\"; "") | gsub("K"; "k") | ascii_downcase;
 
 # github_mention_any — the input is a mention text. True when it holds both `@` and `<`: the test never guesses which
 # tag the renderer keeps, so such a text mentions every login. The error direction is "the comment stays".
@@ -114,10 +118,11 @@ def marker_line($marker):
 # and is no marker line. A `>` or `bq.` prefix in front of the quoted line changes nothing, and a line that a person types
 # out again counts too. A comment of the operator's own account that carries an agent marker never gets here (`agent`).
 def quotes($reply; $original):
-  [ ($original.body | split("\n"))[]
+  ($reply.body | nul_replaced) as $text
+  | [ ($original.body | nul_replaced | split("\n"))[]
     | gsub("^[ \t]+|[ \t\r]+$"; "")
     | select(length >= 20 and (contains(":actor=") | not)) ] as $lines
-  | any($lines[]; . as $line | ($reply.body | contains($line)));
+  | any($lines[]; . as $line | ($text | contains($line)));
 
 # True when a later comment points at the original: a native parent reference, a link to its id, a quoted line, or a
 # mention of its author by another account. On GitHub the mention text holds `@` and the author login, without case, or
