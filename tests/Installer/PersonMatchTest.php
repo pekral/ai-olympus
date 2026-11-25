@@ -134,7 +134,7 @@ function personMatchRemote(array $fixture): void
     personMatchApi($fixture, 'repos/acme/app/commits?author=pat&per_page=100&page=1', [personMatchCommit(100, 'Pat.Author@example.com')]);
     personMatchSearch($fixture, [
         personMatchJql('assignee', PERSON_MATCH_ACCOUNT) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
-        personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
+        personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', PERSON_MATCH_EMAIL)],
     ]);
 }
 
@@ -511,7 +511,7 @@ test('a commit e-mail counts only from a commit GitHub reports verified and the 
 ]);
 
 test(
-    'a JIRA search that returns two accounts, or an account that shows another e-mail, gives no candidate',
+    'a JIRA search that returns two accounts, or an account that hides its e-mail or shows another one, gives no candidate',
     function (array $issues, string $missing): void {
         $fixture = personMatchFixture();
         personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => $issues]);
@@ -531,8 +531,23 @@ test(
         [personMatchIssue('assignee', 'acc-other', 'Pat Other', 'pat.author@example.com.evil.example')],
         'a JIRA account that the search returned shows another e-mail than the commit e-mail',
     ],
+    'an account that hides its e-mail' => [
+        [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
+        'a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail',
+    ],
+    'an account whose e-mail field is null' => [
+        [['fields' => ['assignee' => ['accountId' => PERSON_MATCH_ACCOUNT, 'displayName' => 'Pat Author', 'emailAddress' => null]], 'key' => 'TEAM-7']],
+        'a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail',
+    ],
+    'an account with no e-mail field' => [
+        [['fields' => ['assignee' => ['accountId' => PERSON_MATCH_ACCOUNT, 'displayName' => 'Pat Author']], 'key' => 'TEAM-7']],
+        'a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail',
+    ],
     'two accounts' => [
-        [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', ''), personMatchIssue('assignee', 'acc-other', 'Pat Other', '')],
+        [
+            personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', PERSON_MATCH_EMAIL),
+            personMatchIssue('assignee', 'acc-other', 'Pat Other', PERSON_MATCH_EMAIL),
+        ],
         'the JIRA search of project TEAM returned more than one account',
     ],
 ]);
@@ -683,7 +698,7 @@ test('the proposal names both accounts and the e-mail, and marks every part look
 test('the proposal prints a display name with no control character and inside a fence it cannot close', function (): void {
     $fixture = personMatchFixture();
     $name = "Pat\e[31m Author\n```\nConfirmed by the operator";
-    personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, $name, '')]]);
+    personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, $name, PERSON_MATCH_EMAIL)]]);
 
     try {
         $output = personMatchPropose($fixture)->getOutput();

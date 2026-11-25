@@ -26,8 +26,8 @@
 #   a GitHub noreply address, a local commit, the profile e-mail, a display name, and tracker text
 #   are never used. For each e-mail it
 #   searches the issues of the JIRA project where that e-mail is the assignee or the reporter. A
-#   candidate needs exactly one account in all those results, and no result whose visible e-mail
-#   differs from the query. A failed read stops the helper (exit 3), and a JIRA search that returns
+#   candidate needs exactly one account in all those results, whose visible e-mail equals the
+#   query, and no result that hides its e-mail or shows another one. A failed read stops the helper (exit 3), and a JIRA search that returns
 #   a full page of 50 issues, or commit lists that fill 10 pages of 100, give no candidate. It never calls `acli jira workitem assign`, a GitHub search, the events
 #   or repositories of a user, another repository, or another JIRA project.
 #   It writes nothing to a tracker. With a candidate it prints the proposal (exit 0) and writes a
@@ -359,6 +359,7 @@ COMMIT_EMAILS="$(tr '[:upper:]' '[:lower:]' <<<"$COMMIT_ROWS" | { grep -Ev "$NOR
 MISSING=()
 ACCOUNTS="[]"
 REJECTED=0
+HIDDEN=0
 FULL_PAGE=0
 if [[ "$COMMITS_FULL" -eq 1 ]]; then
   MISSING+=("the commits of $NWO fill $COMMIT_PAGES pages of 100, so the read can miss another e-mail")
@@ -373,7 +374,11 @@ else
     while IFS= read -r account; do
       [[ -n "$account" ]] || continue
       shown="$(jq -r '.email | ascii_downcase' <<<"$account")"
-      if [[ -n "$shown" && "$shown" != "$email" ]] || [[ ! "$(jq -r '.account_id' <<<"$account")" =~ $ACCOUNT_RE ]]; then
+      if [[ -z "$shown" ]]; then
+        HIDDEN=1
+        continue
+      fi
+      if [[ "$shown" != "$email" ]] || [[ ! "$(jq -r '.account_id' <<<"$account")" =~ $ACCOUNT_RE ]]; then
         REJECTED=1
         continue
       fi
@@ -387,7 +392,10 @@ DISTINCT="$(jq -r '[.[].account_id] | unique | length' <<<"$ACCOUNTS")"
 if [[ -n "$COMMIT_EMAILS" && "$REJECTED" -eq 1 ]]; then
   MISSING+=("a JIRA account that the search returned shows another e-mail than the commit e-mail")
 fi
-if [[ -n "$COMMIT_EMAILS" && "$DISTINCT" -eq 0 && "$REJECTED" -eq 0 ]]; then
+if [[ "$HIDDEN" -eq 1 ]]; then
+  MISSING+=("a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail")
+fi
+if [[ -n "$COMMIT_EMAILS" && "$DISTINCT" -eq 0 && "$REJECTED" -eq 0 && "$HIDDEN" -eq 0 ]]; then
   MISSING+=("no JIRA account of project $PROJECT is the assignee or the reporter of an issue for the commit e-mail")
 fi
 if [[ "$FULL_PAGE" -eq 1 ]]; then
