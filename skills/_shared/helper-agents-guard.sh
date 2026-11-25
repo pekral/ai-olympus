@@ -22,8 +22,9 @@
 # copy-roles copies each definition to `<run-dir>/<slug>.roles/<role>.md` and prints one line per role:
 #   role=<role> sha256=<hex> copy=<path>
 # It refuses (exit 3) a definition that is missing, that is not a regular file, that has a symbolic link in its
-# path, that a git tree tracks while its HEAD is not the default branch, or that a git tree tracks with a change
-# against HEAD. It also refuses a copy that already exists: the copies are taken once per run.
+# path, that a git tree tracks under any letter case while its HEAD is not the default branch, or that a git tree
+# tracks under any letter case with a change against HEAD. It also refuses a copy that already exists: the copies
+# are taken once per run.
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
@@ -115,9 +116,9 @@ copy_roles() {
     src="$roles_dir/$role.md"
     no_link_in_path "$src" || refuse "the definition of $role has a symbolic link in its path"
     [[ -f "$src" ]] || refuse "the definition of $role is missing or is not a regular file"
-    if g ls-files --error-unmatch -- "$src" >/dev/null 2>&1; then
+    if [[ -n "$(g ls-files -- ":(icase)$src" 2>/dev/null)" ]]; then
       on_default_branch || refuse "the definition of $role is tracked in a tree that is not on the default branch"
-      g diff --quiet HEAD -- "$src" 2>/dev/null || refuse "the definition of $role differs from its committed copy"
+      g diff --quiet HEAD -- ":(icase)$src" 2>/dev/null || refuse "the definition of $role differs from its committed copy"
     fi
     [[ -e "$dest/$role.md" || -L "$dest/$role.md" ]] && refuse "the copy of $role already exists; the copies are taken once per run"
   done
@@ -248,6 +249,32 @@ self_test() {
   (cd "$repo" && g checkout -q -- .claude/agents/casey.md && g checkout -q -b feature) >/dev/null 2>&1
   run copy-roles --run-dir .claude/run --slug gh-7 --role casey >/dev/null 2>&1
   check 'a tracked definition in a tree that is not on the default branch is refused' "$([[ $? -eq 3 ]] && echo yes || echo no)"
+
+  local variant n=0
+  for variant in .Claude/agents/splinter.md .claude/Agents/splinter.md .claude/agents/SPLINTER.md .CLAUDE/AGENTS/Splinter.md; do
+    n=$((n + 1))
+    (
+      cd "$repo" || exit 1
+      blob="$(printf 'branch role\n' | g hash-object -w --stdin)"
+      g read-tree main && g update-index --add --cacheinfo "100644,$blob,$variant"
+      g update-ref "refs/heads/case-$n" "$(g commit-tree "$(g write-tree)" -p main -m "track $variant")"
+      g symbolic-ref HEAD "refs/heads/case-$n"
+    ) >/dev/null 2>&1
+    rc=0
+    run copy-roles --run-dir .claude/run --slug "gh-case-$n" --role splinter >/dev/null 2>&1 || rc=$?
+    check "a definition the branch tracks as $variant is refused" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
+  done
+  (
+    cd "$repo" || exit 1
+    g symbolic-ref HEAD refs/heads/main && g read-tree main
+    blob="$(printf 'committed role\n' | g hash-object -w --stdin)"
+    g update-index --add --cacheinfo "100644,$blob,.Claude/agents/splinter.md"
+    g update-ref refs/heads/main "$(g commit-tree "$(g write-tree)" -p main -m 'track a case variant')"
+    g update-ref refs/remotes/origin/main refs/heads/main
+  ) >/dev/null 2>&1
+  rc=0
+  run copy-roles --run-dir .claude/run --slug gh-case-default --role splinter >/dev/null 2>&1 || rc=$?
+  check 'a definition the default branch tracks under another letter case with a change is refused' "$([[ $rc -eq 3 ]] && echo yes || echo no)"
 
   run copy-roles --run-dir run --slug gh-8 --role leonardo >/dev/null 2>&1
   check 'a run directory of no platform is a usage error' "$([[ $? -eq 1 ]] && echo yes || echo no)"
