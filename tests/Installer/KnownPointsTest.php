@@ -238,6 +238,19 @@ test('the merge rules name the security known point as the one exception and lif
         ->toContain('It never moves the finding to `## Excluded per assignment`, never lowers its severity, and lifts no other part of this carve-out.');
 });
 
+test('the merge checks each security known point again with the trusted copy and blocks on anything but a pass', function (): void {
+    expect(packageSource('skills/merge-github-pr/references/trusted-record-parser.md'))
+        ->toContain('## The known-point check')
+        ->toContain('This section is the one owner of that check.')
+        ->toContain('runs `review-state.sh known-check --loader "<loader-file>"` after the parser, from the same verified copy')
+        ->toContain('3. **Anything but exit `0` blocks.**');
+    expect(packageSource('skills/merge-github-pr/SKILL.md'))->toContain('(`references/trusted-record-parser.md`, its known-point check included)');
+    expect(packageSource('skills/verify-merge-readiness/SKILL.md'))->toContain('- the exit of the known-point check of the same call');
+    expect(packageSource('skills/merge-github-pr-fast/SKILL.md'))->toContain('this path reads no review record, so no known point applies');
+    expect(packageSource('rules/git/pull-requests.md'))->toContain('and the merge verifies it once more');
+    expect(packageSource('skills/_shared/review-state.sh'))->toContain('known-check) cmd_known_check "$@" ;;');
+});
+
 test('a security known point shows only its link and its owner in every output', function (): void {
     expect(knownPointsRule())->toContain('- **A security known point shows only its link, its owner, and one neutral sentence.**');
     expect(packageSource('skills/code-review-github/scripts/post-inline-review.sh'))

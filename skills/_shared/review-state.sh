@@ -23,6 +23,7 @@
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
 #   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> [--owner <login>]
 #   review-state.sh known    --state <file> --finding <id> --reopen
+#   review-state.sh known-check --loader <loader-file>
 #   review-state.sh --self-test
 #
 #   --state          the state file. Every command that writes it refuses a path outside the `.claude/run/` or
@@ -85,6 +86,15 @@
 #                    round escalated on a hard blocker (`cap-reached-hard-blockers`): the comparison of that round
 #                    still marks a known point, and the verdict is settled again.
 #
+#   known-check      the merge check of every security known point (skills/merge-github-pr/references/
+#                    trusted-record-parser.md *The known-point check*). --loader is the document that
+#                    skills/code-review-github/scripts/load-issue.sh wrote for the pull request. The command reads the
+#                    `## Known points` section of the newest trusted record (cr-header.sh --report), takes the task from
+#                    `closingIssues[]`, and runs the checks of `known` through the loaders for each security point. It
+#                    reads no state and writes nothing. Exit 0: every security known point holds, or the record has
+#                    none. Exit 4: a point fails, an entry cannot be read, or the pull request closes no issue of its
+#                    own repository. Exit 3: the document or the record cannot be read.
+#
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
 #   `review.blocking-threshold` (critical, high, medium, or low; default critical). No environment variable,
@@ -95,6 +105,7 @@
 #
 # Output (stdout, one line of JSON)
 #   init      {"resumed", "iteration", "max_iterations", "blocking_threshold"}
+#   known-check {"result": "ok"|"refused", "security_known_points", "refused": [{"issue", "reason"}]}
 #   record, evaluate, dismiss, defer, known
 #             the verdict: {"verdict", "status", "escalation_reason", "iteration", "max_iterations",
 #             "blocking_threshold", "reason", "counts", "rounds", "blocking", "deferrable", "carried"}
@@ -146,6 +157,7 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
        review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> [--owner <login>]
        review-state.sh known    --state <file> --finding <id> --reopen
+       review-state.sh known-check --loader <loader-file>
        review-state.sh --self-test
 EOF
 }
@@ -1155,6 +1167,64 @@ cmd_known() {
   jq -c -L "$HERE" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"' output($cap; $threshold; [])' "$TMP/next.json"
 }
 
+# cmd_known_check — the merge check of each security known point of the newest trusted record. Read-only: it fails
+# closed, so a section it cannot read and a pull request with no task of its repository are refusals.
+cmd_known_check() {
+  local loader=''
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --loader) [[ $# -ge 2 ]] || die_usage '--loader needs a value'; loader="$2"; shift 2 ;;
+    *) die_usage "unknown argument: $(state_path_display "$1")" ;;
+    esac
+  done
+  [[ -n "$loader" ]] || die_usage '--loader is required'
+  [[ -f "$loader" && -r "$loader" ]] || fail 3 "the loader document is missing or unreadable; no known point was checked"
+  new_tmp
+  local repo
+  repo="$(jq -r 'if type == "object" and .kind == "pr" then (.repo.nameWithOwner // "") else "" end' "$loader" 2>/dev/null || true)"
+  [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail 3 "the loader document is not the document of a pull request; no known point was checked"
+  "$HERE/cr-header.sh" --report "$loader" >"$TMP/record.md" 2>/dev/null \
+    || fail 3 "no trusted code-review report, or the newest one is not a record; no known point was checked"
+  # One line per security entry of the one `## Known points` section: `point <url> <owner>`, or `unreadable` for an
+  # entry or a section in another shape.
+  jq -R -s -r '
+    split("\n") | . as $l
+    | [range(0; length) | select($l[.] == "## Known points")] as $h
+    | if ($h | length) == 0 then empty
+      elif ($h | length) > 1 then "unreadable"
+      else $l[($h[0] + 1):] as $rest
+        | ([range(0; $rest | length) | select($rest[.] | test("^## "))] | first // ($rest | length)) as $end
+        | $rest[0:$end]
+        | .[] | select(test("Security point"))
+        | (capture("^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* (?<url>https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}) — \\*\\*Owner:\\*\\* `(?<owner>[A-Za-z0-9](-?[A-Za-z0-9]){0,38})`$") // null) as $m
+        | if $m == null then "unreadable" else "point\t\($m.url)\t\($m.owner)" end
+      end' "$TMP/record.md" >"$TMP/points.tsv" 2>/dev/null || echo unreadable >"$TMP/points.tsv"
+  # The tasks: the issues of the pull request's own repository that it closes.
+  local tasks='' url
+  while IFS= read -r url; do
+    [[ "$url" =~ $GH_ISSUE_RE && "$(lower "${BASH_REMATCH[1]}")" == "$(lower "$repo")" ]] && tasks+="$url"$'\n'
+  done < <(jq -r '(.closingIssues // [])[]? | .url? | strings' "$loader" 2>/dev/null || true)
+  local kind owner verdict task checked=0 refused='[]'
+  while IFS=$'\t' read -r kind url owner; do
+    if [[ "$kind" != point ]]; then
+      refused="$(jq -c '. + [{issue: null, reason: "an entry of the Known points section cannot be read"}]' <<<"$refused")"
+      continue
+    fi
+    checked=$((checked + 1))
+    verdict='refused:the pull request closes no issue of its own repository, so no task links the issue'
+    while IFS= read -r task; do
+      [[ -n "$task" ]] || continue
+      verdict="$(linked_issue_verdict "$repo" "$task" "$url" "$owner" true)"
+      [[ "$verdict" != ok:* ]] || break
+    done <<<"$tasks"
+    [[ "$verdict" == ok:* ]] \
+      || refused="$(jq -c --arg url "$url" --arg reason "${verdict#refused:}" '. + [{issue: $url, reason: $reason}]' <<<"$refused")"
+  done <"$TMP/points.tsv"
+  jq -n -c --argjson checked "$checked" --argjson refused "$refused" \
+    '{result: (if ($refused | length) == 0 then "ok" else "refused" end), security_known_points: $checked, refused: $refused}'
+  [[ "$refused" == '[]' ]] || exit 4
+}
+
 # The fixtures below are Markdown that carries backticks and dollar signs; none of it is meant to expand.
 # shellcheck disable=SC2016
 self_test() {
@@ -1711,6 +1781,54 @@ EOF
   run_case 'a known point that an older version marked is recorded' 0 -- record --state "$S" --input "$tmp/m8.md" --changed-files "$tmp/changed-both"
   check 'a known point with no marked finding opens on the next report of its identity' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
 
+  # The merge checks each security known point of the newest trusted review again, read-only and fail closed.
+  # merge_doc <closing issue URL|-> <Known points section line>... — the loader document of pull request acme/shop#7
+  # whose one trusted review carries a record with that section.
+  merge_doc() {
+    local closing="$1" record
+    shift
+    record="$(printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 0\n\n## Known points\n\n'; printf '%s\n' "$@"; printf '\n---\n\n## Input consistency\n\nnone\n')"
+    jq -n -c --arg closing "$closing" --arg record "$record" '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
+      repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
+      closingIssues: (if $closing == "-" then [] else [{number: 10, title: "Task", url: $closing, state: "OPEN"}] end),
+      reviews: [{author: "bot", authorAssociation: "OWNER", state: "COMMENTED", submittedAt: "2026-10-05T10:00:00Z",
+        body: ("Summary.\n\n<!-- cr-review-meta\n" + $record + "\n-->\n<!-- cr-comment:actor=bot -->")}]}' >"$tmp/merge-doc.json"
+  }
+  local SEC_POINT="2. **Security point** — **Linked issue:** $known_issue — **Owner:** \`maintainer\`"
+  local PLAIN_POINT="1. **Finding:** Copied step — \`src/Foo/Bar.php:10\`"
+  merge_doc "$task" "$PLAIN_POINT" '   **Linked issue:** https://github.com/acme/shop/issues/13' "$SEC_POINT"
+  run_case 'the merge check passes a security known point that still holds' 0 -- known-check --loader "$tmp/merge-doc.json"
+  check 'the merge check names one security known point and no refusal' "$(q '.result == "ok" and .security_known_points == 1 and .refused == []')"
+  for case_args in \
+    "the linked issue was closed|gh_issue 12 OWNER CLOSED maintainer maintainer" \
+    "the owner was unassigned|gh_issue 12 OWNER OPEN maintainer" \
+    "the task no longer links the issue|unlink_task" \
+    "the linked issue cannot be loaded|rm -f '$tmp/gh-issue-acme-shop-12.json'" \
+    "the task cannot be loaded|rm -f '$tmp/gh-issue-acme-shop-10.json'"; do
+    IFS='|' read -r label mut <<<"$case_args"
+    gh_issue 10 OWNER OPEN maintainer
+    gh_issue 12 OWNER OPEN maintainer maintainer
+    eval "$mut"
+    run_case "the merge check refuses a security known point when $label" 4 -- known-check --loader "$tmp/merge-doc.json"
+    check "the refusal names the issue when $label" "$(q --arg url "$known_issue" '.result == "refused" and .refused[0].issue == $url')"
+  done
+  gh_issue 10 OWNER OPEN maintainer
+  gh_issue 12 OWNER OPEN maintainer maintainer
+  merge_doc - "$SEC_POINT"
+  run_case 'the merge check refuses a security known point of a pull request that closes no issue' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc https://github.com/evil/x/issues/5 "$SEC_POINT"
+  run_case 'the merge check takes no task of another repository' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc "$task" "$SEC_POINT — and more"
+  run_case 'the merge check refuses a security entry it cannot read' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc "$task" "$SEC_POINT" '' '## Known points' '' "$SEC_POINT"
+  run_case 'the merge check refuses a record with two Known points sections' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc "$task" "$PLAIN_POINT"
+  run_case 'the merge check passes a record with no security known point' 0 -- known-check --loader "$tmp/merge-doc.json"
+  check 'a record with no security known point checks none' "$(q '.result == "ok" and .security_known_points == 0')"
+  jq -c '.reviews[0].authorAssociation = "NONE"' "$tmp/merge-doc.json" >"$tmp/merge-untrusted.json"
+  run_case 'the merge check reads no record of an untrusted author' 3 -- known-check --loader "$tmp/merge-untrusted.json"
+  run_case 'the merge check needs the loader document' 3 -- known-check --loader "$tmp/no-such-doc.json"
+
   # --- the cap and the threshold: default branch only, range-checked ---------------------------------------
   manifest '{ "review": { "max-iterations": 2, "blocking-threshold": "medium" } }'
   printf '{ "extra": { "ai-olympus": { "review": { "max-iterations": 9, "blocking-threshold": "low" } } } }\n' >"$repo/composer.json"
@@ -2239,6 +2357,7 @@ evaluate) cmd_evaluate "$@" ;;
 scope) cmd_scope "$@" ;;
 dismiss) cmd_dismiss "$@" ;;
 known) cmd_known "$@" ;;
+known-check) cmd_known_check "$@" ;;
 defer) cmd_defer "$@" ;;
 -h | --help) usage ;;
 *) die_usage "unknown command: $(state_path_display "$command")" ;;
