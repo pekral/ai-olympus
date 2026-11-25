@@ -34,6 +34,8 @@ const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.
 
 const JIRA_SUMMARY_ISSUE_LINK = '#^https://(?<host>[a-z0-9]+(?:[.-][a-z0-9]+)*)/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*$#D';
 
+const JIRA_SUMMARY_LINK_VIOLATION = 'links: a link points into a pull request of the task or to an issue of its JIRA site: ';
+
 const JIRA_SUMMARY_CONVERTER = __DIR__ . '/../../code-review-jira/scripts/wiki-markup-to-adf.php';
 
 const JIRA_SUMMARY_WHOLE_CHANGE_LINK = '#\|https://github\.com/[^\]]+/pull/[1-9][0-9]*/files\]#u';
@@ -238,12 +240,8 @@ final readonly class JiraSummaryTask
     /**
      * @param list<string> $pullRequests
      */
-    public function __construct(
-        public string $author,
-        public string $repository,
-        public array $pullRequests,
-        public string $jiraHost,
-    ) {
+    public function __construct(public string $author, public string $repository, public array $pullRequests, public string $jiraHost)
+    {
     }
 
     public function allowsLink(string $href): bool
@@ -297,28 +295,57 @@ function jiraSummaryAdf(string $source): ?array
 }
 
 /**
+ * @return array<mixed>
+ */
+function jiraSummaryAdfAttributes(mixed $node): array
+{
+    return is_array($node) && is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
+}
+
+/**
+ * @param array<mixed> $node
+ * @return list<array<mixed>>
+ */
+function jiraSummaryAdfChildren(array $node): array
+{
+    return array_values(array_filter(is_array($node['content'] ?? null) ? $node['content'] : [], is_array(...)));
+}
+
+function jiraSummaryJson(mixed $value): string
+{
+    return (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+}
+
+/**
+ * @param array<mixed> $node
+ * @return list<mixed>
+ */
+function jiraSummaryAdfHrefs(array $node): array
+{
+    $marks = is_array($node['marks'] ?? null) ? $node['marks'] : [];
+    $attributes = [...array_map(jiraSummaryAdfAttributes(...), array_values($marks)), jiraSummaryAdfAttributes($node)];
+
+    return array_values(array_filter(
+        array_map(static fn (array $attribute): mixed => $attribute['href'] ?? $attribute['url'] ?? null, $attributes),
+        static fn (mixed $href): bool => $href !== null,
+    ));
+}
+
+/**
  * @param array<mixed> $node
  * @return list<string>
  */
-function jiraSummaryAdfTargetViolations(array $node, JiraSummaryTask $task): array
+function jiraSummaryAdfNodeViolations(array $node, JiraSummaryTask $task): array
 {
-    $violations = [];
-    $marks = is_array($node['marks'] ?? null) ? $node['marks'] : [];
-    $hrefs = array_map(static fn (mixed $mark): mixed => is_array($mark) && is_array($mark['attrs'] ?? null) ? $mark['attrs']['href'] ?? null : null, $marks);
-    $hrefs[] = is_array($node['attrs'] ?? null) ? $node['attrs']['href'] ?? $node['attrs']['url'] ?? null : null;
+    $refused = array_filter(jiraSummaryAdfHrefs($node), static fn (mixed $href): bool => !is_string($href) || !$task->allowsLink($href));
+    $violations = array_map(
+        static fn (mixed $href): string => JIRA_SUMMARY_LINK_VIOLATION . jiraSummaryJson($href),
+        array_values($refused),
+    );
+    $mention = jiraSummaryAdfAttributes($node)['id'] ?? null;
 
-    foreach (array_filter($hrefs, static fn (mixed $href): bool => $href !== null) as $href) {
-        if (!is_string($href) || !$task->allowsLink($href)) {
-            $violations[] = 'links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode($href, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        }
-    }
-
-    if (($node['type'] ?? null) === 'mention' && ($task->author === 'none' || ($node['attrs']['id'] ?? null) !== $task->author)) {
-        $violations[] = 'mention: every mention is the author of the changes: ' . json_encode($node['attrs']['id'] ?? null, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    }
-
-    foreach (is_array($node['content'] ?? null) ? $node['content'] : [] as $child) {
-        $violations = [...$violations, ...(is_array($child) ? jiraSummaryAdfTargetViolations($child, $task) : [])];
+    if (($node['type'] ?? null) === 'mention' && ($task->author === 'none' || $mention !== $task->author)) {
+        $violations[] = 'mention: every mention is the author of the changes: ' . jiraSummaryJson($mention);
     }
 
     return $violations;
@@ -326,21 +353,25 @@ function jiraSummaryAdfTargetViolations(array $node, JiraSummaryTask $task): arr
 
 /**
  * @param array<mixed> $node
+ * @return list<string>
+ */
+function jiraSummaryAdfTargetViolations(array $node, JiraSummaryTask $task): array
+{
+    $childViolations = array_map(static fn (array $child): array => jiraSummaryAdfTargetViolations($child, $task), jiraSummaryAdfChildren($node));
+
+    return [...jiraSummaryAdfNodeViolations($node, $task), ...array_merge([], ...$childViolations)];
+}
+
+/**
+ * @param array<mixed> $node
  */
 function jiraSummaryVisibleLength(array $node): int
 {
-    $attributes = is_array($node['attrs'] ?? null) ? $node['attrs'] : [];
-    $length = mb_strlen(is_string($node['text'] ?? null) ? $node['text'] : '') + mb_strlen(is_string($attributes['title'] ?? null) ? $attributes['title'] : '');
+    $attributes = jiraSummaryAdfAttributes($node);
+    $mention = ($node['type'] ?? null) === 'mention' && is_string($attributes['id'] ?? null) ? '@' . $attributes['id'] : null;
+    $texts = array_filter([$node['text'] ?? null, $attributes['title'] ?? null, $mention], is_string(...));
 
-    if (($node['type'] ?? null) === 'mention') {
-        $length += 1 + mb_strlen(is_string($attributes['id'] ?? null) ? $attributes['id'] : '');
-    }
-
-    foreach (is_array($node['content'] ?? null) ? $node['content'] : [] as $child) {
-        $length += is_array($child) ? jiraSummaryVisibleLength($child) : 0;
-    }
-
-    return $length;
+    return array_sum(array_map(mb_strlen(...), $texts)) + array_sum(array_map(jiraSummaryVisibleLength(...), jiraSummaryAdfChildren($node)));
 }
 
 /**
@@ -618,9 +649,9 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryT
 
 /**
  * @param list<string> $arguments
- * @return array{criteria: string, source: string, task: JiraSummaryTask}|null
+ * @return array{options: array<string, string>, pullRequests: list<string>, rest: list<string>}
  */
-function jiraSummaryCall(array $arguments): ?array
+function jiraSummaryOptions(array $arguments): array
 {
     $options = ['--author' => 'none', '--criteria' => '', '--jira-issue' => '', '--repository' => ''];
     $pullRequests = [];
@@ -636,12 +667,23 @@ function jiraSummaryCall(array $arguments): ?array
         }
     }
 
-    $valid = count($arguments) === 1
+    return ['options' => $options, 'pullRequests' => $pullRequests, 'rest' => $arguments];
+}
+
+/**
+ * @param list<string> $arguments
+ * @return array{criteria: string, source: string, task: \JiraSummaryTask}|null
+ */
+function jiraSummaryCall(array $arguments): ?array
+{
+    $parsed = jiraSummaryOptions($arguments);
+    $options = $parsed['options'];
+    $valid = count($parsed['rest']) === 1
         && in_array($options['--criteria'], ['unmet', 'none'], true)
         && preg_match('/^(?:none|[A-Za-z0-9:_-]+)$/D', $options['--author']) === 1
         && preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#D', $options['--repository']) === 1
-        && $pullRequests !== []
-        && preg_grep('/^[1-9][0-9]*$/D', $pullRequests, PREG_GREP_INVERT) === [];
+        && $parsed['pullRequests'] !== []
+        && preg_grep('/^[1-9][0-9]*$/D', $parsed['pullRequests'], PREG_GREP_INVERT) === [];
 
     if (!$valid || preg_match(JIRA_SUMMARY_ISSUE_LINK, $options['--jira-issue'], $issue) !== 1) {
         return null;
@@ -649,8 +691,8 @@ function jiraSummaryCall(array $arguments): ?array
 
     return [
         'criteria' => $options['--criteria'],
-        'source' => $arguments[0],
-        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $pullRequests, $issue['host']),
+        'source' => $parsed['rest'][0],
+        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host']),
     ];
 }
 
