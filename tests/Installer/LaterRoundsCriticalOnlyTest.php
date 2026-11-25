@@ -108,7 +108,7 @@ test(
 test('the first JIRA finding names a security point that needs verification as a blocker (issue #455)', function (): void {
     expect(laterRoundsFile('skills/pr-summary/templates/pr-summary-jira.md'))
         ->toContain('A security point that still needs verification and blocks the merge is the first bullet, named as a blocker');
-    expect(laterRoundsFile('skills/pr-summary/SKILL.md'))
+    expect(laterRoundsFile('skills/pr-summary/references/jira-shape.md'))
         ->toContain('A security point that still needs verification blocks the merge: it is the first bullet, named as a blocker in plain words');
 });
 

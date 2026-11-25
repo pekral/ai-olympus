@@ -105,10 +105,12 @@ test('an open decision keeps the caller shape and the TL;DR rule covers code-rev
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
+    $jiraShape = (string) file_get_contents($packageDir . '/skills/pr-summary/references/jira-shape.md');
+
+    expect($jiraShape)->toContain(
+        '- An open decision that `verify-merge-readiness` or `april` passes keeps the question-and-recommendation shape its caller defines',
+    );
     expect($skill)
-        ->toContain(
-            '- An open decision that `verify-merge-readiness` or `april` passes keeps the question-and-recommendation shape its caller defines',
-        )
         ->toContain('7. **The rule covers the findings of a code review only.**')
         ->toContain('keeps the question-and-recommendation shape its caller defines. It carries no `Evidence`, and it is listed as an open question.');
 });
@@ -151,6 +153,7 @@ test('review findings list only what must be resolved and every such point (issu
         )
         ->toContain(
             'Such a point stays in the technical report, under `## Needs verification` and on the `Not verified:` line.',
-        )
+        );
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/jira-shape.md'))
         ->toContain('3. **`Review findings` lists only the points that still need a change or an answer before the merge**');
 });
