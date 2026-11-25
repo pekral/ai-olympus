@@ -290,11 +290,14 @@ test('no symbolic link reaches .claude/run inside a moved directory on macOS', f
 
             foreach ($iterator as $file) {
                 assert($file instanceof SplFileInfo);
-                $links[] = is_link($file->getPathname()) ? $file->getPathname() : null;
+
+                if (is_link($file->getPathname())) {
+                    $links[] = $file->getPathname();
+                }
             }
         }
 
-        expect(array_values(array_filter($links)))->toBe([]);
+        expect($links)->toBe([]);
     } finally {
         AgentGuardRun::remove($root);
     }

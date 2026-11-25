@@ -319,21 +319,21 @@ test('the hook reads the user rules from CLAUDE_CONFIG_DIR when the session sets
     }
 })->with(['default', 'bypassPermissions']);
 
-test('the hook asks when it cannot locate the user settings', function (array $environment): void {
+test('the hook asks when it cannot locate the user settings', function (string $variable, string $value): void {
     $root = AgentGuardRun::repository();
     agentGuardWriteSettings($root . '/.claude/settings.json', ['allow' => ['Bash(gh pr:*)']]);
     $input = agentGuardHookInput('april', ['command' => 'gh pr view 1']);
 
     try {
-        $output = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root, ...$environment])->getOutput();
+        $output = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root, $variable => $value])->getOutput();
 
         expect(AgentGuardDecision::fromHookOutput($output)->permissionDecision)->toBe('ask');
     } finally {
         AgentGuardRun::remove($root);
     }
 })->with([
-    'a relative CLAUDE_CONFIG_DIR' => [['CLAUDE_CONFIG_DIR' => 'config']],
-    'no CLAUDE_CONFIG_DIR and no HOME' => [['HOME' => '']],
+    'a relative CLAUDE_CONFIG_DIR' => ['CLAUDE_CONFIG_DIR', 'config'],
+    'no CLAUDE_CONFIG_DIR and no HOME' => ['HOME', ''],
 ]);
 
 test('the hook allows a command an allow rule matches when the user settings in CLAUDE_CONFIG_DIR carry no deny rule', function (): void {

@@ -180,7 +180,10 @@ test(
     },
 )->with([
     'leonardo' => ['agents/leonardo.md', '**The audit run directory stays outside the worktree.**'],
-    'SECURITY.md' => ['SECURITY.md', 'keeps its security-audit run directory under `.claude/run/security-audit/<slug>-<role>/` of the project, outside the worktree'],
+    'SECURITY.md' => [
+        'SECURITY.md',
+        'keeps its security-audit run directory under `.claude/run/security-audit/<slug>-<role>/` of the project, outside the worktree',
+    ],
     'splinter' => ['agents/splinter.md', '`.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief'],
     'the clean check' => ['agents/krang.md', '-C <path> status --porcelain --ignore-submodules=all` prints nothing'],
     'the head check' => ['agents/leonardo.md', 'It checks the head with `skills/_shared/agent-guard.sh review-head <head-sha>`.'],
