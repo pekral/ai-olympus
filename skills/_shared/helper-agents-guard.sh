@@ -10,6 +10,7 @@
 # Usage (run in the tree the session started in, never in a unit, review, or gate worktree)
 #   helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role> [--role <role>]...
 #   helper-agents-guard.sh read-role  --run-dir <dir> --slug <slug> --role <role> --sha256 <hex>
+#   helper-agents-guard.sh config-diff --base <rev> --target <rev>
 #   helper-agents-guard.sh config-hash [--root <dir>] [--user]
 #   helper-agents-guard.sh --self-test
 #
@@ -24,16 +25,22 @@
 # It refuses (exit 3) a definition that is missing, that is not a regular file, that has a symbolic link in its
 # path, that a git tree tracks under any letter case while its HEAD is not the default branch, or that a git tree
 # tracks under any letter case with a change against HEAD. It also refuses a git tree that is not on the default
-# branch and whose tracked paths below `.claude`, `.codex`, or `.agents`, in any letter case, differ from the
-# default branch. It also refuses a copy that already exists: the copies are taken once per run.
+# branch and that changes, against the default branch, a path that a later session loads (as config-diff defines it).
+# It also refuses a copy that already exists: the copies are taken once per run.
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
+# config-diff compares two commits for the branch checkout gate (skills/code-review/references/branch-checkout-gate.md)
+# and exits 3 when a changed path holds a byte outside ASCII or the byte 0x01, or when a component of a changed path,
+# at any depth and in any letter case, is one of CONFIG_NAMES. It exits 0 when no changed path does, and 4 when a
+# revision cannot be resolved or the diff cannot be listed. CONFIG_NAMES is the one list of the names that a later
+# session loads.
+#
 # config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the configuration that a later
-# session or git loads, below --root (default: the current directory): `.claude` (without `.claude/run` and
-# `.claude/worktrees`), `.codex` (without `.codex/run` and `.codex/worktrees`), `.agents`, `CLAUDE.md`,
-# `CLAUDE.local.md`, `AGENTS.md`, `.mcp.json`, the git hooks directory, and every local git setting except the
-# `branch.*` entries a checkout writes. --user adds the user-level files below the home directory: `.claude/CLAUDE.md`,
+# session or git loads, below --root (default: the current directory): every entry of CONFIG_NAMES at the root, without
+# `.claude/run`, `.claude/worktrees`, `.codex/run`, and `.codex/worktrees`; the git hooks directory; and every local
+# git setting except the `branch.*` entries a checkout writes. --user adds the user-level files below the home directory:
+# `.claude/CLAUDE.md`,
 # `.claude/settings.json`, `.claude/settings.local.json`, `.claude/rules`, `.claude/agents`, `.claude/skills`,
 # `.claude/commands`, `.claude/hooks`, `.claude/output-styles`, `.codex/config.toml`, `.codex/AGENTS.md`,
 # `.codex/prompts`, `.codex/agents`, and `.agents`. A symbolic link counts by the content of its target. The output
@@ -45,17 +52,19 @@
 #   1  usage error
 #   2  a required tool is missing (git, and sha256sum or shasum)
 #   3  the trusted role definition is not available: the stage stops with
-#      `Blocked: helper agents forbidden — trusted role definition not available`
+#      `Blocked: helper agents forbidden — trusted role definition not available`; for config-diff: the target changes
+#      a path that a later session loads, and the main tree is not checked out
 #   4  config-hash cannot compute the hash (a root it cannot enter, a path it cannot read, more than 100000 entries):
-#      it prints no hash, and the round stops as not converged
+#      it prints no hash, and the round stops as not converged; for config-diff: the diff cannot be computed
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 BLOCKED='Blocked: helper agents forbidden — trusted role definition not available'
+CONFIG_NAMES=(.claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md .mcp.json)
 
 usage() {
-  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-hash [--root <dir>] [--user] | --self-test" >&2
+  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-diff --base <rev> --target <rev> | config-hash [--root <dir>] [--user] | --self-test" >&2
   exit 1
 }
 
@@ -112,12 +121,58 @@ on_default_branch() {
   [[ "$head" == "${ref#refs/remotes/origin/}" ]]
 }
 
-# True when the tracked paths below .claude, .codex, and .agents, in any letter case, equal the default branch.
+# Returns 0 when no path that `git diff <args>` lists holds a byte outside ASCII or has a component that is one of
+# CONFIG_NAMES under any letter case, 1 when one does, and 2 when git cannot list the diff. It writes no file. The
+# empty record after the listing marks a diff that git completed, because a path is never empty.
+configuration_free() {
+  local name rest component known rc=0 listed=0
+  shopt -s nocasematch
+  while IFS= read -r -d '' name; do
+    if [[ -z "$name" ]]; then
+      listed=1
+      continue
+    fi
+    [[ $rc -eq 0 ]] || continue
+    [[ "$name" == *$'\001'* ]] && rc=1
+    rest="$name"
+    while [[ $rc -eq 0 ]]; do
+      component="${rest%%/*}"
+      for known in "${CONFIG_NAMES[@]}"; do
+        [[ "$component" == "$known" ]] && rc=1
+      done
+      [[ "$rest" == */* ]] || break
+      rest="${rest#*/}"
+    done
+  done < <({ g diff --no-renames --name-only -z "$@" 2>/dev/null && printf '\0'; } | LC_ALL=C tr '\200-\377' '\001')
+  shopt -u nocasematch
+  [[ $listed -eq 1 ]] || return 2
+  return "$rc"
+}
+
+# True when the index and the working tree change no path that a later session loads against the default branch.
 changes_no_configuration_path() {
   local ref
   ref="$(g symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)" || return 1
-  g diff --quiet --cached "$ref" -- ':(icase).claude' ':(icase).codex' ':(icase).agents' 2>/dev/null \
-    && g diff --quiet "$ref" -- ':(icase).claude' ':(icase).codex' ':(icase).agents' 2>/dev/null
+  configuration_free --cached "$ref" -- && configuration_free "$ref" --
+}
+
+config_diff() {
+  local base="$1" target="$2" base_sha target_sha rc=0
+  base_sha="$(g rev-parse --verify --quiet "$base^{commit}" 2>/dev/null)" \
+    && target_sha="$(g rev-parse --verify --quiet "$target^{commit}" 2>/dev/null)" \
+    || { echo "helper-agents-guard.sh: config-diff: a revision cannot be resolved" >&2; exit 4; }
+  configuration_free "$base_sha" "$target_sha" -- || rc=$?
+  case "$rc" in
+  0) exit 0 ;;
+  1)
+    echo "helper-agents-guard.sh: config-diff: the target changes a path that a later session loads" >&2
+    exit 3
+    ;;
+  *)
+    echo "helper-agents-guard.sh: config-diff: the diff cannot be listed" >&2
+    exit 4
+    ;;
+  esac
 }
 
 copy_roles() {
@@ -129,7 +184,7 @@ copy_roles() {
 
   [[ -d "$run_dir" ]] || refuse "the run directory does not exist"
   if [[ "$(g rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] && ! on_default_branch; then
-    changes_no_configuration_path || refuse "the tree is not on the default branch and changes a tracked path below .claude, .codex, or .agents"
+    changes_no_configuration_path || refuse "the tree is not on the default branch and changes a tracked path that a later session loads"
   fi
   for role in "$@"; do
     src="$roles_dir/$role.md"
@@ -188,7 +243,7 @@ config_hash() {
   tmp="$HASH_TMP"
 
   paths=()
-  for path in .claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md .mcp.json; do
+  for path in "${CONFIG_NAMES[@]}"; do
     [[ -e "$path" || -L "$path" ]] && paths+=("$path")
   done
   if [[ "$(g rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]]; then
@@ -312,7 +367,9 @@ self_test() {
   run copy-roles --run-dir .claude/run --slug gh-off-1 --role leonardo >/dev/null 2>&1 || rc=$?
   check 'a tree off the default branch that changes no configuration path is copied' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   local config_path m=0
-  for config_path in .Claude/settings.json .claude/hooks/h.sh .Codex/config.toml .AGENTS/skills/x/SKILL.md; do
+  for config_path in .Claude/settings.json .claude/hooks/h.sh .Codex/config.toml .AGENTS/skills/x/SKILL.md \
+    CLAUDE.local.md .mcp.json claude.md AGENTS.md docs/CLAUDE.md packages/app/.claude/skills/x/SKILL.md \
+    $'.agent\xc5\xbf/skills/x/SKILL.md' $'src/caf\xc3\xa9.php'; do
     m=$((m + 1))
     (
       cd "$repo" || exit 1
@@ -324,7 +381,29 @@ self_test() {
     rc=0
     run copy-roles --run-dir .claude/run --slug "gh-config-$m" --role leonardo >/dev/null 2>&1 || rc=$?
     check "a tree off the default branch that changes $config_path is refused" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
+    rc=0
+    (cd "$repo" && "$SELF" config-diff --base main --target "config-$m") >/dev/null 2>&1 || rc=$?
+    check "config-diff refuses a target that changes $config_path" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
   done
+  (
+    cd "$repo" || exit 1
+    blob="$(printf 'code\n' | g hash-object -w --stdin)"
+    g read-tree main && g update-index --add --cacheinfo "100644,$blob,src/Feature.php"
+    g update-ref refs/heads/code-only "$(g commit-tree "$(g write-tree)" -p main -m 'change code')"
+    g symbolic-ref HEAD refs/heads/code-only
+  ) >/dev/null 2>&1
+  rc=0
+  run copy-roles --run-dir .claude/run --slug gh-code-only --role leonardo >/dev/null 2>&1 || rc=$?
+  check 'a tree off the default branch that changes only code is copied' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  rc=0
+  (cd "$repo" && "$SELF" config-diff --base main --target code-only) >/dev/null 2>&1 || rc=$?
+  check 'config-diff passes a target that changes only code' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  rc=0
+  (cd "$repo" && "$SELF" config-diff --base main --target no-such-ref) >/dev/null 2>&1 || rc=$?
+  check 'config-diff exits 4 on a target it cannot resolve' "$([[ $rc -eq 4 ]] && echo yes || echo no)"
+  rc=0
+  (cd "$repo" && "$SELF" config-diff --base main --target --output=x) >/dev/null 2>&1 || rc=$?
+  check 'config-diff refuses an option in place of a revision' "$([[ $rc -eq 1 && ! -e "$repo/x" ]] && echo yes || echo no)"
   (cd "$repo" && g symbolic-ref HEAD refs/heads/feature && g read-tree feature) >/dev/null 2>&1
 
   local variant n=0
@@ -455,6 +534,21 @@ case "$command" in
   exit $?
   ;;
 copy-roles | read-role) ;;
+config-diff)
+  base="" target=""
+  while [[ $# -gt 0 ]]; do
+    [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || usage
+    case "$1" in
+    --base) base="$2" ;;
+    --target) target="$2" ;;
+    *) usage ;;
+    esac
+    shift 2
+  done
+  [[ -n "$base" && -n "$target" ]] || usage
+  require_tools
+  config_diff "$base" "$target"
+  ;;
 config-hash)
   root="." with_user=0
   while [[ $# -gt 0 ]]; do

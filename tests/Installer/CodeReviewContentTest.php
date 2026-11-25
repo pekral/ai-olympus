@@ -4627,7 +4627,7 @@ test('the branch checkout gate pulls the default branch first and has one owner'
         ->and($gate)->toContain('| jq -r \'.headRefName\')"')
         ->and($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
         ->and($gate)->toContain('^[A-Za-z0-9._/-]{1,255}$')
-        ->and($gate)->toContain('git checkout "$HEAD_REF"')
+        ->and($gate)->toContain('git checkout -B "$HEAD_REF" "$HEAD_SHA"')
         ->and($gate)->toContain('Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`.')
         ->and($gate)->toContain('`git worktree list --porcelain` shows the default branch checked out in another worktree');
 
