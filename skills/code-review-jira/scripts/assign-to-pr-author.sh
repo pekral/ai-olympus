@@ -45,9 +45,10 @@
 # Exit codes:
 #   1  usage / argument error (no key, a key list, an invalid login or address)
 #   2  missing required tool (acli, jq, gh)
-#   3  the assignment failed, or the re-read did not confirm it
-#   6  no write: a bot author, or no verified e-mail or confirmed match and the author is not the
-#      operator's account with a matching acli e-mail
+#   3  the assignment failed, the re-read did not confirm it, or `person-match.sh lookup` failed with
+#      any exit other than 6 (a failed read, another repository, or an unsafe store)
+#   6  no write: a bot author, or no verified e-mail and no confirmed match (`lookup` exit 6) and the
+#      author is not the operator's account with a matching acli e-mail
 set -euo pipefail
 
 PROG="assign-to-pr-author.sh"
@@ -123,9 +124,13 @@ elif [[ "$CONFIRMED" == true ]]; then
   MATCH_RC=0
   MATCH="$("$SCRIPT_DIR/person-match.sh" lookup --pr "$PR_URL" --jira-key "$KEY" </dev/null 2>/dev/null)" || MATCH_RC=$?
   ACCOUNT_ID="$(sed -nE 's/^account_id=([A-Za-z0-9:_-]{1,128})$/\1/p' <<<"$MATCH" | head -n 1)"
-  if [[ "$MATCH_RC" -ne 0 || -z "$ACCOUNT_ID" ]]; then
+  if [[ "$MATCH_RC" -eq 6 ]]; then
     echo "$PROG: no confirmed match for the pull-request author of $KEY — assignee unchanged." >&2
     exit 6
+  fi
+  if [[ "$MATCH_RC" -ne 0 || -z "$ACCOUNT_ID" ]]; then
+    echo "$PROG: the confirmed match for the pull-request author of $KEY could not be read (person-match.sh exit $MATCH_RC) — assignee unchanged, not done." >&2
+    exit 3
   fi
   assigned_account() {
     "$SCRIPT_DIR/load-issue.sh" "$KEY" </dev/null 2>/dev/null | jq -r '.assigneeAccountId // empty' 2>/dev/null || true
