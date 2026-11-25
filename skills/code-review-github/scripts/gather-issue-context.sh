@@ -72,7 +72,6 @@ render_item() {
     line("State reason"; .stateReason),
     line("Author"; .author),
     line("Author association"; (.authorAssociation // "unknown")),
-    line("Assignees"; (.assignees // [] | join(", "))),
     line("Labels"; (.labels // [] | join(", "))),
     line("Milestone"; .milestone),
     line("Created"; .createdAt),

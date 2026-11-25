@@ -177,9 +177,7 @@ Record in the shared brief:
   read from the loader document that the trusted copy of the loader wrote in the same call, never
   from the document of the GitHub load above,
   effective diff fingerprint, finding counts, unresolved findings, and the `Quality gate:` exact-head
-  evidence it carries;
-- the exit of the known-point check of the same call
-  (`@skills/merge-github-pr/references/trusted-record-parser.md` *The known-point check*).
+  evidence it carries.
 
 ### 2. Rebase and decide whether review work exists
 
