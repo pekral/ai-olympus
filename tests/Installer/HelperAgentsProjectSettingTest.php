@@ -123,42 +123,54 @@ test('the manifest table states the key, its default, and the resolver that read
         ->and($rule)->toContain('`skills/_shared/resolve-project-switch.sh` reads it. Absent: `true`. |');
 });
 
-test('every file that starts an agent points at the owner of the helper-agents switch', function (string $path): void {
-    expect(normalizedPackageSource($path))->toContain('skills/_shared/orchestration/helper-agents.md');
-})->with([
-    'agents/krang.md',
-    'codex/agents/krang.toml',
-    'commands/do-it.md',
-    'commands/prepare-issue-for-merge.md',
-    'commands/redesign-page.md',
-    'commands/report-code-review.md',
-    'commands/test-assignment.md',
-    'rules/compound-engineering/concurrency.md',
-    'rules/compound-engineering/general.md',
-    'rules/compound-engineering/orchestration.md',
-    'skills/_shared/orchestration/analysis-only-routing.md',
-    'skills/_shared/orchestration/batch-preparation.md',
-    'skills/_shared/orchestration/context-retrieval.md',
-    'skills/_shared/orchestration/dispatch-liveness.md',
-    'skills/_shared/orchestration/implementation-blocked.md',
-    'skills/_shared/orchestration/merge-request.md',
-    'skills/_shared/orchestration/multi-source-planning.md',
-    'skills/_shared/orchestration/pr-gate-discovery.md',
-    'skills/_shared/orchestration/pre-implementation-routing.md',
-    'skills/_shared/orchestration/proposal-review.md',
-    'skills/_shared/orchestration/review-only-mode.md',
-    'skills/_shared/orchestration/splinter-not-run.md',
-    'skills/auto-interactive-testing/SKILL.md',
-    'skills/code-review-github/references/cr-wrapper-contract.md',
-    'skills/code-review/references/specialized-reviews.md',
-    'skills/deliver-page-redesign/SKILL.md',
-    'skills/do-it/SKILL.md',
-    'skills/do-it/references/queue-brief.md',
-    'skills/github-issue-triage/references/pending-analysis.md',
-    'skills/security-audit/SKILL.md',
-    'skills/test-assignment/SKILL.md',
-    'skills/verify-merge-readiness/SKILL.md',
-]);
+/**
+ * Every command, skill, rule, and Codex file that names a dispatch or a spawn of a roster agent, and every agent
+ * definition whose tools can start an agent.
+ *
+ * @return list<string>
+ */
+function helperAgentsDispatchSites(): array
+{
+    $packageDir = dirname(__DIR__, 2);
+    $roster = array_map(static fn (string $path): string => basename($path, '.md'), (array) glob($packageDir . '/agents/*.md'));
+    $pattern = '/\\b(?:[Dd]ispatch(?:es|ed|ing)?|[Ss]pawn(?:s|ed|ing)?)(?: the| a| one| its own)? `(?:' . implode('|', $roster) . ')`/';
+    $sites = [];
+
+    foreach (packageTextFiles() as $path => $text) {
+        $isInstruction = preg_match('#^(commands|skills|rules|codex)/.+\\.(md|toml)$#', $path) === 1;
+        $isDispatchingAgent = preg_match('#^agents/[^/]+\\.md$#', $path) === 1
+            && preg_match('/^tools:.*\\b(?:Task|Agent)\\b/m', $text) === 1;
+
+        if (($isInstruction && preg_match($pattern, $text) === 1) || $isDispatchingAgent) {
+            $sites[] = $path;
+        }
+    }
+
+    sort($sites);
+
+    return array_values(array_diff($sites, ['skills/_shared/orchestration/helper-agents.md']));
+}
+
+test('every file that names a dispatch of a roster agent points at the owner of the helper-agents switch', function (): void {
+    $sites = helperAgentsDispatchSites();
+    $missing = array_values(array_filter(
+        $sites,
+        static fn (string $path): bool => !str_contains(packageSource($path), 'skills/_shared/orchestration/helper-agents.md'),
+    ));
+
+    expect($sites)->toContain('agents/krang.md')
+        ->and($sites)->toContain('skills/merge-github-pr/SKILL.md')
+        ->and($sites)->toContain('skills/_shared/orchestration/fast-run.md')
+        ->and(count($sites))->toBeGreaterThan(20)
+        ->and($missing)->toBe([]);
+});
+
+test('the owner file claims the pointer only for the files the test derives', function (): void {
+    expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain(
+        'Every command, skill, rule, and Codex file that names a dispatch or a spawn of a roster agent, and every agent'
+        . ' definition whose tools can start an agent, references it and does not restate it.',
+    );
+});
 
 test('when forbidden, no agent of any type starts, in any command, also not for a single step', function (string $rule): void {
     expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);

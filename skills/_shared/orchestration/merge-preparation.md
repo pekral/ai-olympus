@@ -46,3 +46,5 @@ not a second implementation of it.
 - Stop before merge in every case, unless the batch path runs its merge step for the `--merge`
   flag. A later merge requires a separate explicit instruction and
   `@skills/merge-github-pr/SKILL.md`.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.
