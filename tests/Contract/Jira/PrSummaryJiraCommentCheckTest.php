@@ -56,12 +56,8 @@ function jiraSummaryNodeField(mixed $node, string $field): array
 function jiraSummaryPublishedTargets(mixed $node): array
 {
     $links = array_filter(jiraSummaryNodeField($node, 'marks'), static fn (mixed $mark): bool => is_array($mark) && ($mark['type'] ?? null) === 'link');
-    $mentions = is_array($node) && ($node['type'] ?? null) === 'mention'
-        ? ['mention ' . jiraSummaryString(
-        jiraSummaryNodeField($node, 'attrs')['id'] ?? null,
-    ),
-        ]
-        : [];
+    $mentionId = jiraSummaryString(jiraSummaryNodeField($node, 'attrs')['id'] ?? null);
+    $mentions = is_array($node) && ($node['type'] ?? null) === 'mention' ? ['mention ' . $mentionId] : [];
 
     return [
         ...array_map(
