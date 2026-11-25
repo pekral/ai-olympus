@@ -219,7 +219,7 @@ test('when forbidden, each role comes from a hashed copy taken before any checko
     'the snapshot after' => ['Record it again after the stage. A different value stops the round as not converged and names the change.'],
     'the snapshot before' => [
         'Before each review stage and each security-view stage, record the'
-        . ' output of `skills/security-audit/scripts/audit-artifacts.sh snapshot`.',
+        . ' output of `skills/security-audit/scripts/audit-artifacts.sh snapshot`, and the output',
     ],
 ]);
 
@@ -254,6 +254,50 @@ test('the role copy survives a later change of the installed definition, and a d
         ->and($onTheBranch->getExitCode())->toBe(3)
         ->and($onTheBranch->getErrorOutput())->toContain('Blocked: helper agents forbidden — trusted role definition not available');
 });
+
+test('the read-only guard of an inline review also hashes the git-ignored agent configuration', function (string $rule): void {
+    expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);
+})->with([
+    'the configuration hash' => [
+        'and the output of `skills/_shared/helper-agents-guard.sh config-hash`, run in the tree the session'
+        . ' started in and in the tree the stage runs in.',
+    ],
+    'the snapshot is no proof' => ['The snapshot alone is no proof: it does not see a write to a git-ignored path.'],
+]);
+
+test('the configuration hash changes on a write to the agent configuration and never prints a file', function (string $path): void {
+    $directory = sys_get_temp_dir() . '/ai-olympus-config-hash-' . bin2hex(random_bytes(6));
+    mkdir($directory . '/.claude/skills', 0o777, true);
+    mkdir($directory . '/.claude/run');
+    register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
+    file_put_contents($directory . '/.claude/settings.local.json', '{"secret-marker":"value-never-printed"}');
+    $hash = static function () use ($directory): Process {
+        $process = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'config-hash'], $directory);
+        $process->run();
+
+        return $process;
+    };
+    $before = $hash();
+    file_put_contents($directory . '/.claude/run/brief.md', 'a stage may write its own run files');
+    $afterRunFile = $hash();
+    is_dir(dirname($directory . '/' . $path)) || mkdir(dirname($directory . '/' . $path), 0o777, true);
+    file_put_contents($directory . '/' . $path, 'written by a review stage');
+
+    $after = $hash();
+
+    expect($before->getExitCode())->toBe(0)
+        ->and($before->getOutput())->toMatch('/^config-hash=[0-9a-f]{64}\n$/')
+        ->and($before->getOutput() . $before->getErrorOutput())->not->toContain('value-never-printed')
+        ->and($afterRunFile->getOutput())->toBe($before->getOutput())
+        ->and($after->getOutput())->not->toBe($before->getOutput());
+})->with([
+    'an agent definition' => ['.claude/agents/splinter.md'],
+    'a Codex agent' => ['.codex/agents/splinter.toml'],
+    'a Codex skill' => ['.agents/skills/x/SKILL.md'],
+    'a rule' => ['.claude/rules/x.md'],
+    'a settings file' => ['.claude/settings.json'],
+    'a skill' => ['.claude/skills/x/SKILL.md'],
+]);
 
 test('the role guard self-test passes and is registered', function (): void {
     $selfTest = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', '--self-test']);
