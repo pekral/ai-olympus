@@ -69,8 +69,11 @@
 #                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a description that the operator's account wrote and
 #                    that no other account changed (`descriptionTrusted`). A security finding is never a known point:
 #                    `known` refuses it before it loads anything, and it stays a finding that blocks until it is
-#                    fixed. It refuses the same way a finding whose category `known_refused_category` of
-#                    finding-defs.jq names: a security surface that no security word names, or no rule. The state stores the task and the issue. Every refusal exits 4 and leaves the state
+#                    fixed. It is fail-closed: it accepts only a record that `known_eligible` of finding-defs.jq
+#                    accepts, with no security signal (`security`, a Level, exploit-path evidence) and every rule
+#                    reference of the Rule and Suggested fix fields on the allow-list there (`known_rules`). It refuses a
+#                    finding of no rule, of a rule outside the list, and of a reference that does not canonicalise. The
+#                    state stores the task and the issue. Every refusal exits 4 and leaves the state
 #                    unchanged. A known point is not blocking, so it never counts in a verdict. The state
 #                    stores the finding as it was marked (`marked`: severity, security, file, line, title, impact, and
 #                    evidence), and `known` refuses a finding whose record merges more than one reported finding. A
@@ -263,8 +266,8 @@ def state_errors:
                 and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
                 and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")
-                and (.finding_id as $id | [$s.findings[] | select(.finding_id == $id) | .security or (.category | known_refused_category)] | any | not)))
-         then empty else "a known point is malformed, names an unknown finding, or holds a security finding or a finding on a security surface" end),
+                and (.finding_id as $id | [$s.findings[] | select(.finding_id == $id) | known_eligible] | all)))
+         then empty else "a known point is malformed, names an unknown finding, or holds a finding that the known-point allow-list refuses" end),
         (if ($s.transitions | type) == "array" and all($s.transitions[];
               type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
@@ -373,12 +376,13 @@ def merge_open($c; $p):
 # One finding a round report carries, merged with the state's finding of the same identity ($prev maps the
 # identity to the stored finding, $marks maps it to the finding as its known point was marked). A closed finding
 # reopens, an open one keeps the stronger status and severity. A known point stays known only when the report is one
-# finding that repeats the marked one: any other report of the identity (a second defect merged into it, another
-# line or text, a higher severity, a security flag) opens it as the finding it was, merged with the report.
+# finding that repeats the marked one and that the allow-list still accepts: any other report of the identity (a second
+# defect merged into it, another line or text, a higher severity, a security flag, a Level, a rule outside the list)
+# opens it as the finding it was, merged with the report.
 def merge_reported($prev; $marks):
   . as $c | $prev[$c.finding_id] as $p
   | if $p == null then {rec: $c, from: null, carried: false}
-    elif $p.status == "known" and $c.reports == 1 and ($c | marked_view) == $marks[$c.finding_id] then
+    elif $p.status == "known" and $c.reports == 1 and ($c | marked_view) == $marks[$c.finding_id] and ($c | known_eligible) then
       {rec: ($c | .status = "known"), from: $p.status, carried: false}
     elif $p.status == "known" then
       {rec: merge_open($c; $p | .status = (if .evidence == null then "needs-verification" else "confirmed" end)), from: $p.status, carried: false}
@@ -1125,9 +1129,9 @@ cmd_known() {
     # A security finding (S1-S3) stays a finding until it is fixed, whatever a linked issue reports.
     jq -e '.security != true' <<<"$finding" >/dev/null \
       || fail 4 "finding $id is a security finding: a security finding is never a known point; it stays a finding and blocks until it is fixed"
-    # So does a finding on a security surface that no security word names, and a finding of no rule.
-    jq -e -L "$HERE" "$JQ_STATE"' .category | known_refused_category | not' <<<"$finding" >/dev/null \
-      || fail 4 "finding $id cites a rule on a security surface, or no rule: it is never a known point; it stays a finding and blocks until it is fixed"
+    # Fail closed: only a finding whose every cited rule is on the allow-list of finding-defs.jq, with no security signal.
+    jq -e -L "$HERE" "$JQ_STATE"' known_eligible' <<<"$finding" >/dev/null \
+      || fail 4 "finding $id cites no rule, a rule outside the known-point allow-list, or a reference that does not canonicalise, or carries a security signal: it is never a known point; it stays a finding and blocks until it is fixed"
     local verdict
     verdict="$(linked_issue_verdict "$(jq -r '.repo' "$TMP/state.json")" "$source" "$issue")"
     [[ "$verdict" == ok ]] \
@@ -1476,28 +1480,63 @@ EOF
   run_case 'a security finding of a JIRA task is never a known point' 4 -- known --state "$S" --finding "$sql_id" --source ACME-1 --issue https://acme.atlassian.net/browse/ACME-2 --covers 'ACME-2 describes the query.'
   check 'a security finding is refused before the loader runs' "$([[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
   check 'the refused security finding stays blocking and makes no known point' "$(jq -e --arg id "$sql_id" '(.findings[] | select(.finding_id == $id) | .status) == "new" and ((.known_points // []) == [])' "$repo/$S" >/dev/null && echo 0 || echo 1)"
-  # S1, S3, and a finding of no rule: `known` refuses each before it loads anything, whatever words its rule and title
-  # carry. The security view is the origin, the evidence is an exploit path, or the rule is a security surface.
+  # `known` accepts only a finding with no security signal whose every cited rule is on the allow-list of
+  # finding-defs.jq; it refuses every other one before it loads anything, whatever words its rule and title carry.
   local SURF=".claude/run/review-state-surface.json" kcase kid
   raised() { printf '%s\n' "$2" | awk -v o="$1" '/^- \*\*Provenance:\*\*/ { print "- **Raised by:** " o } { print }'; }
+  fixed() { printf '%s\n' "$2" | awk -v f="$1" '/^- \*\*Suggested fix:\*\*/ { print "- **Suggested fix:** " f; next } { print }'; }
   (cd "$repo" && "$script" init --state "$SURF" --repo acme/shop --pr 7 >/dev/null)
   report "$tmp/n0.md" 1 \
     "$(raised splinter "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Spl.php:3' "$STRUCT" 'rule-violation — the head is read once')")" \
     "$(raised both "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Both.php:3' "$STRUCT" 'rule-violation — the head is read once')")" \
     "$(finding Moderate 'Copied step' 'src/Gate/Exp.php:3' "$STRUCT" 'exploit-path — the step runs twice')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Exs.php:3' "$STRUCT" 'Exploit path — the step runs twice')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Lvl.php:3' "$STRUCT" 'rule-violation — the step is copied' High)" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Sec2.php:3' "$STRUCT"'`, `@rules/security/general.md#untrusted-content-boundary' 'rule-violation — the step is copied')" \
+    "$(fixed 'n/a — follow `@rules/security/backend.md#database`' "$(finding Moderate 'Copied step' 'src/Gate/Fix.php:3' "$STRUCT" 'rule-violation — the step is copied')")" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Span.php:3' '@rules/php/core-standards.md#x @rules/security/general.md' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Rel.php:3' "$STRUCT"'`, `@./rules/security/general.md' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Bsl.php:3' "$STRUCT"'`, `rules\security\general.md' 'rule-violation — the step is copied')" \
     "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Pr.php:3' '@rules/git/pull-requests.md#merging' 'rule-violation — the head is read once')" \
+    "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Dsl.php:3' '@rules/git//pull-requests.md#merging' 'rule-violation — the head is read once')" \
+    "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Dot.php:3' '@rules/git/./pull-requests.md#merging' 'rule-violation — the head is read once')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Par.php:3' '@rules/php/../security/general.md#x' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Up.php:3' '@Rules/Git/Pull-Requests.md#merging' 'rule-violation — the head is read once')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Out.php:3' '@rules/api/general.md#versioning' 'rule-violation — the step is copied')" \
     "$(finding Moderate 'Agent writes a file' 'src/Gate/Orc.php:3' '@rules/compound-engineering/orchestration.md#bash-capability-boundary' 'rule-violation — the write runs')" \
     "$(finding Moderate 'Merge skips a check' 'src/Gate/Mgs.php:3' '@skills/merge-github-pr/SKILL.md#merge-path' 'rule-violation — the check is skipped')" \
-    "$(finding Moderate 'Copied step' 'src/Gate/Unc.php:3' 'the merge rule' 'rule-violation — the step is copied')"
+    "$(finding Moderate 'Copied step' 'src/Gate/Pcr.php:3' '@skills/process-code-review/SKILL.md#review-loop' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Vmr.php:3' '@skills/verify-merge-readiness/SKILL.md' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Gen.php:3' '@rules/general/general.md#project-instructions-take-precedence' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Con.php:3' '@rules/compound-engineering/concurrency.md#parallel-units' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Crg.php:3' '@rules/code-review/general.md#assignment-declared-test-only-conditions--exclusion-gate-issue-17' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Crn.php:3' '@rules/code-review/general.md' 'rule-violation — the step is copied')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Unc.php:3' 'the merge rule' 'rule-violation — the step is copied')" \
+    "$(fixed 'n/a — reuse the helper of `@rules/code-testing/general.md#test-value`.' "$(finding Moderate 'Copied step' 'src/Gate/Ok.php:3' '@rules/code-review/core-analysis.md#reuse`, `@rules/code-review/general.md#Reuse Existing Logic' 'rule-violation — the step is copied')")"
   (cd "$repo" && "$script" record --state "$SURF" --input "$tmp/n0.md" >/dev/null)
   cp "$repo/$SURF" "$tmp/surface-before"
   rm -f "$tmp/loader-calls"
-  for kcase in 'Spl:raised by splinter' 'Both:raised by both' 'Exp:with exploit-path evidence' 'Pr:under the merge rule' \
-    'Orc:under the orchestration rule' 'Mgs:under the merge skill' 'Unc:with no rule'; do
+  for kcase in 'Spl:raised by splinter' 'Both:raised by both' 'Exp:with exploit-path evidence' 'Exs:with exploit path evidence' \
+    'Lvl:with a Level' 'Sec2:with a security rule cited second' 'Fix:with a security rule only in its suggested fix' \
+    'Span:with a security rule inside the anchor of an allowed rule' 'Rel:with a security rule cited as ./rules' \
+    'Bsl:with a security rule cited with backslashes' 'Pr:under the merge rule' 'Dsl:under the merge rule spelled with //' \
+    'Dot:under the merge rule spelled with /./' 'Par:with a .. segment' 'Up:under the merge rule in capitals' \
+    'Out:under a rule outside the allow-list' 'Orc:under the orchestration rule' 'Mgs:under the merge skill' \
+    'Pcr:under the convergence gate' 'Vmr:under the merge preparation' 'Gen:under the floor of the general rule' \
+    'Con:under the concurrency rule' 'Crg:under the S1-S3 section' 'Crn:under the code-review rule without a section' \
+    'Unc:with no rule'; do
     kid="$(jq -r --arg f "src/Gate/${kcase%%:*}.php" '.findings[] | select(.file == $f) | .finding_id' "$repo/$SURF")"
     run_case "a finding ${kcase#*:} with no security word is never a known point" 4 -- known --state "$SURF" --finding "$kid" --source "$task" --issue "$known_issue" --covers 'The issue describes it.'
   done
   check 'every refused finding stays open, the state is unchanged, and no loader ran' "$(cmp -s "$tmp/surface-before" "$repo/$SURF" && [[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
+  kid="$(jq -r '.findings[] | select(.file == "src/Gate/Ok.php") | .finding_id' "$repo/$SURF")"
+  run_case 'a finding whose every rule is on the allow-list is marked known' 0 -- known --state "$SURF" --finding "$kid" --source "$task" --issue "$known_issue" --covers 'The issue describes it.'
+  # The same finding reported again with a Level keeps its identity and its marked view, and it is no known point.
+  report "$tmp/n0b.md" 2 \
+    "$(fixed 'n/a — reuse the helper of `@rules/code-testing/general.md#test-value`.' "$(finding Moderate 'Copied step' 'src/Gate/Ok.php:3' '@rules/code-review/core-analysis.md#reuse`, `@rules/code-review/general.md#Reuse Existing Logic' 'rule-violation — the step is copied' Medium)")"
+  run_case 'a known point reported again with a Level is recorded' 0 -- record --state "$SURF" --input "$tmp/n0b.md" --changed-files "$tmp/changed-both"
+  check 'a known point reported again with a Level is a finding again' "$(jq -e --arg id "$kid" '(.findings[] | select(.finding_id == $id) | .status) != "known" and ((.known_points // []) == [])' "$repo/$SURF" >/dev/null && echo 0 || echo 1)"
+  run_case 'the state after that report is valid' 0 -- evaluate --state "$SURF"
   rm -f "$repo/$SURF"
   run_case 'the owner argument of the removed security exception is a usage error' 1 -- known --state "$S" --finding "$sql_id" --source "$task" --issue "$known_issue" --covers 'x' --owner maintainer
   run_case 'a finding the linked issue reports is marked known' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.'
@@ -1519,8 +1558,14 @@ EOF
   jq -c --arg id "$sql_id" --arg task "$task" --arg url "$known_issue" '.findings |= map(if .finding_id == $id then .status = "known" else . end)
     | .known_points += [{finding_id: $id, source: $task, url: $url, covers: "x", owner: "maintainer"}]' "$tmp/known-good" >"$repo/$S"
   run_case 'a security known point with the owner of an earlier version makes the state invalid' 3 -- evaluate --state "$S"
-  jq -c --arg id "$struct_id" '.findings |= map(if .finding_id == $id then .category = "rules/git/pull-requests" else . end)' "$tmp/known-good" >"$repo/$S"
-  run_case 'a known point on a security-surface rule makes the state invalid' 3 -- evaluate --state "$S"
+  local kstate
+  for kstate in 'a rule outside the allow-list|.known_rules = ["rules/git/pull-requests#merging"]' \
+    'an allowed rule and a rule outside the allow-list|.known_rules = ["rules/php/core-standards#structure", "rules/security/general"]' \
+    'no rule|.known_rules = []' 'a rule that does not canonicalise|.known_rules = null' 'no rule list of an earlier version|del(.known_rules)'; do
+    jq -c --arg id "$struct_id" ".findings |= map(if .finding_id == \$id then ${kstate#*|} else . end)" "$tmp/known-good" >"$repo/$S"
+    run_case "a known point with ${kstate%%|*} makes the state invalid" 3 -- evaluate --state "$S"
+    check "the state check names the allow-list for ${kstate%%|*}" "$(grep -q 'known-point allow-list refuses' "$tmp/err" && echo 0 || echo 1)"
+  done
   jq -c '.known_points[0].url = "http://insecure.example"' "$tmp/known-good" >"$repo/$S"
   run_case 'a known point with an insecure URL makes the state invalid' 3 -- evaluate --state "$S"
   cp "$tmp/known-good" "$repo/$S"

@@ -86,8 +86,8 @@ test('krang reads the linked issues when it gathers and compares after the barri
     expect($round)
         ->toContain('`leonardo`, `splinter`, `raphael`, and `casey` alike')
         ->toContain('review-state.sh known --state <state> --finding <id> --source <task URL or JIRA key> --issue <URL> --covers <sentence>')
-        ->toContain('Never mark a security finding: it stays a finding. `known` refuses only a record that it flags as security')
-        ->toContain('so test every finding against S1–S3 of `@rules/code-review/general.md` before you mark it.')
+        ->toContain('Never mark a security finding: it stays a finding. `known` is fail-closed')
+        ->toContain('Still test every finding against S1–S3 of `@rules/code-review/general.md` before you mark it.')
         ->toContain('Reopen a known point whose match no longer holds with `known --reopen`.')
         ->toContain('Then run `evaluate` again: its verdict is the verdict of the round for steps 4 and 5.')
         ->toContain('Load each linked issue again through the loaders and `gather-issue-context.sh` first, and compare against that read')
@@ -326,32 +326,44 @@ test('the cap round is compared before its verdict and its triage take effect', 
         ->toContain('- **The cap round is compared before its verdict takes effect.**');
 });
 
-test('known states exactly which findings it refuses, and the refused categories have one owner', function (): void {
+test('known is fail-closed: one allow-list owns the rules a known point may cite', function (): void {
     $defs = packageSource('skills/_shared/finding-defs.jq');
     $state = packageSource('skills/_shared/review-state.sh');
 
     expect($defs)
-        ->toContain('def known_refused_category:')
-        ->toContain('unclassified|rules/git/pull-requests|rules/compound-engineering/(orchestration|memory|tracker)|skills/merge-github-pr');
+        ->toContain('def known_allowed_rules: ["rules/php/core-standards", "rules/code-testing/general", "rules/writing/general",')
+        ->toContain('  "rules/code-review/core-analysis", "skills/simplification-audit/skill"];')
+        ->toContain('def known_allowed_sections: {"rules/code-review/general": ["reuse-existing-logic",')
+        ->toContain('def known_eligible:')
+        ->and(str_contains($defs, 'known_refused_category'))->toBeFalse();
     expect($state)
-        ->toContain('"$JQ_STATE"\' .category | known_refused_category | not\'')
-        ->toContain('.security or (.category | known_refused_category)')
-        ->and(substr_count($state, 'rules/compound-engineering/(orchestration'))->toBe(0);
+        ->toContain('"$JQ_STATE"\' known_eligible\'')
+        ->toContain('select(.finding_id == $id) | known_eligible] | all')
+        ->toContain('($c | marked_view) == $marks[$c.finding_id] and ($c | known_eligible)')
+        ->and(str_contains($state, 'known_refused_category'))->toBeFalse()
+        ->and(substr_count($state, '"rules/php/core-standards"'))->toBe(0);
     expect(packageSource('skills/_shared/extract-findings.sh'))
         ->toContain('or ($f.raised_by | test("splinter|\\\\bboth\\\\b"))')
         ->toContain('test("^[^a-z0-9]*exploit-path")')
-        ->toContain('skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$)');
-    expect(knownPointsRule())
-        ->toContain(
-            '`known` refuses (exit 4) a record that `extract-findings.sh --round` flags as security:'
-                . ' a security rule or lens, `Raised by` `splinter` or `both`, `exploit-path` evidence',
-        )
-        ->toContain('It checks nothing else, so `krang` never marks an S1–S3 finding that both tests miss.');
-    expect(packageSource('skills/process-code-review/references/review-state.md'))
-        ->toContain('The script reads only the record: a record with `security: true`')
-        ->toContain('An S1–S3 finding that both tests miss is not refused, so `krang` never marks one.');
+        ->toContain('skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$)')
+        ->toContain('known_refs: ([($v.fields.rule // ""), ($v.fields["suggested fix"] // "")] | map(rule_tokens[]) | map(canon_rule)),')
+        ->toContain('known_rules: (if is_security($f) or $f.known_signal or ($f.known_refs | any(. == null)) then null');
+    $rule = knownPointsRule();
+    $reference = packageSource('skills/process-code-review/references/review-state.md');
+
+    expect($rule)
+        ->toContain('`known` is fail-closed: it accepts a record only when `known_eligible` of `skills/_shared/finding-defs.jq` accepts it')
+        ->toContain('every `@rules/…` or `@skills/…` reference of its Rule and Suggested fix fields, in canonical form, is on the allow-list')
+        ->toContain('A reference that does not canonicalise refuses the record.')
+        ->and(str_contains($rule, 'It checks nothing else'))->toBeFalse();
+    expect($reference)
+        ->toContain('The check is fail-closed and reads only the record: `known_eligible` of `skills/_shared/finding-defs.jq`')
+        ->and(str_contains($reference, 'An S1–S3 finding that both tests miss is not refused'))->toBeFalse();
     expect(packageSource('skills/code-review/references/finding-records.md'))
-        ->toContain('when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`');
+        ->toContain('when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`')
+        ->toContain('| `known_rules` | Every `@rules/…` and `@skills/…` reference of the `Rule` and `Suggested fix` fields');
+    expect(packageSource('agents/krang.md'))
+        ->toContain('`known` is fail-closed: it accepts only a finding with no security signal whose every cited rule is on the allow-list');
 });
 
 test('the publishing review reads a brief section only outside every fenced block', function (): void {
