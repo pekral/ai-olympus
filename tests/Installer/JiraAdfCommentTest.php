@@ -284,3 +284,12 @@ test('the merge-preparation consolidation opens a JIRA comment with the deploy v
         ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
         ->and($skill)->toContain('the exact blocker named in the deploy verdict');
 });
+
+test('the JIRA MCP fallback reads the stored comment back for the agent marker (#709)', function (): void {
+    $rule = normalizedPackageSource('rules/jira/general.md');
+    $summary = normalizedPackageSource('skills/pr-summary/SKILL.md');
+
+    expect($rule)->toContain('After the MCP write, read the comment back and require that marker line in its stored body, as the helper does after its own write.')
+        ->and($rule)->toContain('stop as blocked, name its ID, and leave its removal to a human')
+        ->and($summary)->toContain('and read the stored comment back for that marker as `@rules/jira/general.md` states.');
+});

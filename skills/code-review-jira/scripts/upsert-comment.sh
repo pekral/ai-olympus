@@ -105,6 +105,11 @@
 #      was absent before the create, carries the marker, and has this author.
 #      The re-read runs up to three times, one second apart, because Jira Cloud
 #      can answer the first read after a create without the new comment.
+#   7. Read the comment back, up to three times, and require this actor's marker
+#      in the stored body and this account as its author. A created comment that
+#      fails the read-back is deleted; an updated one is reported with its ID.
+#      Either way the helper exits 3, so no agent comment stays on the issue
+#      without a marker unannounced.
 #
 # One result is one comment, for every call without `--create`. The helper never
 # creates a comment it cannot prove is the first one, so a rerun — including a
@@ -517,6 +522,44 @@ if [[ "$UPDATE_RC" -ne 0 ]]; then
   else
     echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
     echo "upsert-comment.sh: the existing comment was left unchanged; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+  fi
+  exit 3
+fi
+
+# Read the stored comment back. The marker sits inside a collapsed block of the
+# body, and an agent comment whose stored body lost it reads as the operator's
+# own (rules/code-review/general.md *Authorship trust*), so the publish counts
+# only when the stored body carries the marker and the author is this account.
+STORED="missing"
+for attempt in 1 2 3; do
+  STORED="$(read_comments | jq -r --arg id "$TARGET_ID" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+      [.[] | select(((.id? // "") | tostring) == $id)] | last
+      | if . == null then "missing" elif (marked and owned) then "marked" else "unmarked" end' 2>/dev/null || true)"
+  if [[ "$STORED" == "marked" || "$STORED" == "unmarked" ]]; then
+    break
+  fi
+  [[ $attempt -lt 3 ]] && sleep 1
+done
+
+if [[ "$STORED" != "marked" ]]; then
+  if [[ "$STORED" == "unmarked" ]]; then
+    echo "upsert-comment.sh: comment $TARGET_ID on $KEY does not carry the agent marker in its stored body" >&2
+  else
+    echo "upsert-comment.sh: comment $TARGET_ID on $KEY could not be read back to confirm the agent marker" >&2
+  fi
+  if [[ "$ACTION" == "created" ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, its marker read-back failed next" || true
+    DELETE_RC=0
+    acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || DELETE_RC=$?
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID delete on $KEY" --status "$DELETE_RC" --detail "removed after the marker read-back failed" || true
+    if [[ "$DELETE_RC" -eq 0 ]]; then
+      echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload and read it back" >&2
+    else
+      echo "upsert-comment.sh: comment $TARGET_ID stays on $KEY without the agent marker and reads as the operator's own; remove it by hand (acli exit $DELETE_RC)" >&2
+    fi
+  else
+    bash "$AUDIT_TRAIL" record --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "updated, its marker read-back failed next" || true
+    echo "upsert-comment.sh: comment $TARGET_ID stays on $KEY without a confirmed agent marker and may read as the operator's own; restore the marker or remove it by hand" >&2
   fi
   exit 3
 fi
