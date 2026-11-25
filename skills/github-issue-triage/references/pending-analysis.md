@@ -27,7 +27,7 @@ A repository without the `analyze` label has no pending analysis — report that
 
 Run `@skills/analyze-problem/SKILL.md` against the issue URL, **read-only**, and let that skill own everything about the analysis — the pre-flight, the four phases, the twelve-section report, and the plan artifact, which in a read-only run is returned inline inside the report.
 
-Independent issues may be analysed **in parallel**, one subagent per issue. Each subagent:
+Independent issues may be analysed **in parallel**, one subagent per issue, unless the project forbids helper agents: then the session analyses them one after another itself (`skills/_shared/orchestration/helper-agents.md`). Each subagent:
 
 - receives the issue URL, the assignment language, and the environment facts it cannot discover itself;
 - returns its report **as text** — a harness may refuse a subagent's file writes, and the session that publishes saves the report to a file outside the repository;

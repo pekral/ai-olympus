@@ -16,7 +16,7 @@ issue carries no pull request yet, `krang` resolves the task first, and this wor
 converged review when the effective PR diff is content-identical; review again only when content or
 actionable feedback changed. Then dispatch `april` to publish one current TL;DR on the source
 issue — a GitHub issue or a JIRA ticket — and remove only superseded, actor-owned preparation
-comments.
+comments. When the project forbids helper agents, the session performs every step itself and starts no agent (`skills/_shared/orchestration/helper-agents.md`).
 
 The preparation changes only what the assignment and the merge gate require. Every optimization,
 refactoring, pre-existing problem outside the security floor, or nice-to-have point is reported on

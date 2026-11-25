@@ -69,6 +69,8 @@ metadata:
 
 ### 4. Automated coverage — `donatello`
 
+When the project forbids helper agents, every dispatch of this skill is a stage the session performs itself (`skills/_shared/orchestration/helper-agents.md`).
+
 - `report` mode: dispatch `donatello` to map the matrix to the existing tests and to list every case that no test covers. It writes no code.
 - `fix` mode: dispatch `donatello` to add a test for every uncovered case, in the test file that owns the input.
   - A test for an unmet criterion fails against the unfixed code first, then the fix follows (`@skills/test-driven-development/SKILL.md`). The failure evidence goes into the pull-request description. The test and the fix land in one commit.

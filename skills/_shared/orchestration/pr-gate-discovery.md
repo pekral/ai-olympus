@@ -44,3 +44,5 @@ The `fast-checks` run before every push on the changed files (`@skills/resolve-i
 - **The body** states what the discovery searched and found, that the checks run before every push on the changed files only, and that they never replace CI or the pre-merge gate. It also states that the key does not opt the project into the machine gate record. It invites the owner to add the project's own fast tests that pin text, size, or structure, which no dependency file names.
 - **Step 4** runs `skills/_shared/discover-fixers.sh --key fast-checks --compare <base SHA> <head SHA>`, on the branch `chore/ai-olympus-fast-checks-<source-slug>`. A refresh keeps every entry the owner added by hand.
 - **A proposal never stops the delivery**, exactly as above. A project with no `fast-checks` keeps working as before: the implementer runs no fast check.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

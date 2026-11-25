@@ -16,3 +16,5 @@ Pass `--redesign` to the planner and **dispatch `michelangelo` through the Task 
 **An approved redesign is never replayed.** When the task carries a redesign proposal the user already approved (`@skills/deliver-page-redesign/SKILL.md` *Get the design approved*), do not pass `--redesign` and do not dispatch `michelangelo`: hand the approved proposal to `donatello` as the specification (`@rules/compound-engineering/orchestration.md` *An approved redesign is never replayed*).
 
 **A redesign the user asked for without any implementation ask is analysis-only** and was already routed in step 3 — `michelangelo` is that branch's second specialist, beside `leonardo`. Its deliverable is the proposal itself, and the run stops there.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.
