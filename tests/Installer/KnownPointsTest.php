@@ -342,7 +342,10 @@ test('known states exactly which findings it refuses, and the refused categories
         ->toContain('test("^[^a-z0-9]*exploit-path")')
         ->toContain('skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$)');
     expect(knownPointsRule())
-        ->toContain('`known` refuses (exit 4) a record that `extract-findings.sh --round` flags as security: a security rule or lens, `Raised by` `splinter` or `both`, `exploit-path` evidence')
+        ->toContain(
+            '`known` refuses (exit 4) a record that `extract-findings.sh --round` flags as security:'
+                . ' a security rule or lens, `Raised by` `splinter` or `both`, `exploit-path` evidence',
+        )
         ->toContain('It checks nothing else, so `krang` never marks an S1–S3 finding that both tests miss.');
     expect(packageSource('skills/process-code-review/references/review-state.md'))
         ->toContain('The script reads only the record: a record with `security: true`')
