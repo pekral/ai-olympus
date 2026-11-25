@@ -532,15 +532,20 @@ test('the receiving session and the control-plane rule name the switch and its s
         );
 });
 
-test('the installer writes nothing for the key and derives no permission from it', function (): void {
+test('only the default write of composer.json names the key in the installer, and it derives no permission from it', function (): void {
     $sources = array_filter(
         packageTextFiles(),
         static fn (string $text, string $path): bool => str_starts_with($path, 'src/')
             && (str_contains($text, 'helper-agents') || str_contains($text, 'helper agents')),
         ARRAY_FILTER_USE_BOTH,
     );
+    ksort($sources);
+    $writer = packageSource('src/InstallerHelperAgentsDefault.php');
 
-    expect($sources)->toBe([]);
+    expect(array_keys($sources))->toBe(['src/Installer.php', 'src/InstallerHelperAgentsDefault.php'])
+        ->and($writer)->toContain("\$path = \$projectRoot . '/composer.json';")
+        ->and($writer)->not->toContain('permissions')
+        ->and($writer)->not->toContain('settings');
 });
 
 test('Codex gates its agent spawn by the owner file, and both installed outputs carry the owner file', function (): void {
@@ -599,11 +604,15 @@ test('the documentation states what the setting does, its default, and how to ch
     'how to change it' => ['{ "extra": { "ai-olympus": { "helper-agents": false } } }'],
     'how to undo it' => ['To allow them again, set the key to `true` or remove it.'],
     'the default' => [
-        'The installer never writes the key, so the documented default'
-        . ' (`true`) applies until you set it. Only `false` forbids helper agents.',
+        'When your `composer.json` has no `helper-agents` key, the installer adds it with the value `true` and never'
+        . ' changes a value that is already there. Only `false` forbids helper agents.',
+    ],
+    'the lock' => [
+        'Composer counts `extra` into the content-hash of `composer.lock`, so after that write `composer validate`'
+        . ' reports the lock file as out of date and `composer install` warns',
     ],
     'the default branch' => ['The setting is read from the default branch, so a pull request that sets it takes effect only after it is merged.'],
     'the heading' => ['**Helper agents are allowed by default.**'],
-    'the table row' => ['| `helper-agents` | `resolve-project-switch.sh`, `krang`, every command and skill that starts an agent |'],
+    'the table row' => ['| `helper-agents` | `resolve-project-switch.sh`, `krang`, every command and skill that starts an agent, the installer |'],
     'the two platforms' => ['It behaves the same way on Claude Code and on Codex.'],
 ]);
