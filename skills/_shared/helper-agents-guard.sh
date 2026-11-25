@@ -10,6 +10,7 @@
 # Usage (run in the tree the session started in, never in a unit, review, or gate worktree)
 #   helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role> [--role <role>]...
 #   helper-agents-guard.sh read-role  --run-dir <dir> --slug <slug> --role <role> --sha256 <hex>
+#   helper-agents-guard.sh config-hash [--root <dir>]
 #   helper-agents-guard.sh --self-test
 #
 #   --run-dir   the run directory of the platform: a path that ends in `.claude/run` (the role is read from
@@ -26,6 +27,12 @@
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
+# config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the agent configuration that a
+# later session loads, below --root (default: the current directory): `.claude/agents`, `.claude/skills`,
+# `.claude/rules`, `.claude/commands`, `.claude/settings*.json`, `.codex` (without `.codex/run` and
+# `.codex/worktrees`), and `.agents`. A symbolic link counts by its target. The output names no file and no value, so
+# a settings file is hashed and never shown. The session runs it before and after each review stage and compares.
+#
 # Exit codes
 #   0  done
 #   1  usage error
@@ -39,7 +46,7 @@ SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 BLOCKED='Blocked: helper agents forbidden — trusted role definition not available'
 
 usage() {
-  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | --self-test" >&2
+  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-hash [--root <dir>] | --self-test" >&2
   exit 1
 }
 
@@ -139,6 +146,32 @@ read_role() {
   printf '%s' "$content"
 }
 
+config_hash() {
+  local root="$1" sha_cmd path
+  local -a paths files
+  cd -- "$root" 2>/dev/null || { echo "helper-agents-guard.sh: cannot enter the root directory" >&2; exit 1; }
+  if command -v sha256sum >/dev/null 2>&1; then sha_cmd=(sha256sum); else sha_cmd=(shasum -a 256); fi
+
+  paths=()
+  for path in .claude/agents .claude/skills .claude/rules .claude/commands .claude/settings*.json .codex .agents; do
+    [[ -e "$path" || -L "$path" ]] && paths+=("$path")
+  done
+
+  {
+    if [[ ${#paths[@]} -gt 0 ]]; then
+      files=()
+      while IFS= read -r -d '' path; do
+        if [[ -L "$path" ]]; then
+          printf 'l %s %s\n' "$(readlink -- "$path")" "$path"
+        else
+          files+=("$path")
+        fi
+      done < <(find -P "${paths[@]}" \( -path .codex/run -o -path .codex/worktrees \) -prune -o \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
+      [[ ${#files[@]} -eq 0 ]] || "${sha_cmd[@]}" -- "${files[@]}" </dev/null | sed 's/^/f /'
+    fi
+  } | LC_ALL=C sort | sha256_stdin | sed 's/^/config-hash=/'
+}
+
 self_test() {
   local failed=0 tmp repo out hash rc
   tmp="$(mktemp -d)" || return 1
@@ -225,6 +258,29 @@ self_test() {
   run read-role --run-dir .claude/run --slug gh-1 --role leonardo --sha256 'not-a-hash' >/dev/null 2>&1
   check 'a hash that is not 64 hex digits is a usage error' "$([[ $? -eq 1 ]] && echo yes || echo no)"
 
+  local cfg first
+  cfg="$tmp/cfg"
+  mkdir -p "$cfg/.claude/skills/x" "$cfg/.claude/run" "$cfg/.codex/run"
+  printf 'skill\n' >"$cfg/.claude/skills/x/SKILL.md"
+  printf '{"token":"never-shown"}\n' >"$cfg/.claude/settings.local.json"
+  first="$("$SELF" config-hash --root "$cfg")"
+  check 'config-hash prints one hash line and no value' \
+    "$([[ "$first" =~ ^config-hash=[0-9a-f]{64}$ && "$first" != *never-shown* ]] && echo yes || echo no)"
+  check 'config-hash is stable for an unchanged tree' "$([[ "$("$SELF" config-hash --root "$cfg")" == "$first" ]] && echo yes || echo no)"
+  printf 'brief\n' >"$cfg/.claude/run/brief.md"
+  printf 'state\n' >"$cfg/.codex/run/state"
+  check 'a write to a run directory leaves the hash unchanged' "$([[ "$("$SELF" config-hash --root "$cfg")" == "$first" ]] && echo yes || echo no)"
+  printf '{"token":"changed"}\n' >"$cfg/.claude/settings.local.json"
+  check 'a changed settings file changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  first="$("$SELF" config-hash --root "$cfg")"
+  ln -s ../elsewhere "$cfg/.claude/skills/link"
+  check 'a new symbolic link changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  first="$("$SELF" config-hash --root "$cfg")"
+  mkdir -p "$cfg/.agents/skills/y"
+  printf 'codex skill\n' >"$cfg/.agents/skills/y/SKILL.md"
+  check 'a new Codex skill changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  check 'an empty tree has a hash too' "$([[ "$("$SELF" config-hash --root "$tmp/repo/.git")" =~ ^config-hash=[0-9a-f]{64}$ ]] && echo yes || echo no)"
+
   [[ "$failed" -eq 0 ]] && echo "helper-agents-guard.sh self-test passed"
   return "$failed"
 }
@@ -244,6 +300,16 @@ case "$command" in
   exit $?
   ;;
 copy-roles | read-role) ;;
+config-hash)
+  root="."
+  if [[ $# -gt 0 ]]; then
+    [[ $# -eq 2 && "$1" == "--root" && -n "$2" ]] || usage
+    root="$2"
+  fi
+  require_tools
+  config_hash "$root"
+  exit $?
+  ;;
 *) usage ;;
 esac
 
