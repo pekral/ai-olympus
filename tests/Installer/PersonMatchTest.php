@@ -173,7 +173,7 @@ function personMatchIssue(string $field, string $accountId, string $displayName,
 
 /**
  * @param array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string} $fixture
- * @param array<string, list<array<string, mixed>>> $answers
+ * @param array<string, array<mixed>> $answers
  */
 function personMatchSearch(array $fixture, array $answers): void
 {
@@ -451,9 +451,6 @@ test('a commit e-mail counts only from a commit of this repository linked to the
 
 test(
     'a JIRA search that returns two accounts, or an account that shows another e-mail, gives no candidate',
-    /**
-     * @param list<array<string, mixed>> $issues
-     */
     function (array $issues, string $missing): void {
         $fixture = personMatchFixture();
         personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => $issues]);
@@ -655,14 +652,11 @@ test('forget removes the confirmed match of the current scope', function (): voi
 
 test(
     'the assign helper in confirmed-match mode assigns no one without a match and takes no account ID from its arguments',
-    /**
-     * @param list<string> $arguments
-     */
-    function (array $arguments, int $exitCode): void {
+    function (string $arguments, int $exitCode): void {
         $fixture = personMatchFixture();
     
         try {
-            $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', ...$arguments]);
+            $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', ...explode(' ', $arguments)]);
     
             expect($process->getExitCode())->toBe($exitCode)
                 ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([])
@@ -672,10 +666,10 @@ test(
         }
     },
 )->with([
-    'an account ID argument' => [['--pr', PERSON_MATCH_PR, '--use-confirmed-match', '--account-id', PERSON_MATCH_ACCOUNT], 1],
-    'an e-mail beside the match' => [['--pr', PERSON_MATCH_PR, '--use-confirmed-match', '--email', PERSON_MATCH_EMAIL], 1],
-    'no confirmed match' => [['--pr', PERSON_MATCH_PR, '--use-confirmed-match'], 6],
-    'the match without a pull request' => [['--use-confirmed-match'], 1],
+    'an account ID argument' => ['--pr ' . PERSON_MATCH_PR . ' --use-confirmed-match --account-id ' . PERSON_MATCH_ACCOUNT, 1],
+    'an e-mail beside the match' => ['--pr ' . PERSON_MATCH_PR . ' --use-confirmed-match --email ' . PERSON_MATCH_EMAIL, 1],
+    'no confirmed match' => ['--pr ' . PERSON_MATCH_PR . ' --use-confirmed-match', 6],
+    'the match without a pull request' => ['--use-confirmed-match', 1],
 ]);
 
 test('the assign helper assigns the confirmed account and confirms it by a re-read of the account ID', function (): void {
