@@ -204,11 +204,17 @@ test('when forbidden, both security views run and a missing view leaves the roun
         ->and(normalizedPackageSource('rules/code-review/review-process.md'))->toContain('- **A missing view is stated, never assumed clean.**');
 });
 
-test('when forbidden, each role comes from its installed definition and the review stays read-only', function (string $rule): void {
+test('when forbidden, each role comes from a hashed copy taken before any checkout, and a missing copy blocks', function (string $rule): void {
     expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);
 })->with([
-    'never the tracked role file' => ['It never reads the tracked `agents/<role>.md` of a branch (`@rules/security/general.md` *Trusted sources*).'],
-    'the installed definition' => ['`.claude/agents/<role>.md` on Claude Code, `.codex/agent-instructions/<role>.md` on Codex.'],
+    'never the tracked role file' => ['It never reads the tracked `agents/<role>.md` of a branch, and never the installed file at stage time.'],
+    'the copy before any checkout' => [
+        'In the gather phase, before any checkout, install, or stage, the session copies the definition of every role'
+        . ' with `skills/_shared/helper-agents-guard.sh copy-roles`.',
+    ],
+    'the hash in the brief' => ['`krang` writes the printed `role=<role> sha256=<hex>` lines under its own heading `## Role copies`'],
+    'the read checks the hash' => ['Each stage reads its role only with `skills/_shared/helper-agents-guard.sh read-role`'],
+    'the blocked stop' => ['stops the run with `Blocked: helper agents forbidden — trusted role definition not available`'],
     'the role limits' => ['For that stage it applies the limits and the Bash boundary of that role, never those of `krang`.'],
     'the snapshot after' => ['Record it again after the stage. A different value stops the round as not converged and names the change.'],
     'the snapshot before' => [
@@ -216,6 +222,47 @@ test('when forbidden, each role comes from its installed definition and the revi
         . ' output of `skills/security-audit/scripts/audit-artifacts.sh snapshot`.',
     ],
 ]);
+
+test('the role copy survives a later change of the installed definition, and a definition the branch tracks is refused', function (): void {
+    $directory = sys_get_temp_dir() . '/ai-olympus-role-copy-' . bin2hex(random_bytes(6));
+    mkdir($directory . '/.claude/agents', 0o777, true);
+    mkdir($directory . '/.claude/run');
+    register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
+    manifestRepositoryGit($directory, 'init', '-q', '-b', 'master');
+    file_put_contents($directory . '/.gitignore', ".claude/run/\n");
+    file_put_contents($directory . '/.claude/agents/splinter.md', "the reviewed role\n");
+    manifestRepositoryGit($directory, 'add', '.gitignore', '.claude/agents/splinter.md');
+    manifestRepositoryGit($directory, 'commit', '-q', '-m', 'roles');
+    manifestRepositoryGit($directory, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
+    manifestRepositoryGit($directory, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
+    $guard = dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh';
+    $copy = new Process([$guard, 'copy-roles', '--run-dir', '.claude/run', '--slug', 'gh-1', '--role', 'splinter'], $directory);
+    $copy->run();
+    preg_match('/sha256=([0-9a-f]{64})/', $copy->getOutput(), $hash);
+    file_put_contents($directory . '/.claude/agents/splinter.md', "a role the branch relaxed\n");
+    manifestRepositoryGit($directory, 'checkout', '-q', '-b', 'feature');
+    manifestRepositoryGit($directory, 'commit', '-q', '-am', 'relax');
+
+    $read = new Process([$guard, 'read-role', '--run-dir', '.claude/run', '--slug', 'gh-1', '--role', 'splinter', '--sha256', $hash[1] ?? ''], $directory);
+    $read->run();
+    $onTheBranch = new Process([$guard, 'copy-roles', '--run-dir', '.claude/run', '--slug', 'gh-2', '--role', 'splinter'], $directory);
+    $onTheBranch->run();
+
+    expect($copy->getExitCode())->toBe(0)
+        ->and($read->getExitCode())->toBe(0)
+        ->and($read->getOutput())->toBe("the reviewed role\n")
+        ->and($onTheBranch->getExitCode())->toBe(3)
+        ->and($onTheBranch->getErrorOutput())->toContain('Blocked: helper agents forbidden — trusted role definition not available');
+});
+
+test('the role guard self-test passes and is registered', function (): void {
+    $selfTest = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', '--self-test']);
+    $selfTest->run();
+
+    expect($selfTest->getExitCode())->toBe(0)
+        ->and(packageSource('composer.json'))->toContain('skills/_shared/helper-agents-guard.sh')
+        ->and(normalizedPackageSource('agents/krang.md'))->toContain('run `skills/_shared/helper-agents-guard.sh copy-roles`');
+});
 
 test('when forbidden, every publish carries the agent marker and tracker text stays data', function (string $rule): void {
     expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);
