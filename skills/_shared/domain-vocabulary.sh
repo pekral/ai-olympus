@@ -48,6 +48,14 @@ QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|
 RUNNER_COLLECTED_RE='tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[^/]*\.py$|(^|/)test[^/]*\.txt$|(^|/)conftest\.py$|(^|/)__tests__/.*\.[cm]?[jt]sx?$|(^|/)phpunit\.xml|(^|/)pest\.php$'
 TEST_RE='(^|/)tests?/|(^|/)spec/|(^|/)__tests__/|(^|/)testdata/|'"$RUNNER_COLLECTED_RE"
 
+# DOC_NAME_RE names a documentation file by its own lower-cased name: a readme, changelog, license, contributing,
+# or code-of-conduct file. DOC_RE names a documentation file by its lower-cased path: a DOC_NAME_RE file and a file
+# with a documentation extension. A file is documentation by what it is, never by the directory it sits in, so a
+# configuration, a build file, or a script under `docs/` is not. `classify-risk.sh` reads DOC_RE for the
+# `documentation-only` signal and for the files whose added lines carry no rollback signal.
+DOC_NAME_RE='(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
+DOC_RE='\.(md|mdx|markdown|rst|txt|adoc)$|'"$DOC_NAME_RE"
+
 # TOOL_LIST_RE names a `.txt` file by its lower-cased path that a common tool reads as its list of tests or of
 # dependencies: a CMake `CMakeLists.txt`, whose `add_test()` calls are the CTest tests, a pip requirements or
 # constraints file (`requirements-dev.txt`, `dev-requirements.txt`, `requirements/base.txt`), and a Conan

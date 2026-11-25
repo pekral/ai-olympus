@@ -268,8 +268,7 @@ EOF
 # so every pattern here is written in lower case and needs no case folding of
 # its own.
 
-DOC_RE='(^|/)(docs?|documentation)/|\.(md|mdx|markdown|rst|txt|adoc)$|(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
-# FORMAT_RE comes from domain-vocabulary.sh, which test-integrity.sh reads too.
+# DOC_RE and FORMAT_RE come from domain-vocabulary.sh, which test-integrity.sh reads too.
 
 PAY_RE='payment|billing|invoice|subscription|checkout|stripe|paypal|braintree|adyen|gopay|refund|pricing|currency'
 API_RE='(^|/)routes/api|(^|/)api/|api[a-z0-9_-]*controller|openapi|swagger|graphql|\.proto$'
@@ -1440,6 +1439,17 @@ TEXT
     --files "$(writefiles 'src/CMakeLists.txt')" --assignment "$tmp/clear.txt"
   expect_no_line 'a requirements file is never documentation' 'documentation-only' \
     --files "$(writefiles 'app/requirements-dev.txt')" --assignment "$tmp/clear.txt"
+  # A documentation directory makes no file documentation: a configuration, a build file, or a script there is
+  # material, in any case and at any depth. A git-quoted path stays material too.
+  local docs_material
+  for docs_material in 'src/docs/conf.py' 'docs/conf.py' 'docs/Makefile' 'resources/docs/playwright.config.ts' \
+    'app/doc/.mocharc.yml' 'app/doc/.flake8' 'app/docs/.coveragerc' 'app/documentation/noxfile.py' 'Docs/API/Conf.PY' \
+    '"docs/caf\303\251/conf.py"'; do
+    expect_tier "$docs_material is never documentation" STANDARD \
+      --files "$(writefiles "$docs_material")" --assignment "$tmp/clear.txt"
+  done
+  expect_line 'a guide and a readme stay documentation' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'docs/guide.md' 'docs/guide.txt' 'DOCS/Setup/Guide.MD' 'README.md' 'docs/images/README')" --assignment "$tmp/clear.txt"
 
   # --- Project-declared critical paths ---------------------------------------
   manifest_repo() {
