@@ -43,10 +43,11 @@
 # entries a checkout writes. --user adds the user-level files below the home directory: `.claude/CLAUDE.md`,
 # `.claude/settings.json`, `.claude/settings.local.json`, `.claude/rules`, `.claude/agents`, `.claude/skills`,
 # `.claude/commands`, `.claude/hooks`, `.claude/output-styles`, `.codex/config.toml`, `.codex/AGENTS.md`,
-# `.codex/prompts`, `.codex/agents`, `.agents`, and `.gitconfig`, and the user git configuration
-# `${XDG_CONFIG_HOME:-$HOME/.config}/git/config`. A symbolic link counts by its target path and by the content of its
-# target. The output names no file and no value, so a settings file is hashed and never shown. The session runs it
-# before and after each review stage and compares.
+# `.codex/AGENTS.override.md`, `.codex/prompts`, `.codex/agents`, `.agents`, and `.gitconfig`, and the user git
+# configuration `${XDG_CONFIG_HOME:-$HOME/.config}/git/config`. A symbolic link counts by its target path and by the
+# content of its target. The output names no file and no value, so a settings file is hashed and never shown. The
+# session runs it before and after each review stage and compares. What it does not hash is listed under *Not covered*
+# in skills/_shared/orchestration/helper-agents.md.
 #
 # Exit codes
 #   0  done
@@ -62,7 +63,7 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 BLOCKED='Blocked: helper agents forbidden — trusted role definition not available'
-CONFIG_NAMES=(.claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md .mcp.json)
+CONFIG_NAMES=(.claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md AGENTS.override.md .mcp.json)
 
 usage() {
   echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-diff --base <rev> --target <rev> | config-hash [--root <dir>] [--user] | --self-test" >&2
@@ -259,7 +260,7 @@ config_hash() {
     [[ -n "${HOME:-}" && -d "$HOME" ]] || hash_fails "the home directory is not available"
     for path in .claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude/rules .claude/agents \
       .claude/skills .claude/commands .claude/hooks .claude/output-styles .codex/config.toml .codex/AGENTS.md \
-      .codex/prompts .codex/agents .agents .gitconfig; do
+      .codex/AGENTS.override.md .codex/prompts .codex/agents .agents .gitconfig; do
       [[ -e "$HOME/$path" || -L "$HOME/$path" ]] && paths+=("$HOME/$path")
     done
     path="${XDG_CONFIG_HOME:-$HOME/.config}/git/config"
@@ -375,7 +376,7 @@ self_test() {
   check 'a tree off the default branch that changes no configuration path is copied' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   local config_path m=0
   for config_path in .Claude/settings.json .claude/hooks/h.sh .Codex/config.toml .AGENTS/skills/x/SKILL.md \
-    CLAUDE.local.md .mcp.json claude.md AGENTS.md docs/CLAUDE.md packages/app/.claude/skills/x/SKILL.md \
+    CLAUDE.local.md .mcp.json claude.md AGENTS.md AGENTS.override.md docs/AGENTS.override.md docs/CLAUDE.md packages/app/.claude/skills/x/SKILL.md \
     $'.agent\xc5\xbf/skills/x/SKILL.md' $'src/caf\xc3\xa9.php'; do
     m=$((m + 1))
     (
@@ -472,7 +473,7 @@ self_test() {
   check 'an empty tree has a hash too' "$([[ "$("$SELF" config-hash --root "$tmp/repo/.git")" =~ ^config-hash=[0-9a-f]{64}$ ]] && echo yes || echo no)"
 
   local loaded
-  for loaded in .claude/CLAUDE.md CLAUDE.local.md CLAUDE.md AGENTS.md .mcp.json .claude/hooks/h.sh .claude/output-styles/o.md .claude/new-kind/x; do
+  for loaded in .claude/CLAUDE.md CLAUDE.local.md CLAUDE.md AGENTS.md AGENTS.override.md .mcp.json .claude/hooks/h.sh .claude/output-styles/o.md .claude/new-kind/x; do
     first="$("$SELF" config-hash --root "$cfg")"
     mkdir -p "$cfg/$(dirname "$loaded")"
     printf 'written by a stage\n' >>"$cfg/$loaded"
@@ -529,6 +530,9 @@ self_test() {
   mkdir -p "$home/.codex"
   printf 'model = "x"\n' >"$home/.codex/config.toml"
   check 'with --user a write to the Codex configuration changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
+  first="$(user_hash)"
+  printf 'user override\n' >"$home/.codex/AGENTS.override.md"
+  check 'with --user a write to the Codex override instruction file changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
   first="$(user_hash)"
   HOME="$home" XDG_CONFIG_HOME="$home/.config" git config --global core.fsmonitor "$tmp/monitor" >/dev/null 2>&1
   check 'with --user a git setting in the user git configuration changes the hash' \
