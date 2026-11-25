@@ -4,8 +4,6 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-// Stand-ins for `gh` and `acli`. Every call is appended to a log, so a test can assert which read ran,
-// with which arguments, and that no assignment ran. `gh api <path>` serves the file of that path.
 const PERSON_MATCH_GH_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -70,7 +68,6 @@ fi
 exit 1
 BASH;
 
-// A stand-in for `id` that reports another user, so the store reads as owned by someone else.
 const PERSON_MATCH_ID_SCRIPT = <<<'BASH'
 #!/usr/bin/env bash
 printf '%s\n' 4242424
@@ -83,9 +80,6 @@ const PERSON_MATCH_ASSIGN = 'skills/code-review-jira/scripts/assign-to-pr-author
 const PERSON_MATCH_ACCOUNT = 'acc-pat';
 
 /**
- * A checkout of `acme/app`, the fakes, the pull request #12 by `pat` (GitHub user ID 100), one commit
- * of it linked to that ID with the fixture e-mail, and one JIRA issue of project TEAM for that e-mail.
- *
  * @return array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string}
  */
 function personMatchFixture(): array
@@ -113,6 +107,16 @@ function personMatchFixture(): array
     file_put_contents($fixture['state'] . '/assignee', '');
     personMatchGit($fixture['repo'], 'init', '-q');
     personMatchGit($fixture['repo'], 'remote', 'add', 'origin', 'https://github.com/acme/app.git');
+    personMatchRemote($fixture);
+
+    return $fixture;
+}
+
+/**
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string} $fixture
+ */
+function personMatchRemote(array $fixture): void
+{
     file_put_contents($fixture['state'] . '/pr-12.json', (string) json_encode([
         'author' => ['login' => 'pat'],
         'body' => '',
@@ -121,7 +125,7 @@ function personMatchFixture(): array
         'title' => 'fix(login): keep the session (TEAM-42)',
         'url' => PERSON_MATCH_PR,
     ]));
-    personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 4242]);
+    personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 4_242]);
     personMatchApi($fixture, 'users/pat', ['id' => 100, 'login' => 'pat']);
     personMatchApi($fixture, 'repos/acme/app/collaborators/pat/permission', ['permission' => 'write']);
     personMatchApi($fixture, 'repos/acme/app/pulls/12/commits?per_page=100', [personMatchCommit(100, PERSON_MATCH_EMAIL)]);
@@ -130,8 +134,6 @@ function personMatchFixture(): array
         personMatchJql('assignee', PERSON_MATCH_ACCOUNT) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
         personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
     ]);
-
-    return $fixture;
 }
 
 function personMatchGit(string $repo, string ...$arguments): void
@@ -209,9 +211,14 @@ function personMatchPropose(array $fixture, array $environment = []): Process
     return personMatchRun($fixture, PERSON_MATCH_HELPER, ['propose', '--pr', PERSON_MATCH_PR, '--jira-key', 'TEAM-42'], $environment);
 }
 
+function personMatchProposalId(Process $proposal): string
+{
+    preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal->getOutput(), $match);
+
+    return $match[1] ?? '';
+}
+
 /**
- * Proposes the fixture match and records it, the way the session does after the operator confirmed it.
- *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string} $fixture
  * @param array<string, string|false> $environment
  */
@@ -219,9 +226,8 @@ function personMatchConfirm(array $fixture, array $environment = []): Process
 {
     $proposal = personMatchPropose($fixture, $environment);
     expect($proposal->getExitCode())->toBe(0);
-    preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal->getOutput(), $match);
 
-    return personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $match[1] ?? ''], $environment);
+    return personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', personMatchProposalId($proposal)], $environment);
 }
 
 /**
@@ -252,8 +258,6 @@ function personMatchStore(array $fixture): string
 }
 
 /**
- * Every file the helper keeps under the state directory, with its content.
- *
  * @param array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string} $fixture
  */
 function personMatchStateContents(array $fixture): string
@@ -447,6 +451,9 @@ test('a commit e-mail counts only from a commit of this repository linked to the
 
 test(
     'a JIRA search that returns two accounts, or an account that shows another e-mail, gives no candidate',
+    /**
+     * @param list<array<string, mixed>> $issues
+     */
     function (array $issues, string $missing): void {
         $fixture = personMatchFixture();
         personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => $issues]);
@@ -540,20 +547,19 @@ test('record without a pending proposal exits non-zero and writes nothing', func
 
 test('record refuses an expired proposal and a proposal of another repository', function (string $change): void {
     $fixture = personMatchFixture();
-    $proposal = personMatchPropose($fixture)->getOutput();
-    preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal, $match);
-    $pending = $fixture['stateHome'] . '/ai-olympus/person-match-pending/' . $match[1] . '.json';
+    $proposal = personMatchProposalId(personMatchPropose($fixture));
+    $pending = $fixture['stateHome'] . '/ai-olympus/person-match-pending/' . $proposal . '.json';
 
     if ($change === 'expired') {
         $json = json_decode((string) file_get_contents($pending), associative: true, flags: JSON_THROW_ON_ERROR);
         assert(is_array($json));
-        file_put_contents($pending, (string) json_encode([...$json, 'created_epoch' => time() - 3601]));
+        file_put_contents($pending, (string) json_encode([...$json, 'created_epoch' => time() - 3_601]));
     } else {
-        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9999]);
+        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9_999]);
     }
 
     try {
-        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $match[1]]);
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $proposal]);
 
         expect($process->getExitCode())->toBe(6)
             ->and(file_exists(personMatchStore($fixture)))->toBeFalse();
@@ -589,7 +595,7 @@ test('lookup returns no match for another repository, JIRA site, or project', fu
     personMatchConfirm($fixture);
 
     if ($variable === 'repository') {
-        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9999]);
+        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9_999]);
     }
 
     try {
@@ -649,6 +655,9 @@ test('forget removes the confirmed match of the current scope', function (): voi
 
 test(
     'the assign helper in confirmed-match mode assigns no one without a match and takes no account ID from its arguments',
+    /**
+     * @param list<string> $arguments
+     */
     function (array $arguments, int $exitCode): void {
         $fixture = personMatchFixture();
     
@@ -735,8 +744,7 @@ test('the e-mail never reaches the store, the pending proposal, the audit trail,
     try {
         $proposal = personMatchPropose($fixture, $ledger['env']);
         $pending = personMatchStateContents($fixture);
-        preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal->getOutput(), $match);
-        $record = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $match[1]], $ledger['env']);
+        $record = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', personMatchProposalId($proposal)], $ledger['env']);
         $lookup = personMatchLookup($fixture);
         $assign = personMatchRun(
             $fixture,
