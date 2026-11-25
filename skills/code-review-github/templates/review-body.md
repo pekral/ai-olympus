@@ -2,7 +2,9 @@
 
 > The visible part of the one pull-request review on GitHub. `skills/code-review-github/scripts/post-inline-review.sh post` renders it above the hidden record (`templates/pr-comment-output.md`) from three inputs: the walkthrough file, the `Merge risk:` line of the record, and the findings file. This file fixes the blocks, their order, and the text each one carries. Canonical contract: `@skills/code-review-github/references/cr-wrapper-contract.md` *GitHub pull-request review*, and `@rules/code-review/general.md` *One published comment per review run*.
 >
-> **Five blocks, in this order, and nothing else.** A summary paragraph, a collapsed **Merge Risk**, a collapsed **Walkthrough**, a collapsed **Where to test**, and a collapsed **Actionable comments** block. The summary opens the body with no label and no heading before it. The review shows no pre-merge checks, no recent review information, no CI result, no button, no badge or image, and no share link. **Where to test** renders only when the change touches a page or a route, and **Actionable comments** renders only when at least one finding is published. Every `<details>` block is closed in the template.
+> **Five blocks, in this order, and nothing else but the one line below.** A summary paragraph, a collapsed **Merge Risk**, a collapsed **Walkthrough**, a collapsed **Where to test**, and a collapsed **Actionable comments** block. The summary opens the body with no label and no heading before it. The review shows no pre-merge checks, no recent review information, no CI result, no button, no badge or image, and no share link. **Where to test** renders only when the change touches a page or a route, and **Actionable comments** renders only when at least one finding is published. Every `<details>` block is closed in the template.
+>
+> One line stands between the summary and **Merge Risk**, only when the record carries it: `**Review independence:** not independent — helper agents are forbidden for this project`. It is the line of a review that the session which wrote the change ran itself (`skills/_shared/orchestration/helper-agents.md` *Report lines*). The wrapper copies it from the record and refuses a record that carries any other value of that line.
 >
 > **Code in the body: the suggested code of a finding only.** The problem and the fix are plain sentences, and no other value of the body holds a fenced block, a suggestion block, or a replacement snippet. Two fences are allowed: the mermaid sequence diagram of the Walkthrough, and the suggested code of an Actionable comments entry, which the findings file sets in `suggestion`. The wrapper refuses a finding or a walkthrough that holds any other fence (`@rules/code-review/general.md` *A review carries no code*).
 >
@@ -25,6 +27,8 @@
 
 ````markdown
 {what the pull request changes, or on a later review what changed since the previous published review, in plain sentences; at most 500 characters; no label, no heading, no code}
+
+{only when the record carries it: **Review independence:** not independent — helper agents are forbidden for this project}
 
 <details>
 <summary><strong>Merge Risk:</strong> <strong>{🟢 Low | 🟡 Medium | 🔴 High}</strong> · up to <code>{short SHA}</code></summary>
