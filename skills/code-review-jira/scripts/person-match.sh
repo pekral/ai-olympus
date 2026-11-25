@@ -27,7 +27,8 @@
 #   are never used. For each e-mail it
 #   searches the issues of the JIRA project where that e-mail is the assignee or the reporter. A
 #   candidate needs exactly one account in all those results, and no result whose visible e-mail
-#   differs from the query. It never calls `acli jira workitem assign`, a GitHub search, the events
+#   differs from the query. A failed read stops the helper (exit 3), and a JIRA search that returns
+#   a full page of 50 issues, or commit lists that fill 10 pages of 100, give no candidate. It never calls `acli jira workitem assign`, a GitHub search, the events
 #   or repositories of a user, another repository, or another JIRA project.
 #   It writes nothing to a tracker. With a candidate it prints the proposal (exit 0) and writes a
 #   pending proposal to the state directory that holds no e-mail and expires after one hour. The
@@ -64,7 +65,8 @@
 #   0  done (propose: a proposal; lookup: a match)
 #   1  usage / argument error
 #   2  missing required tool (acli, gh, jq, git)
-#   3  a read failed (the pull request, the GitHub account, the repository, or the JIRA site)
+#   3  a read failed (the pull request, the GitHub account, the repository, the commits, a JIRA
+#      search, the JIRA site, or the store)
 #   4  the pull request does not belong to the current repository
 #   5  the store is not safe (a symbolic link, another owner, or inside a git work tree)
 #   6  no candidate, no pending proposal, or no confirmed match
@@ -72,6 +74,8 @@ set -euo pipefail
 
 PROG="person-match.sh"
 PENDING_TTL=3600
+SEARCH_LIMIT=50
+COMMIT_PAGES=10
 NOREPLY_RE='@users\.noreply\.github\.com$'
 EMAIL_RE='^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$'
 ACCOUNT_RE='^[A-Za-z0-9:_-]{1,128}$'
@@ -182,12 +186,12 @@ write_private() {
   mv -f "$tmp" "$target"
 }
 
-store_json() {
-  if [[ -f "$STORE" ]]; then
-    jq -c 'if type == "object" and (.matches | type) == "array" then . else {matches: []} end' "$STORE" 2>/dev/null || printf '{"matches":[]}'
-  else
-    printf '{"matches":[]}'
-  fi
+# Sets STORE_JSON. A store that cannot be read, or holds no list of matches, stops the helper.
+read_store() {
+  STORE_JSON='{"matches":[]}'
+  [[ -f "$STORE" ]] || return 0
+  STORE_JSON="$(jq -ce 'select(type == "object" and (.matches | type) == "array")' "$STORE" 2>/dev/null)" \
+    || fail 3 "the match store could not be read — nothing matched or changed."
 }
 
 LOCK="$STATE_DIR/person-matches.lock"
@@ -243,9 +247,10 @@ if [[ "$SUBCOMMAND" == record ]]; then
     fail 6 "the pending proposal $PROPOSAL belongs to another repository or JIRA site — nothing recorded."
   fi
   take_lock
-  STORE_NEW="$(store_json | jq -c --argjson p "$PENDING_JSON" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
+  read_store
+  STORE_NEW="$(jq -c --argjson p "$PENDING_JSON" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
     .matches |= ([.[] | select((.scope == $p.scope and .github.id == $p.github.id) | not)]
-      + [{scope: $p.scope, github: $p.github, jira: $p.jira, evidence: $p.evidence, confirmed_at: $at}])')"
+      + [{scope: $p.scope, github: $p.github, jira: $p.jira, evidence: $p.evidence, confirmed_at: $at}])' <<<"$STORE_JSON")"
   write_private "$STORE" "$STORE_NEW"
   rm -f "$PENDING"
   LOGIN="$(jq -r '.github.login' <<<"$PENDING_JSON")"
@@ -276,26 +281,37 @@ SCOPE="$(jq -cn --arg rid "$REPO_ID" --arg repo "$NWO" --arg site "$SITE" --arg 
   '{repository_id: $rid, repository: $repo, site: $site, project: $project}')"
 
 # The JIRA accounts that are the assignee or the reporter of an issue of the project for one JQL
-# user value. Prints one JSON object per account: {account_id, display_name, email, issues}.
+# user value. Sets PROJECT_ACCOUNTS (one JSON object per account: {account_id, display_name, email,
+# issues}) and PROJECT_FULL_PAGE (1 when a search returned a full page). A failed or unreadable
+# search stops the helper.
 project_accounts() {
-  local value="$1" field raw
+  local value="$1" field raw rows="" issues
+  PROJECT_FULL_PAGE=0
   for field in assignee reporter; do
     raw="$(acli jira workitem search --jql "project = $PROJECT AND $field = \"$value\" ORDER BY updated DESC" \
-      --fields "$field" --limit 50 --json 2>/dev/null)" || continue
-    jq -c --arg field "$field" '[.. | objects | .fields? | objects | .[$field]? | objects
+      --fields "$field" --limit "$SEARCH_LIMIT" --json 2>/dev/null)" \
+      || fail 3 "the JIRA search of project $PROJECT failed — nothing matched."
+    issues="$(jq -e '[.. | objects | select(.fields? | type == "object")] | length' <<<"$raw" 2>/dev/null)" \
+      || fail 3 "the JIRA search of project $PROJECT could not be read — nothing matched."
+    [[ "$issues" -lt "$SEARCH_LIMIT" ]] || PROJECT_FULL_PAGE=1
+    rows+="$(jq -c --arg field "$field" '[.. | objects | .fields? | objects | .[$field]? | objects
       | {account_id: (.accountId // ""), display_name: (.displayName // ""), email: (.emailAddress // "")}]
-      | .[]' <<<"$raw" 2>/dev/null || true
-  done | jq -sc 'group_by(.account_id) | map(.[0] + {issues: length}) | .[]'
+      | .[]' <<<"$raw")"$'\n'
+  done
+  PROJECT_ACCOUNTS="$(jq -sc 'group_by(.account_id) | map(.[0] + {issues: length}) | .[]' <<<"$rows")" \
+    || fail 3 "the JIRA search of project $PROJECT could not be read — nothing matched."
 }
 
 if [[ "$SUBCOMMAND" == lookup || "$SUBCOMMAND" == forget ]]; then
-  ENTRY="$(store_json | jq -c --argjson scope "$SCOPE" --arg gid "$GITHUB_ID" \
-    'first(.matches[] | select(.scope == $scope and .github.id == $gid)) // empty')"
+  read_store
+  ENTRY="$(jq -c --argjson scope "$SCOPE" --arg gid "$GITHUB_ID" \
+    'first(.matches[] | select(.scope == $scope and .github.id == $gid)) // empty' <<<"$STORE_JSON")"
   if [[ "$SUBCOMMAND" == forget ]]; then
     [[ -n "$ENTRY" ]] || fail 6 "no confirmed match for the pull-request author in this scope."
     take_lock
-    write_private "$STORE" "$(store_json | jq -c --argjson scope "$SCOPE" --arg gid "$GITHUB_ID" \
-      '.matches |= [.[] | select((.scope == $scope and .github.id == $gid) | not)]')"
+    read_store
+    write_private "$STORE" "$(jq -c --argjson scope "$SCOPE" --arg gid "$GITHUB_ID" \
+      '.matches |= [.[] | select((.scope == $scope and .github.id == $gid) | not)]' <<<"$STORE_JSON")"
     audit "person-match forget: the confirmed match of the pull-request author $LOGIN ($NWO / $PROJECT)" 0
     echo "forgotten: the confirmed match of GitHub $LOGIN for $NWO / $SITE / $PROJECT"
     exit 0
@@ -303,7 +319,8 @@ if [[ "$SUBCOMMAND" == lookup || "$SUBCOMMAND" == forget ]]; then
   [[ -n "$ENTRY" ]] || fail 6 "no confirmed match for the pull-request author in this scope — run propose."
   ACCOUNT_ID="$(jq -r '.jira.account_id' <<<"$ENTRY")"
   [[ "$ACCOUNT_ID" =~ $ACCOUNT_RE ]] || fail 6 "the confirmed match is not valid — run propose again."
-  if [[ -z "$(project_accounts "$ACCOUNT_ID" | jq -r --arg id "$ACCOUNT_ID" 'select(.account_id == $id) | .account_id')" ]]; then
+  project_accounts "$ACCOUNT_ID"
+  if [[ -z "$(jq -r --arg id "$ACCOUNT_ID" 'select(.account_id == $id) | .account_id' <<<"$PROJECT_ACCOUNTS")" ]]; then
     fail 6 "the confirmed JIRA account has no issue left in project $PROJECT — run propose again."
   fi
   echo "account_id=$ACCOUNT_ID"
@@ -315,20 +332,44 @@ fi
 PERMISSION="$(gh api "repos/$NWO/collaborators/$LOGIN/permission" 2>/dev/null | jq -r '.permission // empty' 2>/dev/null || true)"
 [[ "$PERMISSION" =~ ^[a-z]+$ ]] || PERMISSION="not available"
 
-COMMIT_EMAILS="$(for path in "repos/$NWO/pulls/$PR_NUMBER/commits?per_page=100" "repos/$NWO/commits?author=$LOGIN&per_page=100"; do
-  gh api "$path" 2>/dev/null | jq -r --arg id "$GITHUB_ID" '.[]?
-    | select(.commit.verification.verified? == true and (.committer.id? | tostring) == $id)
-    | .commit.committer.email // empty' 2>/dev/null || true
-done | tr '[:upper:]' '[:lower:]' | grep -Ev "$NOREPLY_RE" | grep -E "$EMAIL_RE" | sort | uniq -c | awk '{print $2 "|" $1}' || true)"
+# Every page of both commit lists, up to COMMIT_PAGES pages of 100. A failed or unreadable page
+# stops the helper, and a list that fills every page gives no candidate.
+COMMIT_ROWS=""
+COMMITS_FULL=0
+for list in "repos/$NWO/pulls/$PR_NUMBER/commits?per_page=100" "repos/$NWO/commits?author=$LOGIN&per_page=100"; do
+  page=1
+  while :; do
+    raw="$(gh api "$list&page=$page" 2>/dev/null)" || fail 3 "the commits of $NWO could not be read — nothing matched."
+    page_size="$(jq -e 'if type == "array" then length else error end' <<<"$raw" 2>/dev/null)" \
+      || fail 3 "the commits of $NWO could not be read — nothing matched."
+    COMMIT_ROWS+="$(jq -r --arg id "$GITHUB_ID" '.[]
+      | select(.commit.verification.verified? == true and (.committer.id? | tostring) == $id)
+      | .commit.committer.email // empty' <<<"$raw")"$'\n'
+    [[ "$page_size" -ge 100 ]] || break
+    if [[ "$page" -ge "$COMMIT_PAGES" ]]; then
+      COMMITS_FULL=1
+      break
+    fi
+    page=$((page + 1))
+  done
+done
+COMMIT_EMAILS="$(tr '[:upper:]' '[:lower:]' <<<"$COMMIT_ROWS" | { grep -Ev "$NOREPLY_RE" || true; } | { grep -E "$EMAIL_RE" || true; } \
+  | sort | uniq -c | awk '{print $2 "|" $1}')"
 
 MISSING=()
 ACCOUNTS="[]"
 REJECTED=0
+FULL_PAGE=0
+if [[ "$COMMITS_FULL" -eq 1 ]]; then
+  MISSING+=("the commits of $NWO fill $COMMIT_PAGES pages of 100, so the read can miss another e-mail")
+fi
 if [[ -z "$COMMIT_EMAILS" ]]; then
   MISSING+=("no verified commit of $NWO committed by GitHub user ID $GITHUB_ID carries a public committer e-mail")
 else
   while IFS='|' read -r email commits; do
     [[ -n "$email" ]] || continue
+    project_accounts "$email"
+    [[ "$PROJECT_FULL_PAGE" -eq 0 ]] || FULL_PAGE=1
     while IFS= read -r account; do
       [[ -n "$account" ]] || continue
       shown="$(jq -r '.email | ascii_downcase' <<<"$account")"
@@ -338,7 +379,7 @@ else
       fi
       ACCOUNTS="$(jq -c --argjson a "$account" --arg email "$email" --arg commits "$commits" \
         '. + [$a + {query: $email, commits: ($commits | tonumber)}]' <<<"$ACCOUNTS")"
-    done < <(project_accounts "$email")
+    done <<<"$PROJECT_ACCOUNTS"
   done <<<"$COMMIT_EMAILS"
 fi
 
@@ -348,6 +389,9 @@ if [[ -n "$COMMIT_EMAILS" && "$REJECTED" -eq 1 ]]; then
 fi
 if [[ -n "$COMMIT_EMAILS" && "$DISTINCT" -eq 0 && "$REJECTED" -eq 0 ]]; then
   MISSING+=("no JIRA account of project $PROJECT is the assignee or the reporter of an issue for the commit e-mail")
+fi
+if [[ "$FULL_PAGE" -eq 1 ]]; then
+  MISSING+=("a JIRA search of project $PROJECT returned a full page of $SEARCH_LIMIT issues, so the result can hide another account")
 fi
 if [[ "$DISTINCT" -gt 1 ]]; then
   MISSING+=("the JIRA search of project $PROJECT returned more than one account")
