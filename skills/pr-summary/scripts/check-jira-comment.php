@@ -26,7 +26,14 @@ const JIRA_SUMMARY_TYPE_ORDER = ['security', 'bug', 'tests', 'refactor', 'perfor
 
 const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 
-const JIRA_SUMMARY_GITHUB_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:pull/[1-9][0-9]*(?<change>/files(?<line>\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?|issues/[1-9][0-9]*)$#';
+const JIRA_SUMMARY_GITHUB_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/'
+    . '(?:pull/[1-9][0-9]*(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?|issues/[1-9][0-9]*)$#';
+
+const JIRA_SUMMARY_WHOLE_CHANGE_LINK = '#\|https://github\.com/[^\]]+/pull/[1-9][0-9]*/files\]#u';
+
+const JIRA_SUMMARY_MENTION = '[~accountid:';
+
+const JIRA_SUMMARY_REFACTOR_PREFIX = '* *(refactor):* ';
 
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
@@ -47,43 +54,56 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none
  */
 function jiraSummaryLayout(array $lines): array
 {
-    $layout = ['blocks' => [], 'groups' => 0, 'stray' => [], 'violations' => []];
-    $open = null;
+    $state = ['blocks' => [], 'groups' => 0, 'open' => null, 'stray' => [], 'violations' => []];
 
     foreach (array_slice($lines, 1) as $line) {
         if ($line === '----') {
             break;
         }
 
-        $opening = preg_match(JIRA_SUMMARY_BLOCK_OPEN, $line, $match) === 1;
-
-        if ($open !== null) {
-            if ($line === JIRA_SUMMARY_BLOCK_CLOSE) {
-                $layout['blocks'][] = $open;
-                $open = null;
-            } elseif ($opening) {
-                $layout['violations'][] = 'blocks: a collapsed block inside another one: ' . $line;
-            } else {
-                $open['body'][] = $line;
-            }
-
-            continue;
-        }
-
-        if ($opening) {
-            $open = ['title' => trim($match['title']), 'group' => $layout['groups'], 'body' => []];
-        } elseif (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
-            $layout['groups']++;
-        } elseif (preg_match(JIRA_SUMMARY_LINKS_LINE, $line) !== 1) {
-            $layout['stray'][] = $line;
-        }
+        $state = $state['open'] === null ? jiraSummaryLineOutsideBlock($state, $line) : jiraSummaryLineInsideBlock($state, $line);
     }
 
-    if ($open !== null) {
-        $layout['violations'][] = 'blocks: a collapsed block without its closing line: ' . $open['title'];
+    if ($state['open'] !== null) {
+        $state['violations'][] = 'blocks: a collapsed block without its closing line: ' . $state['open']['title'];
     }
 
-    return $layout;
+    return ['blocks' => $state['blocks'], 'groups' => $state['groups'], 'stray' => $state['stray'], 'violations' => $state['violations']];
+}
+
+/**
+ * @param array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, open: array{title: string, group: int, body: list<string>}|null, stray: list<string>, violations: list<string>} $state
+ * @return array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, open: array{title: string, group: int, body: list<string>}|null, stray: list<string>, violations: list<string>}
+ */
+function jiraSummaryLineOutsideBlock(array $state, string $line): array
+{
+    if (preg_match(JIRA_SUMMARY_BLOCK_OPEN, $line, $match) === 1) {
+        $state['open'] = ['body' => [], 'group' => $state['groups'], 'title' => trim($match['title'])];
+    } elseif (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
+        $state['groups']++;
+    } elseif (preg_match(JIRA_SUMMARY_LINKS_LINE, $line) !== 1) {
+        $state['stray'][] = $line;
+    }
+
+    return $state;
+}
+
+/**
+ * @param array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, open: array{title: string, group: int, body: list<string>}, stray: list<string>, violations: list<string>} $state
+ * @return array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, open: array{title: string, group: int, body: list<string>}|null, stray: list<string>, violations: list<string>}
+ */
+function jiraSummaryLineInsideBlock(array $state, string $line): array
+{
+    if ($line === JIRA_SUMMARY_BLOCK_CLOSE) {
+        $state['blocks'][] = $state['open'];
+        $state['open'] = null;
+    } elseif (preg_match(JIRA_SUMMARY_BLOCK_OPEN, $line) === 1) {
+        $state['violations'][] = 'blocks: a collapsed block inside another one: ' . $line;
+    } else {
+        $state['open']['body'][] = $line;
+    }
+
+    return $state;
 }
 
 /**
@@ -92,27 +112,38 @@ function jiraSummaryLayout(array $lines): array
  */
 function jiraSummaryChangesViolations(array $blocks): array
 {
+    $block = array_slice($blocks, -1)[0] ?? null;
+
+    if ($block === null) {
+        return [];
+    }
+
     $violations = [];
+    $prose = array_filter($block['body'], static fn (string $line): bool => preg_match('/^\* \S/u', $line) !== 1);
+    $length = mb_strlen(implode(' ', $block['body']));
 
-    foreach (array_slice($blocks, -1) as $block) {
-        if (preg_match('/\bTL\W?DR\b/iu', $block['title']) === 1) {
-            $violations[] = 'changes: the final section carries no TL;DR label: ' . $block['title'];
-        }
+    if (preg_match('/\bTL\W?DR\b/iu', $block['title']) === 1) {
+        $violations[] = 'changes: the final section carries no TL;DR label: ' . $block['title'];
+    }
 
-        $prose = array_filter($block['body'], static fn (string $line): bool => preg_match('/^\* \S/u', $line) !== 1);
+    if ($block['body'] === [] || $prose !== []) {
+        $violations[] = 'changes: write what changed and what it affects as a few bullets, one fact per bullet';
+    }
 
-        if ($block['body'] === [] || $prose !== []) {
-            $violations[] = 'changes: write what changed and what it affects as a few bullets, one fact per bullet';
-        }
-
-        $length = mb_strlen(implode(' ', $block['body']));
-
-        if ($length > JIRA_SUMMARY_MAX_CHANGES_CHARACTERS) {
-            $violations[] = sprintf('changes: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_CHANGES_CHARACTERS);
-        }
+    if ($length > JIRA_SUMMARY_MAX_CHANGES_CHARACTERS) {
+        $violations[] = sprintf('changes: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_CHANGES_CHARACTERS);
     }
 
     return $violations;
+}
+
+/**
+ * @param list<array{title: string, group: int, body: list<string>}> $blocks
+ * @return list<string>
+ */
+function jiraSummaryBodyLines(array $blocks): array
+{
+    return array_merge([], ...array_map(static fn (array $block): array => $block['body'], $blocks));
 }
 
 /**
@@ -122,31 +153,52 @@ function jiraSummaryChangesViolations(array $blocks): array
  */
 function jiraSummaryMentionViolations(array $findings, array $lines, string $author): array
 {
-    $violations = [];
-    $allowed = 0;
-    $prefix = '* *(refactor):* ' . ($author === 'none' ? '' : '[~accountid:' . $author . '] ');
+    $refactor = array_values(array_filter(
+        jiraSummaryBodyLines($findings),
+        static fn (string $line): bool => str_starts_with($line, JIRA_SUMMARY_REFACTOR_PREFIX),
+    ));
+    $prefix = JIRA_SUMMARY_REFACTOR_PREFIX . JIRA_SUMMARY_MENTION . $author . '] ';
+    $mentioned = $author === 'none' ? [] : array_filter(
+        $refactor,
+        static fn (string $line): bool => str_starts_with($line, $prefix) && substr_count($line, JIRA_SUMMARY_MENTION) === 1,
+    );
+    $unmentioned = $author === 'none' ? [] : array_filter($refactor, static fn (string $line): bool => !str_starts_with($line, $prefix));
+    $violations = array_map(
+        static fn (string $line): string => 'mention: a (refactor) finding mentions the author right after its type: ' . $line,
+        array_values($unmentioned),
+    );
+    $mentions = array_sum(array_map(static fn (string $line): int => substr_count($line, JIRA_SUMMARY_MENTION), $lines));
 
-    foreach ($findings as $block) {
-        foreach ($block['body'] as $line) {
-            if (!str_starts_with($line, '* *(refactor):* ')) {
-                continue;
-            }
-
-            if ($author !== 'none' && !str_starts_with($line, $prefix)) {
-                $violations[] = 'mention: a (refactor) finding mentions the author right after its type: ' . $line;
-            } elseif ($author !== 'none' && substr_count($line, '[~accountid:') === 1) {
-                $allowed++;
-            }
-        }
-    }
-
-    $mentions = array_sum(array_map(static fn (string $line): int => substr_count($line, '[~accountid:'), $lines));
-
-    if ($mentions > $allowed) {
+    if ($mentions > count($mentioned)) {
         $violations[] = 'mention: only a (refactor) finding mentions anyone, the author right after its type';
     }
 
     return $violations;
+}
+
+/**
+ * @param array{title: string, group: int, body: list<string>} $block
+ */
+function jiraSummaryOpensWithWholeChange(array $block): bool
+{
+    $opening = $block['body'][0] ?? '';
+
+    return !str_starts_with($opening, '* ') && preg_match(JIRA_SUMMARY_WHOLE_CHANGE_LINK, $opening) === 1;
+}
+
+function jiraSummaryMisplacesCodeLink(string $line): bool
+{
+    preg_match_all(JIRA_SUMMARY_LINK, $line, $links, PREG_SET_ORDER);
+
+    foreach ($links as $index => $link) {
+        $last = $index === count($links) - 1 && str_ends_with($line, $link[0]);
+
+        if (str_contains($link['url'], '#diff-') && (!str_starts_with($line, '* ') || !$last)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -155,29 +207,48 @@ function jiraSummaryMentionViolations(array $findings, array $lines, string $aut
  */
 function jiraSummaryFindingLinkViolations(array $blocks, bool $grouped): array
 {
-    $violations = [];
+    $unopened = array_filter(
+        $blocks,
+        static fn (array $block): bool => !($grouped && $block['group'] === 0) && !jiraSummaryOpensWithWholeChange($block),
+    );
+    $misplaced = array_filter(jiraSummaryBodyLines($blocks), jiraSummaryMisplacesCodeLink(...));
 
-    foreach ($blocks as $block) {
-        $opening = $block['body'][0] ?? '';
+    return [
+        ...array_map(
+            static fn (): string => 'links: the findings block opens with one line that links the whole change of the pull request',
+            array_values($unopened),
+        ),
+        ...array_map(static fn (string $line): string => 'links: a code link ends a finding: ' . $line, array_values($misplaced)),
+    ];
+}
 
-        if (!($grouped && $block['group'] === 0) && (str_starts_with($opening, '* ') || preg_match('#\|https://github\.com/[^\]]+/pull/[1-9][0-9]*/files\]#u', $opening) !== 1)) {
-            $violations[] = 'links: the findings block opens with one line that links the whole change of the pull request';
-        }
+/**
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function jiraSummaryLinkUrls(array $lines): array
+{
+    $urls = [];
 
-        foreach ($block['body'] as $line) {
-            preg_match_all(JIRA_SUMMARY_LINK, $line, $links, PREG_SET_ORDER);
-
-            foreach ($links as $index => $link) {
-                $last = $index === count($links) - 1 && str_ends_with($line, $link[0]);
-
-                if (str_contains($link['url'], '#diff-') && (!str_starts_with($line, '* ') || !$last)) {
-                    $violations[] = 'links: a code link ends a finding: ' . $line;
-                }
-            }
-        }
+    foreach ($lines as $line) {
+        preg_match_all(JIRA_SUMMARY_LINK, $line, $links);
+        $urls = [...$urls, ...$links['url']];
     }
 
-    return $violations;
+    return $urls;
+}
+
+function jiraSummaryUrlViolation(string $url): ?string
+{
+    if (!str_starts_with($url, 'https://')) {
+        return 'links: a link uses https: ' . $url;
+    }
+
+    if (str_starts_with($url, 'https://github.com/') && preg_match(JIRA_SUMMARY_GITHUB_LINK, $url) !== 1) {
+        return 'links: a GitHub link points into a pull request or an issue of the task repository: ' . $url;
+    }
+
+    return null;
 }
 
 /**
@@ -186,24 +257,16 @@ function jiraSummaryFindingLinkViolations(array $blocks, bool $grouped): array
  */
 function jiraSummaryLinkViolations(array $lines): array
 {
-    $violations = [];
+    $urls = jiraSummaryLinkUrls($lines);
+    $violations = array_values(array_filter(
+        array_map(jiraSummaryUrlViolation(...), $urls),
+        static fn (?string $violation): bool => $violation !== null,
+    ));
     $repositories = [];
 
-    foreach ($lines as $line) {
-        preg_match_all(JIRA_SUMMARY_LINK, $line, $links, PREG_SET_ORDER);
-
-        foreach ($links as $link) {
-            $url = $link['url'];
-
-            if (!str_starts_with($url, 'https://')) {
-                $violations[] = 'links: a link uses https: ' . $url;
-            } elseif (str_starts_with($url, 'https://github.com/')) {
-                if (preg_match(JIRA_SUMMARY_GITHUB_LINK, $url, $match) !== 1) {
-                    $violations[] = 'links: a GitHub link points into a pull request or an issue of the task repository: ' . $url;
-                } else {
-                    $repositories[strtolower($match['repository'])] = true;
-                }
-            }
+    foreach ($urls as $url) {
+        if (preg_match(JIRA_SUMMARY_GITHUB_LINK, $url, $match) === 1) {
+            $repositories[strtolower($match['repository'])] = true;
         }
     }
 
@@ -220,7 +283,7 @@ function jiraSummaryLinkViolations(array $lines): array
  */
 function jiraSummaryCriteriaViolations(?array $block): array
 {
-    $calls = array_filter($block['body'] ?? [], static fn (string $line): bool => str_contains($line, '[~accountid:'));
+    $calls = array_filter($block['body'] ?? [], static fn (string $line): bool => str_contains($line, JIRA_SUMMARY_MENTION));
 
     return array_map(static fn (string $line): string => 'criteria: the block calls on nobody: ' . $line, array_values($calls));
 }
@@ -242,11 +305,47 @@ function jiraSummaryFindingsBlocks(array $layout, bool $criteriaUnmet): array
     }
 
     $title = $findings[0]['title'] ?? null;
+    $shared = array_filter(jiraSummaryGroupBlocks($layout['blocks'], 0), static fn (array $block): bool => $block['title'] === $title);
 
-    return [
-        ...array_filter(jiraSummaryGroupBlocks($layout['blocks'], 0), static fn (array $block): bool => $block['title'] === $title),
-        ...$findings,
-    ];
+    return [...$shared, ...$findings];
+}
+
+/**
+ * @return list<string>
+ */
+function jiraSummaryOrderViolations(?string $previous, string $type): array
+{
+    $position = array_search($type, JIRA_SUMMARY_TYPE_ORDER, strict: true);
+
+    if ($previous === null || $position >= array_search($previous, JIRA_SUMMARY_TYPE_ORDER, strict: true)) {
+        return [];
+    }
+
+    return [sprintf('findings: order the findings %s; (%s) stands after (%s)', implode(', ', JIRA_SUMMARY_TYPE_ORDER), $type, $previous)];
+}
+
+/**
+ * @param list<string> $body
+ * @return list<string>
+ */
+function jiraSummaryBlockTypeViolations(array $body): array
+{
+    $violations = [];
+    $previous = null;
+    $lines = array_filter($body, static fn (string $line): bool => str_starts_with($line, 'h3. ') || str_starts_with($line, '* '));
+
+    foreach ($lines as $line) {
+        if (str_starts_with($line, 'h3. ')) {
+            $previous = null;
+        } elseif (preg_match(JIRA_SUMMARY_FINDING_TYPE, $line, $match) !== 1) {
+            $violations[] = 'findings: a finding must open with its change type, for example *(bug):*: ' . $line;
+        } else {
+            $violations = [...$violations, ...jiraSummaryOrderViolations($previous, $match['type'])];
+            $previous = $match['type'];
+        }
+    }
+
+    return $violations;
 }
 
 /**
@@ -255,37 +354,7 @@ function jiraSummaryFindingsBlocks(array $layout, bool $criteriaUnmet): array
  */
 function jiraSummaryFindingsViolations(array $blocks): array
 {
-    $violations = [];
-
-    foreach ($blocks as $block) {
-        $previous = null;
-
-        foreach ($block['body'] as $line) {
-            if (str_starts_with($line, 'h3. ')) {
-                $previous = null;
-
-                continue;
-            }
-
-            if (!str_starts_with($line, '* ')) {
-                continue;
-            }
-
-            if (preg_match(JIRA_SUMMARY_FINDING_TYPE, $line, $match) !== 1) {
-                $violations[] = 'findings: a finding must open with its change type, for example *(bug):*: ' . $line;
-
-                continue;
-            }
-
-            if ($previous !== null && array_search($match['type'], JIRA_SUMMARY_TYPE_ORDER, strict: true) < array_search($previous, JIRA_SUMMARY_TYPE_ORDER, strict: true)) {
-                $violations[] = sprintf('findings: order the findings %s; (%s) stands after (%s)', implode(', ', JIRA_SUMMARY_TYPE_ORDER), $match['type'], $previous);
-            }
-
-            $previous = $match['type'];
-        }
-    }
-
-    return $violations;
+    return array_merge([], ...array_map(static fn (array $block): array => jiraSummaryBlockTypeViolations($block['body']), $blocks));
 }
 
 /**
@@ -298,53 +367,77 @@ function jiraSummaryGroupBlocks(array $blocks, int $group): array
 }
 
 /**
+ * @param list<array{title: string, group: int, body: list<string>}> $issueBlocks
+ * @return list<string>
+ */
+function jiraSummarySingleShapeViolations(array $issueBlocks, bool $criteriaUnmet): array
+{
+    $expected = JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA + ($criteriaUnmet ? 1 : 0);
+    $violations = [];
+
+    if (count($issueBlocks) !== $expected) {
+        $violations[] = sprintf(
+            'sections: %d collapsed blocks, expected %d %s a criteria section',
+            count($issueBlocks),
+            $expected,
+            $criteriaUnmet ? 'with' : 'without',
+        );
+    }
+
+    return [
+        ...$violations,
+        ...jiraSummaryCriteriaViolations($criteriaUnmet ? $issueBlocks[0] ?? null : null),
+        ...jiraSummaryChangesViolations($issueBlocks),
+    ];
+}
+
+/**
  * @param array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, stray: list<string>, violations: list<string>} $layout
  * @return list<string>
  */
-function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
+function jiraSummaryGroupedShapeViolations(array $layout, bool $criteriaUnmet): array
 {
-    $violations = [
-        ...$layout['violations'],
-        ...array_map(static fn (string $line): string => 'sections: text outside a collapsed block: ' . $line, $layout['stray']),
-    ];
     $issueBlocks = jiraSummaryGroupBlocks($layout['blocks'], 0);
-
-    if ($layout['groups'] === 0) {
-        $expected = JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA + ($criteriaUnmet ? 1 : 0);
-
-        if (count($issueBlocks) !== $expected) {
-            $violations[] = sprintf(
-                'sections: %d collapsed blocks, expected %d %s a criteria section',
-                count($issueBlocks),
-                $expected,
-                $criteriaUnmet ? 'with' : 'without',
-            );
-        }
-
-        return [...$violations, ...jiraSummaryCriteriaViolations($criteriaUnmet ? $issueBlocks[0] ?? null : null), ...jiraSummaryChangesViolations($issueBlocks)];
-    }
-
     $findingsTitle = jiraSummaryGroupBlocks($layout['blocks'], 1)[0]['title'] ?? '';
-    $criteriaBlocks = array_filter($issueBlocks, static fn (array $block): bool => $block['title'] !== $findingsTitle);
-    $expectedIssueBlocks = (int) $criteriaUnmet;
+    $criteriaBlocks = array_values(array_filter($issueBlocks, static fn (array $block): bool => $block['title'] !== $findingsTitle));
+    $expected = (int) $criteriaUnmet;
+    $violations = jiraSummaryCriteriaViolations($criteriaUnmet ? $criteriaBlocks[0] ?? null : null);
 
-    if (count($criteriaBlocks) !== $expectedIssueBlocks || count($issueBlocks) - count($criteriaBlocks) > 1) {
-        $violations[] = sprintf('sections: %d issue-level blocks, expected %d', count($criteriaBlocks), $expectedIssueBlocks);
+    if (count($criteriaBlocks) !== $expected || count($issueBlocks) - count($criteriaBlocks) > 1) {
+        $violations[] = sprintf('sections: %d issue-level blocks, expected %d', count($criteriaBlocks), $expected);
     }
-
-    $violations = [...$violations, ...jiraSummaryCriteriaViolations($criteriaUnmet ? array_values($criteriaBlocks)[0] ?? null : null)];
 
     for ($group = 1; $group <= $layout['groups']; $group++) {
         $groupBlocks = jiraSummaryGroupBlocks($layout['blocks'], $group);
 
         if (count($groupBlocks) !== JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA) {
-            $violations[] = sprintf('sections: %d blocks in pull-request group %d, expected %d', count($groupBlocks), $group, JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA);
+            $violations[] = sprintf(
+                'sections: %d blocks in pull-request group %d, expected %d',
+                count($groupBlocks),
+                $group,
+                JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA,
+            );
         }
 
         $violations = [...$violations, ...jiraSummaryChangesViolations($groupBlocks)];
     }
 
     return $violations;
+}
+
+/**
+ * @param array{blocks: list<array{title: string, group: int, body: list<string>}>, groups: int, stray: list<string>, violations: list<string>} $layout
+ * @return list<string>
+ */
+function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
+{
+    return [
+        ...$layout['violations'],
+        ...array_map(static fn (string $line): string => 'sections: text outside a collapsed block: ' . $line, $layout['stray']),
+        ...($layout['groups'] === 0
+            ? jiraSummarySingleShapeViolations(jiraSummaryGroupBlocks($layout['blocks'], 0), $criteriaUnmet)
+            : jiraSummaryGroupedShapeViolations($layout, $criteriaUnmet)),
+    ];
 }
 
 /**
@@ -371,36 +464,49 @@ function jiraSummaryTextViolations(array $lines): array
  * @param list<string> $lines
  * @return list<string>
  */
-function jiraSummaryFrameViolations(array $lines): array
+function jiraSummaryVerdictViolations(array $lines): array
 {
-    $violations = [];
     $opening = $lines[0] ?? '';
     $next = $lines[1] ?? '';
+    $sectionFollows = preg_match(JIRA_SUMMARY_BLOCK_OPEN, $next) === 1 || preg_match(JIRA_SUMMARY_GROUP_HEADING, $next) === 1;
 
-    if (preg_match('/^(?:[*#-] |----$|\{|h[1-6]\. )/u', $opening) === 1
-        || (preg_match(JIRA_SUMMARY_BLOCK_OPEN, $next) !== 1 && preg_match(JIRA_SUMMARY_GROUP_HEADING, $next) !== 1)
-    ) {
-        $violations[] = 'verdict: the comment must open with one deploy-verdict paragraph above the first section';
+    if (preg_match('/^(?:[*#-] |----$|\{|h[1-6]\. )/u', $opening) !== 1 && $sectionFollows) {
+        return [];
     }
 
+    return ['verdict: the comment must open with one deploy-verdict paragraph above the first section'];
+}
+
+/**
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function jiraSummaryFooterViolations(array $lines): array
+{
     $rule = array_search('----', $lines, true);
 
-    if ($rule === false || preg_match('/^_.+_$/u', $lines[$rule + 1] ?? '') !== 1) {
-        $violations[] = 'footer: a ---- line followed by the italic footer line is missing';
+    if ($rule !== false && preg_match('/^_.+_$/u', $lines[$rule + 1] ?? '') === 1) {
+        return [];
     }
 
+    return ['footer: a ---- line followed by the italic footer line is missing'];
+}
+
+/**
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function jiraSummaryMarkerViolations(array $lines): array
+{
+    $rule = array_search('----', $lines, true);
     $tail = $rule === false ? [] : array_slice($lines, $rule + 2);
+    $alone = count(array_keys($lines, JIRA_SUMMARY_MARKER_SLOT, true)) === 1;
 
-    if (count($tail) !== 3
-        || preg_match(JIRA_SUMMARY_BLOCK_OPEN, $tail[0]) !== 1
-        || $tail[1] !== JIRA_SUMMARY_MARKER_SLOT
-        || $tail[2] !== JIRA_SUMMARY_BLOCK_CLOSE
-        || count(array_keys($lines, JIRA_SUMMARY_MARKER_SLOT, true)) !== 1
-    ) {
-        $violations[] = 'marker: the comment must end with one collapsed block that holds only the ' . JIRA_SUMMARY_MARKER_SLOT . ' line';
+    if ($alone && $tail === [$tail[0] ?? '', JIRA_SUMMARY_MARKER_SLOT, JIRA_SUMMARY_BLOCK_CLOSE] && preg_match(JIRA_SUMMARY_BLOCK_OPEN, $tail[0]) === 1) {
+        return [];
     }
 
-    return $violations;
+    return ['marker: the comment must end with one collapsed block that holds only the ' . JIRA_SUMMARY_MARKER_SLOT . ' line'];
 }
 
 /**
@@ -410,21 +516,24 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, string $auth
 {
     $lines = reportCheckLines($source);
     $layout = jiraSummaryLayout($lines);
+    $findings = jiraSummaryFindingsBlocks($layout, $criteriaUnmet);
 
     return [
         ...reportCheckLengthViolations($source, JIRA_SUMMARY_MAX_CHARACTERS),
-        ...jiraSummaryFrameViolations($lines),
+        ...jiraSummaryVerdictViolations($lines),
+        ...jiraSummaryFooterViolations($lines),
+        ...jiraSummaryMarkerViolations($lines),
         ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
-        ...jiraSummaryFindingsViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet)),
-        ...jiraSummaryFindingLinkViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet), $layout['groups'] > 0),
+        ...jiraSummaryFindingsViolations($findings),
+        ...jiraSummaryFindingLinkViolations($findings, $layout['groups'] > 0),
         ...jiraSummaryLinkViolations($lines),
-        ...jiraSummaryMentionViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet), $lines, $author),
+        ...jiraSummaryMentionViolations($findings, $lines, $author),
         ...jiraSummaryTextViolations($lines),
     ];
 }
 
-$arguments = array_slice($argv, 1);
-$options = ['--criteria' => null, '--author' => 'none'];
+$arguments = array_slice($argv ?? [], 1);
+$options = ['--author' => 'none', '--criteria' => null];
 
 while (count($arguments) > 1 && array_key_exists($arguments[0], $options)) {
     $options[array_shift($arguments)] = array_shift($arguments);

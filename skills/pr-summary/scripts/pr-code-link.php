@@ -27,7 +27,7 @@ function prCodeLinkValidPath(string $path): bool
         && !in_array('', explode('/', $path), strict: true);
 }
 
-$arguments = array_slice($argv, 1);
+$arguments = array_slice($argv ?? [], 1);
 
 if (!in_array(count($arguments), [1, 3], strict: true)) {
     prCodeLinkRefuse('expected a pull-request URL, optionally followed by a path and a line');

@@ -97,9 +97,9 @@ function jiraWikiMarkupToAdf(string $wikiMarkup): array
     $lines = preg_split('/\R/u', $wikiMarkup);
 
     return [
-        'version' => 1,
-        'type' => 'doc',
         'content' => jiraWikiBlockNodes(is_array($lines) ? $lines : [$wikiMarkup], allowExpand: true),
+        'type' => 'doc',
+        'version' => 1,
     ];
 }
 
@@ -118,17 +118,11 @@ function jiraWikiBlockNodes(array $lines, bool $allowExpand): array
             continue;
         }
 
-        if ($allowExpand
-            && preg_match('/^\{expand:(?<title>[^{}]+)\}$/u', $line, $expand) === 1
-            && ($expandEnd = jiraWikiExpandEnd($lines, $index)) !== null
-        ) {
-            $inner = jiraWikiBlockNodes(array_slice($lines, $index + 1, $expandEnd - $index - 1), allowExpand: false);
-            $content[] = [
-                'type' => 'expand',
-                'attrs' => ['title' => trim($expand['title'])],
-                'content' => $inner === [] ? [['type' => 'paragraph']] : $inner,
-            ];
-            $index = $expandEnd;
+        $expand = jiraWikiExpandBlock($lines, $index, $allowExpand);
+
+        if ($expand !== null) {
+            $content[] = $expand['node'];
+            $index = $expand['end'];
 
             continue;
         }
@@ -232,16 +226,26 @@ function jiraWikiBlockNodes(array $lines, bool $allowExpand): array
 
 /**
  * @param list<string> $lines
+ * @return array{end: int, node: array<string, mixed>}|null
  */
-function jiraWikiExpandEnd(array $lines, int $start): ?int
+function jiraWikiExpandBlock(array $lines, int $start, bool $allowed): ?array
 {
-    for ($index = $start + 1, $lineCount = count($lines); $index < $lineCount; $index++) {
-        if ($lines[$index] === '{expand}') {
-            return $index;
-        }
+    $end = array_search('{expand}', array_slice($lines, $start + 1), true);
+
+    if (!$allowed || $end === false || preg_match('/^\{expand:(?<title>[^{}]+)\}$/u', $lines[$start], $opening) !== 1) {
+        return null;
     }
 
-    return null;
+    $inner = jiraWikiBlockNodes(array_slice($lines, $start + 1, $end), allowExpand: false);
+
+    return [
+        'end' => $start + 1 + $end,
+        'node' => [
+            'attrs' => ['title' => trim($opening['title'])],
+            'content' => $inner === [] ? [['type' => 'paragraph']] : $inner,
+            'type' => 'expand',
+        ],
+    ];
 }
 
 /**

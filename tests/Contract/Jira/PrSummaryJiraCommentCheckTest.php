@@ -10,6 +10,11 @@ function runJiraSummaryCheck(string $source, string $criteria, string $author = 
     return ReportCheckRun::over('skills/pr-summary/scripts/check-jira-comment.php', $source, '--criteria', $criteria, '--author', $author);
 }
 
+function jiraSummaryUsage(): string
+{
+    return 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>';
+}
+
 function jiraSummaryAuthor(): string
 {
     return '712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6';
@@ -31,11 +36,13 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         '{expand:Nálezy z kontroly kódu}',
         'Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]',
         '',
-        '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
+        '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. '
+            . 'Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
         '',
         'h3. Už nahlášené v dřívější kontrole',
         '',
-        '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1]. [Zobrazit v kódu →|https://github.com/acme/app/pull/27600]',
+        '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1]. '
+            . '[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]',
         '{expand}',
         '',
         '{expand:Co se změnilo a co to ovlivní}',
@@ -72,7 +79,8 @@ function jiraSummaryMarkerBlock(): string
 
 function jiraSummaryVerdict(): string
 {
-    return 'Za mě je to skoro hotové, ale zatím to nejde nasadit. Sloučení blokuje jeden bod z kontroly kódu níž: synchronizace po nasazení selže. Nic není sloučené ani nasazené.';
+    return 'Za mě je to skoro hotové, ale zatím to nejde nasadit. '
+        . 'Sloučení blokuje jeden bod z kontroly kódu níž: synchronizace po nasazení selže. Nic není sloučené ani nasazené.';
 }
 
 function jiraSummaryWithCriteria(): string
@@ -203,7 +211,10 @@ test('the findings are ordered by the severity of their type', function (string 
         );
 })->with([
     'a bug after a refactor' => ["* *(refactor):* Dva bloky kódu se opakují.\n* *(bug):* Blokuje sloučení:", '(bug) stands after (refactor)'],
-    'a refactor after a documentation request' => ["* *(documentation):* Chybí popis.\n* *(refactor):* Blokuje sloučení:", '(refactor) stands after (documentation)'],
+    'a refactor after a documentation request' => [
+        "* *(documentation):* Chybí popis.\n* *(refactor):* Blokuje sloučení:",
+        '(refactor) stands after (documentation)',
+    ],
     'a security point after a test' => ["* *(tests):* Chybí test.\n* *(security):* Blokuje sloučení:", '(security) stands after (tests)'],
 ]);
 
@@ -328,7 +339,11 @@ test('the criteria section must match whether any requirement still needs action
         '1 issue-level blocks, expected 0',
     ],
     'criteria section when no requirement needs action' => [jiraSummaryWithCriteria(), 'none', '3 collapsed blocks, expected 2 without a criteria section'],
-    'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 collapsed blocks, expected 3 with a criteria section'],
+    'missing criteria section for an unmet requirement' => [
+        jiraSummaryWithoutCriteria(),
+        'unmet',
+        '2 collapsed blocks, expected 3 with a criteria section',
+    ],
 ]);
 
 test(
@@ -340,7 +355,11 @@ test(
             ->and($process->getOutput())->toContain('violation: changes: ' . $violation);
     },
 )->with([
-    'a prose paragraph' => [jiraSummaryChangesLine(), '„Refresh products“ nyní aktualizuje jen produkty.', 'write what changed and what it affects as a few bullets, one fact per bullet'],
+    'a prose paragraph' => [
+        jiraSummaryChangesLine(),
+        '„Refresh products“ nyní aktualizuje jen produkty.',
+        'write what changed and what it affects as a few bullets, one fact per bullet',
+    ],
     'a TL;DR label' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
     'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
     'the label written with a space' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
@@ -360,8 +379,16 @@ test('a collapsed block must close and never nests', function (string $search, s
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: blocks: ' . $violation);
 })->with([
-    'a block inside another one' => ['{expand:Co se změnilo a co to ovlivní}', "{expand:Co se změnilo a co to ovlivní}\n{expand:Uvnitř}", 'a collapsed block inside another one: {expand:Uvnitř}'],
-    'a block without its closing line' => ["beze změny.\n{expand}", 'beze změny.', 'a collapsed block without its closing line: Co se změnilo a co to ovlivní'],
+    'a block inside another one' => [
+        '{expand:Co se změnilo a co to ovlivní}',
+        "{expand:Co se změnilo a co to ovlivní}\n{expand:Uvnitř}",
+        'a collapsed block inside another one: {expand:Uvnitř}',
+    ],
+    'a block without its closing line' => [
+        "beze změny.\n{expand}",
+        'beze změny.',
+        'a collapsed block without its closing line: Co se změnilo a co to ovlivní',
+    ],
 ]);
 
 test('a review finding may be longer than the whole summary of changes', function (): void {
@@ -439,10 +466,10 @@ test('the check refuses a wrong call and a missing source file', function (strin
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
-    'an author value that is no account ID' => ['--criteria none --author [x] /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
+    'an author value that is no account ID' => ['--criteria none --author [x] /nonexistent/source', jiraSummaryUsage()],
     'missing source file' => ['--criteria none /nonexistent/source', 'cannot read /nonexistent/source'],
-    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
-    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
+    'no criteria flag' => ['/nonexistent/source', jiraSummaryUsage()],
+    'unknown criteria value' => ['--criteria maybe /nonexistent/source', jiraSummaryUsage()],
 ]);
 
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
