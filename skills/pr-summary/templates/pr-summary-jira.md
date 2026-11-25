@@ -192,7 +192,8 @@ Headings and field labels
   vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
-  3 000 characters, counted over the published body. When the comment overflows,
+  3 000 characters, counted over the visible text of the published body: a
+  link counts its label, never its address. When the comment overflows,
   shorten the wording of What changed and what it affects first, keeping each
   of its facts,
   then write each Review findings bullet in two sentences —
@@ -202,15 +203,17 @@ Length
 
 Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
-  <unmet|none> --author <account-id|none> <source-file> on the rendered source, and publish only a source
-  it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
-  cap, the one deploy-verdict paragraph, the collapsed blocks and the text
+  <unmet|none> --author <account-id|none> --repository <owner/name>
+  --pull-request <number> --jira-issue <issue-url> <source-file> on the
+  rendered source, and publish only a source it accepts
+  (@skills/pr-summary/SKILL.md, Publishing). The script checks the
+  cap over the visible text of the converted comment, the one deploy-verdict paragraph, the collapsed blocks and the text
   outside them, the criteria block against the flag, the
   bullets of What changed and what it affects, at most 600 characters and no
   TL;DR label, the change type and the order of every finding, the author
   mention on every refactor finding and on nothing else, the whole-change line
-  and the code links, every GitHub link inside one pull request or issue of
-  the task repository, leaked Markdown, code
+  and the code links, every link and mention of the converted comment against
+  the task's pull requests, its JIRA site, and the author, leaked Markdown, code
   macros, commit hashes, the footer, and the closing agent-marker block.
 
 No embedded blocks
