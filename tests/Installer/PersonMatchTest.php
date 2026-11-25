@@ -359,3 +359,66 @@ test('the helper refuses a store that another user owns', function (): void {
         installerRemoveDirectory($fixture['directory']);
     }
 });
+
+test('propose reads only the current repository and the current JIRA project, and never assigns', function (): void {
+    $fixture = personMatchFixture();
+
+    try {
+        $process = personMatchPropose($fixture);
+        $githubCalls = personMatchCalls($fixture, 'api ');
+        $searches = personMatchCalls($fixture, 'jira workitem search');
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(implode("\n", $githubCalls))->not->toMatch('#search/commits|users/pat/events|users/pat/repos|search/#')
+            ->and(array_filter(
+                $githubCalls,
+                static fn (string $call): bool => str_starts_with($call, 'api repos/') && !str_starts_with($call, 'api repos/acme/app'),
+            ))->toBe([])
+            ->and($searches)->not->toBe([])
+            ->and(array_filter($searches, static fn (string $call): bool => !str_contains($call, '--jql project = TEAM AND ')))->toBe([])
+            ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('propose refuses a pull request of another repository and reads nothing about its author', function (): void {
+    $fixture = personMatchFixture();
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['propose', '--pr', 'https://github.com/other/lib/pull/3', '--jira-key', 'TEAM-42']);
+
+        expect($process->getExitCode())->toBe(4)
+            ->and(personMatchCalls($fixture, 'api users/'))->toBe([])
+            ->and(personMatchCalls($fixture, 'jira workitem search'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('a commit e-mail counts only from a commit of this repository linked to the author ID, never from a local or unlinked commit', function (): void {
+    $fixture = personMatchFixture();
+    file_put_contents($fixture['repo'] . '/README.md', "app\n");
+    personMatchGit($fixture['repo'], 'add', '-A');
+    personMatchGit($fixture['repo'], 'commit', '-q', '-m', 'local');
+    personMatchApi($fixture, 'repos/acme/app/pulls/12/commits?per_page=100', [
+        personMatchCommit(authorId: null, email: PERSON_MATCH_EMAIL),
+        personMatchCommit(200, PERSON_MATCH_EMAIL),
+        personMatchCommit(100, '100+pat@users.noreply.github.com'),
+    ]);
+    personMatchApi($fixture, 'repos/acme/app/commits?author=pat&per_page=100', []);
+    personMatchSearch($fixture, [
+        personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
+        personMatchJql('assignee', 'local.only@example.com') => [personMatchIssue('assignee', 'acc-local', 'Local', '')],
+    ]);
+
+    try {
+        $process = personMatchPropose($fixture);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and(personMatchCalls($fixture, 'jira workitem search'))->toBe([])
+            ->and($process->getOutput())->toContain('no commit of acme/app linked to GitHub user ID 100 carries a public author e-mail');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
