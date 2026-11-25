@@ -1829,10 +1829,11 @@ function jiraOperatorAdfComment(array $content): array
  */
 function jiraAdfParagraph(string ...$texts): array
 {
-    return ['type' => 'paragraph', 'content' => array_map(static fn (string $text): array => ['type' => 'text', 'text' => $text], $texts)];
+    return ['type' => 'paragraph', 'content' => array_values(array_map(static fn (string $text): array => ['type' => 'text', 'text' => $text], $texts))];
 }
 
 test('the JIRA publisher never takes a comment written during a lagging re-read as its own created comment', function (array $operator): void {
+    /** @var array<string, mixed> $operator */
     $result = runJiraPublisherCreateWithoutId([$operator], 'unmarked', lag: [$operator], lagReads: 3);
 
     expect($result['process']->getExitCode())->toBe(3)
