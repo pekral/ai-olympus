@@ -727,3 +727,36 @@ test('the driver refuses an e-mail together with the confirmed match', function 
         installerRemoveDirectory($fixture['directory']);
     }
 });
+
+test('the e-mail never reaches the store, the pending proposal, the audit trail, or the output of record, lookup, and assign', function (): void {
+    $fixture = personMatchFixture();
+    $ledger = auditLedgerCreate('session');
+
+    try {
+        $proposal = personMatchPropose($fixture, $ledger['env']);
+        $pending = personMatchStateContents($fixture);
+        preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal->getOutput(), $match);
+        $record = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $match[1]], $ledger['env']);
+        $lookup = personMatchLookup($fixture);
+        $assign = personMatchRun(
+            $fixture,
+            PERSON_MATCH_ASSIGN,
+            ['TEAM-42', '--pr-author', 'pat', '--pr', PERSON_MATCH_PR, '--use-confirmed-match'],
+            $ledger['env'],
+        );
+        $outputs = implode("\n", array_map(
+            static fn (Process $process): string => $process->getOutput() . $process->getErrorOutput(),
+            [$record, $lookup, $assign],
+        ));
+
+        expect($proposal->getOutput())->toContain(PERSON_MATCH_EMAIL)
+            ->and(strtolower($pending))->not->toContain('pat.author')
+            ->and(strtolower(personMatchStateContents($fixture)))->not->toContain('pat.author')
+            ->and(strtolower($outputs))->not->toContain('pat.author')
+            ->and(strtolower((string) file_get_contents($ledger['file'])))->not->toContain('pat.author')
+            ->and($assign->getExitCode())->toBe(0);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+        auditLedgerRemove($ledger);
+    }
+});
