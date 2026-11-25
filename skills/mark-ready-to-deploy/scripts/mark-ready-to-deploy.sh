@@ -34,8 +34,9 @@
 #     event label, or names the label in any letter case or separator; nor when those workflows
 #     cannot be read in full, or when `.github` or `.github/workflows` of a tree is not a directory.
 #     An issue checks the workflows of the default-branch tip. The pull request also checks those of
-#     the tip of its base branch and of its merge ref `refs/pull/<N>/merge`, and gets no label when
-#     that merge ref is missing or does not merge the current base-branch tip with the current head.
+#     the tip of its base branch, and while it is not merged those of its merge ref
+#     `refs/pull/<N>/merge`; it gets no label when that merge ref is missing or does not merge the
+#     current base-branch tip with the current head. A merged pull request checks the base-branch tip only.
 #   - GitHub assignee: the pull-request author, added through `--add-assignee`; an existing
 #     assignee is never removed, and a bot author gets no write.
 #   - JIRA: transition-to-ready-to-deploy.sh, then assign-to-pr-author.sh, one key per call.
@@ -296,14 +297,17 @@ scan_workflows() {
 }
 
 # A label on the pull request starts its `pull_request_target` workflows from the tip of its base
-# branch and its `pull_request` workflows from its merge ref `refs/pull/<N>/merge`, whose parents are
-# that tip and the head. The check reads exactly those two trees. A merge ref that is missing, or that
-# does not merge the current base-branch tip with the current head, skips the label.
+# branch. While it is not merged, it starts its `pull_request` workflows from its merge ref
+# `refs/pull/<N>/merge`, whose parents are that tip and the head; once it is merged, GitHub removes
+# that ref and runs them from the base branch. The check reads exactly those trees. A merge ref of an
+# unmerged pull request that is missing, or that does not merge the current base-branch tip with the
+# current head, skips the label.
 pr_label_skip() {
-  local number="${PR_URL##*/}" base_branch head base_tip merge_commit merge_json merge_tree
+  local number="${PR_URL##*/}" base_branch head merged_at base_tip merge_commit merge_json merge_tree
   PR_SKIP="not applied — the pull-request workflows could not be read"
   base_branch="$(jq -r '.baseRefName // empty' <<<"$PR_JSON")"
   head="$(jq -r '.headRefOid // empty' <<<"$PR_JSON")"
+  merged_at="$(jq -r '.mergedAt // empty' <<<"$PR_JSON")"
   if [[ ! "$base_branch" =~ ^[A-Za-z0-9._/-]+$ || ! "$head" =~ ^[0-9a-f]{40}$ ]] \
     || ! git check-ref-format --branch "$base_branch" >/dev/null 2>&1; then
     return 0
@@ -314,6 +318,8 @@ pr_label_skip() {
     PR_SKIP="not applied — the base-branch tip could not be read"
     return 0
   fi
+  scan_workflows "$base_tip" base-branch
+  [[ -z "$SCAN_SKIP" && -z "$merged_at" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
   if ! merge_commit="$(gh api "repos/$NWO/git/ref/pull/$number/merge" </dev/null 2>/dev/null \
     | jq -r --arg ref "refs/pull/$number/merge" 'select(.ref == $ref and .object.type == "commit") | .object.sha')" \
     || [[ ! "$merge_commit" =~ ^[0-9a-f]{40}$ ]] \
@@ -327,8 +333,6 @@ pr_label_skip() {
     PR_SKIP="not applied — the pull-request merge ref does not merge the base-branch tip with the head; the operator decides"
     return 0
   fi
-  scan_workflows "$base_tip" base-branch
-  [[ -z "$SCAN_SKIP" ]] || { PR_SKIP="$SCAN_SKIP"; return 0; }
   scan_workflows "$merge_tree" "pull-request merge"
   PR_SKIP="$SCAN_SKIP"
 }
