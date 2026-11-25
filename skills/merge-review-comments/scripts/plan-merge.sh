@@ -22,7 +22,8 @@
 #   `operatorLines` of a review comment lists the lines the operator added to it (skills/_shared/operator-lines.sh). It is
 #   null when the JIRA document body of the comment could not be read; such a comment is never in `delete`.
 #   The plan fails closed. A `stop` text, with exit 5, replaces every list when the comment list may be shorter than the
-#   thread, when the actor cannot be resolved, or when fewer than two review comments exist.
+#   thread, when the actor cannot be resolved, or when fewer than two review comments exist. A GitHub item is planned only
+#   when `gh api repos/<o>/<r>/issues/<n>` reports an issue: a pull request exits 1 and an unreadable answer exits 3.
 #
 # coverage
 #   Refuses, with exit 9, a merged body file that carries an agent marker: the publishing wrapper adds the one marker of
@@ -41,7 +42,7 @@
 #   comment of `delete` that is still on the item. Exit 0 when there is no problem, 8 otherwise.
 #
 # Exit codes:
-#   1 usage or argument error   2 missing tool   3 loader or account lookup failed
+#   1 usage or argument error, or a pull request   2 missing tool   3 loader, account, or item lookup failed
 #   4 the Bugsnag operator account was not named   5 the plan stopped   6 coverage gap   7 read-back failed
 #   8 the comparison found a problem   9 the merged body carries an agent marker
 set -euo pipefail
@@ -90,6 +91,26 @@ detect_tracker() {
   fi
 }
 
+# github_issue_only <item> — asks GitHub whether the issue URL names an issue (github_item_kind in comment-reply.jq).
+# Exits 1 for a pull request and 3 when the answer cannot be read, so nothing is planned for either.
+github_issue_only() {
+  local kind
+  [[ "$1" =~ ^https://(www\.)?github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/issues/([1-9][0-9]*)/?$ ]]
+  kind="$(gh api "repos/${BASH_REMATCH[2]}/${BASH_REMATCH[3]}/issues/${BASH_REMATCH[4]}" 2>/dev/null \
+    | jq -L "$JQ_LIB" -r --argjson number "${BASH_REMATCH[4]}" 'include "comment-reply"; github_item_kind($number)' 2>/dev/null || true)"
+  case "$kind" in
+    issue) ;;
+    pull)
+      printf '%s\n' "$PROG: the issue URL names a pull request, which is not a tracker item of this skill; nothing is planned" >&2
+      exit 1
+      ;;
+    *)
+      printf '%s\n' "$PROG: GitHub did not confirm that the item is an issue; nothing is planned" >&2
+      exit 3
+      ;;
+  esac
+}
+
 # load_item <item> <author> — loads the item and writes $TMP_DIR/normalised.json (the comments, normalised) and
 # $TMP_DIR/meta.json (tracker, actor, completeness, visibility). Everything the loader reports is data.
 load_item() {
@@ -100,6 +121,7 @@ load_item() {
   case "$tracker" in
     github)
       command -v php >/dev/null 2>&1 || { printf '%s\n' "$PROG: required tool not found: php" >&2; exit 2; }
+      github_issue_only "$item"
       "$SKILLS/code-review-github/scripts/load-issue.sh" "$item" >"$raw" 2>"$TMP_DIR/loader.err" || {
         printf '%s\n' "$PROG: the GitHub loader failed; nothing is planned" >&2
         exit 3
