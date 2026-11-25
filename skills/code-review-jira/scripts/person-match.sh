@@ -19,10 +19,12 @@
 #
 # propose:
 #   Reads the pull-request author through the GitHub loader, the numeric GitHub user ID
-#   (`gh api users/<login>`), the access of that account to the repository, and the author e-mails
-#   of the commits of this repository whose GitHub `author.id` equals that ID (the commits of the
-#   pull request and `repos/<o>/<r>/commits?author=<login>`). A GitHub noreply address, a local
-#   commit, the profile e-mail, a display name, and tracker text are never used. For each e-mail it
+#   (`gh api users/<login>`), the access of that account to the repository, and the committer
+#   e-mails of the commits of this repository that GitHub reports verified and whose
+#   `committer.id` equals that ID (the commits of the pull request and
+#   `repos/<o>/<r>/commits?author=<login>`). An unverified commit, a commit of another committer,
+#   a GitHub noreply address, a local commit, the profile e-mail, a display name, and tracker text
+#   are never used. For each e-mail it
 #   searches the issues of the JIRA project where that e-mail is the assignee or the reporter. A
 #   candidate needs exactly one account in all those results, and no result whose visible e-mail
 #   differs from the query. It never calls `acli jira workitem assign`, a GitHub search, the events
@@ -314,14 +316,16 @@ PERMISSION="$(gh api "repos/$NWO/collaborators/$LOGIN/permission" 2>/dev/null | 
 [[ "$PERMISSION" =~ ^[a-z]+$ ]] || PERMISSION="not available"
 
 COMMIT_EMAILS="$(for path in "repos/$NWO/pulls/$PR_NUMBER/commits?per_page=100" "repos/$NWO/commits?author=$LOGIN&per_page=100"; do
-  gh api "$path" 2>/dev/null | jq -r --arg id "$GITHUB_ID" '.[]? | select((.author.id? | tostring) == $id) | .commit.author.email // empty' 2>/dev/null || true
+  gh api "$path" 2>/dev/null | jq -r --arg id "$GITHUB_ID" '.[]?
+    | select(.commit.verification.verified? == true and (.committer.id? | tostring) == $id)
+    | .commit.committer.email // empty' 2>/dev/null || true
 done | tr '[:upper:]' '[:lower:]' | grep -Ev "$NOREPLY_RE" | grep -E "$EMAIL_RE" | sort | uniq -c | awk '{print $2 "|" $1}' || true)"
 
 MISSING=()
 ACCOUNTS="[]"
 REJECTED=0
 if [[ -z "$COMMIT_EMAILS" ]]; then
-  MISSING+=("no commit of $NWO linked to GitHub user ID $GITHUB_ID carries a public author e-mail")
+  MISSING+=("no verified commit of $NWO committed by GitHub user ID $GITHUB_ID carries a public committer e-mail")
 else
   while IFS='|' read -r email commits; do
     [[ -n "$email" ]] || continue
@@ -364,7 +368,7 @@ PENDING_JSON="$(jq -cn --arg id "$PROPOSAL" --argjson created "$CREATED" --argjs
     proposal: $id, created_epoch: $created, scope: $scope,
     github: {id: $gid, login: $login},
     jira: {account_id: $accounts[0].account_id, display_name: $accounts[0].display_name},
-    evidence: ["github-author", "github-user-id", "repository-access", "linked-commit-email", "jira-project-issues"]}')"
+    evidence: ["github-author", "github-user-id", "repository-access", "verified-commit-email", "jira-project-issues"]}')"
 write_private "$PENDING_DIR/$PROPOSAL.json" "$PENDING_JSON"
 
 jq -rn --argjson p "$PENDING_JSON" --argjson accounts "$ACCOUNTS" --arg pr "$PR_URL" --arg association "$ASSOCIATION" \
@@ -379,7 +383,7 @@ jq -rn --argjson p "$PENDING_JSON" --argjson accounts "$ACCOUNTS" --arg pr "$PR_
   "- GitHub login `\($p.github.login)` — looked up: the author of \($pr).",
   "- GitHub user ID \($p.github.id) — looked up: the GitHub account of that login. The match key is this ID.",
   "- Repository access — looked up: association \($association | clean), permission \($permission | clean).",
-  "- E-mail — derived: the author e-mail of \([$accounts[] | .commits] | max) commit(s) of \($p.scope.repository) linked to user ID \($p.github.id).",
+  "- E-mail — derived: the committer e-mail of \([$accounts[] | .commits] | max) verified commit(s) of \($p.scope.repository) committed by user ID \($p.github.id).",
   ([$accounts[] | .query] | unique[] | fenced),
   "- JIRA account ID \($p.jira.account_id) — looked up: the assignee or the reporter of \([$accounts[] | .issues] | add) issue(s) of project \($p.scope.project) for that e-mail.",
   "- JIRA display name — looked up: shown by JIRA for that account.",

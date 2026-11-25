@@ -153,9 +153,19 @@ function personMatchApi(array $fixture, string $path, array $answer): void
 /**
  * @return array<string, mixed>
  */
-function personMatchCommit(?int $authorId, string $email): array
+function personMatchCommit(?int $committerId, string $email, bool $verified = true, ?int $authorId = null): array
 {
-    return ['author' => $authorId === null ? null : ['id' => $authorId], 'commit' => ['author' => ['email' => $email, 'name' => 'Pat']]];
+    $author = $authorId ?? $committerId;
+
+    return [
+        'author' => $author === null ? null : ['id' => $author],
+        'commit' => [
+            'author' => ['email' => $email, 'name' => 'Pat'],
+            'committer' => ['email' => $email, 'name' => 'Pat'],
+            'verification' => ['verified' => $verified],
+        ],
+        'committer' => $committerId === null ? null : ['id' => $committerId],
+    ];
 }
 
 function personMatchJql(string $field, string $value): string
@@ -451,7 +461,7 @@ test('a commit e-mail counts only from a commit of this repository linked to the
     personMatchGit($fixture['repo'], 'add', '-A');
     personMatchGit($fixture['repo'], 'commit', '-q', '-m', 'local');
     personMatchApi($fixture, 'repos/acme/app/pulls/12/commits?per_page=100', [
-        personMatchCommit(authorId: null, email: PERSON_MATCH_EMAIL),
+        personMatchCommit(committerId: null, email: PERSON_MATCH_EMAIL),
         personMatchCommit(200, PERSON_MATCH_EMAIL),
         personMatchCommit(100, '100+pat@users.noreply.github.com'),
     ]);
@@ -466,11 +476,37 @@ test('a commit e-mail counts only from a commit of this repository linked to the
 
         expect($process->getExitCode())->toBe(6)
             ->and(personMatchCalls($fixture, 'jira workitem search'))->toBe([])
-            ->and($process->getOutput())->toContain('no commit of acme/app linked to GitHub user ID 100 carries a public author e-mail');
+            ->and($process->getOutput())->toContain('no verified commit of acme/app committed by GitHub user ID 100 carries a public committer e-mail');
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
 });
+
+test('a commit e-mail counts only from a commit GitHub reports verified and the author committed', function (array $commit): void {
+    $fixture = personMatchFixture();
+    $other = 'someone.else@example.com';
+    personMatchApi($fixture, 'repos/acme/app/pulls/12/commits?per_page=100', [$commit]);
+    personMatchApi($fixture, 'repos/acme/app/commits?author=pat&per_page=100', []);
+    personMatchSearch($fixture, [personMatchJql('assignee', $other) => [personMatchIssue('assignee', 'acc-else', 'Someone Else', $other)]]);
+
+    try {
+        $process = personMatchPropose($fixture);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and($process->getOutput())->toContain('no verified commit of acme/app committed by GitHub user ID 100 carries a public committer e-mail')
+            ->and(personMatchCalls($fixture, 'jira workitem search'))->toBe([])
+            ->and(glob($fixture['stateHome'] . '/ai-olympus/person-match-pending/*.json'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'an unverified commit of the author with another address' => [personMatchCommit(100, 'someone.else@example.com', verified: false)],
+    'a verified commit of another committer' => [personMatchCommit(200, 'someone.else@example.com', authorId: 100)],
+    'a verified commit with no committer account' => [personMatchCommit(null, 'someone.else@example.com', authorId: 100)],
+    'a commit whose verification is text, not a boolean' => [
+        array_replace_recursive(personMatchCommit(100, 'someone.else@example.com'), ['commit' => ['verification' => ['verified' => 'true']]]),
+    ],
+]);
 
 test(
     'a JIRA search that returns two accounts, or an account that shows another e-mail, gives no candidate',
@@ -522,12 +558,14 @@ test('the proposal names both accounts and the e-mail, and marks every part look
     $fixture = personMatchFixture();
 
     try {
-        $output = personMatchPropose($fixture)->getOutput();
+        $process = personMatchPropose($fixture);
+        $output = $process->getOutput();
 
-        expect($output)->toContain('- GitHub login `pat` — looked up: the author of ' . PERSON_MATCH_PR . '.')
+        expect($process->getExitCode())->toBe(0)
+            ->and($output)->toContain('- GitHub login `pat` — looked up: the author of ' . PERSON_MATCH_PR . '.')
             ->and($output)->toContain('- GitHub user ID 100 — looked up:')
             ->and($output)->toContain('- Repository access — looked up: association CONTRIBUTOR, permission write.')
-            ->and($output)->toContain('- E-mail — derived: the author e-mail of 2 commit(s) of acme/app linked to user ID 100.')
+            ->and($output)->toContain('- E-mail — derived: the committer e-mail of 2 verified commit(s) of acme/app committed by user ID 100.')
             ->and($output)->toContain("```text\n" . PERSON_MATCH_EMAIL . "\n```")
             ->and($output)->toContain('- JIRA account ID ' . PERSON_MATCH_ACCOUNT . ' — looked up:')
             ->and($output)->toContain("- JIRA display name — looked up: shown by JIRA for that account.\n```text\nPat Author\n```")
