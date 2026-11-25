@@ -175,10 +175,14 @@ def round_record_errors:
     ["schema", "finding_id", "repo", "pr", "revision", "time", "category", "cause_key", "severity", "security",
      "file", "line", "description", "impact", "evidence", "recommendation", "status"] as $keys
     | [
-        (($r | keys) - $keys - ["reports"] | .[] | "unknown key \(.)"),
+        (($r | keys) - $keys - ["reports", "known_rules"] | .[] | "unknown key \(.)"),
         ($keys - ($r | keys) | .[] | "missing key \(.)"),
         (if $r.schema == 2 then empty else "schema must be 2" end),
         # The findings one record merges; a record an older version wrote has none.
+        # The canonical rules a known point is checked against, or null; a record an older version wrote has none.
+        (if ($r | has("known_rules") | not) or $r.known_rules == null or (($r.known_rules | type) == "array"
+              and ($r.known_rules | length) <= 50 and all($r.known_rules[]; isstr(.; "^(rules|skills)/[a-z0-9_-]+(/[a-z0-9_.-]+)+(#[a-z0-9-]+)?$")))
+         then empty else "known_rules must be null or a list of canonical rule references" end),
         (if ($r | has("reports") | not) or (($r.reports | type) == "number" and ($r.reports | floor) == $r.reports and $r.reports >= 1) then empty
          else "reports must be a positive integer" end),
         (if isstr($r.finding_id; "^r-[0-9a-f]{16}$") then empty else "finding_id must be r- followed by 16 hex digits" end),
@@ -320,6 +324,11 @@ def subsystem_of($text):
           evidence: ($v.fields.evidence // "" | body),
           raised_by: ($v.fields["raised by"] // "" | body | if . == null then "" else ascii_downcase end),
           level: $level,
+          # Every rule reference of the Rule and Suggested fix fields, read from the whole field text, in canonical
+          # form (null for one that does not canonicalise), and whether a Level (only a security lens renders one) or
+          # evidence that names an exploit path keeps the finding from ever being a known point.
+          known_refs: ([($v.fields.rule // ""), ($v.fields["suggested fix"] // "")] | map(rule_tokens[]) | map(canon_rule)),
+          known_signal: ($level != null or ($v.fields.evidence // "" | test("exploit[\\s_-]*path"; "i"))),
           verify: ($v.section | test("^Needs verification"; "i"))
         }
       }
@@ -386,7 +395,12 @@ def is_security($f):
   | {schema: 2, finding_id: $ids[$i], repo: $repo, pr: $pr, revision: $rev, time: $time,
      category: $f.category, cause_key: $f.cause_key,
      severity: (if $f.severity == "critical" then "critical" else ($f.level // "medium") end),
-     security: is_security($f), file: $f.file, line: $f.line,
+     security: is_security($f),
+     # The rules a known point is checked against (finding-defs.jq `known_eligible`): null when the finding carries a
+     # security signal, a Level, exploit-path evidence, or a reference that does not canonicalise.
+     known_rules: (if is_security($f) or $f.known_signal or ($f.known_refs | any(. == null)) then null
+                   else $f.known_refs | unique | if length > 50 then null else . end end),
+     file: $f.file, line: $f.line,
      description: (if ($f.title | test("\\S")) then $f.title else ($f.cause_hypothesis | .[0:200]) end),
      impact: $f.cause_hypothesis, evidence: $f.evidence, recommendation: $f.proposed_fix,
      status: (if $f.verify then "needs-verification" else "new" end), reports: 1} ]
@@ -399,6 +413,8 @@ def is_security($f):
           (if ($r.severity | severity_rank) > (.severity | severity_rank) then .severity = $r.severity else . end)
           | (if ($r.status | status_rank) > (.status | status_rank) then .status = $r.status | .evidence = $r.evidence else . end)
           | .security = (.security or $r.security)
+          | .known_rules = (if .known_rules == null or $r.known_rules == null then null
+              else .known_rules + $r.known_rules | unique | if length > 50 then null else . end end)
           | .reports += 1)
       end)
 EOF
@@ -1093,7 +1109,7 @@ self_test() {
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q1.md" >"$tmp/q1.out"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q2.md" >"$tmp/q2.out"
   check 'round: a finding with evidence is a new schema-2 record with file and line' "$(jq -e '
-      (keys | length) == 18 and .schema == 2 and (.finding_id | test("^r-[0-9a-f]{16}$")) and .status == "new"
+      (keys | length) == 19 and .schema == 2 and (.finding_id | test("^r-[0-9a-f]{16}$")) and .status == "new"
       and .severity == "critical" and .security == true and .file == "app/Http/Orders.php" and .line == 42' "$tmp/q1.out" >/dev/null && echo 0 || echo 1)"
   check 'round: the same finding on another line in other words keeps its finding_id' "$([[ "$(jq -r .finding_id "$tmp/q1.out")" == "$(jq -r .finding_id "$tmp/q2.out")" ]] && echo 0 || echo 1)"
 
@@ -1137,6 +1153,32 @@ self_test() {
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'A file stays in the history' 'config/services.php:12' "$HIST" 'logic-trace — an earlier commit holds it'; } >"$tmp/q12.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q12.md" >"$tmp/q12.out"
   check 'round: a finding of the history-exposure lens is security-relevant' "$(jq -e '.security == true' "$tmp/q12.out" >/dev/null && echo 0 || echo 1)"
+  # known_rules: every rule reference of the Rule and Suggested fix fields in canonical form, or null when the finding
+  # carries a security signal or a reference that does not canonicalise. A record never carries a second rule unseen.
+  fixed() { printf '%s\n' "$2" | awk -v f="$1" '/^- \*\*Suggested fix:\*\*/ { print "- **Suggested fix:** " f; next } { print }'; }
+  local kr klabel krule kfix kev klevel kwant
+  for kr in \
+    "one allowed rule|$STRUCT|n/a — w|rule-violation — x||[\"rules/php/core-standards#structure\"]" \
+    "a security rule cited second|$STRUCT\`, \`@rules/security/general.md#untrusted-content-boundary|n/a — w|rule-violation — x||[\"rules/php/core-standards#structure\",\"rules/security/general#untrusted-content-boundary\"]" \
+    "a security rule in the suggested fix|$STRUCT|n/a — follow \`@rules/security/backend.md#database\`.|rule-violation — x||[\"rules/php/core-standards#structure\",\"rules/security/backend#database\"]" \
+    "a path with //|@rules/git//pull-requests.md#merging|n/a — w|rule-violation — x||[\"rules/git/pull-requests#merging\"]" \
+    "a path with /./|@rules/git/./pull-requests.md#merging|n/a — w|rule-violation — x||[\"rules/git/pull-requests#merging\"]" \
+    "a path in capitals|@Rules/Git/Pull-Requests.md#Merging|n/a — w|rule-violation — x||[\"rules/git/pull-requests#merging\"]" \
+    "an anchor with spaces|@rules/code-review/general.md#Reuse Existing Logic|n/a — w|rule-violation — x||[\"rules/code-review/general#reuse-existing-logic\"]" \
+    "a .. segment|@rules/php/../security/general.md|n/a — w|rule-violation — x||null" \
+    "a rule inside an anchor|@rules/php/core-standards.md#x @rules/security/general.md|n/a — w|rule-violation — x||null" \
+    "a rule outside rules and skills|$STRUCT\`, \`docs/rules/security/general.md|n/a — w|rule-violation — x||null" \
+    "a Level|$STRUCT|n/a — w|rule-violation — x|High|null" \
+    "exploit path evidence|$STRUCT|n/a — w|the exploit path — x||null" \
+    "no rule|the merge rule|n/a — w|rule-violation — x||[]"; do
+    IFS='|' read -r klabel krule kfix kev klevel kwant <<<"$kr"
+    { head_of "$SHA1" 2026-10-01T10:00:00Z; fixed "$kfix" "$(finding Moderate 'Copied step' 'src/Foo/Kr.php:3' "$krule" "$kev" "$klevel")"; } >"$tmp/kr.md"
+    "$script" --round --repo acme/shop --pr 7 --input "$tmp/kr.md" >"$tmp/kr.out"
+    check "round: known_rules of a finding with $klabel" "$(jq -e --argjson w "$kwant" '.known_rules == $w' "$tmp/kr.out" >/dev/null && echo 0 || echo 1)"
+  done
+  run_case 'round: a record with known_rules passes --validate' 0 no -- --validate "$tmp/kr.out"
+  jq -c '.known_rules = ["Rules/Security"]' "$tmp/q1.out" >"$tmp/kr-bad.jsonl"
+  run_case 'round: a record whose known_rules is not canonical is rejected by --validate' 3 yes -- --validate "$tmp/kr-bad.jsonl"
 
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'exploit-path — run $(touch '"$tmp"'/pwned-ev); `rm -rf /` | sh && echo ok > x'; } >"$tmp/q8.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q8.md" >"$tmp/q8.out"

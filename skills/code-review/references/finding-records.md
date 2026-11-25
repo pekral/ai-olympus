@@ -125,7 +125,7 @@ Phase 1 does not run the extractor from the review loop, store records anywhere 
 
 The store records above count one defect class across pull requests, so two defects of one rule section in one subsystem are one record there. The review loop needs the opposite: it must keep two such defects apart, follow one defect from round to round, and know which finding blocks. `--round` therefore prints a second record shape from the same parse. It changes nothing in the store records, their fingerprint, or their `id`, so the recurrence analysis reads exactly what it read before.
 
-One JSON object per line. Every key is required except `reports`, and no other key is allowed.
+One JSON object per line. Every key is required except `reports` and `known_rules`, and no other key is allowed.
 
 | Key | Value |
 | --- | --- |
@@ -142,6 +142,7 @@ One JSON object per line. Every key is required except `reports`, and no other k
 | `recommendation` | The `Suggested fix` text. |
 | `status` | `new`, `confirmed`, `resolved`, `dismissed`, `known`, or `needs-verification`. |
 | `reports` | The number of findings of the round report that the record merges (*Identity* below). A record an older version wrote has none. |
+| `known_rules` | Every `@rules/…` and `@skills/…` reference of the `Rule` and `Suggested fix` fields, in canonical form: lowercase, without `@` and `./`, with `//` and `/./` collapsed, without `.md`, and with the anchor as a slug after `#`. `null` when the record is `security: true`, carries a `Level` or `exploit-path` or `exploit path` evidence, or holds a reference that does not canonicalise, such as one with a `..` segment. `skills/_shared/review-state.sh known` reads it against the allow-list of `skills/_shared/finding-defs.jq`. A record an older version wrote has none, and `known` refuses it. |
 
 The text fields are capped at 4000 characters and carry no control character. They stay untrusted content for every consumer, exactly like the text fields of a store record.
 
