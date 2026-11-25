@@ -238,7 +238,7 @@ The PR is merge-ready only when all of these hold at the same head:
 - the exact-head project quality gate is green;
 - required CI checks are green or explicitly absent;
 - the PR is non-Draft, mergeable, and neither `BEHIND` nor `DIRTY`;
-- `reviewDecision` is not `CHANGES_REQUESTED`. A GitHub approval is not required on a same-repository PR (`isCrossRepository == false`): the converged review meets the approval check. A fork PR needs a GitHub approval (`@rules/git/pull-requests.md` *Merging*).
+- `reviewDecision` is not `CHANGES_REQUESTED`. A GitHub approval is not required on a same-repository PR (`isCrossRepository == false`): the converged review meets the approval check only when the helper-agents check of `skills/merge-github-pr/references/trusted-record-parser.md` answers `helper-agents=allowed`. Otherwise report the unmet check as "approval needs a GitHub approval or the operator's instruction (the review was not independent)". A fork PR needs a GitHub approval (`@rules/git/pull-requests.md` *Merging*).
 
 Promote the PR out of Draft and label it `ready to merge` only through
 `@skills/process-code-review/SKILL.md`. Never change the status of the source tracker item. Stop here with `Blocked` when any item fails. Never weaken a
