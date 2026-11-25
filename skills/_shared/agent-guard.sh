@@ -58,7 +58,8 @@
 #   substitution, a backtick, a leading `!`, a shell keyword). `ask` and `allow` carry
 #   `updatedInput` with every field of the tool input kept and `command` replaced by
 #   `/bin/bash '<abs>/agent-guard.sh' exec <role> --project '<project>' -- '<original command>'`.
-#   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`; a command is split at `&&`, `||`,
+#   Supported rule shapes are `Bash`, `Bash(x)`, `Bash(x *)`, and `Bash(x:*)`. Every backslash-newline is removed
+#   first, as the shell joins the two lines; then a command is split at `&&`, `||`,
 #   `;`, `|`, `|&`, `&`, a newline, `(`, `)`, `{`, `}`, and a backtick. An allow rule is matched after only the wrappers
 #   the session itself strips (`timeout time nice nohup stdbuf`), so a leading `NAME=value` word or another wrapper
 #   never gets `allow` from a rule. A deny or ask rule is matched after every `NAME=value` word, shell keyword, and
@@ -282,7 +283,8 @@ def matches($seg): if .kind == "all" then true
   elif .kind == "exact" then $seg == .value
   elif .kind == "prefix" then .value as $v | ($seg == $v or ($seg | startswith($v + " ")))
   else false end;
-(.command | segments(strip_deny)) as $plain
+.command |= gsub("\\\\\n"; "")
+| (.command | segments(strip_deny)) as $plain
 | ($plain + (.command | dequote | segments(strip_deny))) as $dsegs
 | (.command | segments(strip_harness)) as $asegs
 | (.rules.deny | map(parse_rule)) as $deny
@@ -671,6 +673,7 @@ self_test() {
   check 'a leading assignment never gets allow from a rule' test "$(decide_command 'GIT_PAGER=x git status' "$tmp")" == ask
   check 'a deny rule matches behind a bare xargs' test "$(decide_command 'echo u | xargs curl' "$tmp" bypassPermissions)" == deny
   check 'a deny rule matches a quoted command name' test "$(decide_command '"curl" x' "$tmp" bypassPermissions)" == deny
+  check 'a deny rule matches across a line continuation' test "$(decide_command $'cu\\\nrl x' "$tmp" bypassPermissions)" == deny
   printf '{"permissions":{"deny":["Bash(git * --force)"]}}' >"$tmp/.claude/settings.local.json"
   check 'an unsupported rule shape asks' test "$(decide_command 'ls' "$tmp")" == ask
 
