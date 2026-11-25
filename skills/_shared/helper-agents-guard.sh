@@ -23,8 +23,9 @@
 #   role=<role> sha256=<hex> copy=<path>
 # It refuses (exit 3) a definition that is missing, that is not a regular file, that has a symbolic link in its
 # path, that a git tree tracks under any letter case while its HEAD is not the default branch, or that a git tree
-# tracks under any letter case with a change against HEAD. It also refuses a copy that already exists: the copies
-# are taken once per run.
+# tracks under any letter case with a change against HEAD. It also refuses a git tree that is not on the default
+# branch and whose tracked paths below `.claude`, `.codex`, or `.agents`, in any letter case, differ from the
+# default branch. It also refuses a copy that already exists: the copies are taken once per run.
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
@@ -104,6 +105,14 @@ on_default_branch() {
   [[ "$head" == "${ref#refs/remotes/origin/}" ]]
 }
 
+# True when the tracked paths below .claude, .codex, and .agents, in any letter case, equal the default branch.
+changes_no_configuration_path() {
+  local ref
+  ref="$(g symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)" || return 1
+  g diff --quiet --cached "$ref" -- ':(icase).claude' ':(icase).codex' ':(icase).agents' 2>/dev/null \
+    && g diff --quiet "$ref" -- ':(icase).claude' ':(icase).codex' ':(icase).agents' 2>/dev/null
+}
+
 copy_roles() {
   local run_dir="$1" slug="$2"
   shift 2
@@ -112,6 +121,9 @@ copy_roles() {
   dest="${run_dir%/}/$slug.roles"
 
   [[ -d "$run_dir" ]] || refuse "the run directory does not exist"
+  if [[ "$(g rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] && ! on_default_branch; then
+    changes_no_configuration_path || refuse "the tree is not on the default branch and changes a tracked path below .claude, .codex, or .agents"
+  fi
   for role in "$@"; do
     src="$roles_dir/$role.md"
     no_link_in_path "$src" || refuse "the definition of $role has a symbolic link in its path"
@@ -249,6 +261,24 @@ self_test() {
   (cd "$repo" && g checkout -q -- .claude/agents/casey.md && g checkout -q -b feature) >/dev/null 2>&1
   run copy-roles --run-dir .claude/run --slug gh-7 --role casey >/dev/null 2>&1
   check 'a tracked definition in a tree that is not on the default branch is refused' "$([[ $? -eq 3 ]] && echo yes || echo no)"
+  rc=0
+  run copy-roles --run-dir .claude/run --slug gh-off-1 --role leonardo >/dev/null 2>&1 || rc=$?
+  check 'a tree off the default branch that changes no configuration path is copied' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  local config_path m=0
+  for config_path in .Claude/settings.json .claude/hooks/h.sh .Codex/config.toml .AGENTS/skills/x/SKILL.md; do
+    m=$((m + 1))
+    (
+      cd "$repo" || exit 1
+      blob="$(printf 'branch configuration\n' | g hash-object -w --stdin)"
+      g read-tree main && g update-index --add --cacheinfo "100644,$blob,$config_path"
+      g update-ref "refs/heads/config-$m" "$(g commit-tree "$(g write-tree)" -p main -m "track $config_path")"
+      g symbolic-ref HEAD "refs/heads/config-$m"
+    ) >/dev/null 2>&1
+    rc=0
+    run copy-roles --run-dir .claude/run --slug "gh-config-$m" --role leonardo >/dev/null 2>&1 || rc=$?
+    check "a tree off the default branch that changes $config_path is refused" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
+  done
+  (cd "$repo" && g symbolic-ref HEAD refs/heads/feature && g read-tree feature) >/dev/null 2>&1
 
   local variant n=0
   for variant in .Claude/agents/splinter.md .claude/Agents/splinter.md .claude/agents/SPLINTER.md .CLAUDE/AGENTS/Splinter.md; do
