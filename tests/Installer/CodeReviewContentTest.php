@@ -87,7 +87,7 @@ test('the JIRA template keeps only actionable requirements and one combined summ
 
     expect($body)->toContain('only for explicit requirements that still need a change or an answer')
         ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('h2. TL;DR');
+        ->toContain('{expand:TL;DR}');
     expect($body)->not->toContain('h2. What changed');
     expect($body)->not->toContain('h2. Impact after deployment');
     expect($body)->not->toContain('h2. How to test');
@@ -306,7 +306,7 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
 
     // The intermediate template retells the review instead of listing test steps. The helper turns
     // its supported source constructs into ADF before JIRA receives the body.
-    expect($template)->toContain('h2. Review findings');
+    expect($template)->toContain('{expand:Findings from the code review}');
     expect(jiraPublishedBody($template))->not->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');

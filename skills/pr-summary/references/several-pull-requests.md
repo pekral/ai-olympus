@@ -38,7 +38,7 @@ One heading per pull request, in pull-request number order, naming the number an
 - **JIRA:** `h2. [PR #<number>|<url>] — <title>` in the intermediate source.
 - **Bugsnag:** `PR #<number> — <title> (<url>)` as a plain-text line.
 
-The group heading sits at the level of the issue-level sections. Inside a group, keep the section order and the section names of the target's usual shape, and drop every section heading one level (`###` on GitHub, `h3.` on JIRA), so the group heading stays above them. Bugsnag has no headings: its group line stands above the plain-text section labels.
+The group heading sits at the level of the issue-level sections. Inside a group, keep the section order and the section names of the target's usual shape. On GitHub, drop every section heading one level (`###`), so the group heading stays above them. On JIRA the sections of a group are collapsed blocks under the group heading, as every JIRA section is (`jira-shape.md` item 8). Bugsnag has no headings: its group line stands above the plain-text section labels.
 
 ## A run that reviews one pull request
 
@@ -58,8 +58,8 @@ A stack is several pull requests of one JIRA task, where the base branch of one 
 
 1. **One comment for the run.** Render every part the run reviewed as a group in this one comment. The rule *A run that reviews one pull request* above does not apply to a stack.
 2. **Order the groups by the stack.** A part comes before the parts built on it, and parts at the same level go by pull-request number.
-3. **A shared point appears once.** A point that two or more parts share stands once at the issue level, above the groups, and names every part it concerns by its number and title. Never repeat it inside a group.
-4. **A part that was not reviewed is named, not hidden.** Render one short line at the issue level for each such part: its number and title, and the reason in plain words (for example, the review could not run, or the part was outside this run). Never render a group for it. Only a part per item 3 of *Which pull requests count, and what a title is* gets a line: a pull request of another repository or from a fork is not named at all, and the title in the line is the title after the data step of that section.
+3. **A shared point appears once.** A point that two or more parts share stands once at the issue level, above the groups, in one `Review findings` block, and names every part it concerns by its number and title. Never repeat it inside a group.
+4. **A part that was not reviewed is named, not hidden.** Render one short line in that issue-level `Review findings` block for each such part: its number and title, and the reason in plain words (for example, the review could not run, or the part was outside this run). Never render a group for it. Only a part per item 3 of *Which pull requests count, and what a title is* gets a line: a pull request of another repository or from a fork is not named at all, and the title in the line is the title after the data step of that section.
 5. **The comment is the whole stack, so it needs every part of the run to be finished.** The caller passes the findings only after the last part finished its review. While a part of the run is still in review, publish nothing and return the name of that part.
 6. **Voice and length are those of any JIRA comment.** The 3 000-character cap covers the whole comment, and the shortening order above applies to the whole stack.
 
