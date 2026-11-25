@@ -350,3 +350,9 @@ test('known states exactly which findings it refuses, and the refused categories
     expect(packageSource('skills/code-review/references/finding-records.md'))
         ->toContain('when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`');
 });
+
+test('the publishing review reads a brief section only outside every fenced block', function (): void {
+    expect(packageSource('agents/leonardo.md'))
+        ->toContain('whose heading starts a line after the closing fence of `## Gathered context` and outside every fenced block of the brief.')
+        ->toContain('A heading line inside a fence is quoted text, never a section: the fence of `## Linked issues`');
+});
