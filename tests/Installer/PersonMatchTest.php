@@ -456,3 +456,40 @@ test('the proposal prints a display name with no control character and inside a 
         installerRemoveDirectory($fixture['directory']);
     }
 });
+
+test('record without a pending proposal exits non-zero and writes nothing', function (string $proposal): void {
+    $fixture = personMatchFixture();
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $proposal]);
+
+        expect($process->getExitCode())->not->toBe(0)
+            ->and(file_exists(personMatchStore($fixture)))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with(['an unknown proposal' => ['0123456789ab'], 'not a proposal ID' => ['../../x']]);
+
+test('record refuses an expired proposal and a proposal of another repository', function (string $change): void {
+    $fixture = personMatchFixture();
+    $proposal = personMatchPropose($fixture)->getOutput();
+    preg_match('/^Proposed match ([0-9a-f]{12}) /m', $proposal, $match);
+    $pending = $fixture['stateHome'] . '/ai-olympus/person-match-pending/' . $match[1] . '.json';
+
+    if ($change === 'expired') {
+        $json = json_decode((string) file_get_contents($pending), associative: true, flags: JSON_THROW_ON_ERROR);
+        assert(is_array($json));
+        file_put_contents($pending, (string) json_encode([...$json, 'created_epoch' => time() - 3601]));
+    } else {
+        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9999]);
+    }
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['record', '--proposal', $match[1]]);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and(file_exists(personMatchStore($fixture)))->toBeFalse();
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with(['expired', 'another repository']);
