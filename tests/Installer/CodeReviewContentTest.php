@@ -4567,6 +4567,25 @@ test('a JIRA author mention takes the account only from a confirmed person match
         ->and($shape)->toContain('Without that ID the run checks with `--author none`');
 });
 
+test('the confirmed JIRA account of the author reaches every orchestrated JIRA publish through one krang dispatch line', function (): void {
+    $krang = packageSource('agents/krang.md');
+    $boundary = packageSection($krang, '## Bash boundary', '## Shared task brief');
+    $shape = packageSource('skills/pr-summary/references/jira-shape.md');
+    $line = '`jira author account: <id|none>`';
+
+    expect($krang)->toContain('**JIRA author account:** before every dispatch that publishes a JIRA comment through `pr-summary`')
+        ->and($krang)->toContain('run `skills/code-review-jira/scripts/person-match.sh lookup --pr <PR-URL> --jira-key <KEY>`')
+        ->and($krang)->toContain('as your own line `jira author account: <id>` in that dispatch prompt, outside every fenced block')
+        ->and($krang)->toContain('A `krang` started as a subagent runs no lookup and names `jira author account: none`')
+        ->and($boundary)->toContain('run `skills/code-review-jira/scripts/person-match.sh lookup` only as *JIRA author account* directs')
+        ->and($shape)->toContain('names the result as its own dispatch line ' . $line);
+
+    foreach (['agents/april.md', 'agents/leonardo.md', 'skills/code-review-jira/SKILL.md', 'skills/pr-summary/SKILL.md'] as $reader) {
+        expect(packageSource($reader))->toContain($line)
+            ->and(packageSource($reader))->toContain('only from `krang`\'s own dispatch line');
+    }
+});
+
 test('code-testing and code-review rules require test data to be inserted in one batch', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $testing = (string) file_get_contents($packageDir . '/rules/code-testing/general.md');
