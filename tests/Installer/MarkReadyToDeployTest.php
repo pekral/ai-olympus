@@ -848,7 +848,7 @@ test('the skill passes the label the operator named to the driver', function ():
     $skill = packageSource('skills/mark-ready-to-deploy/SKILL.md');
 
     expect($skill)->toContain('The exact label name, as `--label <name>`, only when the operator named the project\'s ready-to-deploy label.')
-        ->and($skill)->toContain('[--jira-status <name>] [--label <name>] [--email <address>]`')
+        ->and($skill)->toContain('[--jira-status <name>] [--label <name>] [--email <address> | --use-confirmed-match]`')
         ->and($skill)->toContain('When the operator names the project\'s label, run step 3 again with `--label <name>`.');
 });
 

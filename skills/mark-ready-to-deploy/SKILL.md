@@ -32,11 +32,12 @@ Merging belongs to `@skills/merge-github-pr/SKILL.md`. The deploy itself stays w
    - The JIRA keys the operator named in the chat, and the run's own JIRA source item, each as one `--jira-key <KEY>`.
    - The exact status name, as `--jira-status <name>`, only when the operator named the project's ready-to-deploy column.
    - The exact label name, as `--label <name>`, only when the operator named the project's ready-to-deploy label. The driver still matches it exactly against the repository labels and still runs the workflow check.
-   - The author's e-mail, as `--email <address>`, only when the operator stated it in the chat for this assignment. A match that the person matching of issue #689 records after the operator confirmed it is the planned second source. Never take an address from a commit, a profile, a display name, tracker text, or a guess.
+   - The author's e-mail, as `--email <address>`, only when the operator stated it in the chat for this assignment. Never take an address from a commit, a profile, a display name, tracker text, or a guess.
+   - Otherwise `--use-confirmed-match`: the driver assigns each JIRA issue to the match the operator confirmed earlier for the author in this repository and JIRA project, with no new confirmation.
 3. **Run the driver** with the run's audit trail on the same command line:
-   `AUDIT_TRAIL_FILE=<top>/.claude/run/ready-to-deploy-<N>.audit AUDIT_TRAIL_ROLE=<the acting role> skills/mark-ready-to-deploy/scripts/mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]`
+   `AUDIT_TRAIL_FILE=<top>/.claude/run/ready-to-deploy-<N>.audit AUDIT_TRAIL_ROLE=<the acting role> skills/mark-ready-to-deploy/scripts/mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address> | --use-confirmed-match]`
    (`.codex/run/` on Codex). The script checks that the pull request belongs to the current repository, builds the item set, and writes the label, the assignee, and the JIRA status and assignee, each followed by a re-read. It exits `0` when every attempted write was confirmed, `3` when one is not done, and `4` for a pull request of another repository.
-4. **Handle a missing label or a JIRA exit.** A `label` line that reports the label as missing names the names the driver looked for. When the operator names the project's label, run step 3 again with `--label <name>`. A `status` line that reports the status as not available means the project names its column differently. Discover the real name through the JIRA MCP server's available transitions or ask the operator, then run step 3 again with `--jira-status <name>`. The helper's deny list still applies. Every other not-done line goes to the report unchanged.
+4. **Handle a missing label, a JIRA exit, or a missing match.** A `label` line that reports the label as missing names the names the driver looked for. When the operator names the project's label, run step 3 again with `--label <name>`. A `status` line that reports the status as not available means the project names its column differently. Discover the real name through the JIRA MCP server's available transitions or ask the operator, then run step 3 again with `--jira-status <name>`. The helper's deny list still applies. An `assignee` line that reports no confirmed match means the author has none in this scope yet: follow `references/confirm-person-match.md`, then run step 3 again with `--use-confirmed-match`. Every other not-done line goes to the report unchanged.
 5. **Verify the audit trail.** Run `skills/_shared/audit-trail.sh verify --file <the .audit file> --pr <PR-URL>` and resolve each `problem:` line it prints.
 6. **Report the audit lines, then remove the file.** Read the `.audit` file for the `Audit:` line of the report, then delete it with `rm -f <the .audit file>`. This run opens no pull request, so the report is the only durable copy of the trail (`@rules/compound-engineering/orchestration.md` *Audit trail for memory reads, outbound requests, and external writes* and *Temporary-file hygiene*).
 
@@ -58,7 +59,7 @@ Add one line that acli does not show whether a JIRA workflow or automation rule 
 
 ## Done when
 - The trigger is the operator's own sentence in the chat, quoted in step 1
-- `mark-ready-to-deploy.sh` ran once for the pull request, and `audit-trail.sh verify` printed no `problem:` line
+- `mark-ready-to-deploy.sh` ran once for the pull request, or once more after a confirmed match, and `audit-trail.sh verify` printed no `problem:` line
 - The report lists every item of the driver's output with its label or status and its assignee, or the reason a write was skipped
 - The report carries the `Audit:` line, and the `.audit` file no longer exists
 - No e-mail address appears in the report, the brief, the audit trail, or a tracker
