@@ -67,8 +67,8 @@
 #                    `linkedIssues[]`; JIRA `parent`, `subtasks`, `issueLinks`, and `mentionedKeys`), must be open, and
 #                    must live where the task lives: the repository of the pull request on GitHub, the site and the
 #                    project of the task on JIRA. Its author must pass the trust test: a GitHub `authorAssociation` of
-#                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a reporter that is the operator's account
-#                    (`descriptionTrusted`). A security finding needs --owner, the GitHub login of the person who owns
+#                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a description that the operator's account wrote and
+#                    that no other account changed (`descriptionTrusted`). A security finding needs --owner, the GitHub login of the person who owns
 #                    it: an assignee of the linked issue who also wrote it, so the login holds write access. JIRA
 #                    carries no role data, so a security finding is never a JIRA known point. The state stores the
 #                    task, the issue, and the owner, and the review shows the owner. Every refusal exits 4 and leaves
@@ -1054,7 +1054,7 @@ linked_issue_verdict() {
               | index([$key])) == null then "refused:the issue is not in the link list of the task"
         elif ($l | type) != "object" or $l.key != $key or $l.url != $issue then "refused:the loader returned another item than the linked issue"
         elif $l.resolution != null then "refused:the linked issue is not open"
-        elif $l.descriptionTrusted != true then "refused:the reporter of the linked issue is not the operator account"
+        elif $l.descriptionTrusted != true then "refused:the description of the linked issue is not the text of the operator account alone"
         else "ok:" end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   else
     verdict='refused:the task is neither a GitHub issue URL nor a JIRA key'

@@ -97,9 +97,13 @@
 #     description / comments / attachments rather than breaking the whole load.
 #   - The Atlassian CLI `--paginate` flag emits a JSON stream (one document per
 #     page) instead of a single document. We slurp with `jq -s` to merge pages.
-#   - `descriptionTrusted` is true only when the reporter, who wrote the description, is the operator's own account:
-#     `reporterAccountId` equals `jira_actor_account_id` (skills/code-review-jira/scripts/jira-actor.sh). JIRA carries
-#     no role data, so no other reporter is trusted (rules/compound-engineering/tracker.md *Resolving trust per
+#   - `descriptionTrusted` is true only when the operator's own account wrote the description and no other account
+#     changed it: the reporter and the creator are the account that `jira_actor_account_id` resolves
+#     (skills/code-review-jira/scripts/jira-actor.sh), and every history of the view's change log that changes the
+#     description or the reporter is that account's own. A view without a change log, a change log that is cut
+#     (`total` above the histories it returns), and one that cannot be read make it false. `acli jira workitem view`
+#     has no option that asks for the change log, so a view without one makes the description untrusted. JIRA carries
+#     no role data, so no other account is trusted (rules/compound-engineering/tracker.md *Resolving trust per
 #     tracker*). An account that cannot be resolved makes it false.
 #   - `mentionedKeys` lists the issues of the same project that the task text names and that no native link carries.
 #     The task text is the description when `descriptionTrusted` is true, and each comment that passes
@@ -770,10 +774,22 @@ SHARED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared"
 # shellcheck source=jira-actor.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/jira-actor.sh"
 ACTOR_ID="$(jira_actor_account_id || true)"
-if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "$SHARED_DIR" --arg actor "$ACTOR_ID" '
+# Who wrote and who changed the description: the creator and the change log of the view, when the view carries them.
+DESCRIPTION_META="$(printf '%s' "$VIEW_JSON" | jq -c '{creator: (.fields.creator.accountId? // null), changelog: (.changelog? // null)}' 2>/dev/null || true)"
+[[ -n "$DESCRIPTION_META" ]] || DESCRIPTION_META='null'
+if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "$SHARED_DIR" --arg actor "$ACTOR_ID" --argjson meta "$DESCRIPTION_META" '
   include "review-trust";
   . as $o
-  | ($actor != "" and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId == $actor) as $trusted
+  # The description is the text of the operator account alone: it created the issue, it is the reporter, and it made
+  # every change of the description or the reporter in a complete change log. What the view does not prove is untrusted.
+  | ($actor != "" and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId == $actor
+     and ($meta | type) == "object" and $meta.creator == $actor
+     and ($meta.changelog | type) == "object" and ($meta.changelog.histories | type) == "array"
+     and ($meta.changelog.startAt // 0) == 0
+     and ($meta.changelog.total // ($meta.changelog.histories | length)) == ($meta.changelog.histories | length)
+     and all($meta.changelog.histories[];
+       .author.accountId? == $actor
+       or ([(.items // [])[] | ((.fieldId // .field // "") | ascii_downcase)] | any(. == "description" or . == "reporter") | not))) as $trusted
   | (($o.key | sub("-[0-9]+$"; "")) as $project
      | [ [ if $trusted then $o.descriptionText else empty end ]
          + [ $o.comments[] | select(trusted_jira_comment($actor; $o.assignee)) | .body ]
