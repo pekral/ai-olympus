@@ -274,7 +274,7 @@ test('the merge-preparation consolidation opens a JIRA comment with the deploy v
     $skill = normalizedPackageSource('skills/verify-merge-readiness/SKILL.md');
 
     expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($april)->toContain('On a JIRA ticket the comment opens with the deploy verdict paragraph, and the exact blocker is the first `Review findings` bullet.')
+        ->and($april)->toContain('On a JIRA ticket the comment opens with the deploy verdict paragraph, which names the exact blocker, and the `Review findings` follow the type order of the JIRA shape.')
         ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($skill)->toContain('`Review findings` with the exact blocker first');
+        ->and($skill)->toContain('the exact blocker named in the deploy verdict');
 });

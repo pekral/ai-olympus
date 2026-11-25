@@ -97,7 +97,7 @@ qualified deletions. It is not authorization to merge or to delete anything outs
    matches the **source tracker** — `templates/pr-summary-github.md` for a GitHub issue,
    `templates/pr-summary-jira.md` for a JIRA ticket. On a GitHub issue its first sentence is a TL;DR
    with the verified merge-readiness verdict. On a JIRA ticket the comment opens with the deploy verdict
-   paragraph, and the exact blocker is the first `Review findings` bullet. On a GitHub issue, directly after the sentence,
+   paragraph, which names the exact blocker, and the `Review findings` follow the type order of the JIRA shape. On a GitHub issue, directly after the sentence,
    render the `Decisions before merge` section from the brief's `## Open decisions`, from `skills/verify-merge-readiness/templates/decisions-before-merge.md`: one numbered question per decision, with its options and its recommendation, and then the `### Already decided` lines from the brief's `## Decided before merge`.
    Never drop, merge, or reword a decision into a verdict of your own. Include the current
    assignment-compliance block and the exact head SHA, diff fingerprint, gate result, PR URL, and

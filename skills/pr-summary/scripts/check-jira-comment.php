@@ -22,6 +22,8 @@ const JIRA_SUMMARY_LINKS_LINE = '/^\[[^|\]]+\|[^\]]+\](?: · \[[^|\]]+\|[^\]]+\]
 
 const JIRA_SUMMARY_FINDING_TYPE = '/^\* \*\((?<type>security|bug|tests|refactor|performance|documentation)\):\* \S/u';
 
+const JIRA_SUMMARY_TYPE_ORDER = ['security', 'bug', 'tests', 'refactor', 'performance', 'documentation'];
+
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
@@ -151,10 +153,30 @@ function jiraSummaryFindingsViolations(array $blocks): array
     $violations = [];
 
     foreach ($blocks as $block) {
+        $previous = null;
+
         foreach ($block['body'] as $line) {
-            if (str_starts_with($line, '* ') && preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) !== 1) {
-                $violations[] = 'findings: a finding must open with its change type, for example *(bug):*: ' . $line;
+            if (str_starts_with($line, 'h3. ')) {
+                $previous = null;
+
+                continue;
             }
+
+            if (!str_starts_with($line, '* ')) {
+                continue;
+            }
+
+            if (preg_match(JIRA_SUMMARY_FINDING_TYPE, $line, $match) !== 1) {
+                $violations[] = 'findings: a finding must open with its change type, for example *(bug):*: ' . $line;
+
+                continue;
+            }
+
+            if ($previous !== null && array_search($match['type'], JIRA_SUMMARY_TYPE_ORDER, strict: true) < array_search($previous, JIRA_SUMMARY_TYPE_ORDER, strict: true)) {
+                $violations[] = sprintf('findings: order the findings %s; (%s) stands after (%s)', implode(', ', JIRA_SUMMARY_TYPE_ORDER), $match['type'], $previous);
+            }
+
+            $previous = $match['type'];
         }
     }
 

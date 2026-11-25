@@ -274,7 +274,7 @@ GitHub pull-request comment, which is the surface that consumes them. On a JIRA 
 comments:
 
 1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/references/jira-shape.md` defines, with
-   `Review findings` with the exact blocker first, within that rule's 3 000-character cap. An open question about the assignment closes the bullet of the criterion
+   the exact blocker named in the deploy verdict, within that rule's 3 000-character cap. An open question about the assignment closes the bullet of the criterion
    it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes
    with its question and its recommendation in one sentence. A decision outside the assignment that is not
    Critical never reaches JIRA, neither as a finding nor as a question.
