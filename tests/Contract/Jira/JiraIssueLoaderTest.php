@@ -279,10 +279,13 @@ function jiraLoaderNamingViewJson(string $reporter = 'acc-operator', string $des
     $linked = ['fields' => ['issuetype' => ['name' => 'Bug'], 'status' => ['name' => 'Open'], 'summary' => 'Linked'], 'key' => 'ACME-5'];
 
     return (string) json_encode([
+        // The operator wrote the description and is the only account that changed it.
+        'changelog' => jiraLoaderChangelog([[$reporter, 'description']]),
         'fields' => [
             'assignee' => ['displayName' => 'Maintainer'],
             'attachment' => [],
             'created' => '2026-01-05T09:00:00.000+0100',
+            'creator' => ['accountId' => $reporter, 'displayName' => 'Reporter'],
             'description' => jiraLoaderDocument($description),
             'issuelinks' => [
                 [
@@ -301,6 +304,41 @@ function jiraLoaderNamingViewJson(string $reporter = 'acc-operator', string $des
         ],
         'key' => 'ACME-1234',
     ]);
+}
+
+/**
+ * The change log of an issue view: one history per [account, changed field] pair, every one of them returned.
+ *
+ * @param list<array{0: string, 1: string}> $changes
+ * @return array<string, mixed>
+ */
+function jiraLoaderChangelog(array $changes): array
+{
+    $histories = array_map(static fn (array $change, int $index): array => [
+        'author' => ['accountId' => $change[0]],
+        'created' => '2026-01-06T07:00:00.000+0100',
+        'id' => (string) ($index + 1),
+        'items' => [['field' => $change[1], 'fieldId' => $change[1]]],
+    ], $changes, array_keys($changes));
+
+    return ['histories' => $histories, 'maxResults' => 100, 'startAt' => 0, 'total' => count($histories)];
+}
+
+/**
+ * The naming view of `jiraLoaderNamingViewJson()` with the given top-level keys and fields replaced, and the keys
+ * listed in $remove left out.
+ *
+ * @param array<string, mixed> $replace
+ * @param array<string, mixed> $fields
+ * @param list<string> $remove
+ */
+function jiraLoaderTrustViewJson(array $replace = [], array $fields = [], array $remove = []): string
+{
+    $view = (array) json_decode(jiraLoaderNamingViewJson(), associative: true);
+    $view = array_replace($view, $replace);
+    $view['fields'] = array_replace((array) $view['fields'], $fields);
+
+    return (string) json_encode(array_diff_key($view, array_flip($remove)));
 }
 
 function jiraLoaderNamingCommentsJson(): string
@@ -351,6 +389,31 @@ test('the description of a reporter who is not the operator names no issue', fun
 })->with([
     'an operator account that cannot be resolved' => ['acc-operator', null],
     'another reporter' => ['acc-stranger', jiraLoaderOperatorSearchJson()],
+]);
+
+test('the description is trusted only when the operator wrote it and no other account changed it', function (string $view, bool $trusted): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => $view,
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    // An untrusted description names no issue; the assignee's own comment still does.
+    expect(decodedJsonField($output, 'descriptionTrusted'))->toBe($trusted)
+        ->and(decodedJsonField($output, 'mentionedKeys'))->toBe($trusted ? ['ACME-77', 'ACME-78', 'ACME-80'] : ['ACME-80']);
+})->with([
+    'the operator wrote it and changed it' => [jiraLoaderTrustViewJson(), true],
+    'another account changed another field' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'status']])]), true],
+    'another account edited the description' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'description']])]), false],
+    'another account changed the reporter' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-stranger', 'reporter']])]), false],
+    'another account created the issue' => [jiraLoaderTrustViewJson(fields: ['creator' => ['accountId' => 'acc-stranger', 'displayName' => 'Stranger']]), false],
+    'the view carries no creator' => [jiraLoaderTrustViewJson(fields: ['creator' => null]), false],
+    'the view carries no change log' => [jiraLoaderTrustViewJson(remove: ['changelog']), false],
+    'the change log is cut' => [jiraLoaderTrustViewJson(['changelog' => ['total' => 2] + jiraLoaderChangelog([['acc-operator', 'description']])]), false],
+    'the change log cannot be read' => [jiraLoaderTrustViewJson(['changelog' => ['histories' => 'unreadable']]), false],
 ]);
 
 test('a comment of the operator account names an issue even when the operator is not the assignee', function (): void {
