@@ -159,9 +159,11 @@ changes_no_configuration_path() {
 
 config_diff() {
   local base="$1" target="$2" base_sha target_sha rc=0
-  base_sha="$(g rev-parse --verify --quiet "$base^{commit}" 2>/dev/null)" \
-    && target_sha="$(g rev-parse --verify --quiet "$target^{commit}" 2>/dev/null)" \
-    || { echo "helper-agents-guard.sh: config-diff: a revision cannot be resolved" >&2; exit 4; }
+  if ! base_sha="$(g rev-parse --verify --quiet "$base^{commit}" 2>/dev/null)" \
+    || ! target_sha="$(g rev-parse --verify --quiet "$target^{commit}" 2>/dev/null)"; then
+    echo "helper-agents-guard.sh: config-diff: a revision cannot be resolved" >&2
+    exit 4
+  fi
   configuration_free "$base_sha" "$target_sha" -- || rc=$?
   case "$rc" in
   0) exit 0 ;;
