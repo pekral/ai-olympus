@@ -324,3 +324,19 @@ test('Codex gates its agent spawn by the owner file, and both installed outputs 
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }
 });
+
+test('every final report says whether helper agents were allowed, and a forbidden run says the review was not independent', function (): void {
+    $owner = normalizedPackageSource('skills/_shared/orchestration/helper-agents.md');
+    $independence = 'Review independence:** not independent — helper agents are forbidden for this project';
+
+    expect($owner)->toContain('**Every final report** carries `Helper agents: allowed (source: <source>)` or `Helper agents: forbidden (source: manifest)`.')
+        ->and($owner)->toContain('`Review independence: not independent — helper agents are forbidden for this project`')
+        ->and($owner)->toContain('`The helper-agents setting is not true or false, so helper agents stay allowed.`')
+        ->and($owner)->toContain('`The project manifest could not be read, so helper agents stay allowed.`')
+        ->and(normalizedPackageSource('agents/krang.md'))->toContain('- **Helper agents:** `Helper agents: allowed|forbidden (source: <source>)` on every run')
+        ->and(normalizedPackageSource('agents/krang.md'))->toContain('`Review independence: not independent — helper agents are forbidden for this project`')
+        ->and(normalizedPackageSource('rules/code-review/general.md'))->toContain('**' . $independence . '`')
+        ->and(normalizedPackageSource('skills/code-review-github/templates/pr-comment-output.md'))->toContain('**' . $independence)
+        ->and(normalizedPackageSource('skills/verify-merge-readiness/SKILL.md'))
+        ->toContain('- when the project forbids helper agents, the line `Review independence: not independent — helper agents are forbidden for this project`');
+});

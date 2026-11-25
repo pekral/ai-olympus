@@ -258,6 +258,7 @@ tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub i
 - the current acceptance-compliance block supplied by
   `@skills/assignment-compliance-check/SKILL.md`;
 - the exact head SHA, effective diff fingerprint, quality-gate result, PR link, and issue link.
+- when the project forbids helper agents, the line `Review independence: not independent — helper agents are forbidden for this project` (`skills/_shared/orchestration/helper-agents.md` *Report lines*).
 
 The `## Decisions before merge` section is written for a human who reads it once and answers. Write
 it in the assignment language, and translate its heading. Render it from

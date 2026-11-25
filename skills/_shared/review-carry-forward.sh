@@ -236,7 +236,7 @@ VERDICT_SHAPE=$'^(yes|no) \xe2\x80\x94 assignment met: (yes|no|no linked issue) 
 # tracker-mirror labels of the three wrappers). A label outside this list starts the round.
 KNOWN_LABELS='|Overview|Status|Counts|Merge verdict|Input consistency|Reuse (DRY)|Security assessment|Merge risk|Mode|'
 KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed assignment fingerprint|Coverage|'
-KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
+KNOWN_LABELS+='Last updated|Review independence|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
   'Review scope' 'Last updated')
 # The labels a carried review's meaning depends on. After the header block, a line the line rule does not skip that holds
