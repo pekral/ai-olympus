@@ -7,12 +7,14 @@
 {expand}
 
 {expand:Findings from the code review}
-* *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". Order the bullets by type: security, bug, tests, refactor, performance, documentation. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
-* *(refactor):* [~accountid:<id>] [Next point; a refactor finding mentions the author of the changes right after its type. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
+You can go through the whole change here: [code in the pull request|PR_URL/files]
+
+* *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". Order the bullets by type: security, bug, tests, refactor, performance, documentation. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.] [View in code →|CODE_LINK]
+* *(refactor):* [~accountid:<id>] [Next point; a refactor finding mentions the author of the changes right after its type. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.] [View in code →|CODE_LINK]
 
 h3. Already reported in an earlier review
 
-* *(tests):* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
+* *(tests):* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.] [View in code →|CODE_LINK]
 {expand}
 
 {expand:What changed and what it affects}
@@ -121,6 +123,12 @@ Review findings
     bold, with a colon: *(security):*, *(bug):*, *(tests):*, *(refactor):*,
     *(performance):*, or *(documentation):* (references/jira-shape.md, item
     10). The finding text after it stays unchanged.
+  - The first line of the block links the whole change of the pull request,
+    and every finding ends with "View in code →" linked to its file and line
+    in the changes of the pull request, or with a link to the pull request
+    that fixes code outside this one (references/jira-shape.md, item 13).
+    Build PR_URL/files and CODE_LINK with
+    skills/pr-summary/scripts/pr-code-link.php, never by hand.
   - Every *(refactor):* finding mentions the author of the changes right after
     its type, as [~accountid:<id>] (references/jira-shape.md, item 12). With
     no matching JIRA account it carries no mention, and the run reports that.
@@ -200,7 +208,9 @@ Check before the publish
   outside them, the criteria block against the flag, the
   bullets of What changed and what it affects, at most 600 characters and no
   TL;DR label, the change type and the order of every finding, the author
-  mention on every refactor finding and on nothing else, leaked Markdown, code
+  mention on every refactor finding and on nothing else, the whole-change line
+  and the code links, every GitHub link inside one pull request or issue of
+  the task repository, leaked Markdown, code
   macros, commit hashes, the footer, and the closing agent-marker block.
 
 No embedded blocks
@@ -224,9 +234,9 @@ Technical marker for AI agents
 Closing links line
   One line, the pull request and the source tracker item, separated by " · ", in
   intermediate link form ([label|url]). Render whichever of the two links exists;
-  omit the line when neither does. It sits above the footer separator. This is
-  the one link the comment carries, and it is navigation rather than a technical
-  note.
+  omit the line when neither does. It sits above the footer separator. It is
+  navigation rather than a technical note, like the links into the pull request
+  in Review findings.
 
 The canonical statement of every rule above lives in
 @skills/pr-summary/SKILL.md. This block restates the slot mechanics for whoever
