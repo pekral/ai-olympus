@@ -28,15 +28,18 @@ function branchCheckoutGateConfigurationCheck(string $branchPath): int
     return (int) $check->getExitCode();
 }
 
-test('the checkout gate refuses a main-tree checkout of a branch that changes a configuration path in any letter case', function (string $branchPath, int $exitCode): void {
-    expect(branchCheckoutGateConfigurationCheck($branchPath))->toBe($exitCode);
-})->with([
-    'a Codex skill' => ['.agents/skills/x/SKILL.md', 1],
+test(
+    'the checkout gate refuses a main-tree checkout of a branch that changes a configuration path in any letter case',
+    function (string $branchPath, int $exitCode): void {
+        expect(branchCheckoutGateConfigurationCheck($branchPath))->toBe($exitCode);
+    },
+)->with([
     'a Codex setting in upper case' => ['.CODEX/config.toml', 1],
+    'a Codex skill' => ['.agents/skills/x/SKILL.md', 1],
+    'an agent definition' => ['.claude/agents/leonardo.md', 1],
+    'an agent definition in another letter case' => ['.Claude/agents/leonardo.md', 1],
     'a settings file in another letter case' => ['.Claude/settings.json', 1],
     'a source file only' => ['src/Feature.php', 0],
-    'an agent definition in another letter case' => ['.Claude/agents/leonardo.md', 1],
-    'an agent definition' => ['.claude/agents/leonardo.md', 1],
 ]);
 
 test('the checkout gate names the configuration check before the checkout of the main tree', function (): void {
