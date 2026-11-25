@@ -89,11 +89,13 @@
 #   known-check      the merge check of every security known point (skills/merge-github-pr/references/
 #                    trusted-record-parser.md *The known-point check*). --loader is the document that
 #                    skills/code-review-github/scripts/load-issue.sh wrote for the pull request. The command reads the
-#                    `## Known points` section of the newest trusted record (cr-header.sh --report), takes the task from
-#                    `closingIssues[]`, and runs the checks of `known` through the loaders for each security point. It
-#                    reads no state and writes nothing. Exit 0: every security known point holds, or the record has
-#                    none. Exit 4: a point fails, an entry cannot be read, or the pull request closes no issue of its
-#                    own repository. Exit 3: the document or the record cannot be read.
+#                    `## Known points` section of the newest trusted record (cr-header.sh --report) and its
+#                    `Known points:` header line, and runs the checks of `known` through the loaders for each security
+#                    point, against the task that the record names for the point. It reads no state and writes nothing.
+#                    Exit 0: every security known point holds, or the record has neither the section nor the header
+#                    line. Exit 4: a point fails; the pull request closes its linked issue or does not close its task;
+#                    a heading, an entry, or the header line is in another shape; or the header line does not count
+#                    the entries of the section. Exit 3: the document or the record cannot be read.
 #
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
@@ -1168,7 +1170,8 @@ cmd_known() {
 }
 
 # cmd_known_check — the merge check of each security known point of the newest trusted record. Read-only: it fails
-# closed, so a section it cannot read and a pull request with no task of its repository are refusals.
+# closed, so a section, a heading, or a count it cannot read is a refusal, and so is a task the pull request no longer
+# closes.
 cmd_known_check() {
   local loader=''
   while [[ $# -gt 0 ]]; do
@@ -1185,38 +1188,59 @@ cmd_known_check() {
   [[ "$repo" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || fail 3 "the loader document is not the document of a pull request; no known point was checked"
   "$HERE/cr-header.sh" --report "$loader" >"$TMP/record.md" 2>/dev/null \
     || fail 3 "no trusted code-review report, or the newest one is not a record; no known point was checked"
-  # One line per security entry of the one `## Known points` section: `point <url> <owner>`, or `unreadable` for an
-  # entry or a section in another shape.
+  # One line per security entry of the one `## Known points` section, `point <url> <task> <owner>`, and one line
+  # `unreadable <reason>` for each part of the record that names the known points in another shape: a second section,
+  # another heading or summary, a section line in no entry shape, a line that names security outside the security
+  # shape, and a `Known points:` header line that is missing beside the section or does not count its entries. A
+  # record with neither the section nor the header line is a record of an older review and has no known point.
   jq -R -s -r '
-    split("\n") | . as $l
-    | [range(0; length) | select($l[.] == "## Known points")] as $h
-    | if ($h | length) == 0 then empty
-      elif ($h | length) > 1 then "unreadable"
-      else $l[($h[0] + 1):] as $rest
+    def sec_re: "^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* (?<url>https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}) — \\*\\*Owner:\\*\\* `(?<owner>[A-Za-z0-9](-?[A-Za-z0-9]){0,38})` — \\*\\*Task:\\*\\* (?<task>https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8})$";
+    def plain_re: "^[0-9]{1,3}\\. \\*\\*Finding:\\*\\* \\S";
+    def label_re: "^(\\*\\*)?known points:";
+    split("\n") as $l
+    | [range(0; $l | length) | select($l[.] == "## Known points")] as $h
+    | [$l[] | select(test(label_re; "i"))] as $hl
+    | [$l[] | select(. != "## Known points" and (test("^#{1,6}\\s+[^A-Za-z]*known points?\\b"; "i")
+        or test("<summary>.*known points?"; "i")
+        or (test("^\\s*(\\*\\*|__)[^A-Za-z]*known points?"; "i") and (test(label_re; "i") | not))))] as $other
+    | (if ($hl | length) == 1 then ($hl[0] | capture("^\\*\\*Known points:\\*\\* (?<n>[0-9]{1,4}) · security (?<m>[0-9]{1,4})$") // null) else null end) as $count
+    | (if ($h | length) == 0 then [] else $l[($h[0] + 1):] as $rest
         | ([range(0; $rest | length) | select($rest[.] | test("^## "))] | first // ($rest | length)) as $end
-        | $rest[0:$end]
-        | .[] | select(test("Security point"))
-        | (capture("^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* (?<url>https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}) — \\*\\*Owner:\\*\\* `(?<owner>[A-Za-z0-9](-?[A-Za-z0-9]){0,38})`$") // null) as $m
-        | if $m == null then "unreadable" else "point\t\($m.url)\t\($m.owner)" end
-      end' "$TMP/record.md" >"$TMP/points.tsv" 2>/dev/null || echo unreadable >"$TMP/points.tsv"
-  # The tasks: the issues of the pull request's own repository that it closes.
-  local tasks='' url
-  while IFS= read -r url; do
-    [[ "$url" =~ $GH_ISSUE_RE && "$(lower "${BASH_REMATCH[1]}")" == "$(lower "$repo")" ]] && tasks+="$url"$'\n'
-  done < <(jq -r '(.closingIssues // [])[]? | .url? | strings' "$loader" 2>/dev/null || true)
-  local kind owner verdict task checked=0 refused='[]'
-  while IFS=$'\t' read -r kind url owner; do
+        | $rest[0:$end] end) as $section
+    | [$section[] | select(test(sec_re))] as $points
+    | [$section[] | select(test(plain_re))] as $plain
+    | [$section[] | select((. == "" or . == "---" or test(sec_re)
+        or ((test(plain_re) or test("^   \\*\\*(Linked issue|Covers):\\*\\* \\S")) and (test("security"; "i") | not))) | not)] as $bad
+    | ([(if ($h | length) > 1 then "the record has more than one Known points section" else empty end),
+        (if ($other | length) > 0 then "a heading or a summary names the known points in another shape" else empty end),
+        (if ($hl | length) > 1 then "the Known points header line appears more than once" else empty end),
+        (if ($hl | length) == 1 and $count == null then "the Known points header line is not in its shape" else empty end),
+        (if ($h | length) == 1 and ($hl | length) == 0 then "the record has a Known points section and no Known points header line" else empty end),
+        (if $count != null and ((($count.n | tonumber) != (($points | length) + ($plain | length))) or (($count.m | tonumber) != ($points | length)))
+         then "the Known points header line does not count the entries of the section" else empty end),
+        (if ($bad | length) > 0 then "an entry of the Known points section cannot be read" else empty end)]
+       | .[] | "unreadable\t\(.)"),
+      ($points[] | capture(sec_re) | "point\t\(.url)\t\(.task)\t\(.owner)")' "$TMP/record.md" >"$TMP/points.tsv" 2>/dev/null \
+    || printf 'unreadable\tthe Known points section cannot be read\n' >"$TMP/points.tsv"
+  # The issues the pull request closes now. Its body decides them, and a body edit after the review changes no diff, so
+  # the check verifies the task the review recorded and refuses a point whose own issue the pull request closes.
+  local closing
+  closing="$(jq -r '(.closingIssues // [])[]? | .url? | strings' "$loader" 2>/dev/null || true)"
+  closing="$(lower "$closing")"
+  local kind url task owner verdict checked=0 refused='[]'
+  while IFS=$'\t' read -r kind url task owner; do
     if [[ "$kind" != point ]]; then
-      refused="$(jq -c '. + [{issue: null, reason: "an entry of the Known points section cannot be read"}]' <<<"$refused")"
+      refused="$(jq -c --arg reason "$url" '. + [{issue: null, reason: $reason}]' <<<"$refused")"
       continue
     fi
     checked=$((checked + 1))
-    verdict='refused:the pull request closes no issue of its own repository, so no task links the issue'
-    while IFS= read -r task; do
-      [[ -n "$task" ]] || continue
+    if grep -Fxq -- "$(lower "$url")" <<<"$closing"; then
+      verdict='refused:the pull request closes the linked issue, so the merge would close it with the point unfixed'
+    elif ! grep -Fxq -- "$(lower "$task")" <<<"$closing"; then
+      verdict='refused:the pull request does not close the task the review recorded for the point'
+    else
       verdict="$(linked_issue_verdict "$repo" "$task" "$url" "$owner" true)"
-      [[ "$verdict" != ok:* ]] || break
-    done <<<"$tasks"
+    fi
     [[ "$verdict" == ok:* ]] \
       || refused="$(jq -c --arg url "$url" --arg reason "${verdict#refused:}" '. + [{issue: $url, reason: $reason}]' <<<"$refused")"
   done <"$TMP/points.tsv"
@@ -1782,21 +1806,38 @@ EOF
   check 'a known point with no marked finding opens on the next report of its identity' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
 
   # The merge checks each security known point of the newest trusted review again, read-only and fail closed.
-  # merge_doc <closing issue URL|-> <Known points section line>... — the loader document of pull request acme/shop#7
-  # whose one trusted review carries a record with that section.
-  merge_doc() {
-    local closing="$1" record
-    shift
-    record="$(printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 0\n\n## Known points\n\n'; printf '%s\n' "$@"; printf '\n---\n\n## Input consistency\n\nnone\n')"
-    jq -n -c --arg closing "$closing" --arg record "$record" '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
+  # merge_record <closing issue URLs, separated by spaces, or -> <record> — the loader document of pull request
+  # acme/shop#7 whose one trusted review carries <record>, encoded as the publisher encodes it.
+  merge_record() {
+    jq -n -c --arg closing "$1" --arg record "$2" '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
       repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
-      closingIssues: (if $closing == "-" then [] else [{number: 10, title: "Task", url: $closing, state: "OPEN"}] end),
+      closingIssues: (if $closing == "-" then [] else $closing | split(" ")
+        | map({number: (split("/")[-1] | tonumber), title: "Task", url: ., state: "OPEN"}) end),
       reviews: [{author: "bot", authorAssociation: "OWNER", state: "COMMENTED", submittedAt: "2026-10-05T10:00:00Z",
-        body: ("Summary.\n\n<!-- cr-review-meta\n" + $record + "\n-->\n<!-- cr-comment:actor=bot -->")}]}' >"$tmp/merge-doc.json"
+        body: ("Summary.\n\n<!-- cr-review-meta\n" + ($record | gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;"))
+          + "\n-->\n<!-- cr-comment:actor=bot -->")}]}' >"$tmp/merge-doc.json"
   }
-  local SEC_POINT="2. **Security point** — **Linked issue:** $known_issue — **Owner:** \`maintainer\`"
+  # merge_doc <closing issue URLs|-> <value of the Known points header line|-> <section line>... — a record whose one
+  # `## Known points` section holds those lines.
+  merge_doc() {
+    local closing="$1" count="$2" header=''
+    shift 2
+    [[ "$count" == - ]] || header="**Known points:** $count"$'\n'
+    merge_record "$closing" "$(printf '# Code Review\n\n**Status:** clean\n**Counts:** Critical 0 · Moderate 0\n%s\n## Known points\n\n' "$header"
+      printf '%s\n' "$@"; printf '\n---\n\n## Input consistency\n\nnone\n')"
+  }
+  # merge_section <closing issue URLs|-> <value of the Known points header line|-> <record text after the header> — a
+  # record with no `## Known points` heading of its own.
+  merge_section() {
+    local header=''
+    [[ "$2" == - ]] || header="**Known points:** $2"$'\n'
+    merge_record "$1" "$(printf '# Code Review\n\n**Status:** clean\n%s\n%s\n' "$header" "$3")"
+  }
+  local SEC_POINT="2. **Security point** — **Linked issue:** $known_issue — **Owner:** \`maintainer\` — **Task:** $task"
+  local OLD_POINT="2. **Security point** — **Linked issue:** $known_issue — **Owner:** \`maintainer\`"
   local PLAIN_POINT="1. **Finding:** Copied step — \`src/Foo/Bar.php:10\`"
-  merge_doc "$task" "$PLAIN_POINT" '   **Linked issue:** https://github.com/acme/shop/issues/13' "$SEC_POINT"
+  local PLAIN_LINK='   **Linked issue:** https://github.com/acme/shop/issues/13'
+  merge_doc "$task" '2 · security 1' "$PLAIN_POINT" "$PLAIN_LINK" '   **Covers:** The issue describes the copied step.' "$SEC_POINT"
   run_case 'the merge check passes a security known point that still holds' 0 -- known-check --loader "$tmp/merge-doc.json"
   check 'the merge check names one security known point and no refusal' "$(q '.result == "ok" and .security_known_points == 1 and .refused == []')"
   for case_args in \
@@ -1814,17 +1855,78 @@ EOF
   done
   gh_issue 10 OWNER OPEN maintainer
   gh_issue 12 OWNER OPEN maintainer maintainer
-  merge_doc - "$SEC_POINT"
-  run_case 'the merge check refuses a security known point of a pull request that closes no issue' 4 -- known-check --loader "$tmp/merge-doc.json"
-  merge_doc https://github.com/evil/x/issues/5 "$SEC_POINT"
+  # The task is the one the review recorded, never one that the pull-request body names now.
+  gh_issue 20 OWNER OPEN maintainer
+  # refused_for <label> <reason part> — the merge check refuses the security known point for a reason that names it.
+  refused_for() {
+    run_case "the merge check refuses a security known point when $1" 4 -- known-check --loader "$tmp/merge-doc.json"
+    check "the refusal says why when $1" "$(q --arg url "$known_issue" --arg why "$2" '.result == "refused" and any(.refused[]; .issue == $url and (.reason | contains($why)))')"
+  }
+  merge_doc "$task $known_issue" '1 · security 1' "$SEC_POINT"
+  refused_for 'the pull request closes the linked issue too' 'closes the linked issue'
+  merge_doc "$known_issue" '1 · security 1' "$SEC_POINT"
+  refused_for 'the pull request closes only the linked issue' 'closes the linked issue'
+  unlink_task
+  merge_doc "$task https://github.com/acme/shop/issues/20" '1 · security 1' "$SEC_POINT"
+  refused_for 'the recorded task no longer links the issue and another closing issue does' 'the issue is not in the link list of the task'
+  gh_issue 10 OWNER OPEN maintainer
+  merge_doc https://github.com/acme/shop/issues/20 '1 · security 1' "$SEC_POINT"
+  refused_for 'the pull request no longer closes the recorded task' 'does not close the task'
+  jq -c '.url = "https://github.com/acme/shop/issues/11"' "$tmp/gh-issue-acme-shop-10.json" >"$tmp/other-task" && mv "$tmp/other-task" "$tmp/gh-issue-acme-shop-10.json"
+  merge_doc "$task" '1 · security 1' "$SEC_POINT"
+  refused_for 'the loader returns another item than the recorded task' 'another item than the task'
+  gh_issue 10 OWNER OPEN maintainer
+  merge_doc "$task https://github.com/acme/shop/issues/20" '1 · security 1' "$OLD_POINT"
+  run_case 'the merge check refuses a security known point with no recorded task' 4 -- known-check --loader "$tmp/merge-doc.json"
+  check 'a security known point with no recorded task is an entry it cannot read' "$(q '.result == "refused" and .refused[0].issue == null and .security_known_points == 0')"
+  merge_doc - '1 · security 1' "$SEC_POINT"
+  refused_for 'the pull request closes no issue' 'does not close the task'
+  merge_doc https://github.com/evil/x/issues/5 '1 · security 1' "2. **Security point** — **Linked issue:** https://github.com/evil/x/issues/1 — **Owner:** \`attacker\` — **Task:** https://github.com/evil/x/issues/5"
   run_case 'the merge check takes no task of another repository' 4 -- known-check --loader "$tmp/merge-doc.json"
-  merge_doc "$task" "$SEC_POINT — and more"
-  run_case 'the merge check refuses a security entry it cannot read' 4 -- known-check --loader "$tmp/merge-doc.json"
-  merge_doc "$task" "$SEC_POINT" '' '## Known points' '' "$SEC_POINT"
+  # A section, a heading, an entry, or a count in another shape is a refusal, never a point it skips.
+  local shape rest heading
+  local -a lines
+  for case_args in \
+    "an entry with text after the owner and the task|1 · security 1|$SEC_POINT — and more" \
+    "a security entry in another shape|1 · security 1|1. **Security known point** — **Linked issue:** $known_issue — **Owner:** \`maintainer\` — **Task:** $task" \
+    "a security point written as a plain entry|1 · security 1|1. **Finding:** Raw query — \`app/Http/Orders.php:42\`|   **Linked issue:** $known_issue|   **Covers:** The issue describes the query." \
+    "a plain entry that names security|1 · security 0|1. **Finding:** Security of the raw query — \`app/Http/Orders.php:42\`|   **Linked issue:** $known_issue|   **Covers:** The issue describes the query." \
+    "a line in no entry shape|2 · security 1|$PLAIN_POINT|The issue also describes the query.|$SEC_POINT" \
+    "a section with no Known points header line|-|$PLAIN_POINT|$PLAIN_LINK" \
+    "a header line that counts fewer security entries|1 · security 0|$SEC_POINT" \
+    "a header line that counts fewer entries|1 · security 1|$PLAIN_POINT|$SEC_POINT" \
+    "a header line in another shape|one · security 1|$SEC_POINT"; do
+    IFS='|' read -r label shape rest <<<"$case_args"
+    IFS='|' read -r -a lines <<<"$rest"
+    merge_doc "$task" "$shape" "${lines[@]}"
+    run_case "the merge check refuses $label" 4 -- known-check --loader "$tmp/merge-doc.json"
+    check "the refusal of $label names an entry it cannot read" "$(q '.result == "refused" and any(.refused[]; .issue == null)')"
+  done
+  merge_doc "$task" '1 · security 1' "$SEC_POINT" '' '## Known points' '' "$SEC_POINT"
   run_case 'the merge check refuses a record with two Known points sections' 4 -- known-check --loader "$tmp/merge-doc.json"
-  merge_doc "$task" "$PLAIN_POINT"
+  for case_args in \
+    "a heading with a count|-|## Known points (1)" \
+    "a deeper heading|-|### Known points" \
+    "a heading in other letter case|-|## Known Points" \
+    "a summary|-|<summary><strong>Known points (1)</strong></summary>" \
+    "a bold label|-|**Known points (1)**"; do
+    IFS='|' read -r label shape heading <<<"$case_args"
+    merge_section "$task" "$shape" "$(printf '%s\n\n%s\n\n## Input consistency\n\nnone' "$heading" "$SEC_POINT")"
+    run_case "the merge check refuses the known points under $label" 4 -- known-check --loader "$tmp/merge-doc.json"
+  done
+  merge_section "$task" '1 · security 1' $'## Findings\n\nnone'
+  run_case 'the merge check refuses a header line that counts a security entry the record lacks' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_section "$task" '0 · security 0' $'**Known points:** 0 · security 0\n## Findings\n\nnone'
+  run_case 'the merge check refuses a second Known points header line' 4 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc "$task" '1 · security 0' "$PLAIN_POINT" "$PLAIN_LINK"
   run_case 'the merge check passes a record with no security known point' 0 -- known-check --loader "$tmp/merge-doc.json"
   check 'a record with no security known point checks none' "$(q '.result == "ok" and .security_known_points == 0')"
+  # A record of an older review, with no Known points section, keeps the merge open with or without the header line.
+  merge_section "$task" - $'### 🔴 Critical 1. The merge check of a security known point\n\n## Findings\n\nnone'
+  run_case 'the merge check passes an older record with no Known points section and no header line' 0 -- known-check --loader "$tmp/merge-doc.json"
+  merge_section - '0 · security 0' $'## Findings\n\nnone'
+  run_case 'the merge check passes a record with no Known points section and a zero count' 0 -- known-check --loader "$tmp/merge-doc.json"
+  merge_doc "$task" '2 · security 1' "$PLAIN_POINT" "$PLAIN_LINK" "$SEC_POINT"
   jq -c '.reviews[0].authorAssociation = "NONE"' "$tmp/merge-doc.json" >"$tmp/merge-untrusted.json"
   run_case 'the merge check reads no record of an untrusted author' 3 -- known-check --loader "$tmp/merge-untrusted.json"
   run_case 'the merge check needs the loader document' 3 -- known-check --loader "$tmp/no-such-doc.json"
