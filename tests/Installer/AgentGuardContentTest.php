@@ -173,15 +173,18 @@ test('the install summary of the guard makes no claim about when a session reads
     expect(AgentGuardOutcome::Registered->installMessage())->not->toContain('session start');
 });
 
-test('a review in a worktree keeps its audit run directory outside the worktree and the cleanup ignores nested repositories', function (string $file, string $needle): void {
-    expect(agentGuardPackageFile($file))->toContain($needle);
-})->with([
+test(
+    'a review in a worktree keeps its audit run directory outside the worktree and the cleanup ignores nested repositories',
+    function (string $file, string $needle): void {
+        expect(agentGuardPackageFile($file))->toContain($needle);
+    },
+)->with([
     'leonardo' => ['agents/leonardo.md', '**The audit run directory stays outside the worktree.**'],
-    'the head check' => ['agents/leonardo.md', 'It checks the head with `skills/_shared/agent-guard.sh review-head <head-sha>`.'],
-    'splinter' => ['agents/splinter.md', '`.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief'],
-    'the skill' => ['skills/security-audit/SKILL.md', 'every `scripts/audit-artifacts.sh` call names the worktree with `--tree <path>`'],
-    'the clean check' => ['agents/krang.md', '-C <path> status --porcelain --ignore-submodules=all` prints nothing'],
     'SECURITY.md' => ['SECURITY.md', 'keeps its security-audit run directory under `.claude/run/security-audit/<slug>-<role>/` of the project, outside the worktree'],
+    'splinter' => ['agents/splinter.md', '`.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief'],
+    'the clean check' => ['agents/krang.md', '-C <path> status --porcelain --ignore-submodules=all` prints nothing'],
+    'the head check' => ['agents/leonardo.md', 'It checks the head with `skills/_shared/agent-guard.sh review-head <head-sha>`.'],
+    'the skill' => ['skills/security-audit/SKILL.md', 'every `scripts/audit-artifacts.sh` call names the worktree with `--tree <path>`'],
 ]);
 
 test('no confined role keeps a write exception inside a review worktree', function (): void {
@@ -195,7 +198,7 @@ test('SECURITY.md states that the macOS confinement creates no symbolic link any
 
     expect($guard)->toContain('On macOS a confined command creates no symbolic link anywhere')
         ->and($guard)->toContain('8. **Linux only:** `bwrap` binds by directory, never by name.')
-        ->and(agentGuardPackageFile('skills/_shared/agent-guard.sh'))->toContain("profile+='(deny file-write-create (vnode-type SYMLINK))'");
+        ->and(agentGuardPackageFile('skills/_shared/agent-guard.sh'))->toContain('profile+=\'(deny file-write-create (vnode-type SYMLINK))\'');
 });
 
 test('SECURITY.md names the settings sources the hook reads and the ones it does not', function (): void {
@@ -209,12 +212,12 @@ test('SECURITY.md names the settings sources the hook reads and the ones it does
 test('under an active guard the dispatching session refreshes the default-branch ref in every round', function (string $file, string $needle): void {
     expect(agentGuardPackageFile($file))->toContain($needle);
 })->with([
+    'krang' => ['agents/krang.md', 'the `git fetch origin` and the head fetch of *Review worktree*'],
     'leonardo' => ['agents/leonardo.md', '2. It runs `git fetch origin` in every round, which refreshes `origin/<default branch>` for the review.'],
     'the checkout gate' => [
         'skills/code-review/references/branch-checkout-gate.md',
         'The dispatching session has already run `git fetch origin` in this round, which refreshes `origin/$DEFAULT_BRANCH`',
     ],
-    'krang' => ['agents/krang.md', 'the `git fetch origin` and the head fetch of *Review worktree*'],
 ]);
 
 test('SECURITY.md states that a read-only Codex session cannot prepare a review worktree', function (): void {

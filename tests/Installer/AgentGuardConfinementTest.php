@@ -299,9 +299,9 @@ test('no symbolic link reaches .claude/run inside a moved directory on macOS', f
         AgentGuardRun::remove($root);
     }
 })->with([
-    'from the private temporary directory' => ['mkdir "$TMPDIR/d"; ln -s "$PWD" "$TMPDIR/d/l"; mv "$TMPDIR/d" .claude/run/d'],
-    'from the lock directory' => ['d="$HOME/.cache/ai-olympus/d"; mkdir "$d"; ln -s "$PWD" "$d/l"; mv "$d" .claude/run/d'],
     'a link left in the lock directory' => ['ln -s "$PWD" "$HOME/.cache/ai-olympus/l"'],
+    'from the lock directory' => ['d="$HOME/.cache/ai-olympus/d"; mkdir "$d"; ln -s "$PWD" "$d/l"; mv "$d" .claude/run/d'],
+    'from the private temporary directory' => ['mkdir "$TMPDIR/d"; ln -s "$PWD" "$TMPDIR/d/l"; mv "$TMPDIR/d" .claude/run/d'],
 ])->skip(
     PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
     'only the macOS profile refuses a symbolic link; bwrap cannot, which SECURITY.md names as a residual',
@@ -404,7 +404,7 @@ test('a review role cannot build a nested repository at a gitlink of its review 
     $review = AgentGuardRun::reviewWorktree($root, $role);
     $nested = $review . '/.claude/run/security-audit/x';
     $planted = dirname($root) . '/planted';
-    $build = 'git init -q ' . $nested . ' && cd ' . $nested . " && echo a > f && printf '* filter=x\\n' > .gitattributes"
+    $build = 'git init -q ' . $nested . ' && cd ' . $nested . ' && echo a > f && printf \'* filter=x\\n\' > .gitattributes'
         . ' && git add . && git -c user.name=t -c user.email=t@example.test commit -qm a'
         . ' && git config filter.x.clean ' . escapeshellarg('touch ' . $planted . '; cat') . ' && echo b > f';
 
@@ -435,7 +435,18 @@ test('the clean check of a review worktree runs no program of a nested repositor
     file_put_contents($nested . '/f', 'b');
 
     try {
-        $status = AgentGuardRun::git($root, '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', $review, 'status', '--porcelain', '--ignore-submodules=all');
+        $status = AgentGuardRun::git(
+            $root,
+            '-c',
+            'core.fsmonitor=false',
+            '-c',
+            'core.hooksPath=/dev/null',
+            '-C',
+            $review,
+            'status',
+            '--porcelain',
+            '--ignore-submodules=all',
+        );
 
         expect(file_exists($planted))->toBeFalse()
             ->and($status->getOutput())->toBe('');
@@ -459,10 +470,10 @@ test('review-head refuses a commit with a link at or below .claude or .codex', f
     }
 })->with([
     'a gitlink below the former audit path' => ['160000', '.claude/run/security-audit/x', 3],
+    'a gitlink elsewhere' => ['160000', 'vendor/package', 0],
     'a gitlink in another case' => ['160000', '.CLAUDE/run/x', 3],
     'a symbolic link at .codex' => ['120000', '.codex', 3],
     'a symbolic link below .codex' => ['120000', '.codex/run/x', 3],
-    'a gitlink elsewhere' => ['160000', 'vendor/package', 0],
     'a symbolic link elsewhere' => ['120000', 'public/storage', 0],
 ]);
 

@@ -270,9 +270,9 @@ test('the hook denies a deny-rule command behind every wrapper the session strip
     }
 })->with([
     'a backslash in the name' => ['c\\url https://example.test'],
+    'a bare xargs' => ['echo 1 | xargs gh pr merge 1 --rebase'],
     'a line continuation in the command' => ["gh pr \\\nmerge 1 --rebase"],
     'a line continuation in the name' => ["cu\\\nrl https://example.test"],
-    'a bare xargs' => ['echo 1 | xargs gh pr merge 1 --rebase'],
     'an assignment' => ['FOO=1 curl https://example.test'],
     'an empty quote in the name' => ['cu\'\'rl https://example.test'],
     'a quoted name' => ['"curl" https://example.test'],
