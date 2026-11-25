@@ -70,7 +70,8 @@ deletes. It never changes a status, an assignee, or a label.
    picks the newest `review` comment that has a reply, else the newest `review` comment. A reply is a later comment that
    links the comment, quotes a whole line of it, or mentions its author account: a JIRA mention, or on GitHub an `@`
    followed by the author login anywhere in the text, whatever stands before or after it, inside code too, and with its
-   character references decoded and its backslashes removed (`skills/_shared/comment-reply.jq`). A `review`
+   character references decoded and its backslashes removed (`skills/_shared/comment-reply.jq`). A GitHub comment of
+   another account whose decoded text holds both `@` and `<` is always a reply: a tag can hide the login. A `review`
    comment with a reply is never in `delete`. Its text goes into the carrier, and the comment itself stays.
 4. `operatorLines` of a `review` comment lists the lines the operator added to it (`skills/_shared/operator-lines.sh`). A
    comment whose lines cannot be read has `null` there and stays.
