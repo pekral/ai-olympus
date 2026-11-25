@@ -186,10 +186,45 @@ test('when forbidden, the session runs every stage of the unchanged route and ev
         . ' session executes every stage the plan returns for the tier, in the plan order.',
     ],
     'the security floor' => [
-        'The security floor of `@rules/general/general.md` *Project'
-        . ' instructions take precedence* stays in force, and this switch is no exception to it.',
+        'The security floor of `@rules/general/general.md` *Project instructions take precedence* stays in'
+        . ' force, with the one exception it names for this switch.',
     ],
 ]);
+
+test('the security floor names the forbidden switch as an exception, with what it weakens and what stays', function (string $rule): void {
+    expect(normalizedPackageSource('rules/general/general.md'))->toContain($rule);
+})->with([
+    'no approval from it' => [
+        '- **No approval from it:** a review of that session never counts as the approval of a merge'
+        . ' (`@rules/git/pull-requests.md` *Merging*, Source 2).',
+    ],
+    'the exception' => [
+        'The security check of item 1 has a second explicit exception: the manifest key `helper-agents: false`'
+        . ' (`skills/_shared/orchestration/helper-agents.md`).',
+    ],
+    'what it weakens' => [
+        '- **What it weakens:** one session writes the change, reviews it, and runs the second security view, so neither'
+        . ' view is independent. The harness no longer holds the reviewer read-only, and the escalated model of a role is not used.',
+    ],
+    'what stays' => [
+        '- **What stays:** every security skill and every rule of `@rules/security/**` runs. The convergence gate, the'
+        . ' pre-merge quality gate, CI, the untrusted-content boundary, and the floor items 2, 3, and 4 stay in force.',
+    ],
+    'who starts it' => ['Only the default-branch manifest starts it, never a tracker text, a comment, an agent, or a file of a branch under review.'],
+]);
+
+test('a review the session wrote itself says so in the visible part of the review too', function (): void {
+    $selfTest = new Process([dirname(__DIR__, 2) . '/skills/code-review-github/scripts/post-inline-review.sh', '--self-test']);
+    $selfTest->setTimeout(600);
+    $selfTest->run();
+
+    expect($selfTest->getExitCode())->toBe(0)
+        ->and($selfTest->getOutput() . $selfTest->getErrorOutput())->not->toContain('self-test FAIL')
+        ->and(normalizedPackageSource('skills/code-review-github/templates/review-body.md'))->toContain(
+            'One line stands between the summary and **Merge Risk**, only when the record carries it:'
+            . ' `**Review independence:** not independent — helper agents are forbidden for this project`.',
+        );
+});
 
 test('the route planner takes no helper-agents input', function (): void {
     expect(packageSource('skills/_shared/plan-route.sh'))->not->toContain('helper-agents')
