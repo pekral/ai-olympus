@@ -107,6 +107,7 @@ dataset('audit wrappers', [
     'jira comment publisher' => ['upsert-comment.sh', 'skills/code-review-jira/scripts/upsert-comment.sh'],
     'jira in-progress transition' => ['transition-to-in-progress.sh', 'skills/code-review-jira/scripts/transition-to-in-progress.sh'],
     'jira ready-to-deploy transition' => ['transition-to-ready-to-deploy.sh', 'skills/code-review-jira/scripts/transition-to-ready-to-deploy.sh'],
+    'person match record and forget' => ['person-match.sh', 'skills/code-review-jira/scripts/person-match.sh'],
 ]);
 
 test('the rule names each wrapper and the wrapper calls the helper at its write', function (string $name, string $path): void {

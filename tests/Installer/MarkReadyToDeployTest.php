@@ -439,7 +439,7 @@ test(
     },
 );
 
-test('no agent Bash boundary on either platform grants the ready-to-deploy helpers', function (): void {
+test('no agent Bash boundary on either platform grants the ready-to-deploy helpers or the person-match helper', function (): void {
     $claudeAgents = glob(dirname(__DIR__, 2) . '/agents/*.md');
     $codexAgents = glob(dirname(__DIR__, 2) . '/codex/agents/*.toml');
     $roster = [...($claudeAgents === false ? [] : $claudeAgents), ...($codexAgents === false ? [] : $codexAgents)];
@@ -449,7 +449,7 @@ test('no agent Bash boundary on either platform grants the ready-to-deploy helpe
     foreach ($roster as $agent) {
         $definition = (string) file_get_contents($agent);
 
-        foreach (['mark-ready-to-deploy', 'transition-to-ready-to-deploy.sh', 'assign-to-pr-author.sh'] as $helper) {
+        foreach (['mark-ready-to-deploy', 'transition-to-ready-to-deploy.sh', 'assign-to-pr-author.sh', 'person-match.sh'] as $helper) {
             expect(str_contains($definition, $helper))->toBeFalse();
         }
     }
