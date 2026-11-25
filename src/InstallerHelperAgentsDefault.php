@@ -20,7 +20,7 @@ final class InstallerHelperAgentsDefault
         $contents = is_file($path) ? file_get_contents($path) : false;
         $composer = $contents === false ? null : self::decode($contents);
 
-        if ($contents === false || $composer === null || !self::isObjectOrAbsent($composer, 'extra')) {
+        if ($contents === false || !$composer instanceof stdClass || !self::isObjectOrAbsent($composer, 'extra')) {
             return HelperAgentsDefaultOutcome::Unchanged;
         }
 
@@ -67,7 +67,10 @@ final class InstallerHelperAgentsDefault
 
     private static function encode(stdClass $composer, string $original): string
     {
-        $json = json_encode($composer, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR);
+        $json = json_encode(
+            $composer,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR,
+        );
         $unit = preg_match('/^\{\R([ \t]+)"/', $original, $matches) === 1 ? $matches[1] : '    ';
         $indented = preg_replace_callback(
             '/^(?: {4})+/m',
