@@ -12,7 +12,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 - **GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.
 - **`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.
-- **JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` (only for requirements that still need action), `Review findings`, `What changed and what it affects`. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; one TL;DR paragraph combines observable changes with what to watch after the release. JIRA renders no `How to test`.
+- **JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` (only for requirements that still need action), `Review findings`, `What changed and what it affects`. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; a few bullets with no TL;DR label combine observable changes with what to watch after the release. JIRA renders no `How to test`.
 - **`How to test`** (GitHub and Bugsnag) → a scenario a human follows: every step names a concrete input and a must-hold outcome.
 - **A closing line** links the PR and the source issue.
 - Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
@@ -61,7 +61,7 @@ A JIRA ticket is read by the person who asked for the work, so its comment has i
 
 ### The section names are translated, the concepts are not
 
-The headings and field labels above are this skill's canonical **concepts**, written in English because the skill itself is. The rendered comment follows the assignment language per `@rules/reports/general.md`, headings and field labels included — a Czech assignment renders `Co se změnilo` / `Problém` / `Příčina` / `Výsledek` / `Co jsem opravil` / `Vedlejší přínos` / `Na jiný ticket` / `Jak otestovat`, and a Czech JIRA ticket renders `Akceptační kritéria` / `Nálezy z kontroly kódu` / `TL;DR`. Never publish an English heading above assignment-language prose; that is the bilingual mixing the rule bans.
+The headings and field labels above are this skill's canonical **concepts**, written in English because the skill itself is. The rendered comment follows the assignment language per `@rules/reports/general.md`, headings and field labels included — a Czech assignment renders `Co se změnilo` / `Problém` / `Příčina` / `Výsledek` / `Co jsem opravil` / `Vedlejší přínos` / `Na jiný ticket` / `Jak otestovat`, and a Czech JIRA ticket renders `Akceptační kritéria` / `Nálezy z kontroly kódu` / `Co se změnilo a co to ovlivní`. Never publish an English heading above assignment-language prose; that is the bilingual mixing the rule bans.
 
 ### What changed — four required fields, two conditional ones (GitHub and Bugsnag)
 
