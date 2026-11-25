@@ -36,7 +36,7 @@ The exception does **not** extend to the reports below. On GitHub, the manifest 
 - the JIRA-side comment from `code-review-jira` (delegated to `pr-summary`) — that follows the assignment language
 - the assignment-compliance comment from `assignment-compliance-check` — that follows the assignment language
 - the `pr-summary` comment, regardless of where it is posted — that follows the assignment language. GitHub and Bugsnag carry the same shape: *What changed* (Problem / Cause / Result / What I fixed, plus the conditional *Side benefit* / *Filed separately* fields), then *How to test*, then a closing line linking the PR and the source issue, plus any conditional *Clarifying questions* / *Assignment Compliance* blocks.
-JIRA carries its own shape on every run — no status line, *Acceptance criteria* only for requirements that still need action, *Review findings*, one *TL;DR* paragraph combining changes and deployment impact, then the same closing line and a footer, with each open question inside the bullet it concerns — and no *How to test*, for the reason *A JIRA comment is written for a non-technical reader* below states (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The section headings and the field labels are part of the report's prose, so they are translated too — a Czech assignment renders *Akceptační kritéria*, *Nálezy z kontroly kódu*, and *TL;DR*, never an English heading above Czech prose.
+JIRA carries its own shape on every run, owned by `@skills/pr-summary/references/jira-shape.md`: a deploy verdict paragraph first, then its sections, the same closing line, and a footer — and no *How to test*, for the reason *A JIRA comment is written for a non-technical reader* below states (`@skills/pr-summary/SKILL.md` *The JIRA shape*). The section headings and the field labels are part of the report's prose, so they are translated too — a Czech assignment renders *Akceptační kritéria*, *Nálezy z kontroly kódu*, and *TL;DR*, never an English heading above Czech prose.
 On GitHub and Bugsnag one exception replaces *How to test*: a review-only run (`/report-code-review`) passes `review-only`, and `pr-summary` renders *Review findings* in its place — a plain-language retelling of the points of the GitHub review that must be resolved, which invites the reader's feedback (`@skills/pr-summary/SKILL.md` *Review-only run*).
 
 ### Project override — `language.github` in the manifest
@@ -92,7 +92,7 @@ The section is binding on **every** comment a skill or an agent publishes to a J
 - file paths and line numbers
 - commit SHAs, diff fingerprints, branch names
 - quality-gate results, CI status, test / assertion counts, coverage figures
-- severity labels, finding counts, rule references
+- severity labels, finding counts, rule references — the one count allowed is the number of findings that block the deploy, which the opening deploy verdict states in words
 - code blocks, and the names of internal layers (Action, Repository, Data Builder)
 
 An item on this list is **removed, never annotated**. A comment that says *"the head SHA is omitted here"* has still spent the reader's attention on the head SHA.

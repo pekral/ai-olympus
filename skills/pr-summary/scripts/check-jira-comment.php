@@ -198,9 +198,11 @@ function jiraSummaryTextViolations(array $lines): array
 function jiraSummaryFrameViolations(array $lines): array
 {
     $violations = [];
+    $firstSection = array_key_first(array_filter($lines, static fn (string $line): bool => preg_match('/^h[1-6]\. /u', $line) === 1));
+    $opening = array_slice($lines, 0, $firstSection ?? count($lines));
 
-    if (preg_match('/^h2\. /u', $lines[0] ?? '') !== 1) {
-        $violations[] = 'status line: the comment must open with an h2 heading, no text stands above it';
+    if (count($opening) !== 1 || preg_match('/^(?:[*#-] |----$|\{)/u', $opening[0]) === 1) {
+        $violations[] = 'verdict: the comment must open with one deploy-verdict paragraph above the first section';
     }
 
     $rule = array_search('----', $lines, true);

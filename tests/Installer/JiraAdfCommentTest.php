@@ -232,11 +232,9 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $krang = krangContractText();
 
-    // Both files instructed the headline into the `Problem` field on every target. The JIRA
-    // template has no such field and no status line: the comment opens with its first heading.
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
     expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
-    expect($april)->toContain('On **JIRA** there is no headline and no status line: the comment opens with its first heading');
+    expect($april)->toContain('On **JIRA** there is no headline: the comment opens with the deploy verdict paragraph');
     expect($krang)->not->toContain('the opening sentence of the `Problem` field is');
     expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });
@@ -271,12 +269,12 @@ test('a JIRA account mention becomes an ADF mention node', function (): void {
     expect($mention)->toBe(['type' => 'mention', 'attrs' => ['id' => '5b10ac8d82e05b22cc7d4ef5']]);
 });
 
-test('the merge-preparation consolidation opens a JIRA comment with its first heading, never with a verdict sentence', function (): void {
+test('the merge-preparation consolidation opens a JIRA comment with the deploy verdict paragraph', function (): void {
     $april = normalizedPackageSource('agents/april.md');
     $skill = normalizedPackageSource('skills/verify-merge-readiness/SKILL.md');
 
     expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($april)->toContain('On a JIRA ticket the comment opens with its first heading, and the exact blocker is the first `Review findings` bullet.')
+        ->and($april)->toContain('On a JIRA ticket the comment opens with the deploy verdict paragraph, and the exact blocker is the first `Review findings` bullet.')
         ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
         ->and($skill)->toContain('`Review findings` with the exact blocker first');
 });

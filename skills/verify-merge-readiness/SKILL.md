@@ -273,11 +273,8 @@ this TL;DR like on every other. The evidence is not lost: the merge gate reads t
 GitHub pull-request comment, which is the surface that consumes them. On a JIRA source publish two
 comments:
 
-1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/SKILL.md` *The JIRA shape* defines: the
-   `Acceptance criteria` only for requirements that still need action, `Review findings` with the
-   exact blocker first, `TL;DR`, the closing links line, and the
-   footer, within that rule's
-   3 000-character cap. An open question about the assignment closes the bullet of the criterion
+1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/references/jira-shape.md` defines, with
+   `Review findings` with the exact blocker first, within that rule's 3 000-character cap. An open question about the assignment closes the bullet of the criterion
    it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes
    with its question and its recommendation in one sentence. A decision outside the assignment that is not
    Critical never reaches JIRA, neither as a finding nor as a question.
