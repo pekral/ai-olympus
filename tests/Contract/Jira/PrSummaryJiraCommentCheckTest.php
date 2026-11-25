@@ -16,6 +16,8 @@ function runJiraSummaryCheck(string $source, string $criteria): Process
 function jiraSummaryWithoutCriteria(array $replace = []): string
 {
     $source = implode("\n", [
+        jiraSummaryVerdict(),
+        '',
         'h2. Nálezy z kontroly kódu',
         '',
         '* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit.',
@@ -38,16 +40,23 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
     return str_replace(array_keys($replace), array_values($replace), $source);
 }
 
+function jiraSummaryVerdict(): string
+{
+    return 'Za mě je to skoro hotové, ale zatím to nejde nasadit. Sloučení blokuje jeden bod z kontroly kódu níž: synchronizace po nasazení selže. Nic není sloučené ani nasazené.';
+}
+
 function jiraSummaryWithCriteria(): string
 {
     return implode("\n", [
+        jiraSummaryVerdict(),
+        '',
         'h2. Akceptační kritéria',
         '',
         '* Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
         '',
         '[~accountid:712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6], potvrď prosím nález a oprav ho, nebo ho v odpovědi vyvrať.',
         '',
-        jiraSummaryWithoutCriteria(),
+        str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria()),
     ]);
 }
 
@@ -67,6 +76,7 @@ function jiraSummaryForTwoPullRequests(): string
     ]);
 
     return implode("\n\n", [
+        jiraSummaryVerdict(),
         "h2. Akceptační kritéria\n\n* Hromadné odeslání vyžaduje opravu.",
         $group(11),
         $group(12),
@@ -95,17 +105,23 @@ test('a summary that passes the check converts to ADF with no wiki markup left',
     /** @var array{content: list<array{type: string}>} $adf */
     $adf = json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
 
-    expect(array_column($adf['content'], 'type')[0])->toBe('heading')
+    expect(array_column($adf['content'], 'type')[0])->toBe('paragraph')
         ->and(str_contains($process->getOutput(), 'h2.'))->toBeFalse()
         ->and(str_contains($process->getOutput(), '"mention"'))->toBeTrue();
 });
 
-test('a status text above the first heading fails the check', function (): void {
-    $process = runJiraSummaryCheck("Kontrola kódu je hotová. Nic nebylo sloučeno ani nasazeno.\n\n" . jiraSummaryWithoutCriteria(), 'none');
+test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
+    $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: status line: the comment must open with an h2 heading');
-});
+        ->and($process->getOutput())->toContain('violation: verdict: the comment must open with one deploy-verdict paragraph above the first section');
+})->with([
+    'no verdict above the first section' => [str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria())],
+    'a second paragraph that retells what the review ran' => [
+        str_replace(jiraSummaryVerdict(), jiraSummaryVerdict() . "\n\nPustil jsem všechny kontroly a testy, interaktivní test jsem nedělal.", jiraSummaryWithoutCriteria()),
+    ],
+    'a bullet in place of the verdict' => [str_replace(jiraSummaryVerdict(), '* Nejde nasadit.', jiraSummaryWithoutCriteria())],
+]);
 
 test('the criteria section must match whether any requirement still needs action', function (string $source, string $criteria, string $violation): void {
     $process = runJiraSummaryCheck($source, $criteria);

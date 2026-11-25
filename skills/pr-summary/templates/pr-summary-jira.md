@@ -1,3 +1,5 @@
+[Deploy verdict: one paragraph with no heading. Whether the change can be deployed, with the reviewer's own short verdict; how many findings block the merge, with a one-sentence plain summary of them in the order of the findings; and that nothing is merged or deployed. Never what the review ran or did not test.]
+
 h2. Acceptance criteria
 
 [Render this heading and everything under it only for explicit requirements that still need a change or an answer. Omit satisfied requirements, positive verdicts, and completion counts.]
@@ -47,10 +49,9 @@ Who reads this comment
   it.
 
 Section order is binding, and it is the same on every run
-  Acceptance criteria (only for requirements that still need action),
-  then Review findings, then TL;DR, then
-  the closing links line and the footer. The comment opens with its first
-  heading. There is no separate
+  The deploy verdict paragraph, then Acceptance criteria (only for
+  requirements that still need action), then Review findings, then TL;DR,
+  then the closing links line and the footer. There is no separate
   section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
   the post-convergence report, and the merge-readiness TL;DR all render this
   one shape. The requests for changes come first so the reader knows what remains. A JIRA comment carries no How to test section: the
@@ -59,10 +60,13 @@ Section order is binding, and it is the same on every run
   is JIRA's own; the GitHub and Bugsnag templates keep their What changed /
   How to test shape.
 
-No status line
-  No sentence stands above the first heading: not the state of the work, not
-  whether the change is ready to merge, and not that nothing was merged or
-  deployed. A point that blocks the merge is a Review findings bullet.
+Deploy verdict
+  The one paragraph above the first heading (references/jira-shape.md, item
+  1). It says whether the change can be deployed with the reviewer's own short
+  verdict, how many findings block the merge with a one-sentence summary that
+  follows the order of the findings and takes its facts from them only, and
+  that nothing is merged or deployed. It never describes what the review ran
+  or did not test, and no closing sentence follows the sections.
 
 Acceptance criteria
   Rendered only for explicit requirements that are unmet, partially met, or
@@ -112,8 +116,7 @@ Review findings
     remaining action; omit repaired parts and their history. An assumption, a hypothesis, or a point with no
     evidence is never listed. The rule is owned by @skills/pr-summary/SKILL.md
     (Review-only run).
-  - A point that blocks the merge comes first and says in words that it blocks
-    the merge. Never write a severity label.
+  - A point that blocks the merge comes first. Never write a severity label.
   - Interactive testing that the project switched off is stated in one sentence
     (@skills/pr-summary/SKILL.md, What the comment carries).
   - Interactive testing that did not run because no local or test environment
@@ -164,7 +167,7 @@ Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
   <unmet|none> <source-file> on the rendered source, and publish only a source
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
-  cap, the missing status line, the criteria section against the flag, the
+  cap, the one deploy-verdict paragraph, the criteria section against the flag, the
   single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, and the footer.
 
 No embedded blocks

@@ -2159,8 +2159,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → `Acceptance criteria` (only for requirements that still need action), '
-        . '`Review findings`, `TL;DR`, with no status line above them.',
+        '**JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` '
+        . '(only for requirements that still need action), `Review findings`, `TL;DR`.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4433,18 +4433,12 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     expect($jira)->toContain('### The split, verified per run');
     expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
 
-    // The publish step the wrapper follows and the mirror description name the deployment impact too.
     expect($jira)->toContain(
-        'one `TL;DR` paragraph combining observable changes and deployment impact from that comment\'s `## Affected behaviour outside the diff`, '
-        . 'then the closing links line and the footer',
+        'It retells the findings of the GitHub PR comment this run just published, and that comment\'s `## Affected behaviour outside the diff`.',
     );
-    expect($jira)->toContain('(*Acceptance criteria*, *Review findings*, *TL;DR*, with only requirements that still need action');
-
-    // The ticket's own sections, restated where this wrapper describes its output.
-    expect($jira)->toContain(
-        'Its sections are `Acceptance criteria` (only for requirements that still need action), `Review findings`, '
-        . '`TL;DR`, with no status line and above a footer',
-    );
+    expect($jira)->toContain('while the ticket renders the JIRA one (`@skills/pr-summary/references/jira-shape.md`).');
+    expect($jira)->toContain('Its shape is the one `@skills/pr-summary/references/jira-shape.md` owns;');
+    expect($jira)->not->toContain('no status line');
 });
 
 test('a standalone leonardo review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {

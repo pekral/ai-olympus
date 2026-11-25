@@ -12,7 +12,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 - **GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.
 - **`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.
-- **JIRA renders one shape on every run** → `Acceptance criteria` (only for requirements that still need action), `Review findings`, `TL;DR`, with no status line above them. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; one TL;DR paragraph combines observable changes with what to watch after the release. JIRA renders no `How to test`.
+- **JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` (only for requirements that still need action), `Review findings`, `TL;DR`. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; one TL;DR paragraph combines observable changes with what to watch after the release. JIRA renders no `How to test`.
 - **`How to test`** (GitHub and Bugsnag) → a scenario a human follows: every step names a concrete input and a must-hold outcome.
 - **A closing line** links the PR and the source issue.
 - Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
@@ -42,7 +42,7 @@ GitHub and Bugsnag carry the **same** structure and differ only in markup — no
 
 | Element | GitHub PR comment | JIRA comment | Bugsnag comment |
 |---|---|---|---|
-| Status line | no | no — the comment opens with its first heading | no |
+| Status line | no | the deploy verdict paragraph opens the comment | no |
 | `Acceptance criteria` | no | only for requirements that still need action — first section | no |
 | `Review findings` | review-only run only, in place of `How to test` | yes — every run, after any unmet criteria | review-only run only, in place of `How to test` |
 | `What changed` | yes — four fields, two conditional | included in `TL;DR` | yes — four fields, two conditional |
@@ -222,7 +222,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 
 ### Write and publish (6–8)
 
-6. **Write the body sections.** On GitHub and Bugsnag, write `What changed` — the four required fields in order (`Problem`, `Cause`, `Result`, `What I fixed`), then the two conditional ones (`Side benefit`, `Filed separately`) only when each has content. On JIRA, write no status line: write `Acceptance criteria` only for requirements that still need action, then `Review findings` from the newest pull-request review per *The JIRA shape*, then one `TL;DR` paragraph combining observable changes and deployment impact. Derive every field from the commits, the diff, and the tracker context loaded in steps 1–4. State numbers where the run measured them; never invent one.
+6. **Write the body sections.** On GitHub and Bugsnag, write `What changed` — the four required fields in order (`Problem`, `Cause`, `Result`, `What I fixed`), then the two conditional ones (`Side benefit`, `Filed separately`) only when each has content. On JIRA, write the deploy verdict paragraph first, then `Acceptance criteria` only for requirements that still need action, then `Review findings` from the newest pull-request review per *The JIRA shape*, then one `TL;DR` paragraph combining observable changes and deployment impact. Derive every field from the commits, the diff, and the tracker context loaded in steps 1–4. State numbers where the run measured them; never invent one.
 7. **Write `How to test`** (GitHub and Bugsnag; never on JIRA) — an ordered scenario per *How to test* above: concrete inputs, an explicit must-hold outcome per step, the gating toggle enabled in step 1 when the change is gated, and the regression flows named at the end. Use caller-supplied steps as passed when the caller provided them.
 8. **Assemble and render.** On GitHub and Bugsnag, place the embedded blocks, when the caller passed any, directly above the closing links line, separated by a single blank line — each rendered exactly as received, with no re-formatting, no language conversion, and no re-ordering. On JIRA, write each open question as the closing sentence of the criterion or finding bullet it belongs to. Close with the PR / issue links line. Translate the headings and field labels into the assignment language, then convert the whole body to the target's markup and verify nothing leaked. On JIRA, close with the footer, measure the published body against the 3 000-character cap, and shorten it per *Length follows the facts* when it overflows, never an `Acceptance criteria` or a `Review findings` bullet.
 
