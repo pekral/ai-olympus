@@ -133,6 +133,7 @@ final class Installer
         $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
         $networkBashDenied = InstallerProjectSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
         $orphanedHandlersRemoved = InstallerProjectSettings::removeOrphanedBashGuardHandlers($root);
+        $helperAgentsDefault = InstallerHelperAgentsDefault::apply($root);
 
         self::reportInstallSummary(new InstallSummary(
             copied: $copied,
@@ -144,6 +145,7 @@ final class Installer
         ));
 
         self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied, $orphanedHandlersRemoved);
+        self::reportHelperAgentsDefault($helperAgentsDefault, $root);
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 
@@ -200,6 +202,30 @@ final class Installer
                 PHP_EOL,
             );
         }
+    }
+
+    private static function reportHelperAgentsDefault(HelperAgentsDefaultOutcome $outcome, string $root): void
+    {
+        $lock = is_file($root . '/composer.lock')
+            ? ' composer.lock is now out of date, because its content-hash covers extra: run `composer update --lock` to refresh the hash without updating a package.'
+            : '';
+
+        echo match ($outcome) {
+            HelperAgentsDefaultOutcome::Written => sprintf(
+                'Added "helper-agents": true to extra.ai-olympus in composer.json, so helper agents stay allowed; set it to false to forbid them. Commit the change.%s%s',
+                $lock,
+                PHP_EOL,
+            ),
+            HelperAgentsDefaultOutcome::FormatKept => sprintf(
+                'composer.json has no extra.ai-olympus.helper-agents key. The installer kept the file unchanged to keep its formatting; add "helper-agents": true there yourself.%s',
+                PHP_EOL,
+            ),
+            HelperAgentsDefaultOutcome::WriteFailed => sprintf(
+                'composer.json has no extra.ai-olympus.helper-agents key, and the installer cannot write the file; add "helper-agents": true there yourself.%s',
+                PHP_EOL,
+            ),
+            HelperAgentsDefaultOutcome::Unchanged => '',
+        };
     }
 
     private static function reportGlobalInstall(bool $global): void

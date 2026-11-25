@@ -111,6 +111,7 @@
           "files": "\\.php$"
         }
       ],
+      "helper-agents": true,
       "pr-gate": [
         "composer fix"
       ]

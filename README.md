@@ -67,7 +67,7 @@ The manifest key `parallel.max-units` (1 to 3) caps how many units of a batch ru
 
 Interactive testing is on by default. The manifest key `interactive-testing` set to `false` switches it off for the project; every report that would carry its result then says it is switched off, and the review, the tests, and CI stay as they are (see [Project manifest](docs/installation.md#project-manifest)).
 
-Helper agents are allowed by default. The manifest key `helper-agents` set to `false` forbids them for the project: the session you talk to does every step itself, every check stays, the review is then not independent and never counts as merge approval, and every final report says whether helper agents were allowed (see [Project manifest](docs/installation.md#project-manifest)).
+Helper agents are allowed by default, and the installer adds `"helper-agents": true` to your `composer.json` when the key is missing. The manifest key `helper-agents` set to `false` forbids them for the project: the session you talk to does every step itself, every check stays, the review is then not independent and never counts as merge approval, and every final report says whether helper agents were allowed (see [Project manifest](docs/installation.md#project-manifest)).
 
 Agents talk to you in a relaxed, straight-to-the-point voice, in the chat and in the tracker comments people read. The `voice` key of the project manifest switches it to `technical`, and your own instruction in the session overrides it; commit messages, handoffs, and machine-parsed text stay technical either way (see the [`agent-voice`](skills/agent-voice/SKILL.md) skill). Before a tracker comment is published, the [`unslop`](skills/unslop/SKILL.md) skill cuts AI writing patterns from its prose.
 
