@@ -1633,6 +1633,20 @@ test('the JIRA publisher reports an updated comment whose stored body lost the a
 });
 
 /**
+ * @return array<string, mixed>
+ */
+function jiraMarkedStoredBody(): array
+{
+    return ['content' => [
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
+    ],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
+
+/**
  * @return array{process: \Symfony\Component\Process\Process, calls: string, rows: list<list<string>>}
  */
 function runJiraPublisherOnStoredComment(string $readBack): array
@@ -1640,13 +1654,6 @@ function runJiraPublisherOnStoredComment(string $readBack): array
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $ledger = auditLedgerCreate();
-    $previous = ['content' => [
-        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
-        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
-    ],
-        'type' => 'doc',
-        'version' => 1,
-    ];
     $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
         ...$ledger['env'],
         'FAKE_ACLI_ADF' => $fixture['adf'],
@@ -1655,7 +1662,12 @@ function runJiraPublisherOnStoredComment(string $readBack): array
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
         'FAKE_ACLI_EMAIL' => 'bot@example.com',
         'FAKE_ACLI_LIST_JSON' => json_encode(['comments' => [
-            ['id' => '9002', 'created' => '2026-01-02T00:00:00.000+0000', 'author' => ['emailAddress' => 'bot@example.com'], 'body' => $previous],
+            [
+                'author' => ['emailAddress' => 'bot@example.com'],
+                'body' => jiraMarkedStoredBody(),
+                'created' => '2026-01-02T00:00:00.000+0000',
+                'id' => '9002',
+            ],
         ],
         ], JSON_THROW_ON_ERROR),
         'FAKE_ACLI_READBACK' => $readBack,
