@@ -447,6 +447,32 @@ test('a comment of the operator account names an issue even when the operator is
     expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-83']);
 });
 
+test('a comment of the reporter names an issue, and a comment of another account or an agent does not', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $comment = static fn (string $account, string $text, int $id): array => [
+        'author' => ['accountId' => $account, 'displayName' => $account],
+        'body' => jiraLoaderDocument($text),
+        'created' => '2026-01-06T08:00:00.000+0100',
+        'id' => (string) $id,
+    ];
+    $comments = (string) json_encode(['comments' => [
+        $comment('acc-reporter', 'Also ACME-84.', 10_005),
+        $comment('acc-stranger', 'Look at ACME-85.', 10_006),
+        $comment('acc-reporter', 'Review of ACME-86. _cr-comment:actor=abc123_', 10_007),
+    ],
+    ]);
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => $comments,
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-reporter'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-84'])
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeFalse();
+});
+
 test('a list that reaches the cap of 20 named keys says it is not complete', function (int $count, bool $complete): void {
     $fixture = createJiraLoaderFixture();
     $keys = implode(', ', array_map(static fn (int $n): string => 'ACME-' . (100 + $n), range(1, $count)));
