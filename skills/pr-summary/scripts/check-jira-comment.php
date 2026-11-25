@@ -29,7 +29,7 @@ const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 const JIRA_SUMMARY_PULL_REQUEST_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(?<number>[1-9][0-9]*)'
     . '(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?$#D';
 
-const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?:[0-9a-f]{40}|[0-9a-f]{64})/'
+const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?<commit>[0-9a-f]{40}|[0-9a-f]{64})/'
     . '(?<path>[A-Za-z0-9._~%-]+(?:/[A-Za-z0-9._~%-]+)*)\#L[1-9][0-9]*$#D';
 
 const JIRA_SUMMARY_ISSUE_LINK = '#^https://(?<host>[a-z0-9]+(?:[.-][a-z0-9]+)*)/browse/[A-Z][A-Z0-9_]+-[1-9][0-9]*$#D';
@@ -40,6 +40,8 @@ const JIRA_SUMMARY_CONVERTER = __DIR__ . '/../../code-review-jira/scripts/wiki-m
 
 const JIRA_SUMMARY_WHOLE_CHANGE_LINK = '#\|https://github\.com/[^\]]+/pull/[1-9][0-9]*/files\]#u';
 
+const JIRA_SUMMARY_CODE_LINK = '~/blob/|\#diff-~';
+
 const JIRA_SUMMARY_MENTION = '[~accountid:';
 
 const JIRA_SUMMARY_MENTIONED_TYPES = ['refactor', 'tests'];
@@ -49,7 +51,7 @@ const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
 
 const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] --repository <owner/name>\n"
-    . "       --pull-request <number> [--pull-request <number>...] --jira-issue <issue-url> <source-file>\n"
+    . "       --pull-request <number> [--pull-request <number>...] --jira-issue <issue-url> [--revision <commit>] <source-file>\n"
     . "  Checks the Wiki Markup source of a pr-summary JIRA comment before it is published.\n"
     . "  --criteria unmet   an explicit requirement still needs a change or an answer\n"
     . "  --criteria none    no requirement needs action, so the comment has no criteria section\n"
@@ -58,6 +60,8 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none
     . "  --repository       the task repository, from a pull-request URL that assert-current-repo.sh accepted\n"
     . "  --pull-request     a pull request of that repository a link may point into, once per pull request\n"
     . "  --jira-issue       the URL of the task issue; a link may point to an issue of its JIRA site\n"
+    . "  --revision         the full hash of the reviewed head commit; a file link may point only to that commit, and\n"
+    . "                     without it every file link is refused\n"
     . "  Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.\n"
     . "  stdout: one `violation: <check>: <detail>` line per violation.\n";
 
@@ -205,12 +209,35 @@ function jiraSummaryMisplacesCodeLink(string $line): bool
     foreach ($links as $index => $link) {
         $last = $index === count($links) - 1 && str_ends_with($line, $link[0]);
 
-        if (str_contains($link['url'], '#diff-') && (!str_starts_with($line, '* ') || !$last)) {
+        if (preg_match(JIRA_SUMMARY_CODE_LINK, $link['url']) === 1 && (!str_starts_with($line, '* ') || !$last)) {
             return true;
         }
     }
 
     return false;
+}
+
+/**
+ * @param list<string> $lines
+ * @param list<array{title: string, group: int, body: list<string>}> $findings
+ * @return list<string>
+ */
+function jiraSummaryStrayCodeLinkViolations(array $lines, array $findings): array
+{
+    $remaining = jiraSummaryBodyLines($findings);
+    $violations = [];
+
+    foreach ($lines as $line) {
+        $finding = array_search($line, $remaining, strict: true);
+
+        if ($finding !== false) {
+            unset($remaining[$finding]);
+        } elseif (preg_match(JIRA_SUMMARY_CODE_LINK, $line) === 1) {
+            $violations[] = 'links: a code link stands only at the end of a finding: ' . $line;
+        }
+    }
+
+    return $violations;
 }
 
 /**
@@ -240,8 +267,13 @@ final readonly class JiraSummaryTask
     /**
      * @param list<string> $pullRequests
      */
-    public function __construct(public string $author, public string $repository, public array $pullRequests, public string $jiraHost)
-    {
+    public function __construct(
+        public string $author,
+        public string $repository,
+        public array $pullRequests,
+        public string $jiraHost,
+        public string $revision,
+    ) {
     }
 
     public function allowsLink(string $href): bool
@@ -252,7 +284,10 @@ final readonly class JiraSummaryTask
         }
 
         if (preg_match(JIRA_SUMMARY_FILE_LINK, $href, $file) === 1) {
-            return strcasecmp($file['repository'], $this->repository) === 0 && $this->isCanonicalPath($file['path']);
+            return strcasecmp($file['repository'], $this->repository) === 0
+                && $this->revision !== ''
+                && $file['commit'] === $this->revision
+                && $this->isCanonicalPath($file['path']);
         }
 
         return preg_match(JIRA_SUMMARY_ISSUE_LINK, $href, $issue) === 1 && $issue['host'] === $this->jiraHost;
@@ -642,6 +677,7 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryT
         ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
         ...jiraSummaryFindingsViolations($findings),
         ...jiraSummaryFindingLinkViolations($findings, $layout['groups'] > 0),
+        ...jiraSummaryStrayCodeLinkViolations($lines, $findings),
         ...jiraSummaryMentionViolations($findings, $lines, $task->author),
         ...jiraSummaryTextViolations($lines),
     ];
@@ -653,7 +689,7 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryT
  */
 function jiraSummaryOptions(array $arguments): array
 {
-    $options = ['--author' => 'none', '--criteria' => '', '--jira-issue' => '', '--repository' => ''];
+    $options = ['--author' => 'none', '--criteria' => '', '--jira-issue' => '', '--repository' => '', '--revision' => ''];
     $pullRequests = [];
 
     while (count($arguments) > 1 && (array_key_exists($arguments[0], $options) || $arguments[0] === '--pull-request')) {
@@ -682,6 +718,7 @@ function jiraSummaryCall(array $arguments): ?array
         && in_array($options['--criteria'], ['unmet', 'none'], true)
         && preg_match('/^(?:none|[A-Za-z0-9:_-]+)$/D', $options['--author']) === 1
         && preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#D', $options['--repository']) === 1
+        && preg_match('/^(?:|[0-9a-f]{40}|[0-9a-f]{64})$/D', $options['--revision']) === 1
         && $parsed['pullRequests'] !== []
         && preg_grep('/^[1-9][0-9]*$/D', $parsed['pullRequests'], PREG_GREP_INVERT) === [];
 
@@ -692,7 +729,7 @@ function jiraSummaryCall(array $arguments): ?array
     return [
         'criteria' => $options['--criteria'],
         'source' => $parsed['rest'][0],
-        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host']),
+        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host'], $options['--revision']),
     ];
 }
 
