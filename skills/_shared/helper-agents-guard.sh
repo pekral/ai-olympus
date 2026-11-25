@@ -38,14 +38,15 @@
 #
 # config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the configuration that a later
 # session or git loads, below --root (default: the current directory): every entry of CONFIG_NAMES at the root, without
-# `.claude/run`, `.claude/worktrees`, `.codex/run`, and `.codex/worktrees`; the git hooks directory; and every local
-# git setting except the `branch.*` entries a checkout writes. --user adds the user-level files below the home directory:
-# `.claude/CLAUDE.md`,
+# `.claude/run`, `.claude/worktrees`, the session lock `.claude/scheduled_tasks.lock` that the harness rewrites,
+# `.codex/run`, and `.codex/worktrees`; the git hooks directory; and every local git setting except the `branch.*`
+# entries a checkout writes. --user adds the user-level files below the home directory: `.claude/CLAUDE.md`,
 # `.claude/settings.json`, `.claude/settings.local.json`, `.claude/rules`, `.claude/agents`, `.claude/skills`,
 # `.claude/commands`, `.claude/hooks`, `.claude/output-styles`, `.codex/config.toml`, `.codex/AGENTS.md`,
-# `.codex/prompts`, `.codex/agents`, and `.agents`. A symbolic link counts by the content of its target. The output
-# names no file and no value, so a settings file is hashed and never shown. The session runs it before and after each
-# review stage and compares.
+# `.codex/prompts`, `.codex/agents`, `.agents`, and `.gitconfig`, and the user git configuration
+# `${XDG_CONFIG_HOME:-$HOME/.config}/git/config`. A symbolic link counts by its target path and by the content of its
+# target. The output names no file and no value, so a settings file is hashed and never shown. The session runs it
+# before and after each review stage and compares.
 #
 # Exit codes
 #   0  done
@@ -256,9 +257,11 @@ config_hash() {
     [[ -n "${HOME:-}" && -d "$HOME" ]] || hash_fails "the home directory is not available"
     for path in .claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude/rules .claude/agents \
       .claude/skills .claude/commands .claude/hooks .claude/output-styles .codex/config.toml .codex/AGENTS.md \
-      .codex/prompts .codex/agents .agents; do
+      .codex/prompts .codex/agents .agents .gitconfig; do
       [[ -e "$HOME/$path" || -L "$HOME/$path" ]] && paths+=("$HOME/$path")
     done
+    path="${XDG_CONFIG_HOME:-$HOME/.config}/git/config"
+    [[ -e "$path" || -L "$path" ]] && paths+=("$path")
   fi
 
   : >>"$tmp/lines"
@@ -269,10 +272,12 @@ config_hash() {
       [[ $count -le 100000 ]] || hash_fails "more than 100000 entries"
       if [[ -L "$path" ]]; then
         printf 'b %s %s\n' "$path" "$(readlink -- "$path")" >>"$tmp/lines"
+        [[ -f "$path" ]] && printf '%s\0' "$path" >>"$tmp/files"
       else
         printf '%s\0' "$path" >>"$tmp/files"
       fi
-    done < <(find -L "${paths[@]}" \( -path .claude/run -o -path .claude/worktrees -o -path .codex/run -o -path .codex/worktrees \) -prune \
+    done < <(find -L "${paths[@]}" \( -path .claude/run -o -path .claude/worktrees -o -path .claude/scheduled_tasks.lock \
+      -o -path .codex/run -o -path .codex/worktrees \) -prune \
       -o \( -type f -o -type l \) -print0 2>"$tmp/find.err")
     [[ -s "$tmp/find.err" ]] && hash_fails "a path cannot be read"
     if [[ -s "$tmp/files" ]]; then
@@ -477,6 +482,26 @@ self_test() {
   first="$("$SELF" config-hash --root "$cfg")"
   printf 'changed through the link\n' >>"$tmp/linked-target/SKILL.md"
   check 'a write to the target of a linked skill changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  local linked="$tmp/linked-root"
+  mkdir -p "$linked/.claude/skills/a" "$linked/shared"
+  printf '{}\n' >"$linked/shared/settings.json"
+  printf 'instructions\n' >"$linked/shared/CLAUDE.md"
+  printf 'skill\n' >"$linked/shared/SKILL.md"
+  ln -s ../shared/settings.json "$linked/.claude/settings.json"
+  ln -s shared/CLAUDE.md "$linked/CLAUDE.md"
+  ln -s ../../../shared/SKILL.md "$linked/.claude/skills/a/SKILL.md"
+  for loaded in settings.json CLAUDE.md SKILL.md; do
+    first="$("$SELF" config-hash --root "$linked")"
+    printf 'written through the link\n' >>"$linked/shared/$loaded"
+    check "a write to the target of a linked $loaded changes the hash" "$([[ "$("$SELF" config-hash --root "$linked")" != "$first" ]] && echo yes || echo no)"
+  done
+  first="$("$SELF" config-hash --root "$linked")"
+  printf '{"sessionId":"a","pid":1}\n' >"$linked/.claude/scheduled_tasks.lock"
+  check 'a new session lock of the harness leaves the hash unchanged' "$([[ "$("$SELF" config-hash --root "$linked")" == "$first" ]] && echo yes || echo no)"
+  printf '{"sessionId":"b","pid":2}\n' >"$linked/.claude/scheduled_tasks.lock"
+  check 'a rewrite of the session lock of the harness leaves the hash unchanged' "$([[ "$("$SELF" config-hash --root "$linked")" == "$first" ]] && echo yes || echo no)"
+  printf '{"changed":true}\n' >"$linked/.claude/settings.local.json"
+  check 'a settings write beside the session lock still changes the hash' "$([[ "$("$SELF" config-hash --root "$linked")" != "$first" ]] && echo yes || echo no)"
   mkdir -p "$cfg/.claude/worktrees/agent-cr-x"
   first="$("$SELF" config-hash --root "$cfg")"
   printf 'review checkout\n' >"$cfg/.claude/worktrees/agent-cr-x/file"
@@ -494,15 +519,28 @@ self_test() {
 
   local home="$tmp/home"
   mkdir -p "$home/.claude"
-  first="$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)"
+  user_hash() { HOME="$home" XDG_CONFIG_HOME="$home/.config" "$SELF" config-hash --root "$cfg" --user; }
+  first="$(user_hash)"
   printf 'user instruction\n' >"$home/.claude/CLAUDE.md"
-  check 'with --user a write to the user CLAUDE.md changes the hash' \
-    "$([[ "$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)" != "$first" ]] && echo yes || echo no)"
-  first="$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)"
+  check 'with --user a write to the user CLAUDE.md changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
+  first="$(user_hash)"
   mkdir -p "$home/.codex"
   printf 'model = "x"\n' >"$home/.codex/config.toml"
-  check 'with --user a write to the Codex configuration changes the hash' \
-    "$([[ "$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)" != "$first" ]] && echo yes || echo no)"
+  check 'with --user a write to the Codex configuration changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
+  first="$(user_hash)"
+  HOME="$home" XDG_CONFIG_HOME="$home/.config" git config --global core.fsmonitor "$tmp/monitor" >/dev/null 2>&1
+  check 'with --user a git setting in the user git configuration changes the hash' \
+    "$([[ -f "$home/.gitconfig" && "$(user_hash)" != "$first" ]] && echo yes || echo no)"
+  first="$(user_hash)"
+  mkdir -p "$home/.config/git"
+  printf '[core]\n\thooksPath = %s\n' "$tmp/hooks" >"$home/.config/git/config"
+  check 'with --user a git setting in the XDG git configuration changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
+  mkdir -p "$home/dotfiles"
+  printf '{}\n' >"$home/dotfiles/settings.json"
+  ln -s ../dotfiles/settings.json "$home/.claude/settings.json"
+  first="$(user_hash)"
+  printf '{"hooks":{}}\n' >"$home/dotfiles/settings.json"
+  check 'with --user a write to the target of a linked user settings file changes the hash' "$([[ "$(user_hash)" != "$first" ]] && echo yes || echo no)"
 
   out="$("$SELF" config-hash --root "$tmp/missing" 2>/dev/null)"
   rc=$?
