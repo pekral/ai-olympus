@@ -185,7 +185,8 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 
 ### Security relevance
 
-A record is `security: true` when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `laravel-authorization-review`), or when its category, cause, file, or title names a security surface: authentication, sessions and tokens, credentials and secrets, cryptography and signatures, permissions and policies, injection, XSS, CSRF, SSRF, open redirects, uploads and path traversal, payments, personal data, rate limits, escaping and sanitizing, deserialization, mass assignment, and security headers. The match is broad on purpose. A false positive keeps a finding blocking. A false negative would let a security finding be dismissed or deferred.
+A record is `security: true` when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `security-audit`, `git-history-exposure-audit`, `laravel-authorization-review`), when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`, or when its category, cause, file, or title names a security surface: authentication, sessions and tokens, credentials and secrets, cryptography and signatures, permissions and policies, injection, XSS, CSRF, SSRF, open redirects, uploads and path traversal, payments, personal data, rate limits, escaping and sanitizing, deserialization, mass assignment, and security headers.
+The match is broad on purpose. A false positive keeps a finding blocking. A false negative would let a security finding be dismissed or deferred.
 
 ### What `--validate` rejects in a schema-2 file
 
