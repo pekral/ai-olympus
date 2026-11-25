@@ -512,11 +512,14 @@ test('a file link at a commit other than the reviewed one is refused', function 
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain(
-            'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode($href, JSON_UNESCAPED_SLASHES),
+            'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode(
+                $href,
+                JSON_UNESCAPED_SLASHES,
+            ),
         );
 })->with([
-    'another full commit hash' => [str_repeat('1', 40)],
     'a longer commit hash' => [str_repeat('0123456789abcdef', 4)],
+    'another full commit hash' => [str_repeat('1', 40)],
 ]);
 
 test('a file link is refused when the check names no reviewed commit', function (): void {
@@ -564,8 +567,8 @@ test('a code link that does not end its finding is refused', function (string $l
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: links: a code link ends a finding: ');
 })->with([
-    'a line in the changes' => [jiraSummaryCodeLink()],
     'a file link at the reviewed commit' => ['[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+    'a line in the changes' => [jiraSummaryCodeLink()],
 ]);
 
 test('a findings block without the line that links the whole change is refused', function (): void {
@@ -772,6 +775,10 @@ test('the check refuses a wrong call and a missing source file', function (strin
         '--criteria none --repository acme/app --pull-request 1x --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source',
         jiraSummaryUsage(),
     ],
+    'a reviewed commit that is no full hash' => [
+        '--criteria none ' . implode(' ', array_slice(jiraSummaryTaskArguments(), 0, -2)) . ' --revision 0123abc /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
     'missing source file' => ['--criteria none ' . jiraSummaryTaskCall() . ' /nonexistent/source', 'cannot read /nonexistent/source'],
     'no criteria flag' => [jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
     'no JIRA issue' => [
@@ -787,10 +794,6 @@ test('the check refuses a wrong call and a missing source file', function (strin
         jiraSummaryUsage(),
     ],
     'unknown criteria value' => ['--criteria maybe ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
-    'a reviewed commit that is no full hash' => [
-        '--criteria none ' . implode(' ', array_slice(jiraSummaryTaskArguments(), 0, -2)) . ' --revision 0123abc /nonexistent/source',
-        jiraSummaryUsage(),
-    ],
 ]);
 
 function jiraSummaryTaskCall(): string

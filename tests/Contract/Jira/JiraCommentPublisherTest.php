@@ -1640,10 +1640,12 @@ function runJiraPublisherOnStoredComment(string $readBack): array
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $ledger = auditLedgerCreate();
-    $previous = ['type' => 'doc', 'version' => 1, 'content' => [
+    $previous = ['content' => [
         ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
         ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
     ],
+        'type' => 'doc',
+        'version' => 1,
     ];
     $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
         ...$ledger['env'],
