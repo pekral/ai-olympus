@@ -1221,6 +1221,55 @@ test(
     'no head commit',
 ]);
 
+test('a merged pull request gets its label from its base-branch tip alone, without a merge ref', function (string $case): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: pull_request\n"], [
+        'body' => '',
+        'closingIssuesReferences' => [],
+        'mergedAt' => '2026-11-20T10:00:00Z',
+        'state' => 'MERGED',
+        'title' => 'fix: login',
+    ]);
+    match ($case) {
+        'no merge ref' => unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge'),
+        default => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_STALE_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]),
+    };
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with(['no merge ref', 'a merge ref left on an old base']);
+
+test('a merged pull request gets no label when its base-branch tip may run on label activity', function (): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: push\n"], [
+        'baseRefName' => 'release/2.0',
+        'body' => '',
+        'closingIssuesReferences' => [],
+        'mergedAt' => '2026-11-20T10:00:00Z',
+        'state' => 'MERGED',
+        'title' => 'fix: login',
+    ]);
+    unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge');
+    readyToDeployRemoteWorkflows($fixture, ['.github/workflows/deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\n"], tree: READY_TO_DEPLOY_BASE_SHA);
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+        expect($process->getOutput())->toContain(
+            READY_TO_DEPLOY_PR . ' | label | not applied — the base-branch workflow .github/workflows/deploy.yml subscribes to label activity',
+        )
+            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
 test('a bot pull-request author receives no assignee write on any item', function (): void {
     $fixture = readyToDeployFixture();
     readyToDeployGithub($fixture, [], ['author' => ['login' => 'app/dependabot']]);
