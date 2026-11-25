@@ -85,7 +85,8 @@
 #      own comment, so the author
 #      must match too, and the marker is matched against the comment body alone
 #      rather than against the whole comment object.
-#   5. Carry every top-level ADF node the operator added to the matched comment
+#   5. Carry every top-level ADF node (every child of a collapsed `expand`
+#      section) the operator added to the matched comment
 #      into the new body verbatim (`skills/_shared/carry-operator-lines.php`),
 #      mentions and formatting included. The operator posts under the same
 #      account, so a node counts as the operator's when the fingerprint of

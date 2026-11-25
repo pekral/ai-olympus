@@ -116,6 +116,62 @@ test('an operator node added to the previous ADF version is carried verbatim, me
         ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: @u1\n");
 });
 
+/**
+ * @param list<array<string, mixed>> $findings
+ * @return array<string, mixed>
+ */
+function carryTestCollapsedComment(array $findings, string $marker): array
+{
+    $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+
+    return carryTestAdfDocument(
+        $paragraph('It cannot be deployed yet.'),
+        ['type' => 'expand', 'attrs' => ['title' => 'Findings from the code review'], 'content' => $findings],
+        ['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [carryTestAdfMarker($marker)]],
+    );
+}
+
+test('an operator paragraph inside a collapsed section is carried alone, never the whole section', function (): void {
+    $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+    $first = json_decode(
+        runCarryOperatorLines('adf', json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR))->getOutput(),
+        associative: true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    $first['content'][1]['content'][] = $paragraph('Rozhodnuto: ponechat.');
+
+    $process = runCarryOperatorLines(
+        'adf',
+        json_encode(carryTestCollapsedComment([$paragraph('Round two finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        json_encode($first, JSON_THROW_ON_ERROR),
+    );
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: ponechat.\n")
+        ->and($process->getOutput())->not->toContain('Round one finding')
+        ->and(substr_count($process->getOutput(), 'Rozhodnuto: ponechat.'))->toBe(1);
+});
+
+test('an operator paragraph outside the collapsed sections is carried, and the marker block never is', function (): void {
+    $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+    $first = json_decode(
+        runCarryOperatorLines('adf', json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR))->getOutput(),
+        associative: true,
+        flags: JSON_THROW_ON_ERROR,
+    );
+    array_splice($first['content'], 1, 0, [$paragraph('Rozhodnuto: limit zůstává.')]);
+
+    $process = runCarryOperatorLines(
+        'adf',
+        json_encode(carryTestCollapsedComment([$paragraph('Round two finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        json_encode($first, JSON_THROW_ON_ERROR),
+    );
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: limit zůstává.\n")
+        ->and(substr_count($process->getOutput(), 'cr-comment:actor=abc'))->toBe(1);
+});
+
 test('an agent paragraph with a mention is not carried once JIRA stored the display name on the mention', function (): void {
     $agentParagraph = static fn (array $mention): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Question for '], $mention]];
     $publishedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1']];

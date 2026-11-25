@@ -8,7 +8,8 @@
 #
 #   operator_lines <markdown|adf> <comment-file> [<merged-file>]
 #       Print, one per line, each unit the operator added to the review comment in <comment-file>: a line of a GitHub
-#       Markdown body, or the text of a top-level node of a JIRA ADF document. With <merged-file>, a body in the same
+#       Markdown body, or the text of a top-level node of a JIRA ADF document (of each child of a collapsed `expand`
+#       section). With <merged-file>, a body in the same
 #       format, print only the units that the merged body does not carry verbatim. Returns non-zero when php fails.
 
 operator_lines() {

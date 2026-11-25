@@ -26,7 +26,7 @@ The run may still edit text that already exists: the pull-request body (for exam
 **A line the operator added survives the rewrite.** The operator posts under the agents' account and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`; every helper that rewrites a comment in place keeps it. A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment, and the operator's line stays in the earlier comment where the operator wrote it.
 
 1. Each published version records a fingerprint of the lines the agent wrote: a hidden `<!-- <namespace>:lines=… -->` line on GitHub, a ` lines=…` suffix inside the marker on JIRA.
-2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, so a mention and its formatting survive too.
+2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, or one child of a collapsed `expand` section, so a mention and its formatting survive too.
 3. The helper prints `carried_lines=<n>` and one `carried: <line>` per carried line on stderr.
 4. The run that called the helper states every carried line, verbatim, in its report and its handoff.
 
