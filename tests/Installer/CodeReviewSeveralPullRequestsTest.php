@@ -29,7 +29,7 @@ test('an issue with several pull requests gets its remarks and findings split pe
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md'))
         ->toContain('the Review findings and')
-        ->toContain('TL;DR blocks sit under one h2. group heading per pull request, below any');
+        ->toContain('What changed and what it affects blocks sit under one h2. group heading per');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
         ->toContain('### An issue with several pull requests')

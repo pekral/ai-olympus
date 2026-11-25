@@ -87,7 +87,7 @@ test('the JIRA template keeps only actionable requirements and one combined summ
 
     expect($body)->toContain('only for explicit requirements that still need a change or an answer')
         ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('{expand:TL;DR}');
+        ->toContain('{expand:What changed and what it affects}');
     expect($body)->not->toContain('h2. What changed');
     expect($body)->not->toContain('h2. Impact after deployment');
     expect($body)->not->toContain('h2. How to test');
@@ -2160,7 +2160,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
         '**JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` '
-        . '(only for requirements that still need action), `Review findings`, `TL;DR`.',
+        . '(only for requirements that still need action), `Review findings`, `What changed and what it affects`.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 

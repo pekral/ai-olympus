@@ -26,8 +26,9 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         '* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
         '{expand}',
         '',
-        '{expand:TL;DR}',
-        '„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
+        '{expand:Co se změnilo a co to ovlivní}',
+        jiraSummaryChangesLine(),
+        '* Připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
         '{expand}',
         '',
         '[PR #27625|https://github.com/acme/app/pull/27625] · [ECOMAIL-6720|https://example.atlassian.net/browse/ECOMAIL-6720]',
@@ -40,6 +41,11 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
     ]);
 
     return str_replace(array_keys($replace), array_values($replace), $source);
+}
+
+function jiraSummaryChangesLine(): string
+{
+    return '* „Refresh products“ nyní aktualizuje jen produkty.';
 }
 
 function jiraSummaryMarkerBlock(): string
@@ -76,8 +82,8 @@ function jiraSummaryForTwoPullRequests(): string
         'Kontrola nenašla žádný bod k vyřešení.',
         '{expand}',
         '',
-        '{expand:TL;DR}',
-        'Synchronizace obchodu nově zpracuje jen nové objednávky.',
+        '{expand:Co se změnilo a co to ovlivní}',
+        '* Synchronizace obchodu nově zpracuje jen nové objednávky.',
         '{expand}',
 
     ]);
@@ -154,26 +160,24 @@ test('the criteria section must match whether any requirement still needs action
     'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 collapsed blocks, expected 3 with a criteria section'],
 ]);
 
-test('the combined summary must be one short paragraph', function (string $replacement, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([
-        '„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $replacement,
-    ]), 'none');
+test('what changed and what it affects is a short summary of bullets with no TL;DR label', function (string $search, string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: tldr: ' . $violation);
+        ->and($process->getOutput())->toContain('violation: changes: ' . $violation);
 })->with([
-    'list instead of prose' => ['* První změna.', 'use one paragraph combining changes and deployment impact'],
-    'long paragraph' => [str_repeat('ž', 601), '601 characters, the limit is 600'],
-    'separate paragraphs' => ["Změna.\n\nDopad.", 'use one paragraph combining changes and deployment impact'],
+    'a prose paragraph' => [jiraSummaryChangesLine(), '„Refresh products“ nyní aktualizuje jen produkty.', 'write what changed and what it affects as a few bullets, one fact per bullet'],
+    'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
+    'a TL;DR label' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
+    'the label written with a space' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
 ]);
 
 test('a section outside a collapsed block is refused', function (): void {
-    $source = jiraSummaryWithoutCriteria(['{expand:TL;DR}' => "h2. TL;DR\n\n{expand:Co se změnilo}"]);
+    $source = jiraSummaryWithoutCriteria(['{expand:Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"]);
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: sections: text outside a collapsed block: h2. TL;DR')
-        ->and($process->getOutput())->toContain('violation: tldr: the final section must be TL;DR');
+        ->and($process->getOutput())->toContain('violation: sections: text outside a collapsed block: h2. Co se změnilo');
 });
 
 test('a collapsed block must close and never nests', function (string $search, string $replacement, string $violation): void {
@@ -182,11 +186,11 @@ test('a collapsed block must close and never nests', function (string $search, s
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: blocks: ' . $violation);
 })->with([
-    'a block inside another one' => ['{expand:TL;DR}', "{expand:TL;DR}\n{expand:Uvnitř}", 'a collapsed block inside another one: {expand:Uvnitř}'],
-    'a block without its closing line' => ["beze změny.\n{expand}", 'beze změny.', 'a collapsed block without its closing line: TL;DR'],
+    'a block inside another one' => ['{expand:Co se změnilo a co to ovlivní}', "{expand:Co se změnilo a co to ovlivní}\n{expand:Uvnitř}", 'a collapsed block inside another one: {expand:Uvnitř}'],
+    'a block without its closing line' => ["beze změny.\n{expand}", 'beze změny.', 'a collapsed block without its closing line: Co se změnilo a co to ovlivní'],
 ]);
 
-test('a review finding may be longer than a TL;DR bullet', function (): void {
+test('a review finding may be longer than the whole summary of changes', function (): void {
     $process = runJiraSummaryCheck(
         jiraSummaryWithoutCriteria(['* Blokuje sloučení: synchronizace' => '* ' . str_repeat('Dlouhý nález. ', 30) . 'Blokuje sloučení: synchronizace']),
         'none',
@@ -199,7 +203,7 @@ test('a review finding may be longer than a TL;DR bullet', function (): void {
 test('Markdown and developer tokens fail the check', function (string $line, string $violation): void {
     $process = runJiraSummaryCheck(
         jiraSummaryWithoutCriteria(
-            ['„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $line],
+            [jiraSummaryChangesLine() => $line],
         ),
         'none',
     );
@@ -261,7 +265,7 @@ test('the check refuses a wrong call and a missing source file', function (strin
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
     $summary = runJiraSummaryCheck(
         jiraSummaryWithoutCriteria(
-            ['„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.' => $text],
+            [jiraSummaryChangesLine() => $text],
         ),
         'none',
     );

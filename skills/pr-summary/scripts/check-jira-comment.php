@@ -6,7 +6,7 @@ require __DIR__ . '/../../_shared/report-check-common.php';
 
 const JIRA_SUMMARY_MAX_CHARACTERS = 3_000;
 
-const JIRA_SUMMARY_MAX_TLDR_CHARACTERS = 600;
+const JIRA_SUMMARY_MAX_CHANGES_CHARACTERS = 600;
 
 const JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA = 2;
 
@@ -80,25 +80,25 @@ function jiraSummaryLayout(array $lines): array
  * @param list<array{title: string, group: int, body: list<string>}> $blocks
  * @return list<string>
  */
-function jiraSummaryTldrViolations(array $blocks): array
+function jiraSummaryChangesViolations(array $blocks): array
 {
     $violations = [];
 
     foreach (array_slice($blocks, -1) as $block) {
-        if ($block['title'] !== 'TL;DR') {
-            $violations[] = 'tldr: the final section must be TL;DR';
+        if (preg_match('/\bTL\W?DR\b/iu', $block['title']) === 1) {
+            $violations[] = 'changes: the final section carries no TL;DR label: ' . $block['title'];
         }
 
-        $paragraph = $block['body'];
+        $prose = array_filter($block['body'], static fn (string $line): bool => preg_match('/^\* \S/u', $line) !== 1);
 
-        if (count($paragraph) !== 1 || preg_match('/^(?:\*+ |#+ |h[1-6]\. )/u', $paragraph[0]) === 1) {
-            $violations[] = 'tldr: use one paragraph combining changes and deployment impact';
+        if ($block['body'] === [] || $prose !== []) {
+            $violations[] = 'changes: write what changed and what it affects as a few bullets, one fact per bullet';
         }
 
-        $length = mb_strlen(implode(' ', $paragraph));
+        $length = mb_strlen(implode(' ', $block['body']));
 
-        if ($length > JIRA_SUMMARY_MAX_TLDR_CHARACTERS) {
-            $violations[] = sprintf('tldr: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_TLDR_CHARACTERS);
+        if ($length > JIRA_SUMMARY_MAX_CHANGES_CHARACTERS) {
+            $violations[] = sprintf('changes: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_CHANGES_CHARACTERS);
         }
     }
 
@@ -138,7 +138,7 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
             );
         }
 
-        return [...$violations, ...jiraSummaryTldrViolations($issueBlocks)];
+        return [...$violations, ...jiraSummaryChangesViolations($issueBlocks)];
     }
 
     $findingsTitle = jiraSummaryGroupBlocks($layout['blocks'], 1)[0]['title'] ?? '';
@@ -156,7 +156,7 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
             $violations[] = sprintf('sections: %d blocks in pull-request group %d, expected %d', count($groupBlocks), $group, JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA);
         }
 
-        $violations = [...$violations, ...jiraSummaryTldrViolations($groupBlocks)];
+        $violations = [...$violations, ...jiraSummaryChangesViolations($groupBlocks)];
     }
 
     return $violations;

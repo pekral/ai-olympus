@@ -12,7 +12,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 - **GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.
 - **`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.
-- **JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` (only for requirements that still need action), `Review findings`, `TL;DR`. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; one TL;DR paragraph combines observable changes with what to watch after the release. JIRA renders no `How to test`.
+- **JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` (only for requirements that still need action), `Review findings`, `What changed and what it affects`. An open question closes the bullet it belongs to. Its reader is a product manager, so only requests for changes or answers are listed; one TL;DR paragraph combines observable changes with what to watch after the release. JIRA renders no `How to test`.
 - **`How to test`** (GitHub and Bugsnag) → a scenario a human follows: every step names a concrete input and a must-hold outcome.
 - **A closing line** links the PR and the source issue.
 - Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
@@ -45,8 +45,8 @@ GitHub and Bugsnag carry the **same** structure and differ only in markup — no
 | Status line | no | the deploy verdict paragraph opens the comment | no |
 | `Acceptance criteria` | no | only for requirements that still need action — first section | no |
 | `Review findings` | review-only run only, in place of `How to test` | yes — every run, after any unmet criteria | review-only run only, in place of `How to test` |
-| `What changed` | yes — four fields, two conditional | included in `TL;DR` | yes — four fields, two conditional |
-| `TL;DR` | no | one paragraph combining changes and deployment impact, at most 600 characters | no |
+| `What changed` | yes — four fields, two conditional | included in `What changed and what it affects` | yes — four fields, two conditional |
+| `What changed and what it affects` | no | a few bullets combining changes and deployment impact, at most 600 characters | no |
 | `How to test` | yes, except a review-only run | no | yes, except a review-only run |
 | `{embedded_blocks}` | conditional — exactly as the wrapper passed them | no — each question closes its criterion or finding bullet | conditional — exactly as the wrapper passed them |
 | Closing links line | yes | yes | yes |
@@ -65,7 +65,7 @@ The headings and field labels above are this skill's canonical **concepts**, wri
 
 ### What changed — four required fields, two conditional ones (GitHub and Bugsnag)
 
-Required, always rendered, in this order. On JIRA this content joins the deployment impact in one TL;DR paragraph instead — see *The JIRA shape* above:
+Required, always rendered, in this order. On JIRA this content joins the deployment impact in `What changed and what it affects` instead — see *The JIRA shape* above:
 
 - **Problem** — what the reader's own world looked like when it was broken: who hit it, on what, what they saw instead. Name the scale when it is known (how many attempts, over how long, how many accounts).
 - **Cause** — why it happened. One mechanism, stated so a non-developer follows it. This is where a missing or partially met acceptance criterion is named in prose, never as a verdict field.
@@ -138,7 +138,7 @@ A review-only run (`/report-code-review`) passes `review-only` together with the
   - It links the answer only where the target allows a link. On JIRA, a JIRA answer is linked, under exception 3 of `@rules/reports/general.md` *Three exceptions, and there is no fourth*; a GitHub answer is named in words only. On GitHub, the URL from the `Answered` reference is linked. On Bugsnag, the URL is written as plain text.
   - **Restricted content never reaches a public mirror.** The caller passes the `github_allowed` value that `skills/_shared/review-carry-forward.sh answer` printed with each answer. The script reads the repository visibility from the GitHub loader's `repo.isPrivate`, and a repository whose visibility cannot be read counts as public. On a GitHub target, an answer whose `github_allowed` is `false` gets no link and no words: the finding is rendered without the answer sentence.
 - **A new comment on every run.** A review-only run publishes through the GitHub and JIRA helpers like any other run, with `--create`, so a later run adds a new comment and leaves the comment of an earlier run unchanged. The Bugsnag helper posts a new comment on every run.
-- **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten the combined `TL;DR` paragraph first, then shorten the findings per item 8 above. Never drop a `Review findings` bullet.
+- **Length on JIRA.** When the comment overflows the 3 000-character cap, shorten the wording of `What changed and what it affects` first, keeping each of its facts, then shorten the findings per item 8 above. Never drop a `Review findings` bullet.
 
 ### An issue with several pull requests
 
@@ -156,7 +156,7 @@ On GitHub and Bugsnag there is no word budget and no "fits on one screen" rule. 
 - **Never truncate a fact** to hit a length. A dropped number, boundary, or must-hold outcome costs the reader the decision the report exists to support. On GitHub and Bugsnag there is no length to hit, so nothing ever forces the choice; on JIRA the cap below is met by carrying fewer facts, never by cutting one in half.
 - A one-line fix produces a short report. A change with a measured cause, a measured result, and four things to retest produces a long one. Both are correct.
 
-**JIRA is the one exception, and its cap is real.** That comment carries a 3 000-character limit, because its reader is a product manager rather than a developer (`@rules/reports/general.md` *A JIRA comment is written for a non-technical reader*). Meet the cap by carrying fewer facts, never by truncating one. When the body overflows, shorten the combined `TL;DR` paragraph and drop its least consequential detail, then shorten the findings per item 8 of *A finding bullet is a TL;DR of the solution, backed by evidence*; never drop an `Acceptance criteria` bullet or a `Review findings` bullet, because those are what the reader decides on.
+**JIRA is the one exception, and its cap is real.** That comment carries a 3 000-character limit, because its reader is a product manager rather than a developer (`@rules/reports/general.md` *A JIRA comment is written for a non-technical reader*). Meet the cap by carrying fewer facts, never by truncating one. When the body overflows, shorten the wording of `What changed and what it affects`, keeping each of its facts, then shorten the findings per item 8 of *A finding bullet is a TL;DR of the solution, backed by evidence*; never drop an `Acceptance criteria` bullet or a `Review findings` bullet, because those are what the reader decides on.
 
 ### What the comment carries
 
@@ -173,7 +173,7 @@ Every authored sentence carries a fact and nothing else. Apply `references/terse
 
 ### Output shape per target
 
-- GitHub and Bugsnag output the **two sections plus the closing line**: `What changed` (four required fields, two conditional), `How to test`, then the PR / issue links. JIRA outputs `Acceptance criteria` (only for requirements that still need action), `Review findings`, `TL;DR`, the PR / issue links, and the footer.
+- GitHub and Bugsnag output the **two sections plus the closing line**: `What changed` (four required fields, two conditional), `How to test`, then the PR / issue links. JIRA outputs the shape `references/jira-shape.md` owns.
 - No target renders an `Authors` line, an `Available behind` line, a `Summary of changes` section, a categories list, a breaking-changes section, or a testing-notes section. This skill resolves no authorship — a caller that needs an author set resolves it itself.
 - Between GitHub and Bugsnag the only difference is markup and template. JIRA differs in section order and content too, per *The JIRA shape* above.
 
@@ -208,7 +208,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 3. For each commit, read the commit message and the diff to understand what changed and why.
 4. If a PR already exists for this branch, load the PR description and linked issue(s) for additional context (business motivation, acceptance criteria, reporter's expectations):
    - **GitHub:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it); read `body`, `comments[]`, and `closingIssues[]` off the resulting JSON document.
-   - **JIRA:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — read `descriptionText`, `comments[]`, and linked PRs. Also load the pull request through `skills/code-review-github/scripts/load-issue.sh <PR_URL>` and read the newest trusted code-review report through `skills/_shared/cr-header.sh --report <loader-file>` (the hidden record of a pull-request review, or a legacy `cr-comment` comment): it is the source of the JIRA `Review findings` section, and its `## Affected behaviour outside the diff` section feeds the combined `TL;DR`.
+   - **JIRA:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — read `descriptionText`, `comments[]`, and linked PRs. Also load the pull request through `skills/code-review-github/scripts/load-issue.sh <PR_URL>` and read the newest trusted code-review report through `skills/_shared/cr-header.sh --report <loader-file>` (the hidden record of a pull-request review, or a legacy `cr-comment` comment): it is the source of the JIRA `Review findings` section, and its `## Affected behaviour outside the diff` section feeds `What changed and what it affects`.
    - **Bugsnag:** `skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>` — read the error context, its `comments[]`, and its linked issues / PRs.
    - Never call `gh pr view`, `gh issue view`, or `acli` directly; fall back to the GitHub / JIRA / Bugsnag MCP server only when the loader is unavailable (exit code 2/3).
 
@@ -222,7 +222,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 
 ### Write and publish (6–8)
 
-6. **Write the body sections.** On GitHub and Bugsnag, write `What changed` — the four required fields in order (`Problem`, `Cause`, `Result`, `What I fixed`), then the two conditional ones (`Side benefit`, `Filed separately`) only when each has content. On JIRA, write the deploy verdict paragraph first, then `Acceptance criteria` only for requirements that still need action, then `Review findings` from the newest pull-request review per *The JIRA shape*, then one `TL;DR` paragraph combining observable changes and deployment impact. Derive every field from the commits, the diff, and the tracker context loaded in steps 1–4. State numbers where the run measured them; never invent one.
+6. **Write the body sections.** On GitHub and Bugsnag, write `What changed` — the four required fields in order (`Problem`, `Cause`, `Result`, `What I fixed`), then the two conditional ones (`Side benefit`, `Filed separately`) only when each has content. On JIRA, write the deploy verdict paragraph first, then `Acceptance criteria` only for requirements that still need action, then `Review findings` from the newest pull-request review per *The JIRA shape*, then `What changed and what it affects` as a few bullets combining observable changes and deployment impact. Derive every field from the commits, the diff, and the tracker context loaded in steps 1–4. State numbers where the run measured them; never invent one.
 7. **Write `How to test`** (GitHub and Bugsnag; never on JIRA) — an ordered scenario per *How to test* above: concrete inputs, an explicit must-hold outcome per step, the gating toggle enabled in step 1 when the change is gated, and the regression flows named at the end. Use caller-supplied steps as passed when the caller provided them.
 8. **Assemble and render.** On GitHub and Bugsnag, place the embedded blocks, when the caller passed any, directly above the closing links line, separated by a single blank line — each rendered exactly as received, with no re-formatting, no language conversion, and no re-ordering. On JIRA, write each open question as the closing sentence of the criterion or finding bullet it belongs to. Close with the PR / issue links line. Translate the headings and field labels into the assignment language, then convert the whole body to the target's markup and verify nothing leaked. On JIRA, close with the footer, measure the published body against the 3 000-character cap, and shorten it per *Length follows the facts* when it overflows, never an `Acceptance criteria` or a `Review findings` bullet.
 
