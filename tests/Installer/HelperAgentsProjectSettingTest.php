@@ -353,6 +353,36 @@ test('the role copy survives a later change of the installed definition, and a d
         ->and($onTheBranch->getErrorOutput())->toContain('Blocked: helper agents forbidden — trusted role definition not available');
 });
 
+test('a role definition that a branch tracks under another letter case is refused', function (string $trackedPath): void {
+    $directory = sys_get_temp_dir() . '/ai-olympus-role-case-' . bin2hex(random_bytes(6));
+    mkdir($directory . '/.claude/agents', 0o777, recursive: true);
+    mkdir($directory . '/.claude/run');
+    register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
+    manifestRepositoryGit($directory, 'init', '-q', '-b', 'master');
+    file_put_contents($directory . '/.gitignore', ".claude/\n");
+    manifestRepositoryGit($directory, 'add', '.gitignore');
+    manifestRepositoryGit($directory, 'commit', '-q', '-m', 'init');
+    manifestRepositoryGit($directory, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
+    manifestRepositoryGit($directory, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/master');
+    file_put_contents($directory . '/.claude/agents/splinter.md', "the installed role\n");
+    $blob = (new Process(['git', 'hash-object', '-w', '--stdin'], $directory, input: "a role the branch relaxed\n"))->mustRun()->getOutput();
+    manifestRepositoryGit($directory, 'update-index', '--add', '--cacheinfo', '100644,' . trim($blob) . ',' . $trackedPath);
+    $commit = manifestRepositoryGit($directory, 'commit-tree', manifestRepositoryGit($directory, 'write-tree'), '-p', 'master', '-m', 'track');
+    manifestRepositoryGit($directory, 'update-ref', 'refs/heads/feature', $commit);
+    manifestRepositoryGit($directory, 'symbolic-ref', 'HEAD', 'refs/heads/feature');
+
+    $copy = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'copy-roles', '--run-dir', '.claude/run', '--slug', 'gh-1', '--role', 'splinter'], $directory);
+    $copy->run();
+
+    expect($copy->getExitCode())->toBe(3)
+        ->and($copy->getErrorOutput())->toContain('Blocked: helper agents forbidden — trusted role definition not available')
+        ->and(is_dir($directory . '/.claude/run/gh-1.roles'))->toBeFalse();
+})->with([
+    'the directory in upper case' => ['.CLAUDE/agents/splinter.md'],
+    'the file name in upper case' => ['.claude/agents/SPLINTER.md'],
+    'the first letter in upper case' => ['.Claude/agents/splinter.md'],
+]);
+
 test('the read-only guard of an inline review also hashes the git-ignored agent configuration', function (string $rule): void {
     expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);
 })->with([
