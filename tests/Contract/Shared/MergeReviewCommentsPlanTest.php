@@ -380,6 +380,7 @@ dataset('merge plan replies', [
     ],
     'a line typed out again by the operator account' => ['Round 1: the upload limit is 2 MB. Fixed in the next commit.', 'bot', 'MEMBER', true],
     'a link to the comment' => ['See ' . MERGE_PLAN_ITEM . '#issuecomment-801 please.', 'reporter', 'NONE', true],
+    'a mention after a leading NUL' => ["\u{0}@bot why 2 MB?", 'reporter', 'NONE', true],
     'a mention of a login that holds a named underscore reference' => ['@acme&lowbar;bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
     'a mention of a login that holds an escaped underscore' => ['@acme\\_bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
     'a mention of a login that holds an underscore' => ['@acme_bot why 2 MB?', 'reporter', 'NONE', true, 'acme_bot'],
@@ -422,10 +423,12 @@ dataset('merge plan replies', [
         'NONE',
         true,
     ],
+    'a NUL inside the login of the operator account' => ["@b\u{0}ot why 2 MB?", 'reporter', 'NONE', false],
     'an unrelated later comment' => ['Thanks, I will look at it tomorrow.', 'reporter', 'NONE', false],
     'a quoted line of the comment' => ["> Round 1: the upload limit is 2 MB.\n\nWhy 2 MB?", 'reporter', 'NONE', true],
     'a short quote of a heading only' => ['> Round 1', 'reporter', 'NONE', false],
     'a tag and an at sign of the operator account itself' => ['<b>@alice</b> why 2 MB?', 'bot', 'MEMBER', false],
+    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> why 2 MB?", 'reporter', 'NONE', true],
     'a tag reply that mentions another login' => ['<b>@alice</b> why 2 MB?', 'reporter', 'NONE', true],
     'a tag reply whose at sign is a decimal reference' => ['&#64;b</td>ot why 2 MB?', 'reporter', 'NONE', true],
     'a tag reply whose at sign is a named reference' => ['&commat;</b>bot why 2 MB?', 'reporter', 'NONE', true],
@@ -435,9 +438,6 @@ dataset('merge plan replies', [
     'a tag reply with a dropped tag after the at sign' => ['@</b>bot why 2 MB?', 'reporter', 'NONE', true],
     'a tag reply with a quoted greater-than sign in the tag' => ['<div>@b</span title="a>b">ot x</div>', 'reporter', 'NONE', true],
     'a tag without an at sign' => ['<b>Why</b> 2 MB?', 'reporter', 'NONE', false],
-    'a mention after a leading NUL' => ["\u{0}@bot why 2 MB?", 'reporter', 'NONE', true],
-    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> why 2 MB?", 'reporter', 'NONE', true],
-    'a NUL inside the login of the operator account' => ["@b\u{0}ot why 2 MB?", 'reporter', 'NONE', false],
 ]);
 
 test(
@@ -455,13 +455,13 @@ test(
 )->with('merge plan replies');
 
 dataset('merge plan NUL quotes', [
-    'the review line holds a NUL that the reply shows as a replacement character' => [
-        "the upload\u{0} limit is 2 MB.",
-        "the upload\u{FFFD} limit is 2 MB.",
-    ],
     'the reply holds a NUL where the review line holds a replacement character' => [
         "the upload\u{FFFD} limit is 2 MB.",
         "the upload\u{0} limit is 2 MB.",
+    ],
+    'the review line holds a NUL that the reply shows as a replacement character' => [
+        "the upload\u{0} limit is 2 MB.",
+        "the upload\u{FFFD} limit is 2 MB.",
     ],
 ]);
 
@@ -522,6 +522,11 @@ test('the plan refuses a pull request, a bare number, and a Bugsnag item without
 ]);
 
 dataset('merge plan pull requests through an issue URL', [
+    'a failed read' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_OK' => '0'], 3],
+    'an answer of another number' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":43}'], 3],
+    'an answer that is no issue' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"message":"Not Found"}'], 3],
+    'an answer that is not JSON' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => 'not json'], 3],
+    'an answer with a null pull_request field' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 1],
     'a pull request' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'], 1],
     'a pull request named with a trailing slash' => [['plan', MERGE_PLAN_ITEM . '/'], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{}}'], 1],
     'a pull request on the read-back' => [
@@ -529,11 +534,6 @@ dataset('merge plan pull requests through an issue URL', [
         ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'],
         1,
     ],
-    'an answer with a null pull_request field' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 1],
-    'an answer of another number' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"number":43}'], 3],
-    'an answer that is no issue' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => '{"message":"Not Found"}'], 3],
-    'an answer that is not JSON' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_JSON' => 'not json'], 3],
-    'a failed read' => [['plan', MERGE_PLAN_ITEM], ['FAKE_GH_ITEM_OK' => '0'], 3],
 ]);
 
 test(
