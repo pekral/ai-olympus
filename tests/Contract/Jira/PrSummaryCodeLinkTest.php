@@ -44,4 +44,9 @@ test('the link builder refuses an address it cannot prove', function (string $er
     'a URL that is no pull request' => ['not a github.com pull-request URL', 'https://github.com/acme/app/issues/12'],
     'line zero' => ['not a line number: 0', 'https://github.com/acme/app/pull/12', 'src/A.php', '0'],
     'no argument' => ['expected a pull-request URL'],
+    'a URL with a trailing line break' => ['not a github.com pull-request URL', "https://github.com/acme/app/pull/12\n"],
+    'a line with a trailing line break' => ['not a line number', 'https://github.com/acme/app/pull/12', 'src/A.php', "4\n"],
+    'a path with a dot segment' => ['not a relative repository path', 'https://github.com/acme/app/pull/12', './src/A.php', '1'],
+    'a path with an inner dot segment' => ['not a relative repository path', 'https://github.com/acme/app/pull/12', 'src/./A.php', '1'],
+    'a repository named by a dot segment' => ['not a github.com pull-request URL', 'https://github.com/acme/../pull/12'],
 ]);

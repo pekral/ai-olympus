@@ -2,7 +2,7 @@
 
 declare(strict_types = 1);
 
-const PR_CODE_LINK_PULL_REQUEST = '#^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[1-9][0-9]*$#';
+const PR_CODE_LINK_PULL_REQUEST = '#^https://github\.com/(?!\.{1,2}/)[A-Za-z0-9_.-]+/(?!\.{1,2}/)[A-Za-z0-9_.-]+/pull/[1-9][0-9]*$#D';
 
 const PR_CODE_LINK_MAX_LINE = 10_000_000;
 
@@ -23,8 +23,7 @@ function prCodeLinkValidPath(string $path): bool
         && strlen($path) <= 4_096
         && preg_match('/[\x00-\x1F\x7F]/', $path) !== 1
         && !str_starts_with($path, '/')
-        && !in_array('..', explode('/', $path), strict: true)
-        && !in_array('', explode('/', $path), strict: true);
+        && array_intersect(['', '.', '..'], explode('/', $path)) === [];
 }
 
 $arguments = array_slice($argv ?? [], 1);
@@ -46,7 +45,7 @@ if (!prCodeLinkValidPath($arguments[1])) {
     prCodeLinkRefuse('not a relative repository path');
 }
 
-if (preg_match('/^[1-9][0-9]*$/', $arguments[2]) !== 1 || (int) $arguments[2] > PR_CODE_LINK_MAX_LINE) {
+if (preg_match('/^[1-9][0-9]*$/D', $arguments[2]) !== 1 || (int) $arguments[2] > PR_CODE_LINK_MAX_LINE) {
     prCodeLinkRefuse('not a line number: ' . $arguments[2]);
 }
 
