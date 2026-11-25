@@ -493,3 +493,88 @@ test('record refuses an expired proposal and a proposal of another repository', 
         installerRemoveDirectory($fixture['directory']);
     }
 })->with(['expired', 'another repository']);
+
+test('a recorded match is reused by a later lookup without a new proposal', function (): void {
+    $fixture = personMatchFixture();
+    $ledger = auditLedgerCreate('session');
+
+    try {
+        $record = personMatchConfirm($fixture, $ledger['env']);
+        file_put_contents($fixture['log'], '');
+        $lookup = personMatchLookup($fixture, 'TEAM-77');
+
+        expect($record->getExitCode())->toBe(0)
+            ->and($record->getOutput())->toContain('recorded: GitHub pat ↔ JIRA account ' . PERSON_MATCH_ACCOUNT)
+            ->and($lookup->getExitCode())->toBe(0)
+            ->and($lookup->getOutput())->toBe('account_id=' . PERSON_MATCH_ACCOUNT . "\n")
+            ->and(personMatchCalls($fixture, 'api repos/acme/app/pulls/12/commits'))->toBe([])
+            ->and(auditLedgerRows($ledger)[0][2])->toBe('external-write')
+            ->and(auditLedgerRows($ledger)[0][3])->toBe('person-match record: the confirmed match of the pull-request author pat (acme/app / TEAM)');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+        auditLedgerRemove($ledger);
+    }
+});
+
+test('lookup returns no match for another repository, JIRA site, or project', function (string $variable, string $value, string $key): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+
+    if ($variable === 'repository') {
+        personMatchApi($fixture, 'repos/acme/app', ['full_name' => 'acme/app', 'id' => 9999]);
+    }
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['lookup', '--pr', PERSON_MATCH_PR, '--jira-key', $key], [$variable => $value]);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and($process->getOutput())->toBe('');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'another JIRA site' => ['FAKE_ACLI_SITE', 'other-example.atlassian.net', 'TEAM-42'],
+    'another project' => ['FAKE_UNUSED', '', 'OPS-42'],
+    'another repository ID' => ['repository', '', 'TEAM-42'],
+]);
+
+test('lookup returns no match when the author login is the same but the GitHub user ID differs', function (): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+    personMatchApi($fixture, 'users/pat', ['id' => 200, 'login' => 'pat']);
+
+    try {
+        expect(personMatchLookup($fixture)->getExitCode())->toBe(6);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('lookup returns no match when the stored JIRA account has no issue left in the project', function (): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+    personMatchSearch($fixture, []);
+
+    try {
+        $process = personMatchLookup($fixture);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and($process->getErrorOutput())->toContain('has no issue left in project TEAM');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('forget removes the confirmed match of the current scope', function (): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+
+    try {
+        $forget = personMatchRun($fixture, PERSON_MATCH_HELPER, ['forget', '--pr', PERSON_MATCH_PR, '--jira-key', 'TEAM-42']);
+
+        expect($forget->getExitCode())->toBe(0)
+            ->and(personMatchLookup($fixture)->getExitCode())->toBe(6);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
