@@ -17,7 +17,7 @@ The `pullRequests` array of a JIRA issue comes from a search over every reposito
 Render these once, above the groups, because they describe the issue and not one pull request:
 
 1. The assignment verdict: `Acceptance criteria` on JIRA only for requirements that still need action, the `Assignment Compliance` block on GitHub and Bugsnag. An unmet criterion names the pull request that is meant to deliver it.
-2. The author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
+2. On GitHub and Bugsnag, the author mention for an unmet criterion (`SKILL.md` *An unmet criterion addresses the author*).
 3. The closing links line, which lists every pull request that counts, and the JIRA footer.
 
 ## What goes into the group of a pull request

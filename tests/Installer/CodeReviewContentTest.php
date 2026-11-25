@@ -4552,7 +4552,7 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
     $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
-    expect($general)->toContain('- **First exception: an unmet acceptance criterion.**');
+    expect($general)->toContain('- **First exception: an unmet acceptance criterion on GitHub and Bugsnag.**');
     expect($summary)->toContain('### An unmet criterion addresses the author');
     expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
     expect($summary)->toContain('- **Never guess an account.**');

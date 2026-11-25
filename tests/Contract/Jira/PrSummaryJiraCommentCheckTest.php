@@ -65,8 +65,6 @@ function jiraSummaryWithCriteria(): string
         '',
         '{expand:Akceptační kritéria}',
         '* Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
-        '',
-        '[~accountid:712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6], potvrď prosím nález a oprav ho, nebo ho v odpovědi vyvrať.',
         '{expand}',
         '',
         str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria()),
@@ -115,7 +113,7 @@ test('a JIRA summary in the shape of the template passes the check', function (s
         ),
         'none',
     ],
-    'unmet criteria and a mention' => [jiraSummaryWithCriteria(), 'unmet'],
+    'unmet criteria' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
 test('a summary that passes the check converts to ADF with no wiki markup left', function (): void {
@@ -129,8 +127,24 @@ test('a summary that passes the check converts to ADF with no wiki markup left',
 
     expect(array_column($adf['content'], 'type')[0])->toBe('paragraph')
         ->and(str_contains($process->getOutput(), 'h2.'))->toBeFalse()
-        ->and(str_contains($process->getOutput(), '"mention"'))->toBeTrue();
+        ->and(str_contains($process->getOutput(), '{expand'))->toBeFalse()
+        ->and(str_contains($process->getOutput(), '"type": "expand"'))->toBeTrue();
 });
+
+test('the acceptance criteria carry no call to the author of the changes', function (string $source): void {
+    $process = runJiraSummaryCheck($source, 'unmet');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: criteria: the block calls on nobody: ' . jiraSummaryAuthorCall());
+})->with([
+    'one pull request' => [str_replace("ověřené. Kdo může takové odeslání spustit?\n", "ověřené. Kdo může takové odeslání spustit?\n\n" . jiraSummaryAuthorCall() . "\n", jiraSummaryWithCriteria())],
+    'two pull requests' => [str_replace("vyžaduje opravu.\n", "vyžaduje opravu.\n" . jiraSummaryAuthorCall() . "\n", jiraSummaryForTwoPullRequests())],
+]);
+
+function jiraSummaryAuthorCall(): string
+{
+    return '[~accountid:712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6], potvrď prosím nález a oprav ho, nebo ho v odpovědi vyvrať.';
+}
 
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
     $process = runJiraSummaryCheck($source, 'none');

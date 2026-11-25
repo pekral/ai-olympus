@@ -94,7 +94,7 @@ Conditional — render only when it has content, never as an empty field:
 When the assignment verdict names a criterion that is not met or partially met, the comment states why and mentions the author of the changes (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*).
 
 - **State why.** Each unmet criterion names what the change does not do and what the review observed that shows it, in plain prose.
-- **Mention the author once, after the unmet criteria.** One sentence asks the author to confirm the claim and fix the gap, or to refute it in a reply. On JIRA it sits at the end of `Acceptance criteria`; on GitHub and Bugsnag it follows the embedded blocks.
+- **Mention the author once, after the unmet criteria, on GitHub and Bugsnag.** One sentence asks the author to confirm the claim and fix the gap, or to refute it in a reply. It follows the embedded blocks. A JIRA comment carries no such sentence (`references/jira-shape.md` item 2).
 - **The mention syntax is the tracker's own.**
   1. GitHub: `@<login>` of the pull request's `author.login`.
   2. JIRA: `[~accountid:<id>]`, which the JIRA publish helper converts to an ADF mention. Resolve `<id>` from the JIRA accounts the loader returns (`assigneeAccountId`, a comment's `authorAccountId`) whose name or e-mail matches the pull request's author or commit author, or through the JIRA MCP server's user lookup.
