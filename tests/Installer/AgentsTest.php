@@ -1083,7 +1083,7 @@ test('the zeus backlog subagent is retired and krang carries its tier inline (is
     // The architectural consequence the merge turns on: krang's "never work in your own
     // context" rule gains a SECOND named exception beside step 1, because the successor is the
     // orchestrator itself and has no peer left to dispatch this to.
-    expect($krang)->toContain('**Three named exceptions to that rule, and no others.**');
+    expect($krang)->toContain('**Four named exceptions to that rule, and no others.**');
     expect($krang)->toContain('which you run **inline, in your own context**');
 
     // A backlog run ends at the backlog: no dispatch, no PR, no write-lock.

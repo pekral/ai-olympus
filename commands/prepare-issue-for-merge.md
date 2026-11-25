@@ -41,6 +41,8 @@ When the issue carries no pull request, `krang` resolves the task first — the 
 `skills/_shared/orchestration/proposal-review.md`, implementation, and the review-and-fix loop to
 convergence — and then prepares the pull request that delivery opens.
 
+When the project forbids helper agents, this session starts no agent of any type. It performs every step itself, or stops and names a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states, and its report says whether helper agents were allowed.
+
 For Codex, invoke `$verify-merge-readiness` with the same references and the same optional
 `--merge` flag. The root session holds the `krang` role under the same section, for one reference or
 for every reference of a batch, and spawns the registered specialists itself.

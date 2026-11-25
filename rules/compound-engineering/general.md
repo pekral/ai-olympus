@@ -72,6 +72,8 @@ An agent never generates documentation into `docs/` — no new file and no new s
 When an orchestrator delegates a step (analysis, implementation, review) and the delegate returns a blocker it cannot resolve — most commonly a write-capable implementer (e.g. `donatello`) whose `Write` / `Edit` is refused by the harness sandbox / permission layer even though the agent declares those tools, but equally an unresolvable merge conflict or a non-converging review loop — the run **stops and reports the blocker with its remediation**, never a silent bypass. Do **not** silently complete the blocked agent's work in the main thread (or in another agent's context): that bypasses the delegated, reviewed pipeline (no implementer→reviewer loop, no quality gates), hides the failure from the human, and breaks the compounding loop.
 Surface *what was blocked*, *why* (the denied capability), and *how to unblock it* (the environment change the human must make), then halt.
 
+- **Helper agents forbidden is not a fallback.** While helper agents are allowed, every failed, denied, or unregistered dispatch stays this stop. The session runs a stage itself only when the project forbids helper agents (`skills/_shared/orchestration/helper-agents.md`).
+
 ## Code Review Application
 
 - A change outside the assignment that is not a security fix is a finding of the Assignment Conformance Gate, direction *Changes → requirements* (`@skills/code-review/references/assignment-conformance-gate.md` step 2). Raise it there and nowhere else.

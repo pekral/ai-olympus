@@ -18,6 +18,8 @@ approved design without changing business logic, open the pull request, drive it
 convergence, verify the page in a real interactive browser, and report in the skill's output shape.
 Never merge the pull request.
 
+When the project forbids helper agents, this session starts no agent of any type. It performs every step itself, or stops and names a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states, and its report says whether helper agents were allowed.
+
 For Codex, invoke `$deliver-page-redesign` with the same URL. Ask the registered `michelangelo`
 agent for the design phase. For the delivery phase, the root session holds the `krang` role under
 the same section and spawns the registered specialists itself.

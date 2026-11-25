@@ -16,3 +16,5 @@ Extracted from `agents/krang.md` so the orchestrator does not carry it on every 
 5. A `Blocked` report from `raphael`, `casey`, or `splinter` does not stop the run; its blocker goes into the review report. The one exception is a `raphael` walkthrough that could not run for want of an environment: it stays out of the review report (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
 6. Change no tracker status, do not promote the pull request, and never merge. Hand the security findings outside the assignment to the user in the report; do not file them.
 7. Run *Run cleanup*, then report with `Review report done`, the published comment URLs, and the critical-item count of the database report, or the reason `casey` did not run.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

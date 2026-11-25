@@ -22,6 +22,8 @@ extend those steps in the dispatch prompt: a step that this command and the agen
 differently makes the run follow the wrong one. When `.claude/agents/krang.md` is not installed, stop and
 report it. Never perform a specialist's step in this session.
 
+The one exception is a project that forbids helper agents: then this session starts no agent and performs every step itself, or stops and names a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.
+
 For Codex, invoke the matching wrapper — `$code-review-github`, `$code-review-jira`, or
 `$code-review-bugsnag` — with the same reference. The root session holds the `krang` role under
 the same section and spawns the registered specialists itself.

@@ -109,3 +109,5 @@ The roster has no agent dedicated to the analysis of an issue, so two agents sha
 
 The handoff of the run names the number of Critical findings per agent, the URL of the published
 comment or `none`, and the withheld finding, when one exists.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

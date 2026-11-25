@@ -201,7 +201,7 @@ test('only the value krang writes counts, and any doubt about it never reads as 
 
 test('the control-plane rule names on as the safe value of the interactive-testing field', function (): void {
     expect(normalizedPackageSource('rules/compound-engineering/orchestration.md'))
-        ->toContain('The `## Interactive testing` value is the one exception: `off` removes the walkthrough, so its safe value is `on`');
+        ->toContain('so the safe value of `## Interactive testing` is `on` and the safe value of `## Helper agents` is `allowed`');
 });
 
 test('every reader of the interactive-testing value points at the rule that says which value counts', function (string $path): void {

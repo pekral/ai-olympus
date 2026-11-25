@@ -72,6 +72,7 @@ The invoking session performs this step itself, before it delegates anything:
 The invoking session dispatches `michelangelo` with @skills/page-redesign/SKILL.md, the resolved
 route and files, the screenshots, and the acceptance criteria from *Acceptance criteria* below.
 
+- When the project forbids helper agents, run the `michelangelo` stage in this session, in the role of `michelangelo` (`skills/_shared/orchestration/helper-agents.md`).
 - On Claude Code, dispatch the `michelangelo` subagent. On Codex, ask the registered `michelangelo`
   agent. When the client has no such agent, run @skills/page-redesign/SKILL.md in the invoking
   session instead.
