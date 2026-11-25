@@ -223,7 +223,7 @@ def unq: trim | sub("^`+"; "") | sub("`+$"; "") | trim;
 def close: (if .cur != null then .items += [.cur] | .cur = null else . end) | .field = null;
 def fieldkey($n):
   ($n | ascii_downcase | gsub("\\s+"; " ") | trim) as $k
-  | if ["location", "rule", "provenance", "impact", "faulty example", "test hint", "suggested fix", "deferred", "evidence", "level"] | index([$k]) then $k
+  | if ["location", "rule", "provenance", "impact", "faulty example", "test hint", "suggested fix", "deferred", "evidence", "level", "raised by"] | index([$k]) then $k
     elif $k == "expected behavior" or $k == "expected behaviour" then "expected behavior"
     else "_ignored" end;
 def addline($l):
@@ -318,6 +318,7 @@ def subsystem_of($text):
           file: ($at.path | sub("^(\\./)+"; "") | .[0:300] | if . == "" then "." else . end),
           line: ($at.line | if . == null then null else (tonumber | if . > 0 then . else null end) end),
           evidence: ($v.fields.evidence // "" | body),
+          raised_by: ($v.fields["raised by"] // "" | body | if . == null then "" else ascii_downcase end),
           level: $level,
           verify: ($v.section | test("^Needs verification"; "i"))
         }
@@ -368,12 +369,15 @@ EOF
 
 # Round mode: build the review-loop records (schema 2) from the parsed findings and the identities computed
 # outside jq. A finding is security-relevant (the S1-S3 carve-out) when its rule is a security rule or a
-# security lens, or when its rule, location, or title names a security surface. The match is broad on
+# security lens, when the security view raised it (`Raised by` splinter or both), when its evidence is an
+# exploit path, or when its rule, location, or title names a security surface. The match is broad on
 # purpose: a false positive keeps a finding blocking, a false negative would let it be dismissed or deferred.
 JQ_ROUND=''
 IFS= read -r -d '' JQ_ROUND <<'EOF' || true
 def is_security($f):
-  ($f.category | test("^(rules/security/|skills/(security-review|laravel-authorization-review)(/|$))"))
+  ($f.category | test("^(rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$))"))
+  or ($f.raised_by | test("splinter|\\bboth\\b"))
+  or ($f.evidence // "" | ascii_downcase | test("^[^a-z0-9]*exploit-path"))
   or ([$f.category, $f.cause_key, $f.file, $f.title] | join(" ") | ascii_downcase
       | test("auth|login|passw|session|cookie|token|csrf|xss|inject|secret|credential|crypt|signature|permission|polic|privilege|idor|ssrf|open.?redirect|upload|traversal|payment|billing|pii|rate.?limit|brute|security|sanitiz|escap|deserializ|mass.?assign|\\bcsp\\b|\\bcors\\b|\\btls\\b|certificat"));
 
@@ -1118,6 +1122,21 @@ self_test() {
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Session token is logged' 'src/Foo/Bar.php:1' "$STRUCT" 'logic-trace — x'; } >"$tmp/q7.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q7.md" >"$tmp/q7.out"
   check 'round: a finding that names a security surface is security-relevant' "$(jq -e '.security == true' "$tmp/q7.out" >/dev/null && echo 0 || echo 1)"
+  # S1 and an exploit path: the origin of the security view, an exploit-path evidence, and every security lens make a
+  # finding security-relevant, whatever words its rule and title carry.
+  raised() { printf '%s\n' "$2" | awk -v o="$1" '/^- \*\*Provenance:\*\*/ { print "- **Raised by:** " o } { print }'; }
+  local MERGE="@rules/git/pull-requests.md#merging" HIST="@skills/git-history-exposure-audit/SKILL.md" probe
+  for probe in 'splinter:true' 'both:true' 'leonardo:false'; do
+    { head_of "$SHA1" 2026-10-01T10:00:00Z; raised "${probe%%:*}" "$(finding Moderate 'Merge gate reads a stale head' 'skills/foo/SKILL.md:3' "$MERGE" 'rule-violation — the head is read once')"; } >"$tmp/q10.md"
+    "$script" --round --repo acme/shop --pr 7 --input "$tmp/q10.md" >"$tmp/q10.out"
+    check "round: a finding raised by ${probe%%:*} with no security word has security ${probe#*:}" "$(jq -e --argjson s "${probe#*:}" '.security == $s' "$tmp/q10.out" >/dev/null && echo 0 || echo 1)"
+  done
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Exp.php:3' "$STRUCT" 'exploit-path — the step runs twice'; } >"$tmp/q11.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q11.md" >"$tmp/q11.out"
+  check 'round: a finding whose evidence is an exploit path is security-relevant' "$(jq -e '.security == true' "$tmp/q11.out" >/dev/null && echo 0 || echo 1)"
+  { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'A file stays in the history' 'config/services.php:12' "$HIST" 'logic-trace — an earlier commit holds it'; } >"$tmp/q12.md"
+  "$script" --round --repo acme/shop --pr 7 --input "$tmp/q12.md" >"$tmp/q12.out"
+  check 'round: a finding of the history-exposure lens is security-relevant' "$(jq -e '.security == true' "$tmp/q12.out" >/dev/null && echo 0 || echo 1)"
 
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SEC" 'exploit-path — run $(touch '"$tmp"'/pwned-ev); `rm -rf /` | sh && echo ok > x'; } >"$tmp/q8.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q8.md" >"$tmp/q8.out"

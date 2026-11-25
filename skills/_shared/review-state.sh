@@ -69,7 +69,8 @@
 #                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a description that the operator's account wrote and
 #                    that no other account changed (`descriptionTrusted`). A security finding is never a known point:
 #                    `known` refuses it before it loads anything, and it stays a finding that blocks until it is
-#                    fixed. The state stores the task and the issue. Every refusal exits 4 and leaves the state
+#                    fixed. It refuses the same way a finding whose category `known_refused_category` of
+#                    finding-defs.jq names: a security surface that no security word names, or no rule. The state stores the task and the issue. Every refusal exits 4 and leaves the state
 #                    unchanged. A known point is not blocking, so it never counts in a verdict. The state
 #                    stores the finding as it was marked (`marked`: severity, security, file, line, title, impact, and
 #                    evidence), and `known` refuses a finding whose record merges more than one reported finding. A
@@ -262,8 +263,8 @@ def state_errors:
                 and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
                 and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")
-                and (.finding_id as $id | [$s.findings[] | select(.finding_id == $id) | .security] | any | not)))
-         then empty else "a known point is malformed, names an unknown finding, or holds a security finding" end),
+                and (.finding_id as $id | [$s.findings[] | select(.finding_id == $id) | .security or (.category | known_refused_category)] | any | not)))
+         then empty else "a known point is malformed, names an unknown finding, or holds a security finding or a finding on a security surface" end),
         (if ($s.transitions | type) == "array" and all($s.transitions[];
               type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
@@ -1124,6 +1125,9 @@ cmd_known() {
     # A security finding (S1-S3) stays a finding until it is fixed, whatever a linked issue reports.
     jq -e '.security != true' <<<"$finding" >/dev/null \
       || fail 4 "finding $id is a security finding: a security finding is never a known point; it stays a finding and blocks until it is fixed"
+    # So does a finding on a security surface that no security word names, and a finding of no rule.
+    jq -e -L "$HERE" "$JQ_STATE"' .category | known_refused_category | not' <<<"$finding" >/dev/null \
+      || fail 4 "finding $id cites a rule on a security surface, or no rule: it is never a known point; it stays a finding and blocks until it is fixed"
     local verdict
     verdict="$(linked_issue_verdict "$(jq -r '.repo' "$TMP/state.json")" "$source" "$issue")"
     [[ "$verdict" == ok ]] \
@@ -1472,6 +1476,29 @@ EOF
   run_case 'a security finding of a JIRA task is never a known point' 4 -- known --state "$S" --finding "$sql_id" --source ACME-1 --issue https://acme.atlassian.net/browse/ACME-2 --covers 'ACME-2 describes the query.'
   check 'a security finding is refused before the loader runs' "$([[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
   check 'the refused security finding stays blocking and makes no known point' "$(jq -e --arg id "$sql_id" '(.findings[] | select(.finding_id == $id) | .status) == "new" and ((.known_points // []) == [])' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  # S1, S3, and a finding of no rule: `known` refuses each before it loads anything, whatever words its rule and title
+  # carry. The security view is the origin, the evidence is an exploit path, or the rule is a security surface.
+  local SURF=".claude/run/review-state-surface.json" kcase kid
+  raised() { printf '%s\n' "$2" | awk -v o="$1" '/^- \*\*Provenance:\*\*/ { print "- **Raised by:** " o } { print }'; }
+  (cd "$repo" && "$script" init --state "$SURF" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/n0.md" 1 \
+    "$(raised splinter "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Spl.php:3' "$STRUCT" 'rule-violation — the head is read once')")" \
+    "$(raised both "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Both.php:3' "$STRUCT" 'rule-violation — the head is read once')")" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Exp.php:3' "$STRUCT" 'exploit-path — the step runs twice')" \
+    "$(finding Moderate 'Merge gate reads a stale head' 'src/Gate/Pr.php:3' '@rules/git/pull-requests.md#merging' 'rule-violation — the head is read once')" \
+    "$(finding Moderate 'Agent writes a file' 'src/Gate/Orc.php:3' '@rules/compound-engineering/orchestration.md#bash-capability-boundary' 'rule-violation — the write runs')" \
+    "$(finding Moderate 'Merge skips a check' 'src/Gate/Mgs.php:3' '@skills/merge-github-pr/SKILL.md#merge-path' 'rule-violation — the check is skipped')" \
+    "$(finding Moderate 'Copied step' 'src/Gate/Unc.php:3' 'the merge rule' 'rule-violation — the step is copied')"
+  (cd "$repo" && "$script" record --state "$SURF" --input "$tmp/n0.md" >/dev/null)
+  cp "$repo/$SURF" "$tmp/surface-before"
+  rm -f "$tmp/loader-calls"
+  for kcase in 'Spl:raised by splinter' 'Both:raised by both' 'Exp:with exploit-path evidence' 'Pr:under the merge rule' \
+    'Orc:under the orchestration rule' 'Mgs:under the merge skill' 'Unc:with no rule'; do
+    kid="$(jq -r --arg f "src/Gate/${kcase%%:*}.php" '.findings[] | select(.file == $f) | .finding_id' "$repo/$SURF")"
+    run_case "a finding ${kcase#*:} with no security word is never a known point" 4 -- known --state "$SURF" --finding "$kid" --source "$task" --issue "$known_issue" --covers 'The issue describes it.'
+  done
+  check 'every refused finding stays open, the state is unchanged, and no loader ran' "$(cmp -s "$tmp/surface-before" "$repo/$SURF" && [[ ! -e "$tmp/loader-calls" ]] && echo 0 || echo 1)"
+  rm -f "$repo/$SURF"
   run_case 'the owner argument of the removed security exception is a usage error' 1 -- known --state "$S" --finding "$sql_id" --source "$task" --issue "$known_issue" --covers 'x' --owner maintainer
   run_case 'a finding the linked issue reports is marked known' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.'
   check 'a known point is not blocking and is counted on its own' "$(q '.counts.known == 1 and .counts.remaining_blocking == 1 and (.blocking | length) == 1 and .blocking[0].file == "app/Http/Orders.php"')"
@@ -1492,6 +1519,8 @@ EOF
   jq -c --arg id "$sql_id" --arg task "$task" --arg url "$known_issue" '.findings |= map(if .finding_id == $id then .status = "known" else . end)
     | .known_points += [{finding_id: $id, source: $task, url: $url, covers: "x", owner: "maintainer"}]' "$tmp/known-good" >"$repo/$S"
   run_case 'a security known point with the owner of an earlier version makes the state invalid' 3 -- evaluate --state "$S"
+  jq -c --arg id "$struct_id" '.findings |= map(if .finding_id == $id then .category = "rules/git/pull-requests" else . end)' "$tmp/known-good" >"$repo/$S"
+  run_case 'a known point on a security-surface rule makes the state invalid' 3 -- evaluate --state "$S"
   jq -c '.known_points[0].url = "http://insecure.example"' "$tmp/known-good" >"$repo/$S"
   run_case 'a known point with an insecure URL makes the state invalid' 3 -- evaluate --state "$S"
   cp "$tmp/known-good" "$repo/$S"
@@ -1909,7 +1938,7 @@ EOF
   F_HIST="$(finding Critical 'An API key is committed in the history' 'config/services.php:12' "$HIST" 'exploit-path — the key is readable in an earlier commit')"
   # Every finding of a late report is a finding of the security view, so the classifier tag never decides: each
   # variant counts for the round, is stored as a security finding, and gives the security round at the cap.
-  for extra in 'a finding the classifier tags as security:F_SQL' 'a finding the classifier does not tag as security:F_STRUCT' 'a history-exposure finding without a security keyword:F_HIST' 'a point that needs verification:F_SEC_NOEV' 'a Moderate of Low level:F_LOW_SEC'; do
+  for extra in 'a finding the classifier tags as security:F_SQL' 'a finding the classifier does not tag as security:F_STRUCT' 'a finding of the history-exposure lens:F_HIST' 'a point that needs verification:F_SEC_NOEV' 'a Moderate of Low level:F_LOW_SEC'; do
     IFS=: read -r extra probe_changed <<<"$extra"
     cp "$tmp/converged-at-cap" "$repo/$S"
     report "$tmp/l3x.md" 3 "${!probe_changed}"
@@ -1918,7 +1947,7 @@ EOF
     check "$extra reported late is never deferrable" "$(jq -e '[.findings[] | select(.status != "resolved")] | length == 1 and all(.[]; .security == true)' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   done
   cp "$tmp/converged-at-cap" "$repo/$S"
-  report "$tmp/l3x.md" 3 "$F_HIST"
+  report "$tmp/l3x.md" 3 "$F_STRUCT"
   (cd "$repo" && "$script" late --state "$S" --input "$tmp/l3x.md" >/dev/null)
   run_case 'the next round of a late finding the classifier did not tag is not refused after the convergence' 0 -- record --state "$S" --input "$tmp/l4.md" --changed-files "$tmp/changed-both"
   check 'the next round of a late finding the classifier did not tag never escalates with cap-spent-after-convergence' "$(q '.escalation_reason == null and .iteration == 4')"
