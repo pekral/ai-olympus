@@ -1449,10 +1449,10 @@ TEXT
       --files "$(writefiles "$docs_material")" --assignment "$tmp/clear.txt"
   done
   expect_line 'a guide and a readme stay documentation' 'signal=-2|documentation-only' \
-    --files "$(writefiles 'docs/guide.md' 'docs/guide.txt' 'DOCS/Setup/Guide.MD' 'README.md' 'docs/images/README')" --assignment "$tmp/clear.txt"
-  # A .txt file is documentation only inside a documentation directory or by a documentation name, and a code
-  # file is never documentation for its name: a dependency list, the expected output of a test, and a build
-  # option file are material, in any case and when git quotes the path.
+    --files "$(writefiles 'docs/guide.md' 'DOCS/Setup/Guide.MD' 'README.md' 'docs/images/README')" --assignment "$tmp/clear.txt"
+  # A .txt file is documentation only by a documentation name, and a code file is never documentation for its
+  # name: a dependency list, the expected output of a test, and a build option file are material, in any case and
+  # when git quotes the path.
   local txt_material
   for txt_material in 'app/reqs/base.txt' 'app/deps.txt' 'app/requirements/dev/extra.txt' 'App/Deps.TXT' \
     'src/App.Tests/Calc.verified.txt' 'src/App.Tests/Calc.approved.txt' 'meson_options.txt' 'docs/requirements.txt' \
@@ -1460,9 +1460,20 @@ TEXT
     expect_tier "$txt_material is never documentation" STANDARD \
       --files "$(writefiles "$txt_material")" --assignment "$tmp/clear.txt"
   done
-  expect_line 'a .txt guide and a documentation name stay documentation' 'signal=-2|documentation-only' \
-    --files "$(writefiles 'docs/guide.txt' 'user-docs/notes.txt' 'Docs/Guide/Setup.TXT' 'LICENSE' 'LICENSE.txt' \
-      'LICENSE-MIT' 'NOTICE.txt' 'AUTHORS.txt' 'README.txt' 'skills/unslop/LICENSE' 'CHANGELOG.md')" --assignment "$tmp/clear.txt"
+  # A documentation directory makes no .txt file documentation, and a `-<word>` suffix keeps a documentation name
+  # only with a documentation extension: a checker word list, a dependency list, or a plain-text guide under a docs
+  # directory, an extensionless script, and a name outside the documentation names are material.
+  local named_material
+  for named_material in 'src/docs/spelling_wordlist.txt' 'src/docs/styles/config/vocabularies/Base/accept.txt' \
+    'src/docs/deps.txt' 'app/docs/requirements/dev/extra.txt' 'src/bin/license-check' 'src/notice-handler' \
+    'app/Authors' 'docs/guide.txt' 'user-docs/notes.txt' 'Docs/Guide/Setup.TXT' 'LICENSE-MIT' 'NOTICE.txt' \
+    'AUTHORS.txt'; do
+    expect_no_line "$named_material is never documentation" 'documentation-only' \
+      --files "$(writefiles "$named_material")" --assignment "$tmp/clear.txt"
+  done
+  expect_line 'a documentation name stays documentation' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'LICENSE' 'LICENSE.txt' 'LICENSE-MIT.md' 'README.txt' 'README.md' 'docs/guide.md' \
+      'skills/unslop/LICENSE' 'CHANGELOG.md')" --assignment "$tmp/clear.txt"
 
   # --- Project-declared critical paths ---------------------------------------
   manifest_repo() {
