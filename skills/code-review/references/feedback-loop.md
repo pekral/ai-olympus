@@ -162,3 +162,5 @@ Nothing in the issue-to-pull-request pipeline waits for the loop. `record` and `
 - **The search reads at most 1000 results.** A repository with more matches for `prevention-proposal` makes `lookup` exit `3`, and the run files nothing.
 - **The freshness of the issue search is not verified.** The create-then-search check of step 7 detects a search that lags, and it files nothing more after it.
 - **A rule is not changed during a running implementation.** A safeguard takes effect only after its pull request is reviewed and merged. Until then the default branch, and every other running task, uses the rules it had.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

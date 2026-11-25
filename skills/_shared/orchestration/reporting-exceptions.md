@@ -23,3 +23,4 @@ Extracted from `agents/krang.md` so the orchestrator does not carry it on every 
 4. **The report is one new comment** (`--create`), in the language of the brief, so an earlier comment of the task stays unchanged. The linked-GitHub-issue mirror keeps the shape of step 6a.
 5. **The run is finished** only when `april` returned `Reporting done` with a link to that one comment. A stack run that published several JIRA comments, or none, is `Blocked`.
 
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.
