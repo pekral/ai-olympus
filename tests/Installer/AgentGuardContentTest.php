@@ -205,3 +205,14 @@ test('SECURITY.md names the settings sources the hook reads and the ones it does
         ->and($guard)->toContain('A settings file the hook cannot read, and a user file it cannot locate, make it ask.')
         ->and($guard)->toContain('and no managed setting outside the two `managed-settings.json` files above');
 });
+
+test('under an active guard the dispatching session refreshes the default-branch ref in every round', function (string $file, string $needle): void {
+    expect(agentGuardPackageFile($file))->toContain($needle);
+})->with([
+    'leonardo' => ['agents/leonardo.md', '2. It runs `git fetch origin` in every round, which refreshes `origin/<default branch>` for the review.'],
+    'the checkout gate' => [
+        'skills/code-review/references/branch-checkout-gate.md',
+        'The dispatching session has already run `git fetch origin` in this round, which refreshes `origin/$DEFAULT_BRANCH`',
+    ],
+    'krang' => ['agents/krang.md', 'the `git fetch origin` and the head fetch of *Review worktree*'],
+]);
