@@ -1305,12 +1305,13 @@ test(
         ]);
         readyToDeployRemoteWorkflows($fixture, [...$ci, '.github/workflows/deploy.yml' => "on:\n  issues:\n    types: [labeled]\n"]);
         readyToDeployRemoteWorkflows($fixture, $ci, tree: 'master');
-    
+
         try {
             $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
-    
+
             expect($process->getOutput())->toContain(
-                'https://github.com/acme/app/issues/11 | label | not applied — the default-branch workflow .github/workflows/deploy.yml subscribes to label activity',
+                'https://github.com/acme/app/issues/11 | label | not applied — '
+                . 'the default-branch workflow .github/workflows/deploy.yml subscribes to label activity',
             )
                 ->and(readyToDeployCalls($fixture, 'issue edit 11 --repo acme/app --add-label'))->toBe([]);
         } finally {
