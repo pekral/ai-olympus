@@ -7,12 +7,12 @@
 {expand}
 
 {expand:Findings from the code review}
-* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
-* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
+* *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
+* *(refactor):* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
 
-* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
+* *(tests):* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
 {expand}
 
 {expand:What changed and what it affects}
@@ -117,6 +117,10 @@ Review findings
     and names its parts, and a part the run did not review is named there with
     the reason, never given a group (references/several-pull-requests.md, A
     stack on JIRA).
+  - Every bullet opens with the change type of its finding in parentheses, in
+    bold, with a colon: *(security):*, *(bug):*, *(tests):*, *(refactor):*,
+    *(performance):*, or *(documentation):* (references/jira-shape.md, item
+    10). The finding text after it stays unchanged.
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the
     business, and the evidence in plain words (an observed value, a reproduced

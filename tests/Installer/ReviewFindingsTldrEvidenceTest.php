@@ -71,7 +71,7 @@ test('every target template carries the TL;DR and lists only the points to resol
     expect($bugsnag)->not->toContain('"Not verified"');
     expect($jira)
         ->toContain(
-            '* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: '
+            'then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: '
                 . 'what is wrong, what the fix is, and what the fix changes for the user or the business.',
         )
         ->toContain('for example "an order created without a customer fails"')

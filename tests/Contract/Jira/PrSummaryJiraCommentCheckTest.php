@@ -19,11 +19,11 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         jiraSummaryVerdict(),
         '',
         '{expand:Nálezy z kontroly kódu}',
-        '* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit.',
+        '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit.',
         '',
         'h3. Už nahlášené v dřívější kontrole',
         '',
-        '* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
+        '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
         '{expand}',
         '',
         '{expand:Co se změnilo a co to ovlivní}',
@@ -108,7 +108,7 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'a stack with a shared point above the groups' => [
         str_replace(
             "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
-            "{expand:Nálezy z kontroly kódu}\n* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
+            "{expand:Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
             jiraSummaryForTwoPullRequests(),
         ),
         'none',
@@ -145,6 +145,25 @@ function jiraSummaryAuthorCall(): string
 {
     return '[~accountid:712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6], potvrď prosím nález a oprav ho, nebo ho v odpovědi vyvrať.';
 }
+
+test('every finding opens with its change type in bold parentheses', function (string $replacement): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => $replacement]), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: findings: a finding must open with its change type, for example *(bug):*: ' . $replacement);
+})->with([
+    'no type' => ['* Blokuje sloučení:'],
+    'a type that is not bold' => ['* (bug): Blokuje sloučení:'],
+    'a type with no colon' => ['* *(bug)* Blokuje sloučení:'],
+    'an unknown type' => ['* *(chore):* Blokuje sloučení:'],
+]);
+
+test('every change type the shape names passes the check', function (string $type): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(' . $type . '):* Blokuje sloučení:', '* *(bug):* Objednávka' => '* *(documentation):* Objednávka']), 'none');
+
+    expect($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+})->with(['security', 'bug', 'tests', 'refactor', 'performance', 'documentation']);
 
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
     $process = runJiraSummaryCheck($source, 'none');
@@ -206,7 +225,7 @@ test('a collapsed block must close and never nests', function (string $search, s
 
 test('a review finding may be longer than the whole summary of changes', function (): void {
     $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(['* Blokuje sloučení: synchronizace' => '* ' . str_repeat('Dlouhý nález. ', 30) . 'Blokuje sloučení: synchronizace']),
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('Dlouhý nález. ', 30) . 'Blokuje sloučení: synchronizace']),
         'none',
     );
 
@@ -234,7 +253,7 @@ test('Markdown and developer tokens fail the check', function (string $line, str
 ]);
 
 test('a summary over 3 000 characters fails the check', function (): void {
-    $source = jiraSummaryWithoutCriteria(['* Blokuje sloučení: synchronizace' => '* ' . str_repeat('ž', 3_000) . ' Blokuje sloučení: synchronizace']);
+    $source = jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('ž', 3_000) . ' Blokuje sloučení: synchronizace']);
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
@@ -259,7 +278,7 @@ test('the agent marker must sit alone in the last collapsed block', function (st
 })->with([
     'no marker block' => ["\n\n" . jiraSummaryMarkerBlock(), ''],
     'a marker slot in plain view' => [jiraSummaryMarkerBlock(), '{agent-marker}'],
-    'a second slot in a section' => ['* Blokuje sloučení:', "{agent-marker}\n* Blokuje sloučení:"],
+    'a second slot in a section' => ['* *(bug):* Blokuje sloučení:', "{agent-marker}\n* *(bug):* Blokuje sloučení:"],
     'text beside the slot' => ["{agent-marker}\n{expand}", "{agent-marker}\nPro agenty.\n{expand}"],
 ]);
 
