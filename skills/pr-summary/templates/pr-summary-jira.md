@@ -1,25 +1,25 @@
 [Deploy verdict: one paragraph with no heading. Whether the change can be deployed, with the reviewer's own short verdict; how many findings block the merge, with a one-sentence plain summary of them in the order of the findings; and that nothing is merged or deployed. Never what the review ran or did not test.]
 
-h2. Acceptance criteria
-
-[Render this heading and everything under it only for explicit requirements that still need a change or an answer. Omit satisfied requirements, positive verdicts, and completion counts.]
+{expand:Acceptance criteria}
+[Render this block only for explicit requirements that still need a change or an answer. Omit satisfied requirements, positive verdicts, and completion counts.]
 
 * [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing and why the review judged it so, in plain prose. When a question for a human is open, it is the closing sentence of this bullet.]
 
 [Only when a criterion is not met or partially met: one sentence mentioning the author of the changes as [~accountid:<id>], asking them to confirm and fix the gap, or refute the claim in a reply.]
+{expand}
 
-h2. Review findings
-
-* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first and says so in words. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
+{expand:Findings from the code review}
+* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". A point that blocks the merge comes first. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
 * [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
 
 * [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
+{expand}
 
-h2. TL;DR
-
+{expand:TL;DR}
 [One paragraph of at most 600 characters combining observable changes and deployment impact: what behaves differently, which features it affects, and what a user should watch after release.]
+{expand}
 
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
 
@@ -60,8 +60,15 @@ Section order is binding, and it is the same on every run
   is JIRA's own; the GitHub and Bugsnag templates keep their What changed /
   How to test shape.
 
+Collapsed blocks
+  Every section is a collapsed block: a {expand:<section name>} line, the whole
+  section, and a {expand} line. The reader opens a block only to read its
+  detail, and every agent still reads the text inside it. A block never nests
+  in another block. Only the deploy verdict, a pull-request group heading, the
+  closing links line, and the footer stand outside a block.
+
 Deploy verdict
-  The one paragraph above the first heading (references/jira-shape.md, item
+  The one paragraph above the first block (references/jira-shape.md, item
   1). It says whether the change can be deployed with the reviewer's own short
   verdict, how many findings block the merge with a one-sentence summary that
   follows the order of the findings and takes its facts from them only, and
@@ -98,13 +105,14 @@ Questions
 Review findings
   A plain-language retelling of the newest GitHub pull-request review, so the
   reader understands what the review reported and can respond to it.
-  - When the issue links more than one pull request, Review findings and TL;DR sit in one h2. group per pull
-    request, below any Acceptance criteria, and their headings drop to h3.
-    (references/several-pull-requests.md).
+  - When the issue links more than one pull request, the Review findings and
+    TL;DR blocks sit under one h2. group heading per pull request, below any
+    Acceptance criteria block (references/several-pull-requests.md).
   - A stack of pull requests gets one comment for the whole run. A point that
-    several parts share stands once above the groups and names its parts, and a
-    part the run did not review is named with the reason, never given a group
-    (references/several-pull-requests.md, A stack on JIRA).
+    several parts share stands once in a Review findings block above the groups
+    and names its parts, and a part the run did not review is named there with
+    the reason, never given a group (references/several-pull-requests.md, A
+    stack on JIRA).
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the
     business, and the evidence in plain words (an observed value, a reproduced
@@ -148,10 +156,10 @@ TL;DR
   the diff changes, with no caveat.
 
 Headings and field labels
-  Translate them into the assignment language per @rules/reports/general.md — a
-  Czech assignment renders "h2. Akceptační kritéria", "h2. Nálezy z kontroly
-  kódu", "h2. TL;DR", and
-  the footer "Tento
+  Translate them into the assignment language per @rules/reports/general.md. The
+  block titles are "Acceptance criteria", "Findings from the code review", and
+  "TL;DR" in English. A Czech assignment renders "{expand:Akceptační kritéria}",
+  "{expand:Nálezy z kontroly kódu}", "{expand:TL;DR}", and the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
@@ -167,7 +175,8 @@ Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
   <unmet|none> <source-file> on the rendered source, and publish only a source
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
-  cap, the one deploy-verdict paragraph, the criteria section against the flag, the
+  cap, the one deploy-verdict paragraph, the collapsed blocks and the text
+  outside them, the criteria block against the flag, the
   single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, and the footer.
 
 No embedded blocks

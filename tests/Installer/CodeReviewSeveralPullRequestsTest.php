@@ -23,12 +23,13 @@ test('an issue with several pull requests gets its remarks and findings split pe
         ->and($reference)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')
         ->and($reference)->toContain('- **GitHub:** `## PR #<number> — <title>`')
         ->and($reference)->toContain('- **JIRA:** `h2. [PR #<number>|<url>] — <title>`')
-        ->and($reference)->toContain('(`###` on GitHub, `h3.` on JIRA)')
+        ->and($reference)->toContain('On GitHub, drop every section heading one level (`###`)')
+        ->and($reference)->toContain('On JIRA the sections of a group are collapsed blocks under the group heading')
         ->and($reference)->not->toContain('Carry every other pull request\'s group over verbatim.');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md'))
-        ->toContain('Review findings and TL;DR sit in one h2. group per pull')
-        ->toContain('request, below any Acceptance criteria, and their headings drop to h3.');
+        ->toContain('the Review findings and')
+        ->toContain('TL;DR blocks sit under one h2. group heading per pull request, below any');
 
     expect((string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md'))
         ->toContain('### An issue with several pull requests')

@@ -18,17 +18,17 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
     $source = implode("\n", [
         jiraSummaryVerdict(),
         '',
-        'h2. Nálezy z kontroly kódu',
-        '',
+        '{expand:Nálezy z kontroly kódu}',
         '* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit.',
         '',
         'h3. Už nahlášené v dřívější kontrole',
         '',
         '* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
+        '{expand}',
         '',
-        'h2. TL;DR',
-        '',
+        '{expand:TL;DR}',
         '„Refresh products“ nyní aktualizuje jen produkty; připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
+        '{expand}',
         '',
         '[PR #27625|https://github.com/acme/app/pull/27625] · [ECOMAIL-6720|https://example.atlassian.net/browse/ECOMAIL-6720]',
         '',
@@ -50,11 +50,11 @@ function jiraSummaryWithCriteria(): string
     return implode("\n", [
         jiraSummaryVerdict(),
         '',
-        'h2. Akceptační kritéria',
-        '',
+        '{expand:Akceptační kritéria}',
         '* Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
         '',
         '[~accountid:712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6], potvrď prosím nález a oprav ho, nebo ho v odpovědi vyvrať.',
+        '{expand}',
         '',
         str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria()),
     ]);
@@ -65,19 +65,19 @@ function jiraSummaryForTwoPullRequests(): string
     $group = static fn (int $number): string => implode("\n", [
         'h2. [PR #' . $number . '|https://github.com/acme/app/pull/' . $number . '] — Synchronizace',
         '',
-        'h3. Nálezy z kontroly kódu',
-        '',
+        '{expand:Nálezy z kontroly kódu}',
         'Kontrola nenašla žádný bod k vyřešení.',
+        '{expand}',
         '',
-        'h3. TL;DR',
-        '',
+        '{expand:TL;DR}',
         'Synchronizace obchodu nově zpracuje jen nové objednávky.',
+        '{expand}',
 
     ]);
 
     return implode("\n\n", [
         jiraSummaryVerdict(),
-        "h2. Akceptační kritéria\n\n* Hromadné odeslání vyžaduje opravu.",
+        "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
         $group(11),
         $group(12),
         '[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]',
@@ -93,6 +93,14 @@ test('a JIRA summary in the shape of the template passes the check', function (s
 })->with([
     'all criteria met or no criteria stated' => [jiraSummaryWithoutCriteria(), 'none'],
     'two pull requests' => [jiraSummaryForTwoPullRequests(), 'unmet'],
+    'a stack with a shared point above the groups' => [
+        str_replace(
+            "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
+            "{expand:Nálezy z kontroly kódu}\n* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
+            jiraSummaryForTwoPullRequests(),
+        ),
+        'none',
+    ],
     'unmet criteria and a mention' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
@@ -132,10 +140,10 @@ test('the criteria section must match whether any requirement still needs action
     'criteria section in a grouped comment when no requirement needs action' => [
         jiraSummaryForTwoPullRequests(),
         'none',
-        '1 issue-level h2 sections, expected 0',
+        '1 issue-level blocks, expected 0',
     ],
-    'criteria section when no requirement needs action' => [jiraSummaryWithCriteria(), 'none', '3 h2 sections, expected 2 without a criteria section'],
-    'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 h2 sections, expected 3 with a criteria section'],
+    'criteria section when no requirement needs action' => [jiraSummaryWithCriteria(), 'none', '3 collapsed blocks, expected 2 without a criteria section'],
+    'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 collapsed blocks, expected 3 with a criteria section'],
 ]);
 
 test('the combined summary must be one short paragraph', function (string $replacement, string $violation): void {
@@ -151,16 +159,24 @@ test('the combined summary must be one short paragraph', function (string $repla
     'separate paragraphs' => ["Změna.\n\nDopad.", 'use one paragraph combining changes and deployment impact'],
 ]);
 
-test('the former separate sections are refused', function (): void {
-    $source = jiraSummaryWithoutCriteria([
-        'h2. TL;DR' => "h2. Co se změnilo\n\n* Nové objednávky se synchronizují.\n\nh2. Co může změna ovlivnit po nasazení",
-    ]);
+test('a section outside a collapsed block is refused', function (): void {
+    $source = jiraSummaryWithoutCriteria(['{expand:TL;DR}' => "h2. TL;DR\n\n{expand:Co se změnilo}"]);
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: sections:')
+        ->and($process->getOutput())->toContain('violation: sections: text outside a collapsed block: h2. TL;DR')
         ->and($process->getOutput())->toContain('violation: tldr: the final section must be TL;DR');
 });
+
+test('a collapsed block must close and never nests', function (string $search, string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: blocks: ' . $violation);
+})->with([
+    'a block inside another one' => ['{expand:TL;DR}', "{expand:TL;DR}\n{expand:Uvnitř}", 'a collapsed block inside another one: {expand:Uvnitř}'],
+    'a block without its closing line' => ["beze změny.\n{expand}", 'beze změny.', 'a collapsed block without its closing line: TL;DR'],
+]);
 
 test('a review finding may be longer than a TL;DR bullet', function (): void {
     $process = runJiraSummaryCheck(
