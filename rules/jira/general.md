@@ -67,6 +67,7 @@ A finished issue (Done, Closed, Resolved, Cancelled, Canceled, Merged, Hotovo, a
     - Numbered list: `1. item` → `# item`
     - Link: `[label](https://example.com)` → `[label|https://example.com]`
     - Quote: `> text` → `{quote}text{quote}`
+    - Collapsed block: a `{expand:Title}` line, the content lines, and a `{expand}` line → an ADF `expand` node titled `Title`, which JIRA shows folded until the reader opens it. A block never nests in another block, and an opening line with no closing line stays plain text.
 - **A helper that fails is never a licence to improvise.** When `upsert-comment.sh` exits 2 or 3, the only sanctioned fallback is the JIRA MCP server with an **ADF** payload carrying the same marker line the helper would have appended — `_cr-comment:actor=<actor-digest>_`, or `_<namespace>:actor=<actor-digest>_` for the namespace the caller passed — an agent marker per `@rules/code-review/general.md` *Authorship trust*.
   When the session carries no JIRA MCP tool, the run stops as blocked: it quotes the helper's stderr verbatim, keeps the Wiki Markup source for a human to publish, and says whether a comment may already exist on the issue. Never retry with a raw `acli` write, and never hand the Wiki Markup source to any other command — that is how a ticket ends up carrying `h2.`, `{{code}}`, and `[label|url]` as literal text.
   When the helper exits 3 because `acli jira auth status` carries no account e-mail, the MCP fallback cannot compute the digest either, so the run stops as blocked.

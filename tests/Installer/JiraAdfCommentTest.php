@@ -241,6 +241,28 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
     expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });
 
+test('an expand block becomes a collapsed ADF expand node that keeps its content', function (): void {
+    $document = jiraAdfConvert("Verdict.\n\n{expand:Findings from the code review}\nIntro line.\n\n* One finding.\n{expand}\n");
+    $children = jiraAdfChildren($document);
+    $expand = $children[1] ?? null;
+
+    expect(array_column($children, 'type'))->toBe(['paragraph', 'expand'])
+        ->and(is_array($expand) ? $expand['attrs'] : null)->toBe(['title' => 'Findings from the code review'])
+        ->and(array_column(jiraAdfChildren($expand), 'type'))->toBe(['paragraph', 'bulletList'])
+        ->and(json_encode($document, JSON_THROW_ON_ERROR))->not->toContain('{expand');
+});
+
+test('an expand block never nests, never stays empty, and stays text without its closing line', function (string $source, array $types, string $text): void {
+    $document = jiraAdfConvert($source);
+
+    expect(array_column(jiraAdfChildren($document), 'type'))->toBe($types)
+        ->and(json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE))->toContain($text);
+})->with([
+    'no closing line' => ["{expand:Open}\ntext\n", ['paragraph', 'paragraph'], '{expand:Open}'],
+    'an inner opening line' => ["{expand:Outer}\n{expand:Inner}\n{expand}\n", ['expand'], '{expand:Inner}'],
+    'an empty block' => ["{expand:Empty}\n{expand}\n", ['expand'], '{"type":"paragraph"}'],
+]);
+
 test('a JIRA account mention becomes an ADF mention node', function (): void {
     $document = jiraAdfConvert('Please confirm, [~accountid:5b10ac8d82e05b22cc7d4ef5].');
     $paragraph = jiraAdfChildren($document)[0] ?? null;
