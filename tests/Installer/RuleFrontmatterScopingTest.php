@@ -631,7 +631,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
         // Re-baselined: a JIRA comment opens with the deploy verdict, and its shape is owned by `pr-summary/references/jira-shape.md` (issue #709).
         // Re-baselined: a JIRA comment that overflows shortens the wording of *What changed and what it affects* first and keeps each of its facts (issue #709).
-        'rules/reports/general.md' => 'd42dc7911819fdb859afbb85021f36f0ab7786a8effb39cb3e2ad83200b17d8d',
+        // Re-baselined: exception 2 allows the links into the pull request: the whole change, and each finding's file and line or the pull request that fixes it (issue #709).
+        'rules/reports/general.md' => '773a3a6f043ea030602d61077fbd1c05e316e5ef70267d07698d25969a11af2f',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

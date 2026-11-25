@@ -143,9 +143,10 @@ test('reports/general.md bans developer content from a JIRA comment and names it
     // Exactly three exceptions, written as exceptions rather than as room for interpretation.
     expect($content)->toContain('### Three exceptions, and there is no fourth');
     expect($content)->toContain('**A string the end user sees is quoted verbatim.**');
-    expect($content)->toContain('**One pull-request link at the end.**');
+    expect($content)->toContain('**Links into the pull request.**');
+    expect($content)->toContain('The label of such a link is fixed text, never a path or a line number');
     expect($content)->toContain('**Links to related tracker items and to the product documentation.**');
-    expect($content)->toContain('A link to code, a commit, a CI run, or a log stays banned.');
+    expect($content)->toContain('Any other link to code, a commit, a CI run, or a log stays banned.');
 
     // The sentence without which the next agent reads the rule as a loss of information.
     expect($content)->toContain('### The technical evidence moves to the pull request; it does not disappear');

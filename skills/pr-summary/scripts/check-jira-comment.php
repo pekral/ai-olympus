@@ -24,6 +24,10 @@ const JIRA_SUMMARY_FINDING_TYPE = '/^\* \*\((?<type>security|bug|tests|refactor|
 
 const JIRA_SUMMARY_TYPE_ORDER = ['security', 'bug', 'tests', 'refactor', 'performance', 'documentation'];
 
+const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
+
+const JIRA_SUMMARY_GITHUB_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:pull/[1-9][0-9]*(?<change>/files(?<line>\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?|issues/[1-9][0-9]*)$#';
+
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
@@ -140,6 +144,71 @@ function jiraSummaryMentionViolations(array $findings, array $lines, string $aut
 
     if ($mentions > $allowed) {
         $violations[] = 'mention: only a (refactor) finding mentions anyone, the author right after its type';
+    }
+
+    return $violations;
+}
+
+/**
+ * @param list<array{title: string, group: int, body: list<string>}> $blocks
+ * @return list<string>
+ */
+function jiraSummaryFindingLinkViolations(array $blocks, bool $grouped): array
+{
+    $violations = [];
+
+    foreach ($blocks as $block) {
+        $opening = $block['body'][0] ?? '';
+
+        if (!($grouped && $block['group'] === 0) && (str_starts_with($opening, '* ') || preg_match('#\|https://github\.com/[^\]]+/pull/[1-9][0-9]*/files\]#u', $opening) !== 1)) {
+            $violations[] = 'links: the findings block opens with one line that links the whole change of the pull request';
+        }
+
+        foreach ($block['body'] as $line) {
+            preg_match_all(JIRA_SUMMARY_LINK, $line, $links, PREG_SET_ORDER);
+
+            foreach ($links as $index => $link) {
+                $last = $index === count($links) - 1 && str_ends_with($line, $link[0]);
+
+                if (str_contains($link['url'], '#diff-') && (!str_starts_with($line, '* ') || !$last)) {
+                    $violations[] = 'links: a code link ends a finding: ' . $line;
+                }
+            }
+        }
+    }
+
+    return $violations;
+}
+
+/**
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function jiraSummaryLinkViolations(array $lines): array
+{
+    $violations = [];
+    $repositories = [];
+
+    foreach ($lines as $line) {
+        preg_match_all(JIRA_SUMMARY_LINK, $line, $links, PREG_SET_ORDER);
+
+        foreach ($links as $link) {
+            $url = $link['url'];
+
+            if (!str_starts_with($url, 'https://')) {
+                $violations[] = 'links: a link uses https: ' . $url;
+            } elseif (str_starts_with($url, 'https://github.com/')) {
+                if (preg_match(JIRA_SUMMARY_GITHUB_LINK, $url, $match) !== 1) {
+                    $violations[] = 'links: a GitHub link points into a pull request or an issue of the task repository: ' . $url;
+                } else {
+                    $repositories[strtolower($match['repository'])] = true;
+                }
+            }
+        }
+    }
+
+    if (count($repositories) > 1) {
+        $violations[] = 'links: every GitHub link points into one repository: ' . implode(', ', array_keys($repositories));
     }
 
     return $violations;
@@ -347,6 +416,8 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, string $auth
         ...jiraSummaryFrameViolations($lines),
         ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
         ...jiraSummaryFindingsViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet)),
+        ...jiraSummaryFindingLinkViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet), $layout['groups'] > 0),
+        ...jiraSummaryLinkViolations($lines),
         ...jiraSummaryMentionViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet), $lines, $author),
         ...jiraSummaryTextViolations($lines),
     ];

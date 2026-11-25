@@ -29,11 +29,13 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         jiraSummaryVerdict(),
         '',
         '{expand:Nálezy z kontroly kódu}',
-        '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit.',
+        'Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]',
+        '',
+        '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
         '',
         'h3. Už nahlášené v dřívější kontrole',
         '',
-        '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1].',
+        '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ECOMAIL-1|https://example.atlassian.net/browse/ECOMAIL-1]. [Zobrazit v kódu →|https://github.com/acme/app/pull/27600]',
         '{expand}',
         '',
         '{expand:Co se změnilo a co to ovlivní}',
@@ -51,6 +53,11 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
     ]);
 
     return str_replace(array_keys($replace), array_values($replace), $source);
+}
+
+function jiraSummaryCodeLink(): string
+{
+    return '[Zobrazit v kódu →|https://github.com/acme/app/pull/27625/files#diff-' . hash('sha256', 'src/Sync/OrderSync.php') . 'R42]';
 }
 
 function jiraSummaryChangesLine(): string
@@ -87,6 +94,7 @@ function jiraSummaryForTwoPullRequests(): string
         'h2. [PR #' . $number . '|https://github.com/acme/app/pull/' . $number . '] — Synchronizace',
         '',
         '{expand:Nálezy z kontroly kódu}',
+        'Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/' . $number . '/files]',
         'Kontrola nenašla žádný bod k vyřešení.',
         '{expand}',
         '',
@@ -229,6 +237,40 @@ test('only a refactor finding mentions anyone, and only the author', function (s
         jiraSummaryAuthor(),
         'only a (refactor) finding mentions anyone, the author right after its type',
     ],
+]);
+
+test('every link of the comment points into the pull request or the issue of the task', function (string $search, string $replacement, string $violation): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: links: ' . $violation);
+})->with([
+    'no line that links the whole change' => [
+        "Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]\n",
+        '',
+        'the findings block opens with one line that links the whole change of the pull request',
+    ],
+    'a code link in the middle of a finding' => [
+        'Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
+        jiraSummaryCodeLink() . ' Oprava: nová verze ji musí umět dokončit.',
+        'a code link ends a finding: ',
+    ],
+    'a link to a file outside the pull request' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42]',
+        'a GitHub link points into a pull request or an issue of the task repository: https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42',
+    ],
+    'a link to a commit' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567]',
+        'a GitHub link points into a pull request or an issue of the task repository',
+    ],
+    'a link to another repository' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/stranger/fork/pull/1/files#diff-' . hash('sha256', 'src/A.php') . 'R1]',
+        'every GitHub link points into one repository: acme/app, stranger/fork',
+    ],
+    'a link without https' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|http://example.com/a]', 'a link uses https: http://example.com/a'],
 ]);
 
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
