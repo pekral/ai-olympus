@@ -101,10 +101,13 @@
 #      through the same `--body-adf` path. Passing ADF to both calls ensures a
 #      failed update never leaves Wiki Markup behind. `comment create --json`
 #      reports a per-work-item status and no comment ID on acli 1.3.x, so the
-#      new ID is resolved by re-reading the comments and taking the comment that
-#      was absent before the create, carries the marker, and has this author.
-#      The re-read runs up to three times, one second apart, because Jira Cloud
-#      can answer the first read after a create without the new comment.
+#      new ID is resolved by re-reading the comments. The target is the one
+#      comment that was absent before the create, has this author, and whose
+#      stored visible text equals the visible text of the ADF this run sent, the
+#      marker text left out on both sides. One such comment that carries the
+#      marker ends the re-reads; any other result waits for all three re-reads,
+#      one second apart, because Jira Cloud can answer a read after a create
+#      without the new comment. No single match leaves every comment untouched.
 #   7. Read the comment back, up to three times, and require this actor's marker
 #      in the stored body and this account as its author. A created comment that
 #      fails the read-back is deleted; an updated one is reported with its ID.
@@ -315,7 +318,8 @@ LIST_STDERR="$(mktemp)"
 UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
-trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP"' EXIT
+SENT_TEXT_TMP="$(mktemp)"
+trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -366,6 +370,8 @@ AUTHOR_JQ="$(cat <<'JQ'
   def decidable: author_of as $a
     | ($a.emailAddress // "") != "" or ($account != "" and ($a.accountId // "") != "");
   def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);
+  def visible_text: [.. | objects | select(.type? == "text") | .text? | strings
+    | select(test("(^|[^a-z0-9-])" + $marker) | not)] | join("");
 JQ
 )"
 
@@ -457,50 +463,53 @@ else
       // empty
     ) | tostring' 2>/dev/null || true)"
 
-  # acli 1.3.x reports no comment ID here. Identify the new comment by what only
-  # it can carry: absent before the create, and this account as its author. A
-  # new comment that carries this account's marker wins, the highest ID first,
-  # since JIRA assigns them in ascending order. When JIRA stored the new comment
-  # without the marker, the one new comment of this account is the target, so
-  # the update, the read-back, and the delete below still reach it; several such
-  # comments are named and left alone. This is what keeps `agent-note` mode from
-  # resolving to an older note of this actor's: the snapshot above was taken
-  # before the create in every mode, so an older note is always "before" and
-  # never matches "absent before the create".
-  # Jira Cloud can answer the first read after a create without the new comment, so the re-read
-  # is tried three times before the ID counts as missing.
-  UNMARKED_IDS=""
+  # acli 1.3.x reports no comment ID here. The account is shared with the operator, so a new
+  # comment of this account is the created one only when its stored visible text equals the visible
+  # text of the ADF this run sent, the marker text left out on both sides: JIRA may store the comment
+  # without the marker, and a comment that only quotes the marker must not pass. A matching comment
+  # that carries the marker wins and ends the re-reads. Any other result waits for all three
+  # re-reads, because Jira Cloud can answer a read after a create without the new comment, and the
+  # last successful read decides. No single match leaves every new comment untouched and exits 3.
+  # The snapshot above was taken before the create in every mode, so an older `agent-note` comment
+  # is always "before" and never a candidate.
+  CANDIDATE_IDS=""
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
+    jq -j --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"' visible_text' \
+      "$ADF_FILE_TMP" > "$SENT_TEXT_TMP" 2>/dev/null || : > "$SENT_TEXT_TMP"
     BEFORE_IDS="$(printf '%s' "${COMMENTS_JSON:-[]}" | jq -c '[.[] | (.id? // empty) | tostring]' 2>/dev/null || echo '[]')"
+    SENT_MATCH=""
     for attempt in 1 2 3; do
-      AFTER_JSON="$(read_comments || true)"
-      NEW_OWNED="$(printf '%s' "${AFTER_JSON:-[]}" \
-        | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
-            map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
-                | select(owned)
-                | {id: (.id | tostring), marked: marked}
-                | select(.id | test("^[0-9]+$")))
-            | (map(select(.marked)) | map(.id | tonumber) | max) as $marked
-            | if $marked != null then "marked " + ($marked | tostring)
-              else "unmarked " + (map(.id | tonumber) | sort | map(tostring) | join(" ")) end' 2>/dev/null || true)"
-      case "$NEW_OWNED" in
-        "marked "*) TARGET_ID="${NEW_OWNED#marked }" ;;
-        "unmarked "?*) UNMARKED_IDS="${NEW_OWNED#unmarked }" ;;
-      esac
-      if [[ "$TARGET_ID" =~ ^[0-9]+$ || -n "$UNMARKED_IDS" ]]; then
-        break
+      if AFTER_JSON="$(read_comments)" && [[ -n "$AFTER_JSON" ]]; then
+        NEW_OWNED="$(printf '%s' "$AFTER_JSON" \
+          | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" \
+              --rawfile sent "$SENT_TEXT_TMP" "${AUTHOR_JQ}"'
+              map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
+                  | select(owned)
+                  | {id: (.id | tostring), marked: marked, sent: ($sent != "" and (.body | visible_text) == $sent)}
+                  | select(.id | test("^[0-9]+$")))
+              | (map(select(.sent and .marked) | .id)) as $marked
+              | (map(select(.sent) | .id)) as $matched
+              | if ($marked | length) == 1 then "marked " + $marked[0]
+                elif ($marked | length) == 0 and ($matched | length) == 1 then "matched " + $matched[0]
+                else "none " + (map(.id | tonumber) | sort | map(tostring) | join(" ")) end' 2>/dev/null || true)"
+        case "$NEW_OWNED" in
+          "marked "*) TARGET_ID="${NEW_OWNED#marked }"; break ;;
+          "matched "*) SENT_MATCH="${NEW_OWNED#matched }"; CANDIDATE_IDS="" ;;
+          "none "*) SENT_MATCH=""; CANDIDATE_IDS="${NEW_OWNED#none }" ;;
+        esac
       fi
       [[ $attempt -lt 3 ]] && sleep 1
     done
-    if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && "$UNMARKED_IDS" =~ ^[0-9]+$ ]]; then
-      TARGET_ID="$UNMARKED_IDS"
+    if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && "$SENT_MATCH" =~ ^[0-9]+$ ]]; then
+      TARGET_ID="$SENT_MATCH"
     fi
   fi
 
-  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$UNMARKED_IDS" ]]; then
+  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$CANDIDATE_IDS" ]]; then
     bash "$AUDIT_TRAIL" record --target "jira comment create on $KEY" --status 0 --detail "created, ID not resolved, ADF update aborted" || true
     echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
-    echo "upsert-comment.sh: comments ${UNMARKED_IDS} on $KEY carry no agent marker and read as the operator's own; one of them is the created comment, so check them and remove it by hand" >&2
+    echo "upsert-comment.sh: new comments ${CANDIDATE_IDS} of this account on $KEY do not show exactly one stored body that matches the body this run sent, so none of them was updated or deleted" >&2
+    echo "upsert-comment.sh: check them and remove the created comment by hand when it shows no agent marker; a comment the operator wrote stays as it is" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
   fi

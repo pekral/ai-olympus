@@ -55,9 +55,13 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
     lagged="$(cat "$FAKE_ACLI_CALLS.lagged" 2>/dev/null || printf '0')"
     if [[ "$lagged" -lt "${FAKE_ACLI_LIST_LAG:-0}" ]]; then
       printf '%s\n' "$((lagged + 1))" > "$FAKE_ACLI_CALLS.lagged"
-      printf '%s\n' "${FAKE_ACLI_LIST_JSON:-[]}"
+      printf '%s\n' "${FAKE_ACLI_LIST_LAG_JSON:-${FAKE_ACLI_LIST_JSON:-[]}}"
     else
-      printf '%s\n' "$FAKE_ACLI_LIST_AFTER_JSON"
+      jq -c --slurpfile created "$FAKE_ACLI_CREATE_BODY" '
+        ($created[0] | walk(if type == "object" and .type? == "text" and ((.text? // "") | test(":actor=")) then .text = "" else . end)) as $unmarked
+        | walk(if type == "object" and .body? == "@created" then .body = $created[0]
+               elif type == "object" and .body? == "@created-unmarked" then .body = $unmarked
+               else . end)' <<<"$FAKE_ACLI_LIST_AFTER_JSON"
     fi
   else
     printf '%s\n' "${FAKE_ACLI_LIST_JSON:-[]}"
@@ -962,7 +966,7 @@ test('the JIRA publisher resolves the new comment ID from the re-read issue when
     $after = json_encode(['fields' => ['comment' => ['comments' => [
         jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
         jiraComment('9004', '2026-01-02T00:00:00.000+0000', 'other@example.com', $marker),
-        jiraComment('9005', '2026-01-03T00:00:00.000+0000', 'bot@example.com', $marker),
+        jiraCreatedComment('9005'),
     ],
     ],
     ],
@@ -1002,7 +1006,6 @@ test('the JIRA publisher resolves the new comment ID when the first re-read afte
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
     $systemPath = jiraCommentSystemPath();
-    $marker = jiraActorMarker('bot@example.com');
     $before = json_encode(['fields' => ['comment' => ['comments' => [
         jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
     ],
@@ -1011,7 +1014,7 @@ test('the JIRA publisher resolves the new comment ID when the first re-read afte
     ], JSON_THROW_ON_ERROR);
     $after = json_encode(['fields' => ['comment' => ['comments' => [
         jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else'),
-        jiraComment('9005', '2026-01-02T00:00:00.000+0000', 'bot@example.com', $marker),
+        jiraCreatedComment('9005'),
     ],
     ],
     ],
@@ -1713,10 +1716,19 @@ test('the JIRA publisher names the comment that stays without the agent marker w
 });
 
 /**
+ * @return array{id: string, created: string, author: array<string, string>, body: string}
+ */
+function jiraCreatedComment(string $id, string $body = '@created'): array
+{
+    return ['id' => $id, 'created' => '2026-01-02T00:00:02.000+0000', 'author' => ['emailAddress' => 'bot@example.com'], 'body' => $body];
+}
+
+/**
  * @param list<array<string, mixed>> $after
+ * @param list<array<string, mixed>> $lag
  * @return array{process: \Symfony\Component\Process\Process, calls: string}
  */
-function runJiraPublisherCreateWithoutId(array $after, string $readBack, string $deleteRc = '0'): array
+function runJiraPublisherCreateWithoutId(array $after, string $readBack, string $deleteRc = '0', array $lag = [], int $lagReads = 0): array
 {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
@@ -1730,6 +1742,8 @@ function runJiraPublisherCreateWithoutId(array $after, string $readBack, string 
         'FAKE_ACLI_EMAIL' => 'bot@example.com',
         'FAKE_ACLI_LIST_AFTER_JSON' => json_encode(['comments' => [...$before, ...$after]], JSON_THROW_ON_ERROR),
         'FAKE_ACLI_LIST_JSON' => json_encode(['comments' => $before], JSON_THROW_ON_ERROR),
+        'FAKE_ACLI_LIST_LAG' => (string) $lagReads,
+        'FAKE_ACLI_LIST_LAG_JSON' => json_encode(['comments' => [...$before, ...$lag]], JSON_THROW_ON_ERROR),
         'FAKE_ACLI_READBACK' => $readBack,
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
@@ -1745,7 +1759,7 @@ function runJiraPublisherCreateWithoutId(array $after, string $readBack, string 
 }
 
 test('the JIRA publisher finds a created comment that lost the marker and publishes it once the update keeps the marker', function (): void {
-    $result = runJiraPublisherCreateWithoutId([jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')], 'stored');
+    $result = runJiraPublisherCreateWithoutId([jiraCreatedComment('9006', '@created-unmarked')], 'stored');
 
     expect($result['process']->getExitCode())->toBe(0)
         ->and($result['calls'])->toContain('comment update --key TEAM-42 --id 9006 --body-adf')
@@ -1753,7 +1767,7 @@ test('the JIRA publisher finds a created comment that lost the marker and publis
 });
 
 test('the JIRA publisher removes a created comment without a returned ID whose stored body keeps no marker', function (): void {
-    $result = runJiraPublisherCreateWithoutId([jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')], 'unmarked');
+    $result = runJiraPublisherCreateWithoutId([jiraCreatedComment('9006', '@created-unmarked')], 'unmarked');
 
     expect($result['process']->getExitCode())->toBe(3)
         ->and($result['calls'])->toContain('comment delete --key TEAM-42 --id 9006')
@@ -1763,7 +1777,7 @@ test('the JIRA publisher removes a created comment without a returned ID whose s
 
 test('the JIRA publisher names a created comment without a returned ID that it could not remove', function (): void {
     $result = runJiraPublisherCreateWithoutId(
-        [jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')],
+        [jiraCreatedComment('9006', '@created-unmarked')],
         'unmarked',
         deleteRc: '7',
     );
@@ -1783,7 +1797,7 @@ test('the JIRA publisher touches no comment when several new comments of this ac
     expect($result['process']->getExitCode())->toBe(3)
         ->and($result['calls'])->not->toContain('comment update')
         ->and($result['calls'])->not->toContain('comment delete')
-        ->and($result['process']->getErrorOutput())->toContain('comments 9006 9007 on TEAM-42 carry no agent marker and read as the operator\'s own')
+        ->and($result['process']->getErrorOutput())->toContain('new comments 9006 9007 of this account on TEAM-42')
         ->and($result['process']->getErrorOutput())->not->toContain('carries this actor\'s marker');
 });
 
@@ -1795,3 +1809,81 @@ test('the JIRA publisher never claims the marker for a created comment it could 
         ->and($result['process']->getErrorOutput())->toContain('ID is missing; ADF update aborted')
         ->and($result['process']->getErrorOutput())->not->toContain('carries this actor\'s marker');
 });
+
+/**
+ * @param list<array<string, mixed>> $content
+ * @return array{id: string, created: string, author: array<string, string>, body: array<string, mixed>}
+ */
+function jiraOperatorAdfComment(array $content): array
+{
+    return [
+        'id' => '9003',
+        'created' => '2026-01-02T00:00:00.000+0000',
+        'author' => ['emailAddress' => 'bot@example.com'],
+        'body' => ['type' => 'doc', 'version' => 1, 'content' => $content],
+    ];
+}
+
+/**
+ * @return array{type: string, content: list<array{type: string, text: string}>}
+ */
+function jiraAdfParagraph(string ...$texts): array
+{
+    return ['type' => 'paragraph', 'content' => array_map(static fn (string $text): array => ['type' => 'text', 'text' => $text], $texts)];
+}
+
+test('the JIRA publisher never takes a comment written during a lagging re-read as its own created comment', function (array $operator): void {
+    $result = runJiraPublisherCreateWithoutId([$operator], 'unmarked', lag: [$operator], lagReads: 3);
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->not->toContain('comment update')
+        ->and($result['calls'])->not->toContain('comment delete')
+        ->and($result['process']->getErrorOutput())->toContain('new comments 9003 of this account on TEAM-42');
+})->with([
+    'a plain comment' => [jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday.')],
+    'a comment that quotes the marker' => [
+        jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday. _' . jiraActorMarker('bot@example.com') . '_'),
+    ],
+    'the sent text followed by text of its own' => [jiraOperatorAdfComment([jiraAdfParagraph('Hotovo', ' Deploy it on Monday.')])],
+    'the sent text in a quote above text of its own' => [
+        jiraOperatorAdfComment([['type' => 'blockquote', 'content' => [jiraAdfParagraph('Hotovo')]], jiraAdfParagraph('Agreed.')]),
+    ],
+    'the sent text in another letter case' => [jiraOperatorAdfComment([jiraAdfParagraph('HOTOVO')])],
+    'the sent text with a trailing space' => [jiraOperatorAdfComment([jiraAdfParagraph('Hotovo ')])],
+    'the marker text alone' => [jiraOperatorAdfComment([jiraAdfParagraph(jiraActorMarker('bot@example.com'))])],
+    'no text at all' => [jiraOperatorAdfComment([['type' => 'rule']])],
+]);
+
+test('the JIRA publisher targets its created comment that shows only on the third re-read, beside a new comment of the account', function (): void {
+    $operator = jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday.');
+
+    $result = runJiraPublisherCreateWithoutId([$operator, jiraCreatedComment('9005')], 'stored', lag: [$operator], lagReads: 2);
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and($result['calls'])->toContain('comment update --key TEAM-42 --id 9005 --body-adf')
+        ->and($result['calls'])->not->toContain('--id 9003')
+        ->and($result['process']->getErrorOutput())->toContain('action=created id=9005');
+});
+
+test('the JIRA publisher removes only its created comment whose stored body matches the sent body but lost the marker', function (): void {
+    $operator = jiraComment('9003', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Deploy it on Monday.');
+
+    $result = runJiraPublisherCreateWithoutId([$operator, jiraCreatedComment('9006', '@created-unmarked')], 'unmarked');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->toContain('comment update --key TEAM-42 --id 9006 --body-adf')
+        ->and($result['calls'])->toContain('comment delete --key TEAM-42 --id 9006')
+        ->and($result['calls'])->not->toContain('--id 9003');
+});
+
+test('the JIRA publisher touches no comment when two new comments match the sent body', function (string $body): void {
+    $result = runJiraPublisherCreateWithoutId([jiraCreatedComment('9006', $body), jiraCreatedComment('9007', $body)], 'stored');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->not->toContain('comment update')
+        ->and($result['calls'])->not->toContain('comment delete')
+        ->and($result['process']->getErrorOutput())->toContain('new comments 9006 9007 of this account on TEAM-42');
+})->with([
+    'both carry the marker' => ['@created'],
+    'neither carries the marker' => ['@created-unmarked'],
+]);
