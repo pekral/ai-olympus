@@ -987,8 +987,8 @@ test('krang keeps the default writing path on the shared tree, allows a worktree
     expect($concurrency)->toContain('Nothing else widens the exception');
     expect($concurrency)->toContain('A parallel unit takes **no** shared-tree write-lock');
     expect($concurrency)->toContain('`.claude/worktrees/agent-impl-<source-slug>-donatello`');
-    // The read-only CR agent may isolate in a worktree for its review.
-    expect($concurrency)->toContain('read-only code-review agent (`leonardo`) may use a git worktree');
+    // The read-only CR agent reviews in its own worktree, because the main tree is never checked out on a branch under review.
+    expect($concurrency)->toContain('read-only code-review agent (`leonardo`) reviews in its own git worktree**');
     // Krang owns worktree cleanup so the repo stays clean after the run / merge.
     expect($content)->toContain('git worktree remove');
     expect($content)->toContain('git worktree prune');
@@ -1254,12 +1254,12 @@ test('the local environment is prepared before the walkthrough inside fixed limi
 
     // One owner section states the readiness items and their limits.
     expect($skill)->toContain('## Local readiness');
-    expect($skill)->toContain('git pull --ff-only');
+    expect($skill)->toContain('**The revision under test runs, and the main tree is never switched to it.**');
     expect($skill)->toContain('Never run `migrate:fresh`, a rollback, or a wipe.');
     expect($skill)->toContain('**Local target only.**');
     expect($skill)->toContain('**Tracked files stay untouched.**');
-    expect($skill)->toContain('delete a local branch this run created');
-    expect($skill)->toContain('switch back to the branch the run started on, and delete a local branch this run created');
+    expect($skill)->toContain('remove the test worktree this run created');
+    expect($skill)->not->toContain('switch back to the branch the run started on');
     expect($skill)->toContain('Leave a process this run restarted running');
 
     // The dependency install is the one outbound request: lock files only, with an audit line.
@@ -2075,9 +2075,9 @@ test(
         expect($content)->toContain('the `-leonardo` suffix keeps this path and lock reason attributable to this agent');
         // Moderate 4 (unvalidated <slug> reaching a shell/path) — slug format guard, reject-and-stay-shared.
         expect($content)->toContain('^[A-Za-z0-9._-]{1,64}$');
-        expect($content)->toContain('do not create a worktree** — continue the review in the shared tree instead');
+        expect($content)->toContain('do not create a worktree** and return `Blocked: invalid source-slug format`');
         // Minor 2 (`<ref>` fails on an already-checked-out PR head branch) — --detach + head SHA instead.
-        expect($content)->toContain('git worktree add --detach .claude/worktrees/agent-cr-<slug>-leonardo <head-sha>');
+        expect($content)->toContain('skills/_shared/branch-worktree.sh open --path .claude/worktrees/agent-cr-<slug>-leonardo --head <head-sha>');
         // Standalone cleanup removes only this agent's own path, never a peer's.
         expect($content)->toContain('remove **only your own** worktree after the review — never a peer\'s');
     },
