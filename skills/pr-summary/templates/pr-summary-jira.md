@@ -17,8 +17,8 @@ h3. Already reported in an earlier review
 * [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.]
 {expand}
 
-{expand:TL;DR}
-[One paragraph of at most 600 characters combining observable changes and deployment impact: what behaves differently, which features it affects, and what a user should watch after release.]
+{expand:What changed and what it affects}
+* [One fact per bullet, a few bullets and at most 600 characters in total: what behaves differently, which features it affects, and what a user should watch after release. Each fact appears once.]
 {expand}
 
 [PR #123|PR_URL] · [ISSUE-KEY|ISSUE_URL]
@@ -54,7 +54,8 @@ Who reads this comment
 
 Section order is binding, and it is the same on every run
   The deploy verdict paragraph, then Acceptance criteria (only for
-  requirements that still need action), then Review findings, then TL;DR,
+  requirements that still need action), then Review findings, then What
+  changed and what it affects,
   then the closing links line and the footer. There is no separate
   section for questions: each open question sits in the bullet it belongs to. A review-only run, a code-review mirror,
   the post-convergence report, and the merge-readiness TL;DR all render this
@@ -110,7 +111,8 @@ Review findings
   A plain-language retelling of the newest GitHub pull-request review, so the
   reader understands what the review reported and can respond to it.
   - When the issue links more than one pull request, the Review findings and
-    TL;DR blocks sit under one h2. group heading per pull request, below any
+    What changed and what it affects blocks sit under one h2. group heading per
+    pull request, below any
     Acceptance criteria block (references/several-pull-requests.md).
   - A stack of pull requests gets one comment for the whole run. A point that
     several parts share stands once in a Review findings block above the groups
@@ -146,11 +148,13 @@ Review findings
     (Review-only run); never add a round number, a provenance value, or a
     count.
 
-TL;DR
-  One paragraph of at most 600 characters combining observable changes and
-  deployment impact. State the affected features and what a user should watch
-  after release in connected prose, with no list or repeated facts. Use
-  before -> after where useful. Keep mechanisms on the pull request.
+What changed and what it affects
+  A short summary of a few bullets, at most 600 characters in total, combining
+  observable changes and deployment impact. One fact per bullet, each fact
+  once, and no fact of either part lost or changed. State the affected
+  features and what a user should watch after release. Use before -> after
+  where useful. Keep mechanisms on the pull request. The block carries no
+  TL;DR label.
   Source: the features the diff changes, plus the newest review's "Affected
   behaviour outside the diff" (@rules/code-review/core-analysis.md).
   When no code-review comment exists for the current head yet, derive the
@@ -162,15 +166,17 @@ TL;DR
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md. The
   block titles are "Acceptance criteria", "Findings from the code review", and
-  "TL;DR" in English. A Czech assignment renders "{expand:Akceptační kritéria}",
-  "{expand:Nálezy z kontroly kódu}", "{expand:TL;DR}", "{expand:Technická značka
+  "What changed and what it affects" in English. A Czech assignment renders
+  "{expand:Akceptační kritéria}", "{expand:Nálezy z kontroly kódu}", "{expand:Co
+  se změnilo a co to ovlivní}", "{expand:Technická značka
   pro AI agenty}", and the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
 Length
   3 000 characters, counted over the published body. When the comment overflows,
-  shorten the combined TL;DR paragraph first,
+  shorten the wording of What changed and what it affects first, keeping each
+  of its facts,
   then write each Review findings bullet in two sentences —
   never drop an Acceptance criteria bullet or a Review findings bullet. @rules/reports/general.md owns this cap, and
   @skills/pr-summary/SKILL.md *Length follows the facts* names JIRA as the
@@ -182,7 +188,8 @@ Check before the publish
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
   cap, the one deploy-verdict paragraph, the collapsed blocks and the text
   outside them, the criteria block against the flag, the
-  single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, the footer, and the
+  bullets of What changed and what it affects, at most 600 characters and no
+  TL;DR label, leaked Markdown, code macros, commit hashes, the footer, and the
   closing agent-marker block.
 
 No embedded blocks

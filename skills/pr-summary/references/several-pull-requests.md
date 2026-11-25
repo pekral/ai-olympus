@@ -25,7 +25,7 @@ Render these once, above the groups, because they describe the issue and not one
 Everything that retells one pull request:
 
 - `Review findings`, with each question that closes a finding bullet, and the author mention a review-only run adds (`@rules/code-review/general.md` *The author of the changes is the account that pushed the pull request*). The new and already-reported groups of `SKILL.md` *Review-only run* sit inside each pull request's group.
-- `TL;DR` on JIRA; `What changed` and `How to test` on GitHub and Bugsnag.
+- `What changed and what it affects` on JIRA; `What changed` and `How to test` on GitHub and Bugsnag.
 - A clarifying question or a reviewer remark that concerns this pull request only.
 
 A question that no pull request owns stays at the issue level, as the closing sentence of its criterion bullet.
@@ -50,7 +50,7 @@ Every run posts a new comment, so a run that reviewed one pull request renders o
 
 ## Length on JIRA
 
-The 3 000-character cap covers the whole comment. Shorten per `SKILL.md` *Length follows the facts* inside each group, starting with the group of the pull request with the longest `TL;DR` on JIRA, or `What changed` on GitHub and Bugsnag. Never drop a `Review findings` bullet, and never drop a group this run rendered.
+The 3 000-character cap covers the whole comment. Shorten per `SKILL.md` *Length follows the facts* inside each group, starting with the group of the pull request with the longest `What changed and what it affects` on JIRA, or `What changed` on GitHub and Bugsnag. Never drop a `Review findings` bullet, and never drop a group this run rendered.
 
 ## A stack on JIRA
 
