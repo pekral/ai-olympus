@@ -23,5 +23,7 @@ and fixes, then prepare the pull request for merge through `@skills/verify-merge
 Never merge. Publish every business decision, optimization, refactoring, and pre-existing problem
 as a question in the `Decisions before merge` section instead of implementing it.
 
+When the project forbids helper agents, this session starts no agent of any type. It performs every step itself, or stops and names a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states, and its report says whether helper agents were allowed.
+
 For Codex, invoke `$test-assignment` with the same arguments.
 The root session holds the `krang` role under the same section and spawns the registered specialists itself.

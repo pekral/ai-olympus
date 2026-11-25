@@ -43,7 +43,7 @@ Only the full-delivery path acquires and releases the lock. An analysis-only run
 
 ## Parallel units
 
-A parallel unit is one `donatello` implementation run in a batch of several units. It is isolated on disk and it shares the machine's scarce resources through locks.
+A parallel unit is one `donatello` implementation run in a batch of several units. It is isolated on disk and it shares the machine's scarce resources through locks. When the project forbids helper agents, no unit is dispatched: the session runs the units one after another (`skills/_shared/orchestration/helper-agents.md`).
 
 - **Worktree per unit.** The dispatch prompt names the worktree path `.claude/worktrees/agent-impl-<source-slug>-donatello` and the unit's branch. `donatello` creates it from the default branch (`git worktree add -b <branch> <path> origin/<default>`), locks it with the reason `pid $PPID agent donatello slug <source-slug>` so the startup sweep (`skills/_shared/orchestration/stale-run-recovery.md`) can tell a live worktree from a dead one, and runs every command of the unit inside it. The shared tree is not touched.
 - **No branch switch in the shared tree.** Git refuses to check out a branch that another worktree holds, and the unit's worktree holds the unit's branch from its creation until its removal. Every step of the unit that would switch a branch runs in the worktree instead: `resolve-issue` skips its default-branch switch, and the review-and-fix rounds and *Finalization* of `@skills/process-code-review/SKILL.md` receive the worktree path and use `git -C <path>`. The dispatch of each of those steps names the path (`agents/krang.md` step 6).
