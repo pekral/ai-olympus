@@ -74,12 +74,15 @@
 #   inside the runner, so it is a candidate too. Only a change that touches no check path completes with no
 #   candidate, so a change the classifier grades `tests-only` or `formatting-metadata-only` always has one, and
 #   neither a file a runner collects by default (RUNNER_COLLECTED_RE) nor a list of tests or of dependencies
-#   (TOOL_LIST_RE) is ever graded `documentation-only`.
+#   (TOOL_LIST_RE) is ever graded `documentation-only`. A directory alone never makes a file documentation to the
+#   classifier (DOC_RE), so a configuration the scan does not name, such as a Sphinx `conf.py` or a Playwright
+#   configuration under `docs/`, is a material file and never FAST alone.
 #   Limit: the scan knows the default collection patterns only, so a file that only a pattern the project sets
 #   itself collects (a custom doctest glob) is no candidate. That pattern lives in a runner configuration, which
 #   is a check path, so the change that sets it takes the review. CTest has no collection pattern: its tests are
 #   the `add_test()` calls of a `CMakeLists.txt`, and a dependency list names the checker plugins, so each of
-#   them is a check path itself.
+#   them is a check path itself. Gauge is not covered: it collects the `.md` specifications of `specs/` by
+#   default, the classifier grades them as documentation, and the scan lists none of them.
 #
 # Test-side paths
 #   One definition: TEST_RE of `domain-vocabulary.sh`, matched on the lower-cased path, which `classify-risk.sh`
@@ -1696,12 +1699,21 @@ TI_SHARED_RUNNER_CONFIG_PATHS=(pytest.ini tox.ini setup.cfg pyproject.toml packa
 TI_SHARED_TOOL_LIST_PATHS=(src/CMakeLists.txt CMakeLists.txt app/requirements-dev.txt app/constraints.txt
   app/dev-requirements.txt app/requirements/base.txt app/conanfile.txt)
 
+# Configurations and build files in a documentation directory that the scan does not name. The classifier grades
+# each one as a material file, so no merge path without a review takes it with no candidate.
+TI_SHARED_DOCS_DIR_PATHS=(src/docs/conf.py docs/Makefile resources/docs/playwright.config.ts app/doc/.mocharc.yml)
+
 # A path the trusted classifier grades `tests-only`, `formatting-metadata-only`, or `documentation-only` when it is
 # the only change. With a signal name as the second argument, only that signal counts.
 ti_classifier_discounts() {
   local out signals="${2:-tests-only|formatting-metadata-only|documentation-only}"
   out="$(printf '%s\n' "$1" | bash "$TI_DIR/classify-risk.sh" --files - 2>/dev/null)" || return 1
   grep -qE "^signal=-[0-9]+\\|($signals)\\|" <<<"$out"
+}
+
+# A path the classifier discounts is a check-path-changed candidate of the last shape scan.
+ti_discount_has_candidate() {
+  ! ti_classifier_discounts "$1" || ti_scan_has check-path-changed "$1" -
 }
 
 # Every path the classifier discounts as a test, as formatting, or as documentation is a check-path-changed
@@ -1711,7 +1723,7 @@ ti_selftest_shared_definition() {
   local path
   TI_REPO="$TI_ROOT/shared"
   for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
-    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}" "${TI_SHARED_DOCS_DIR_PATHS[@]}"; do
     mkdir -p "$TI_REPO/$(dirname -- "$path")"
     printf 'base\n' >"$TI_REPO/$path"
   done
@@ -1721,7 +1733,7 @@ ti_selftest_shared_definition() {
   ti_git branch -q -M master
   ti_git checkout -q -b shapes
   for path in "${TI_SHARED_TEST_PATHS[@]}" "${TI_SHARED_CHECKER_PATHS[@]}" "${TI_SHARED_RUNNER_PATHS[@]}" \
-    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
+    "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}" "${TI_SHARED_DOCS_DIR_PATHS[@]}"; do
     printf 'exit\n' >"$TI_REPO/$path"
   done
   rm -f -- "$TI_REPO/spec/add_spec.rb"
@@ -1742,6 +1754,10 @@ ti_selftest_shared_definition() {
   done
   for path in "${TI_SHARED_RUNNER_CONFIG_PATHS[@]}" "${TI_SHARED_TOOL_LIST_PATHS[@]}"; do
     ti_assert "scan --without-review: the runner configuration $path is a candidate" ti_scan_has check-path-changed "$path" -
+  done
+  for path in "${TI_SHARED_DOCS_DIR_PATHS[@]}"; do
+    ti_assert "classify-risk: $path, which the scan does not name, is a material file" ti_not ti_classifier_discounts "$path"
+    ti_assert "scan --without-review: $path is a candidate or a material file" ti_discount_has_candidate "$path"
   done
 }
 
