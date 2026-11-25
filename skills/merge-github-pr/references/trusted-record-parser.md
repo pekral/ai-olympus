@@ -9,8 +9,7 @@ These steps read the record:
 - the `FAST`-tier exemption and the HOTFIX waiver of `references/merge-exemptions.md`;
 - the code-review row of `references/low-risk-path.md` *Checks on this path*;
 - the `Quality gate:` record of step 3 *Pre-merge quality gate*;
-- the review record of `@skills/verify-merge-readiness/SKILL.md` step 1, and the HOTFIX rule of `@rules/git/pull-requests.md`;
-- the known-point check below, which every one of these steps runs with the parser.
+- the review record of `@skills/verify-merge-readiness/SKILL.md` step 1, and the HOTFIX rule of `@rules/git/pull-requests.md`.
 
 The approval check of step 2 also runs *The trusted helper-agents check* below, because a converged review counts as an approval only when the project allowed helper agents.
 
@@ -24,26 +23,16 @@ These steps read the loader document of the procedure, and no other loader docum
    - Otherwise run the installs of *The trusted classifier* item 2 in the clone first. Then run the copies below `<clone>/.claude/skills/` on Claude Code and below `<clone>/.agents/skills/` on Codex.
    - Never run a copy from the main worktree, the checked-out branch, the gated head, a unit worktree, or a review worktree.
 3. **Verify, then load and parse, in one shell call.** Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
-   1. The paths the verifier checks are `skills/code-review-github/scripts/load-issue.sh skills/_shared/cr-header.sh skills/_shared/review-trust.jq skills/_shared/review-state.sh skills/_shared/state-path.sh skills/_shared/finding-defs.jq`.
-   2. The commands that run after the verdict `installed-copy-verdict=verified` are `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>" && "<clone>/skills/_shared/cr-header.sh" --report "<loader-file>" && "<clone>/skills/_shared/review-state.sh" known-check --loader "<loader-file>"` (*The known-point check* below).
+   1. The paths the verifier checks are `skills/code-review-github/scripts/load-issue.sh skills/_shared/cr-header.sh skills/_shared/review-trust.jq`.
+   2. The commands that run after the verdict `installed-copy-verdict=verified` are `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>" && "<clone>/skills/_shared/cr-header.sh" --report "<loader-file>"`.
 
    `<loader-file>` is a new file that `mktemp` creates below the run directory, outside the clone, in the same shell call. It is data. A loader document that another copy of the loader wrote is never parsed and never read for a merge decision.
    - When the default branch tracks the installed copies, every path starts with `.claude/skills/` (`.agents/skills/` on Codex), and the verifier blob is read at its installed path.
-   - When the default branch neither ships nor tracks the copies, verify them as `@skills/git-history-exposure-audit/SKILL.md` *Review mode* step 2 directs for *A project whose default branch does not ship `skills/`*: the installed verifier of the clone runs with `--installed-reference`, and the paths are `.claude/skills/code-review-github/scripts/load-issue.sh .claude/skills/_shared/cr-header.sh .claude/skills/_shared/review-trust.jq .claude/skills/_shared/review-state.sh .claude/skills/_shared/state-path.sh .claude/skills/_shared/finding-defs.jq .claude/skills/_shared/verify-installed-copy.sh`. On Codex every path starts with `.agents/skills/`.
+   - When the default branch neither ships nor tracks the copies, verify them as `@skills/git-history-exposure-audit/SKILL.md` *Review mode* step 2 directs for *A project whose default branch does not ship `skills/`*: the installed verifier of the clone runs with `--installed-reference`, and the paths are `.claude/skills/code-review-github/scripts/load-issue.sh .claude/skills/_shared/cr-header.sh .claude/skills/_shared/review-trust.jq .claude/skills/_shared/verify-installed-copy.sh`. On Codex every path starts with `.agents/skills/`.
 4. **Load and parse once, before the gate.** Run the call in step 1, before step 3 runs any code from the head (*The trusted classifier* item 6). The loader document is the document of step 1. Keep the output of the parser as text in the context of the run, never in a file. Every later read of this run takes that output: the approval check, the exemptions, the HOTFIX waiver, and the `Quality gate:` record of step 3. A reload of step 1 before the gate, after the wait for CI included, runs the whole call again. A step after the gate never runs the loader or the parser again.
 5. **The exit of a verified copy.** Exit `0` prints the report. Exit `3` of the parser means no trusted report exists, or the newest one is not a record: the code-review gate is unmet, as for a missing report. A loader that fails gives no document, and the merge stops as in item 6.
 6. **No verified copy, no document — the merge stops.** The trusted copy is not available in every case that *The trusted classifier* item 5 lists. Then do not merge: the pre-checks of step 2 have no document to read, and the code-review gate, both exemptions, the HOTFIX waiver, and the approval check through a converged review are all unmet. The GitHub MCP server never stands in for the trusted copy. The merge report names the refusal line of the verifier or the command that failed.
    - In `@skills/verify-merge-readiness/SKILL.md` step 1 an unavailable copy means no trusted report: the review round runs, and no round is skipped on that record.
-
-## The known-point check
-
-A security known point merges unfixed only while its linked issue still holds (`@rules/git/pull-requests.md` *Merging*). The review loop checks this in every round. A linked issue can still be closed, unlinked, or unassigned after the review was published, so every step that reads the record for a merge decision checks each security known point of the record again. This section is the one owner of that check.
-
-1. **The call.** The shell call of item 3 of the procedure runs `review-state.sh known-check --loader "<loader-file>"` after the parser, from the same verified copy, and only when the parser exited `0`. The command reads the `## Known points` section of the newest trusted record and its `Known points:` header line, and runs the checks of `review-state.sh known` through the loaders for each security known point. It checks each point against the task its record line names, never against the issues the pull-request body names: the body changes without a new review. It writes nothing, and its JSON line follows the report.
-2. **The exit.** Exit `0`: every security known point still holds, or the record has neither the section nor the header line. Exit `4`: a point fails a check; the pull request closes the linked issue of a point, or does not close its task; a heading, an entry, or the header line is in another shape; or the header line does not count the entries of the section. Any other exit, an output without the JSON line of the check, and no verified copy mean the check did not run.
-3. **Anything but exit `0` blocks.** The newest trusted report is stale for the merge: the code-review gate and the approval check through a converged review are unmet. Do not merge, and report each point with the reason the output names. The review loop compares the point again (`@rules/code-review/review-process.md` *Known points*).
-   - In `@skills/verify-merge-readiness/SKILL.md` step 1 it means that no review round is skipped on that record.
-4. **The fast merge reads no record**, so no known point exempts a finding there (*The fast merge* below).
 
 ## The trusted ownership check
 

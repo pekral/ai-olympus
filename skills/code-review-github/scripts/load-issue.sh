@@ -264,9 +264,9 @@ fi
 # The issues the task is linked to: the GitHub-native relations the sub-issue read does not carry (parent, blocked-by,
 # blocking), the sub-issues, and the issues of this repository that the task text names. A failed read leaves a list
 # empty and linkedIssuesComplete false, so the caller never reads a short list as a whole one. Only issues carry them.
-# The list holds only issues of this repository, each once by its URL: the trust facts of an issue (its author
-# association and its assignees) hold only in its own repository, and an issue of another repository can carry the
-# number of an issue of this one.
+# The list holds only issues of this repository, each once by its URL: the trust fact of an issue (its author
+# association) holds only in its own repository, and an issue of another repository can carry the number of an issue
+# of this one.
 LINKED_JSON='[]'
 LINKED_COMPLETE=false
 if [[ "$KIND" == "issue" ]]; then
