@@ -423,6 +423,52 @@ test('a commit e-mail counts only from a commit of this repository linked to the
     }
 });
 
+test(
+    'a JIRA search that returns two accounts, or an account that shows another e-mail, gives no candidate',
+    function (array $issues, string $missing): void {
+        $fixture = personMatchFixture();
+        personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => $issues]);
+    
+        try {
+            $process = personMatchPropose($fixture);
+    
+            expect($process->getExitCode())->toBe(6)
+                ->and($process->getOutput())->toContain($missing)
+                ->and(glob($fixture['stateHome'] . '/ai-olympus/person-match-pending/*.json'))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'an account whose visible e-mail starts with the query' => [
+        [personMatchIssue('assignee', 'acc-other', 'Pat Other', 'pat.author@example.com.evil.example')],
+        'a JIRA account that the search returned shows another e-mail than the commit e-mail',
+    ],
+    'two accounts' => [
+        [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', ''), personMatchIssue('assignee', 'acc-other', 'Pat Other', '')],
+        'the JIRA search of project TEAM returned more than one account',
+    ],
+]);
+
+test('a JIRA account with no issue in the current project gives no candidate, and the item stays unassigned', function (): void {
+    $fixture = personMatchFixture();
+    personMatchSearch($fixture, []);
+
+    try {
+        $process = personMatchPropose($fixture);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and($process->getOutput())->toContain('no candidate — TEAM-42 stays unassigned. Missing:')
+            ->and($process->getOutput())->toContain(
+                'no JIRA account of project TEAM is the assignee or the reporter of an issue for the commit e-mail',
+            )
+            ->and($process->getOutput())->not->toContain(PERSON_MATCH_EMAIL)
+            ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
 test('the proposal names both accounts and the e-mail, and marks every part looked up or derived', function (): void {
     $fixture = personMatchFixture();
 
