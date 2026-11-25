@@ -55,6 +55,14 @@ function carryAdfText(array $node): string
 }
 
 /**
+ * @return array<mixed>
+ */
+function carryAdfSectionNodes(mixed $node): array
+{
+    return is_array($node) && ($node['type'] ?? null) === 'expand' && is_array($node['content'] ?? null) ? $node['content'] : [$node];
+}
+
+/**
  * @param array<mixed> $content
  * @return list<array{text: string, unit: mixed}>
  */
@@ -63,9 +71,7 @@ function carryAdfUnits(array $content): array
     $units = [];
 
     foreach ($content as $node) {
-        $isSection = is_array($node) && ($node['type'] ?? null) === 'expand' && is_array($node['content'] ?? null);
-
-        foreach ($isSection ? $node['content'] : [$node] as $unit) {
+        foreach (carryAdfSectionNodes($node) as $unit) {
             $units[] = ['text' => is_array($unit) ? carryAdfText($unit) : '', 'unit' => $unit];
         }
     }
@@ -207,14 +213,8 @@ function carryAdf(string $namespace, array $document, mixed $previousBody): arra
 {
     $needle = $namespace . ':actor=';
     $content = is_array($document['content'] ?? null) ? array_values($document['content']) : [];
-    $markerIndex = null;
+    $markerIndex = array_key_last(array_filter($content, static fn (mixed $node): bool => is_array($node) && str_contains(carryAdfText($node), $needle)));
     $agentTexts = [];
-
-    foreach ($content as $index => $node) {
-        if (is_array($node) && str_contains(carryAdfText($node), $needle)) {
-            $markerIndex = $index;
-        }
-    }
 
     foreach (carryAdfUnits($content) as $unit) {
         if (!str_contains($unit['text'], $needle) && carryNormalize($unit['text']) !== '') {

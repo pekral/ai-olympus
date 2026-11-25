@@ -26,7 +26,7 @@ function jiraSummaryTaskArguments(): array
     return [
         '--repository',
         'acme/app',
-        ...array_merge(...array_map(static fn (int $number): array => ['--pull-request', (string) $number], [27625, 27600, 11, 12])),
+        ...array_merge(...array_map(static fn (int $number): array => ['--pull-request', (string) $number], [27_625, 27_600, 11, 12])),
         '--jira-issue',
         'https://example.atlassian.net/browse/ACME-6720',
     ];
@@ -37,22 +37,40 @@ function jiraSummaryUsage(): string
     return 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] --repository <owner/name>';
 }
 
+function jiraSummaryString(mixed $value): string
+{
+    return is_string($value) ? $value : '';
+}
+
 /**
- * @param array<mixed> $node
+ * @return array<mixed>
+ */
+function jiraSummaryNodeField(mixed $node, string $field): array
+{
+    return is_array($node) && is_array($node[$field] ?? null) ? $node[$field] : [];
+}
+
+/**
  * @return list<string>
  */
-function jiraSummaryPublishedTargets(array $node): array
+function jiraSummaryPublishedTargets(mixed $node): array
 {
-    $targets = array_map(
-        static fn (array $mark): string => 'link ' . $mark['attrs']['href'],
-        array_filter($node['marks'] ?? [], static fn (array $mark): bool => $mark['type'] === 'link'),
-    );
+    $links = array_filter(jiraSummaryNodeField($node, 'marks'), static fn (mixed $mark): bool => is_array($mark) && ($mark['type'] ?? null) === 'link');
+    $mentions = is_array($node) && ($node['type'] ?? null) === 'mention'
+        ? ['mention ' . jiraSummaryString(
+        jiraSummaryNodeField($node, 'attrs')['id'] ?? null,
+    ),
+        ]
+        : [];
 
-    if ($node['type'] === 'mention') {
-        $targets[] = 'mention ' . $node['attrs']['id'];
-    }
-
-    return [...array_values($targets), ...array_merge([], ...array_map(jiraSummaryPublishedTargets(...), $node['content'] ?? []))];
+    return [
+        ...array_map(
+            static fn (mixed $mark): string => 'link ' . jiraSummaryString(jiraSummaryNodeField($mark, 'attrs')['href'] ?? null),
+            array_values($links),
+        ),
+        ...$mentions,
+        ...array_merge([], ...array_map(jiraSummaryPublishedTargets(...), array_values(jiraSummaryNodeField($node, 'content')))),
+    ];
 }
 
 /**
@@ -65,7 +83,9 @@ function jiraSummaryPublishedAdf(string $source): array
     $process->setInput($source);
     $process->mustRun();
 
-    return json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
+    $adf = json_decode($process->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
+
+    return is_array($adf) ? $adf : [];
 }
 
 function jiraSummaryAuthor(): string
@@ -474,7 +494,11 @@ test(
         '[ACME-6720|https://example.net/browse/ACME-6720]',
         'https://example.net/browse/ACME-6720',
     ],
-    'a pull request the task does not name' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|https://github.com/acme/app/pull/9/files]', 'https://github.com/acme/app/pull/9/files'],
+    'a pull request the task does not name' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/acme/app/pull/9/files]',
+        'https://github.com/acme/app/pull/9/files',
+    ],
 ]);
 
 test('a code link that does not end its finding is refused', function (): void {
@@ -636,7 +660,8 @@ test('a summary whose visible text is over 3 000 characters fails the check', fu
 });
 
 test('the 3 000-character cap counts the label of a code link, never its address', function (): void {
-    $finding = static fn (int $number): string => '* *(bug):* Bod ' . $number . ': synchronizace zařazená starou verzí po nasazení selže a objednávka zůstane neodeslaná. '
+    $finding = static fn (int $number): string => '* *(bug):* Bod ' . $number
+        . ': synchronizace zařazená starou verzí po nasazení selže a objednávka zůstane neodeslaná. '
         . jiraSummaryCodeLink();
     $source = jiraSummaryWithoutCriteria(
         ['* *(bug):* Blokuje sloučení:' => implode("\n", array_map($finding, range(1, 14))) . "\n* *(bug):* Blokuje sloučení:"],
@@ -683,14 +708,29 @@ test('the check refuses a wrong call and a missing source file', function (strin
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
-    'a JIRA issue URL that is no issue' => ['--criteria none --repository acme/app --pull-request 1 --jira-issue https://example.atlassian.net/login /nonexistent/source', jiraSummaryUsage()],
+    'a JIRA issue URL that is no issue' => [
+        '--criteria none --repository acme/app --pull-request 1 --jira-issue https://example.atlassian.net/login /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
     'an author value that is no account ID' => ['--criteria none --author [x] ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
-    'a pull request that is no number' => ['--criteria none --repository acme/app --pull-request 1x --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
+    'a pull request that is no number' => [
+        '--criteria none --repository acme/app --pull-request 1x --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
     'missing source file' => ['--criteria none ' . jiraSummaryTaskCall() . ' /nonexistent/source', 'cannot read /nonexistent/source'],
     'no criteria flag' => [jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
-    'no JIRA issue' => ['--criteria none --repository acme/app --pull-request 1 /nonexistent/source', jiraSummaryUsage()],
-    'no pull request' => ['--criteria none --repository acme/app --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
-    'no repository' => ['--criteria none --pull-request 1 --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
+    'no JIRA issue' => [
+        '--criteria none --repository acme/app --pull-request 1 /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
+    'no pull request' => [
+        '--criteria none --repository acme/app --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
+    'no repository' => [
+        '--criteria none --pull-request 1 --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source',
+        jiraSummaryUsage(),
+    ],
     'unknown criteria value' => ['--criteria maybe ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
 ]);
 
