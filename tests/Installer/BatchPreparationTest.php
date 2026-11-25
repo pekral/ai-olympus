@@ -128,7 +128,7 @@ test('raphael serves from the unit worktree, installs through the lock, and runs
 
     expect($raphael)->toContain('**In a batch** (a dispatch that names a `Batch unit` worktree), the worktree you are given is your tree')
         ->and($raphael)->toContain(
-            '**A dispatch that names a `Batch unit` worktree and carries the batch *Gate serialisation* block** changes three limits above.',
+            '**A dispatch that names a `Batch unit` worktree and carries the batch *Gate serialisation* block** changes two limits above.',
         )
         ->and($raphael)->toContain('`skills/_shared/run-gate.sh --exclusive --command "<command>"`; that command is part of your Bash grant for that case')
         ->and($raphael)->toContain('`krang` runs at most one `raphael` at a time across the batch');

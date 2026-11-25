@@ -4634,7 +4634,7 @@ test('code-testing and code-review rules keep date tests correct across a daylig
     );
 });
 
-test('the branch checkout gate pulls the default branch first and has one owner', function (): void {
+test('the branch checkout gate opens the head in a detached worktree and has one owner', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gatePath = 'skills/code-review/references/branch-checkout-gate.md';
     $gate = (string) file_get_contents($packageDir . '/' . $gatePath);
@@ -4649,9 +4649,9 @@ test('the branch checkout gate pulls the default branch first and has one owner'
         ->and($gate)->toContain('| jq -r \'.headRefName\')"')
         ->and($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
         ->and($gate)->toContain('^[A-Za-z0-9._/-]{1,255}$')
-        ->and($gate)->toContain('git checkout -B "$HEAD_REF" "$HEAD_SHA"')
-        ->and($gate)->toContain('Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`.')
-        ->and($gate)->toContain('`git worktree list --porcelain` shows the default branch checked out in another worktree');
+        ->and($gate)->toContain('skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"')
+        ->and($gate)->toContain('**The main working tree is never checked out on a branch under review.**')
+        ->and($gate)->not->toContain('git checkout "$DEFAULT_BRANCH"');
 
     foreach ($referencingFiles as $relativePath) {
         $text = (string) file_get_contents($packageDir . '/' . $relativePath);
