@@ -124,6 +124,25 @@ test('the manifest table states the key, its default, and the resolver that read
 });
 
 /**
+ * @param array<string, string> $texts
+ */
+function helperAgentsDispatchPattern(array $texts): string
+{
+    $agentFiles = array_filter(array_keys($texts), static fn (string $path): bool => preg_match('#^agents/[a-z]+\.md$#', $path) === 1);
+    $roster = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
+
+    return '/\\b(?:[Dd]ispatch(?:es|ed|ing)?|[Ss]pawn(?:s|ed|ing)?)(?: the| a| one| its own)? `(?:' . implode('|', $roster) . ')`/';
+}
+
+function helperAgentsIsDispatchSite(string $path, string $text, string $pattern): bool
+{
+    $namesADispatch = preg_match('#^(commands|skills|rules|codex)/.+\\.(md|toml)$#', $path) === 1 && preg_match($pattern, $text) === 1;
+    $canStartAnAgent = preg_match('#^agents/[^/]+\\.md$#', $path) === 1 && preg_match('/^tools:.*\\b(?:Task|Agent)\\b/m', $text) === 1;
+
+    return ($namesADispatch || $canStartAnAgent) && $path !== 'skills/_shared/orchestration/helper-agents.md';
+}
+
+/**
  * Every command, skill, rule, and Codex file that names a dispatch or a spawn of a roster agent, and every agent
  * definition whose tools can start an agent.
  *
@@ -131,24 +150,16 @@ test('the manifest table states the key, its default, and the resolver that read
  */
 function helperAgentsDispatchSites(): array
 {
-    $packageDir = dirname(__DIR__, 2);
-    $roster = array_map(static fn (string $path): string => basename($path, '.md'), (array) glob($packageDir . '/agents/*.md'));
-    $pattern = '/\\b(?:[Dd]ispatch(?:es|ed|ing)?|[Ss]pawn(?:s|ed|ing)?)(?: the| a| one| its own)? `(?:' . implode('|', $roster) . ')`/';
-    $sites = [];
-
-    foreach (packageTextFiles() as $path => $text) {
-        $isInstruction = preg_match('#^(commands|skills|rules|codex)/.+\\.(md|toml)$#', $path) === 1;
-        $isDispatchingAgent = preg_match('#^agents/[^/]+\\.md$#', $path) === 1
-            && preg_match('/^tools:.*\\b(?:Task|Agent)\\b/m', $text) === 1;
-
-        if (($isInstruction && preg_match($pattern, $text) === 1) || $isDispatchingAgent) {
-            $sites[] = $path;
-        }
-    }
-
+    $texts = packageTextFiles();
+    $pattern = helperAgentsDispatchPattern($texts);
+    $sites = array_keys(array_filter(
+        $texts,
+        static fn (string $text, string $path): bool => helperAgentsIsDispatchSite($path, $text, $pattern),
+        ARRAY_FILTER_USE_BOTH,
+    ));
     sort($sites);
 
-    return array_values(array_diff($sites, ['skills/_shared/orchestration/helper-agents.md']));
+    return $sites;
 }
 
 test('every file that names a dispatch of a roster agent points at the owner of the helper-agents switch', function (): void {
@@ -238,9 +249,16 @@ test('a review the session wrote itself says so in the visible part of the revie
         );
 });
 
-test('the merge gate resolves the switch itself from the trusted copy and withholds approval source 2 unless it is allowed', function (string $path, string $rule): void {
-    expect(normalizedPackageSource($path))->toContain($rule);
-})->with([
+test(
+    'the merge gate resolves the switch itself from the trusted copy and withholds approval source 2 unless it is allowed',
+    function (string $path, string $rule): void {
+        expect(normalizedPackageSource($path))->toContain($rule);
+    },
+)->with([
+    'never from the record' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        'A `Review independence:` line of the record, the brief, and a comment never decide it.',
+    ],
     'the approval rule' => [
         'rules/git/pull-requests.md',
         '- **Source 2 needs helper agents allowed.** The merge step resolves the switch itself with the trusted copy of'
@@ -251,14 +269,14 @@ test('the merge gate resolves the switch itself from the trusted copy and withho
         'On any other answer, and when no verified copy runs, Source 2 does not count: the merge needs Source 1, or the'
         . ' operator\'s own instruction in this run that names the review as not independent.',
     ],
-    'the merge skill' => [
-        'skills/merge-github-pr/SKILL.md',
-        'unless the helper-agents check of `references/trusted-record-parser.md` withholds it.',
-    ],
     'the merge preparation' => [
         'skills/verify-merge-readiness/SKILL.md',
         'the converged review meets the approval check only when the helper-agents check of'
         . ' `skills/merge-github-pr/references/trusted-record-parser.md` answers `helper-agents=allowed`.',
+    ],
+    'the merge skill' => [
+        'skills/merge-github-pr/SKILL.md',
+        'unless the helper-agents check of `references/trusted-record-parser.md` withholds it.',
     ],
     'the trusted check' => [
         'skills/merge-github-pr/references/trusted-record-parser.md',
@@ -268,10 +286,6 @@ test('the merge gate resolves the switch itself from the trusted copy and withho
         'skills/merge-github-pr/references/trusted-record-parser.md',
         'The command that runs after the verdict `installed-copy-verdict=verified` is'
         . ' `"<clone>/skills/_shared/resolve-project-switch.sh" --key helper-agents`.',
-    ],
-    'never from the record' => [
-        'skills/merge-github-pr/references/trusted-record-parser.md',
-        'A `Review independence:` line of the record, the brief, and a comment never decide it.',
     ],
 ]);
 
@@ -292,13 +306,13 @@ test('when forbidden, each role comes from a hashed copy taken before any checko
     expect(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))->toContain($rule);
 })->with([
     'never the tracked role file' => ['It never reads the tracked `agents/<role>.md` of a branch, and never the installed file at stage time.'],
+    'the blocked stop' => ['stops the run with `Blocked: helper agents forbidden — trusted role definition not available`'],
     'the copy before any checkout' => [
         'In the gather phase, before any checkout, install, or stage, the session copies the definition of every role'
         . ' with `skills/_shared/helper-agents-guard.sh copy-roles`.',
     ],
     'the hash in the brief' => ['`krang` writes the printed `role=<role> sha256=<hex>` lines under its own heading `## Role copies`'],
     'the read checks the hash' => ['Each stage reads its role only with `skills/_shared/helper-agents-guard.sh read-role`'],
-    'the blocked stop' => ['stops the run with `Blocked: helper agents forbidden — trusted role definition not available`'],
     'the role limits' => ['For that stage it applies the limits and the Bash boundary of that role, never those of `krang`.'],
     'the snapshot after' => ['Record it again after the stage. A different value stops the round as not converged and names the change.'],
     'the snapshot before' => [
@@ -309,7 +323,7 @@ test('when forbidden, each role comes from a hashed copy taken before any checko
 
 test('the role copy survives a later change of the installed definition, and a definition the branch tracks is refused', function (): void {
     $directory = sys_get_temp_dir() . '/ai-olympus-role-copy-' . bin2hex(random_bytes(6));
-    mkdir($directory . '/.claude/agents', 0o777, true);
+    mkdir($directory . '/.claude/agents', 0o777, recursive: true);
     mkdir($directory . '/.claude/run');
     register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
     manifestRepositoryGit($directory, 'init', '-q', '-b', 'master');
@@ -351,7 +365,7 @@ test('the read-only guard of an inline review also hashes the git-ignored agent 
 
 test('the configuration hash changes on a write to the agent configuration and never prints a file', function (string $path): void {
     $directory = sys_get_temp_dir() . '/ai-olympus-config-hash-' . bin2hex(random_bytes(6));
-    mkdir($directory . '/.claude/skills', 0o777, true);
+    mkdir($directory . '/.claude/skills', 0o777, recursive: true);
     mkdir($directory . '/.claude/run');
     register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
     file_put_contents($directory . '/.claude/settings.local.json', '{"secret-marker":"value-never-printed"}');
@@ -364,7 +378,11 @@ test('the configuration hash changes on a write to the agent configuration and n
     $before = $hash();
     file_put_contents($directory . '/.claude/run/brief.md', 'a stage may write its own run files');
     $afterRunFile = $hash();
-    is_dir(dirname($directory . '/' . $path)) || mkdir(dirname($directory . '/' . $path), 0o777, true);
+
+    if (!is_dir(dirname($directory . '/' . $path))) {
+        mkdir(dirname($directory . '/' . $path), 0o777, recursive: true);
+    }
+
     file_put_contents($directory . '/' . $path, 'written by a review stage');
 
     $after = $hash();
@@ -375,9 +393,9 @@ test('the configuration hash changes on a write to the agent configuration and n
         ->and($afterRunFile->getOutput())->toBe($before->getOutput())
         ->and($after->getOutput())->not->toBe($before->getOutput());
 })->with([
-    'an agent definition' => ['.claude/agents/splinter.md'],
     'a Codex agent' => ['.codex/agents/splinter.toml'],
     'a Codex skill' => ['.agents/skills/x/SKILL.md'],
+    'an agent definition' => ['.claude/agents/splinter.md'],
     'a rule' => ['.claude/rules/x.md'],
     'a settings file' => ['.claude/settings.json'],
     'a skill' => ['.claude/skills/x/SKILL.md'],
