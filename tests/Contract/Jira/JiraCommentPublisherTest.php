@@ -37,6 +37,13 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
     case "${FAKE_ACLI_READBACK:-stored}" in
       fail) exit 1 ;;
       unmarked) body='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Flattened."}]}]}' ;;
+      drop-first)
+        if [[ "$(cat "$FAKE_ACLI_CALLS.updates")" == "1" ]]; then
+          body='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Flattened."}]}]}'
+        else
+          body="$(cat "$FAKE_ACLI_ADF")"
+        fi
+        ;;
       *) body="$(cat "$FAKE_ACLI_ADF")" ;;
     esac
     jq -n --arg id "$(cat "$FAKE_ACLI_CALLS.updated")" --arg email "${FAKE_ACLI_EMAIL:-}" --argjson body "$body" \
@@ -76,6 +83,8 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "comment" && "$4" == "upda
   if [[ "$FAKE_ACLI_UPDATE_OK" != "1" ]]; then
     exit 1
   fi
+
+  printf '%s' "$(( $(cat "$FAKE_ACLI_CALLS.updates" 2>/dev/null || printf '0') + 1 ))" > "$FAKE_ACLI_CALLS.updates"
 
   while [[ $# -gt 0 ]]; do
     if [[ "$1" == "--id" ]]; then
@@ -324,6 +333,10 @@ function removeJiraCommentPublisherFixture(array $fixture): void
 
     if (is_file($fixture['calls'] . '.updated')) {
         unlink($fixture['calls'] . '.updated');
+    }
+
+    if (is_file($fixture['calls'] . '.updates')) {
+        unlink($fixture['calls'] . '.updates');
     }
 
     unlink($fixture['created']);
@@ -1613,8 +1626,158 @@ test('the JIRA publisher reports an updated comment whose stored body lost the a
             ->and($calls)->toContain('comment update --key TEAM-42 --id 9002 --body-adf')
             ->and($calls)->not->toContain('comment delete')
             ->and($process->getOutput())->toBe('')
-            ->and($process->getErrorOutput())->toContain('comment 9002 stays on TEAM-42 without a confirmed agent marker');
+            ->and($process->getErrorOutput())->toContain('comment 9002 stays on TEAM-42 without the agent marker and reads as the operator\'s own');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
     }
+});
+
+/**
+ * @return array{process: \Symfony\Component\Process\Process, calls: string, rows: list<list<string>>}
+ */
+function runJiraPublisherOnStoredComment(string $readBack): array
+{
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $ledger = auditLedgerCreate();
+    $previous = ['type' => 'doc', 'version' => 1, 'content' => [
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
+        ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
+    ],
+    ];
+    $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
+        ...$ledger['env'],
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => json_encode(['comments' => [
+            ['id' => '9002', 'created' => '2026-01-02T00:00:00.000+0000', 'author' => ['emailAddress' => 'bot@example.com'], 'body' => $previous],
+        ],
+        ], JSON_THROW_ON_ERROR),
+        'FAKE_ACLI_READBACK' => $readBack,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], 'h2. Round two');
+
+    try {
+        $process->run();
+
+        return ['process' => $process, 'calls' => (string) file_get_contents($fixture['calls']), 'rows' => auditLedgerRows($ledger)];
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+        auditLedgerRemove($ledger);
+    }
+}
+
+test('the JIRA publisher puts the previous marked body back when the updated comment lost the agent marker', function (): void {
+    $result = runJiraPublisherOnStoredComment('drop-first');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and(substr_count($result['calls'], 'comment update --key TEAM-42 --id 9002 --body-adf'))->toBe(2)
+        ->and($result['calls'])->not->toContain('comment delete')
+        ->and($result['process']->getOutput())->toBe('')
+        ->and($result['process']->getErrorOutput())->toContain(
+            'comment 9002 on TEAM-42 has its previous body back, and that body carries the agent marker; the new body was not published',
+        )
+        ->and(array_column($result['rows'], 3))->toBe([
+            'https://example.atlassian.net/browse/TEAM-42?focusedCommentId=9002',
+            'jira comment 9002 restore on TEAM-42',
+        ]);
+});
+
+test('the JIRA publisher names the comment that stays without the agent marker when the restore fails', function (): void {
+    $result = runJiraPublisherOnStoredComment('unmarked');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and(substr_count($result['calls'], 'comment update --key TEAM-42 --id 9002 --body-adf'))->toBe(2)
+        ->and($result['process']->getErrorOutput())->toContain(
+            'comment 9002 stays on TEAM-42 without the agent marker and reads as the operator\'s own: putting its previous body back failed',
+        )
+        ->and($result['process']->getErrorOutput())->not->toContain('has its previous body back');
+});
+
+/**
+ * @param list<array<string, mixed>> $after
+ * @return array{process: \Symfony\Component\Process\Process, calls: string}
+ */
+function runJiraPublisherCreateWithoutId(array $after, string $readBack, string $deleteRc = '0'): array
+{
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $before = [jiraComment('9001', '2026-01-01T00:00:00.000+0000', 'other@example.com', 'someone else')];
+    $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"results":[{"key":"TEAM-42","status":"success"}]}',
+        'FAKE_ACLI_DELETE_RC' => $deleteRc,
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_AFTER_JSON' => json_encode(['comments' => [...$before, ...$after]], JSON_THROW_ON_ERROR),
+        'FAKE_ACLI_LIST_JSON' => json_encode(['comments' => $before], JSON_THROW_ON_ERROR),
+        'FAKE_ACLI_READBACK' => $readBack,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], 'h2. Hotovo');
+
+    try {
+        $process->run();
+
+        return ['process' => $process, 'calls' => (string) file_get_contents($fixture['calls'])];
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+}
+
+test('the JIRA publisher finds a created comment that lost the marker and publishes it once the update keeps the marker', function (): void {
+    $result = runJiraPublisherCreateWithoutId([jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')], 'stored');
+
+    expect($result['process']->getExitCode())->toBe(0)
+        ->and($result['calls'])->toContain('comment update --key TEAM-42 --id 9006 --body-adf')
+        ->and($result['process']->getErrorOutput())->toContain('action=created id=9006');
+});
+
+test('the JIRA publisher removes a created comment without a returned ID whose stored body keeps no marker', function (): void {
+    $result = runJiraPublisherCreateWithoutId([jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')], 'unmarked');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->toContain('comment delete --key TEAM-42 --id 9006')
+        ->and($result['process']->getErrorOutput())->toContain('the created comment was removed')
+        ->and($result['process']->getErrorOutput())->not->toContain('carries this actor\'s marker');
+});
+
+test('the JIRA publisher names a created comment without a returned ID that it could not remove', function (): void {
+    $result = runJiraPublisherCreateWithoutId(
+        [jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.')],
+        'unmarked',
+        deleteRc: '7',
+    );
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['process']->getErrorOutput())->toContain(
+            'comment 9006 stays on TEAM-42 without the agent marker and reads as the operator\'s own; remove it by hand (acli exit 7)',
+        );
+});
+
+test('the JIRA publisher touches no comment when several new comments of this account carry no marker', function (): void {
+    $result = runJiraPublisherCreateWithoutId([
+        jiraComment('9006', '2026-01-02T00:00:00.000+0000', 'bot@example.com', 'Flattened.'),
+        jiraComment('9007', '2026-01-02T00:00:01.000+0000', 'bot@example.com', 'Another one.'),
+    ], 'stored');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->not->toContain('comment update')
+        ->and($result['calls'])->not->toContain('comment delete')
+        ->and($result['process']->getErrorOutput())->toContain('comments 9006 9007 on TEAM-42 carry no agent marker and read as the operator\'s own')
+        ->and($result['process']->getErrorOutput())->not->toContain('carries this actor\'s marker');
+});
+
+test('the JIRA publisher never claims the marker for a created comment it could not find', function (): void {
+    $result = runJiraPublisherCreateWithoutId([], 'stored');
+
+    expect($result['process']->getExitCode())->toBe(3)
+        ->and($result['calls'])->not->toContain('comment update')
+        ->and($result['process']->getErrorOutput())->toContain('ID is missing; ADF update aborted')
+        ->and($result['process']->getErrorOutput())->not->toContain('carries this actor\'s marker');
 });
