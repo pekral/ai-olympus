@@ -83,8 +83,9 @@
 #   itself collects (a custom doctest glob) is no candidate. That pattern lives in a runner configuration, which
 #   is a check path, so the change that sets it takes the review. CTest has no collection pattern: its tests are
 #   the `add_test()` calls of a `CMakeLists.txt`, and a dependency list names the checker plugins, so each of
-#   them is a check path itself. Gauge is not covered: it collects the `.md` specifications of `specs/` by
-#   default, the classifier grades them as documentation, and the scan lists none of them.
+#   them is a check path itself. A runner that collects files with a documentation extension (`.md`, `.rst`) as
+#   its tests in its default setup, such as Gauge (`specs/*.md`), the Sphinx doctest builder, or `mdbook test`,
+#   is not covered: the classifier grades those files as documentation, and the scan lists none of them.
 #
 # Test-side paths
 #   One definition: TEST_RE of `domain-vocabulary.sh`, matched on the lower-cased path, which `classify-risk.sh`
@@ -1689,10 +1690,12 @@ TI_SHARED_TEST_PATHS=(test/bootstrap.php test/unit/add.test.js spec/add_spec.rb 
 TI_SHARED_CHECKER_PATHS=(resources/.eslintrc.json .prettierrc pint.json phpcs.xml ruleset.xml.dist rector.php .php-cs-fixer.dist.php
   app/.gitignore resources/.editorconfig tests/.gitattributes src/lib/.gitattributes .gitignore .editorconfig)
 # Files a runner collects or loads in its default configuration that the documentation pattern of the classifier
-# also matches: pytest doctest files and conftest.py, pytest, Jest, Vitest, and Go tests under docs/. PHPUnit,
+# also matches: pytest doctest files and conftest.py, pytest, Jest, Vitest, and Go tests under docs/, and Cucumber
+# Markdown scenarios. PHPUnit,
 # Pest, and RSpec collect only under tests/ or spec/ or by the Test.php suffix, so they add no such path.
 TI_SHARED_RUNNER_PATHS=(app/test_add.txt test_add.txt docs/test_doc.py docs/doc_test.py docs/conftest.py
-  docs/calc.test.js docs/calc.spec.ts docs/__tests__/calc.js docs/calc_test.go)
+  docs/calc.test.js docs/calc.spec.ts docs/__tests__/calc.js docs/calc_test.go src/features/login.feature.md
+  app/features/a/b.feature.md)
 # The files where a runner reads a collection pattern the project sets itself, or its tests (CTest).
 TI_SHARED_RUNNER_CONFIG_PATHS=(pytest.ini tox.ini setup.cfg pyproject.toml package.json .rspec jest.config.js
   vitest.config.ts vite.config.mjs docs/pytest.ini src/CTestCustom.cmake)

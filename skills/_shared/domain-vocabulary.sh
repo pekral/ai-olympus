@@ -35,17 +35,17 @@ DATA_RE="$DATA_PATH_RE|migration"
 QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|lock|mutex|semaphore|concurren|cache|redis|schedul|cron|broadcast'
 
 # RUNNER_COLLECTED_RE names a file by its lower-cased path that pytest, PHPUnit, Pest, Jest, Vitest,
-# Go, or RSpec collects or loads in its default configuration: `test.php` and `tests.php` file names,
-# `.test.`, `.spec.`, and `_test.` suffixes, a `test_*.py` file, a pytest doctest file (`test*.txt`)
-# and `conftest.py`, a script under a Jest `__tests__` directory, and the PHPUnit and Pest
-# configuration files. `classify-risk.sh` never grades such a file as documentation.
+# Go, RSpec, or Cucumber collects or loads in its default configuration: `test.php` and `tests.php` file
+# names, `.test.`, `.spec.`, and `_test.` suffixes, a `test_*.py` file, a pytest doctest file (`test*.txt`)
+# and `conftest.py`, a script under a Jest `__tests__` directory, a Cucumber Markdown scenario
+# (`.feature.md`), and the PHPUnit and Pest configuration files. `classify-risk.sh` never grades such a file as documentation.
 # TEST_RE names a test file by its lower-cased path: every RUNNER_COLLECTED_RE file, and a `test`,
 # `tests`, `spec`, `__tests__`, or Go `testdata` directory. `classify-risk.sh` reads it for the
 # `tests-only` signal of the merge risk, `post-inline-review.sh` reads it to decide whether a
 # Walkthrough row may name a test file, and `test-integrity.sh` reads it as its test-side paths, so
 # all three give one answer for one path. Both patterns are EREs that bash, awk, and the regular
 # expressions of jq all read.
-RUNNER_COLLECTED_RE='tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[^/]*\.py$|(^|/)test[^/]*\.txt$|(^|/)conftest\.py$|(^|/)__tests__/.*\.[cm]?[jt]sx?$|(^|/)phpunit\.xml|(^|/)pest\.php$'
+RUNNER_COLLECTED_RE='tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[^/]*\.py$|(^|/)test[^/]*\.txt$|(^|/)conftest\.py$|(^|/)__tests__/.*\.[cm]?[jt]sx?$|(^|/)phpunit\.xml|(^|/)pest\.php$|\.feature\.md$'
 TEST_RE='(^|/)tests?/|(^|/)spec/|(^|/)__tests__/|(^|/)testdata/|'"$RUNNER_COLLECTED_RE"
 
 # DOC_NAME_RE names a documentation file by its own lower-cased name: a readme, changelog, license, contributing,

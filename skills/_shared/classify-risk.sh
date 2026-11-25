@@ -1434,6 +1434,12 @@ TEXT
     --files "$(writefiles 'app/test_add.txt')" --assignment "$tmp/clear.txt"
   expect_line 'a conftest.py under docs/ is a test, never documentation' 'signal=-2|tests-only' \
     --files "$(writefiles 'docs/conftest.py')" --assignment "$tmp/clear.txt"
+  # Cucumber collects `features/**/*.feature.md` by default, at any depth of a project root.
+  local feature_md
+  for feature_md in 'src/features/login.feature.md' 'app/features/a/b.feature.md' 'Src/Features/Login.Feature.MD'; do
+    expect_line "$feature_md is a test, never documentation" 'signal=-2|tests-only' \
+      --files "$(writefiles "$feature_md")" --assignment "$tmp/clear.txt"
+  done
   # CTest runs the add_test() calls of a CMakeLists.txt, and pip installs a requirements file.
   expect_no_line 'a CMakeLists.txt is never documentation' 'documentation-only' \
     --files "$(writefiles 'src/CMakeLists.txt')" --assignment "$tmp/clear.txt"
