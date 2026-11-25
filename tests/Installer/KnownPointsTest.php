@@ -129,8 +129,10 @@ test('both report templates render a Known points section with a link and the se
         ->toContain('Omit the heading entirely otherwise.')
         ->toContain('it is in no `Counts:` slot, and it blocks nothing')
         ->toContain('**Linked issue:** {URL of the linked issue}')
-        ->toContain('**Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}');
+        ->toContain('**Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}')
+        ->toContain('— **Owner:** `{login}` — **Task:** {URL of the task the point was marked against}');
     expect($text)
+        ->toContain('**Known points:** {n} · security {m}  *(render this line whenever `## Known points` is rendered')
         ->toContain('- **Linked issue:** {URL of the linked issue} — {one sentence: what the change adds on top of the')
         ->toContain('issue, the regression, or the behaviour that differs}');
 })->with([
