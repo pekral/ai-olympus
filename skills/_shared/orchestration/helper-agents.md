@@ -1,6 +1,6 @@
 # Helper agents — the project switch
 
-This file owns the project switch for helper agents. Every agent, command, and skill that starts a helper agent references it and does not restate it.
+This file owns the project switch for helper agents. Every command, skill, rule, and Codex file that names a dispatch or a spawn of a roster agent, and every agent definition whose tools can start an agent, references it and does not restate it.
 
 A **helper agent** is every agent a session starts: a `Task` call of any type on Claude Code (a roster agent, a built-in type, and a read-only worker included), a spawned agent on Codex, a background dispatch, and a nested `krang`. The session the operator talks to is not a helper agent.
 
