@@ -269,13 +269,14 @@ The latency budget of the changed path and the freshness of its data stay with t
 
 **The account that pushed the pull request linked to the issue is the author of the changes.** Read it from the pull request's `author.login` in the loader's PR JSON. Neither the issue reporter, the issue assignee, nor the agent that runs the review is the author.
 
-- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, and no TL;DR line names the author, except in the two cases below.
+- **The author is internal information for the agent.** Use it to decide whose work the review examines and whom a reviewer question addresses. Never report it: no header line, no finding, and no TL;DR line names the author, except in the three cases below.
 - **First exception: an unmet acceptance criterion on GitHub and Bugsnag.** When the review judges a criterion not met or partially met, the tracker comment states why and mentions the author, who confirms and fixes the gap or refutes the claim. `@skills/pr-summary/SKILL.md` *An unmet criterion addresses the author* owns the wording and the mention syntax per tracker. A JIRA comment states why and calls on nobody (`@skills/pr-summary/references/jira-shape.md`).
 - **Second exception: a missing test or a DRY finding in a review-only run.** A review-only run (`/report-code-review`) mentions the author on the line of each such point, so the author sees which gap in their own change it names:
   1. a finding about a missing test — an uncovered changed line, or an acceptance criterion no test proves;
   2. a DRY finding — logic the diff repeats where *Reuse Existing Logic* above names an existing implementation.
 
-  The run never writes the missing test itself; the author of the changes writes it. On GitHub its Actionable comments entry ends with the mention (`skills/code-review-github/scripts/post-inline-review.sh` renders the `author` key); the record keeps the `Author` field. The tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
+  The run never writes the missing test itself; the author of the changes writes it. On GitHub its Actionable comments entry ends with the mention (`skills/code-review-github/scripts/post-inline-review.sh` renders the `author` key); the record keeps the `Author` field. On GitHub and Bugsnag the tracker comment ends the `Review findings` bullet that retells the point with the mention. The mention syntax per tracker is the one *An unmet criterion addresses the author* defines. Every other finding, and every run that is not review-only, names no author.
+- **Third exception: a `(refactor)` finding on JIRA.** Every JIRA comment mentions the author right after the type of each `(refactor)` finding, and on JIRA no other finding names the author (`@skills/pr-summary/references/jira-shape.md` item 12).
 
 ## An issue with several pull requests — remarks and findings split per pull request
 

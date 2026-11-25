@@ -8,7 +8,7 @@
 
 {expand:Findings from the code review}
 * *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". Order the bullets by type: security, bug, tests, refactor, performance, documentation. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.]
-* *(refactor):* [Next point. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
+* *(refactor):* [~accountid:<id>] [Next point; a refactor finding mentions the author of the changes right after its type. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.]
 
 h3. Already reported in an earlier review
 
@@ -121,6 +121,10 @@ Review findings
     bold, with a colon: *(security):*, *(bug):*, *(tests):*, *(refactor):*,
     *(performance):*, or *(documentation):* (references/jira-shape.md, item
     10). The finding text after it stays unchanged.
+  - Every *(refactor):* finding mentions the author of the changes right after
+    its type, as [~accountid:<id>] (references/jira-shape.md, item 12). With
+    no matching JIRA account it carries no mention, and the run reports that.
+    No other line of the comment mentions anyone.
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the
     business, and the evidence in plain words (an observed value, a reproduced
@@ -190,13 +194,14 @@ Length
 
 Check before the publish
   Run php skills/pr-summary/scripts/check-jira-comment.php --criteria
-  <unmet|none> <source-file> on the rendered source, and publish only a source
+  <unmet|none> --author <account-id|none> <source-file> on the rendered source, and publish only a source
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
   cap, the one deploy-verdict paragraph, the collapsed blocks and the text
   outside them, the criteria block against the flag, the
   bullets of What changed and what it affects, at most 600 characters and no
-  TL;DR label, leaked Markdown, code macros, commit hashes, the footer, and the
-  closing agent-marker block.
+  TL;DR label, the change type and the order of every finding, the author
+  mention on every refactor finding and on nothing else, leaked Markdown, code
+  macros, commit hashes, the footer, and the closing agent-marker block.
 
 No embedded blocks
   The JIRA template has no {embedded_blocks} slot. The Assignment Compliance

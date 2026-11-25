@@ -28,10 +28,12 @@ const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
 
 const JIRA_SUMMARY_DEVELOPER_TOKEN = '/' . REPORT_CHECK_DEVELOPER_TOKEN . '/u';
 
-const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none> <source-file>\n"
+const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>\n"
     . "  Checks the Wiki Markup source of a pr-summary JIRA comment before it is published.\n"
     . "  --criteria unmet   an explicit requirement still needs a change or an answer\n"
     . "  --criteria none    no requirement needs action, so the comment has no criteria section\n"
+    . "  --author <id>      the JIRA account ID of the author of the changes; every (refactor) finding mentions it\n"
+    . "  --author none      no JIRA account matches the author, so no line mentions anyone (the default)\n"
     . "  Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.\n"
     . "  stdout: one `violation: <check>: <detail>` line per violation.\n";
 
@@ -104,6 +106,40 @@ function jiraSummaryChangesViolations(array $blocks): array
         if ($length > JIRA_SUMMARY_MAX_CHANGES_CHARACTERS) {
             $violations[] = sprintf('changes: %d characters, the limit is %d', $length, JIRA_SUMMARY_MAX_CHANGES_CHARACTERS);
         }
+    }
+
+    return $violations;
+}
+
+/**
+ * @param list<array{title: string, group: int, body: list<string>}> $findings
+ * @param list<string> $lines
+ * @return list<string>
+ */
+function jiraSummaryMentionViolations(array $findings, array $lines, string $author): array
+{
+    $violations = [];
+    $allowed = 0;
+    $prefix = '* *(refactor):* ' . ($author === 'none' ? '' : '[~accountid:' . $author . '] ');
+
+    foreach ($findings as $block) {
+        foreach ($block['body'] as $line) {
+            if (!str_starts_with($line, '* *(refactor):* ')) {
+                continue;
+            }
+
+            if ($author !== 'none' && !str_starts_with($line, $prefix)) {
+                $violations[] = 'mention: a (refactor) finding mentions the author right after its type: ' . $line;
+            } elseif ($author !== 'none' && substr_count($line, '[~accountid:') === 1) {
+                $allowed++;
+            }
+        }
+    }
+
+    $mentions = array_sum(array_map(static fn (string $line): int => substr_count($line, '[~accountid:'), $lines));
+
+    if ($mentions > $allowed) {
+        $violations[] = 'mention: only a (refactor) finding mentions anyone, the author right after its type';
     }
 
     return $violations;
@@ -301,7 +337,7 @@ function jiraSummaryFrameViolations(array $lines): array
 /**
  * @return list<string>
  */
-function jiraSummaryViolations(string $source, bool $criteriaUnmet): array
+function jiraSummaryViolations(string $source, bool $criteriaUnmet, string $author): array
 {
     $lines = reportCheckLines($source);
     $layout = jiraSummaryLayout($lines);
@@ -311,13 +347,28 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet): array
         ...jiraSummaryFrameViolations($lines),
         ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
         ...jiraSummaryFindingsViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet)),
+        ...jiraSummaryMentionViolations(jiraSummaryFindingsBlocks($layout, $criteriaUnmet), $lines, $author),
         ...jiraSummaryTextViolations($lines),
     ];
 }
 
-if (!isset($argv[3]) || isset($argv[4]) || $argv[1] !== '--criteria' || !in_array($argv[2], ['unmet', 'none'], true)) {
+$arguments = array_slice($argv, 1);
+$options = ['--criteria' => null, '--author' => 'none'];
+
+while (count($arguments) > 1 && array_key_exists($arguments[0], $options)) {
+    $options[array_shift($arguments)] = array_shift($arguments);
+}
+
+if (count($arguments) !== 1
+    || !in_array($options['--criteria'], ['unmet', 'none'], true)
+    || preg_match('/^(?:none|[A-Za-z0-9:_-]+)$/', (string) $options['--author']) !== 1
+) {
     fwrite(STDERR, JIRA_SUMMARY_USAGE);
     exit(1);
 }
 
-reportCheckFinish(jiraSummaryViolations(reportCheckReadSource('check-jira-comment.php', $argv[3]), $argv[2] === 'unmet'));
+reportCheckFinish(jiraSummaryViolations(
+    reportCheckReadSource('check-jira-comment.php', $arguments[0]),
+    $options['--criteria'] === 'unmet',
+    (string) $options['--author'],
+));

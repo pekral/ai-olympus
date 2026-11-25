@@ -24,7 +24,8 @@ test('a review-only run mentions the author of the changes on each missing-test 
     expect($wrapper)->not->toContain('## Missing tests added');
 
     expect($prSummary)
-        ->toContain('End the bullet that retells a missing-test or a DRY finding with the author mention')
+        ->toContain('On GitHub and Bugsnag, end the bullet that retells a missing-test or a DRY finding with the author mention')
+        ->toContain('on JIRA only a `(refactor)` finding mentions the author, right after its type')
         ->toContain('When the review has no point to resolve, render one sentence that says so, and no bullets.');
     expect($prSummary)->not->toContain('## Missing tests added');
 
