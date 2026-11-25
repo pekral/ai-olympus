@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 76 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 77 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 76 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 77 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -89,7 +89,7 @@ In Codex, invoke the matching skill with `$`:
 $verify-merge-readiness https://github.com/owner/repo/issues/123
 ```
 
-The installer puts the same 76 skills, including their scripts and references, in `.claude/skills` and `.agents/skills`. Select the installed name offered by Codex if it includes a namespace. If newly installed skills do not appear, restart Codex.
+The installer puts the same 77 skills, including their scripts and references, in `.claude/skills` and `.agents/skills`. Select the installed name offered by Codex if it includes a namespace. If newly installed skills do not appear, restart Codex.
 
 To resolve an issue through the full pipeline, ask the root session to take the `krang` role and spawn the specialists itself:
 
@@ -190,7 +190,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
-- [`docs/skills.md`](docs/skills.md) — the catalog of all 76 skills
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 77 skills
 - [`docs/rules.md`](docs/rules.md) — the 39 rule files, grouped by scope
 
 ## Testing
