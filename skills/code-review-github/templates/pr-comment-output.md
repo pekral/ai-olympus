@@ -23,7 +23,6 @@
 **Overview:** {one or two sentences on what the change does, in plain language, derived from the assignment and the diff}  *(not rendered in the GitHub record; elsewhere always rendered, as the first line of the header block — `@rules/code-review/general.md` *Quick overview*. It stays on one line: the header block takes no table and no list.)*
 **Status:** clean / needs-fix  *(`clean` when the run converged — no Critical, no unfulfilled reviewer comment, and every remaining Moderate carrying a `Deferred:` field. A Moderate without that field is outstanding, so the status is `needs-fix`.)*
 **Counts:** Critical {n} · Moderate {n}  *(always the real detected counts)*
-**Known points:** {n} · security {m}  *(render this line whenever `## Known points` is rendered: {n} is every entry of that section and {m} its security entries. Omit it otherwise. The merge check compares both counts with the section and refuses a record whose section has no such line — `@skills/merge-github-pr/references/trusted-record-parser.md` *The known-point check*)*
 **Merge verdict:** {yes | no} — assignment met: {yes | no | no linked issue} · open Critical: {n} · {when no: every blocker in one short clause each — the open Critical findings, the unmet criteria, an unfulfilled reviewer comment, an undeferred Moderate, or a missing green quality gate}  *(always rendered — the one-line answer to "can we merge, and is the assignment met with no Critical finding?". `yes` only when all of `@rules/code-review/general.md` *Merge verdict* holds. It never replaces the merge gate.)*
 **Input consistency:** {yes | no | not applicable — the diff writes no persisted data} — {when no: every entry point that bypasses the change, with its `file:line`}  *(always rendered — answers "is the data stored consistently whatever input in the application writes it?" per `@rules/code-review/general.md` *Input consistency and reuse*)*
 **Reuse (DRY):** {no duplication found — only with the `## Reuse (DRY)` evidence | not verified — no DRY evidence | every existing implementation the diff should reuse, with its `file:line`}  *(always rendered — answers "can existing code in the codebase be used instead of repeating it?" per `@rules/code-review/general.md` *Input consistency and reuse*)*
@@ -162,13 +161,11 @@ History exposure: not run — the repository is private.  *(render this one body
 
 ## Known points
 
-> Render only when `krang` marked at least one finding of the round as a known point (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*), on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding: it has no severity, it is in no `Counts:` slot, and it blocks nothing. The entries come from the `known_points` of the loop state.
+> Render only when `krang` marked at least one finding of the round as a known point (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*), on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding: it has no severity, it is in no `Counts:` slot, and it blocks nothing. The entries come from the `known_points` of the loop state. A security finding is never an entry: it stays a finding under `## Findings`, counted and blocking, with its `Linked issue:` field.
 
 1. **Finding:** {the short title of the finding} — `path/to/file.php:42`
    **Linked issue:** {URL of the linked issue}
    **Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}
-2. **Security point** — **Linked issue:** {URL of the linked issue} — **Owner:** `{login}` — **Task:** {URL of the task the point was marked against}
-   *(the shape of every security known point: no title, no place, and no sentence on what the issue covers, because the point merges unfixed — `@rules/code-review/review-process.md` *Known points*. The task is the `source` of the point in the loop state; the merge check verifies that task, never the issues the pull-request body names)*
 
 ---
 

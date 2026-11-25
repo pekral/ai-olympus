@@ -234,8 +234,7 @@ COUNTS_SHAPE=$'^Critical (0|[1-9][0-9]*) \xc2\xb7 Moderate (0|[1-9][0-9]*)$'
 VERDICT_SHAPE=$'^(yes|no) \xe2\x80\x94 assignment met: (yes|no|no linked issue) \xc2\xb7 open Critical: (0|[1-9][0-9]*)( \xc2\xb7 .+)?$'
 # Every label the published header block may carry (skills/code-review-github/templates/pr-comment-output.md and the
 # tracker-mirror labels of the three wrappers). A label outside this list starts the round.
-KNOWN_LABELS='|Overview|Status|Counts|Known points|Merge verdict|Input consistency|Reuse (DRY)|Security assessment|'
-KNOWN_LABELS+='Merge risk|Mode|'
+KNOWN_LABELS='|Overview|Status|Counts|Merge verdict|Input consistency|Reuse (DRY)|Security assessment|Merge risk|Mode|'
 KNOWN_LABELS+='Reviewed revision|Reviewed diff fingerprint|Review scope|Reviewed assignment fingerprint|Coverage|'
 KNOWN_LABELS+='Last updated|Quality gate|Settled points|Not verified|Issue tracker summary|Linked-tracker mirror|'
 REQUIRED_LABELS=('Status' 'Counts' 'Merge verdict' 'Security assessment' 'Reviewed revision' 'Reviewed diff fingerprint'
@@ -1157,10 +1156,12 @@ EOF
     '{ print } /^## TL;DR/ { print "Mode: HOTFIX, coverage waived" }'
   shape_case 'body: a Critical finding heading while Counts says Critical 0 runs the round' "$HI" \
     '{ print } /^## TL;DR/ { print "## Findings"; print "### \360\237\224\264 Critical 1. Unchecked input" }'
+  # A security finding is never a known point, so a record that lists one in the shape of an earlier version is
+  # never carried forward: check-cr-header.sh refuses it and the round runs.
+  shape_case 'body: a security known point of an earlier version runs the round' "$(round_with 'security assessment missing')" \
+    '{ print } /^## TL;DR/ { print "## Known points"; print "1. **Security point** \342\200\224 **Linked issue:** https://github.com/o/r/issues/12" }'
   shape_case 'header: an Overview line, a Changed areas table, and a closing fix-all prompt change nothing' "$CF" \
     '/^\*\*Status:\*\*/ { print "**Overview:** Adds a quick overview to the review comment." } { print } /^## TL;DR/ { print "- Reviewed."; print "## Changed areas"; print "| Layer | Files | Summary |"; print "|---|---|---|"; print "| rules | 1 | text |" } END { print "## Prompt to fix all issues"; print "````text"; print "1. [Moderate] a.php:1 \342\200\224 problem. Fix: change it"; print "````" }'
-  shape_case 'header: a Known points line changes nothing' "$CF" \
-    '/^\*\*Status:\*\*/ { print "**Known points:** 1 \302\267 security 0" } { print }'
   shape_case 'body: a Critical finding heading inside a fence changes nothing' "$CF" \
     '{ print } /^## TL;DR/ { print "```"; print "### Critical 1. quoted"; print "```" }'
   # A decision label followed by a colon after the block, one case per shape of the closed list in the header.
