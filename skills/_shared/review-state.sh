@@ -1946,6 +1946,8 @@ EOF
     check "$extra reported late opens a security round and is stored as a security finding" "$(q '.verdict == "security-round" and .status == "open" and .escalation_reason == null and .iteration == 3 and .counts.remaining_blocking == 1')"
     check "$extra reported late is never deferrable" "$(jq -e '[.findings[] | select(.status != "resolved")] | length == 1 and all(.[]; .security == true)' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   done
+  report "$tmp/l3h.md" 3 "$F_HIST"
+  check 'a finding of the history-exposure lens is security-relevant in its round record too' "$(jq -e -s 'all(.[]; .security == true)' <("$tmp/pkg/skills/_shared/extract-findings.sh" --round --repo acme/shop --pr 7 --input "$tmp/l3h.md") >/dev/null && echo 0 || echo 1)"
   cp "$tmp/converged-at-cap" "$repo/$S"
   report "$tmp/l3x.md" 3 "$F_STRUCT"
   (cd "$repo" && "$script" late --state "$S" --input "$tmp/l3x.md" >/dev/null)
