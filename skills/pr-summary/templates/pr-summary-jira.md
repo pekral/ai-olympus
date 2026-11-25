@@ -10,7 +10,7 @@
 You can go through the whole change here: [code in the pull request|PR_URL/files]
 
 * *(bug):* [The change type of the point (references/jira-shape.md, item 10), then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: what is wrong, what the fix is, and what the fix changes for the user or the business. Name the evidence in plain words, for example "an order created without a customer fails". Order the bullets by type: security, bug, tests, refactor, performance, documentation. A security point that still needs verification and blocks the merge is the first bullet, named as a blocker without the detail of the suspicion.] [View in code →|CODE_LINK]
-* *(refactor):* [~accountid:<id>] [Next point; a refactor finding mentions the author of the changes right after its type. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.] [View in code →|CODE_LINK]
+* *(refactor):* [~accountid:<id>] [Next point; a refactor or a tests finding mentions the author of the changes right after its type. Only a defect or an open question that needs an answer; never an assumption, a hypothesis, or a point that needs no action. A question that concerns no criterion is the closing sentence of the point it belongs to.] [View in code →|CODE_LINK]
 
 h3. Already reported in an earlier review
 
@@ -125,12 +125,15 @@ Review findings
     10). The finding text after it stays unchanged.
   - The first line of the block links the whole change of the pull request,
     and every finding ends with "View in code →" linked to its file and line
-    in the changes of the pull request, or with a link to the pull request
-    that fixes code outside this one (references/jira-shape.md, item 13).
+    in the changes of the pull request. A finding about code outside this
+    one ends with a link to the pull request that fixes it, or, when none
+    exists, with "View in code →" linked to its file and line at the reviewed
+    head commit (references/jira-shape.md, item 13).
     Build PR_URL/files and CODE_LINK with
     skills/pr-summary/scripts/pr-code-link.php, never by hand.
-  - Every *(refactor):* finding mentions the author of the changes right after
-    its type, as [~accountid:<id>] (references/jira-shape.md, item 12). The
+  - Every *(refactor):* and *(tests):* finding mentions the author of the
+    changes right after its type, as [~accountid:<id>]
+    (references/jira-shape.md, item 12). The
     ID comes only from a confirmed person match. Without one the finding
     carries no mention, and the run reports that.
     No other line of the comment mentions anyone.
@@ -212,7 +215,7 @@ Check before the publish
   outside them, the criteria block against the flag, the
   bullets of What changed and what it affects, at most 600 characters and no
   TL;DR label, the change type and the order of every finding, the author
-  mention on every refactor finding and on nothing else, the whole-change line
+  mention on every refactor and tests finding and on nothing else, the whole-change line
   and the code links, every link and mention of the converted comment against
   the task's pull requests, its JIRA site, and the author, leaked Markdown, code
   macros, commit hashes, the footer, and the closing agent-marker block.

@@ -6,9 +6,11 @@ const PR_CODE_LINK_PULL_REQUEST = '#^https://github\.com/(?!\.{1,2}/)[A-Za-z0-9_
 
 const PR_CODE_LINK_MAX_LINE = 10_000_000;
 
-const PR_CODE_LINK_USAGE = "Usage: pr-code-link.php <pull-request-url> [<path> <line>]\n"
+const PR_CODE_LINK_USAGE = "Usage: pr-code-link.php <pull-request-url> [<path> <line> [<revision>]]\n"
     . "  Prints the link to the whole change of the pull request, or with <path> and <line>\n"
     . "  the link to that line of that file in the changes of the pull request.\n"
+    . "  With <revision>, the full hash of the reviewed head commit, it prints the link to that line\n"
+    . "  of that file at that commit of the repository, for a finding outside the pull request.\n"
     . "  Exit codes: 0 the link is printed, 1 a refused argument.\n";
 
 function prCodeLinkRefuse(string $reason): never
@@ -28,7 +30,7 @@ function prCodeLinkValidPath(string $path): bool
 
 $arguments = array_slice($argv ?? [], 1);
 
-if (!in_array(count($arguments), [1, 3], strict: true)) {
+if (!in_array(count($arguments), [1, 3, 4], strict: true)) {
     prCodeLinkRefuse('expected a pull-request URL, optionally followed by a path and a line');
 }
 
@@ -49,4 +51,14 @@ if (preg_match('/^[1-9][0-9]*$/D', $arguments[2]) !== 1 || (int) $arguments[2] >
     prCodeLinkRefuse('not a line number: ' . $arguments[2]);
 }
 
-echo $arguments[0] . '/files#diff-' . hash('sha256', $arguments[1]) . 'R' . $arguments[2] . "\n";
+if (count($arguments) === 3) {
+    echo $arguments[0] . '/files#diff-' . hash('sha256', $arguments[1]) . 'R' . $arguments[2] . "\n";
+    exit(0);
+}
+
+if (preg_match('/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/D', $arguments[3]) !== 1) {
+    prCodeLinkRefuse('not a full commit hash: ' . $arguments[3]);
+}
+
+echo preg_replace('#/pull/[0-9]+$#D', '', $arguments[0]) . '/blob/' . $arguments[3] . '/'
+    . implode('/', array_map(rawurlencode(...), explode('/', $arguments[1]))) . '#L' . $arguments[2] . "\n";

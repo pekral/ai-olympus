@@ -4558,7 +4558,7 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
     expect($summary)->not->toContain('whose name or e-mail matches the pull request\'s author');
 });
 
-test('a JIRA refactor finding takes the author mention only from a confirmed person match', function (): void {
+test('a JIRA author mention takes the account only from a confirmed person match', function (): void {
     $shape = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/jira-shape.md');
 
     expect($shape)->toContain('The account ID comes only from a confirmed person match')
