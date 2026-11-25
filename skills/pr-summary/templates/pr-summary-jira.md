@@ -130,8 +130,9 @@ Review findings
     Build PR_URL/files and CODE_LINK with
     skills/pr-summary/scripts/pr-code-link.php, never by hand.
   - Every *(refactor):* finding mentions the author of the changes right after
-    its type, as [~accountid:<id>] (references/jira-shape.md, item 12). With
-    no matching JIRA account it carries no mention, and the run reports that.
+    its type, as [~accountid:<id>] (references/jira-shape.md, item 12). The
+    ID comes only from a confirmed person match. Without one the finding
+    carries no mention, and the run reports that.
     No other line of the comment mentions anyone.
   - One bullet per finding, as a TL;DR of its solution backed by evidence: what
     is wrong, what the fix is, what the fix changes for the user or the

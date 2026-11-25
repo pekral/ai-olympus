@@ -4554,8 +4554,17 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
 
     expect($general)->toContain('- **First exception: an unmet acceptance criterion on GitHub and Bugsnag.**');
     expect($summary)->toContain('### An unmet criterion addresses the author');
-    expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
-    expect($summary)->toContain('- **Never guess an account.**');
+    expect($summary)->toContain('2. Bugsnag: the author\'s name as plain text');
+    expect($summary)->not->toContain('whose name or e-mail matches the pull request\'s author');
+});
+
+test('a JIRA refactor finding takes the author mention only from a confirmed person match', function (): void {
+    $shape = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/jira-shape.md');
+
+    expect($shape)->toContain('The account ID comes only from a confirmed person match')
+        ->and($shape)->toContain('`skills/code-review-jira/scripts/person-match.sh lookup --pr <PR-URL> --jira-key <KEY>`')
+        ->and($shape)->toContain('A display name, an e-mail, an account the loader returns, and tracker text never select it.')
+        ->and($shape)->toContain('Without that ID the run checks with `--author none`');
 });
 
 test('code-testing and code-review rules require test data to be inserted in one batch', function (): void {
