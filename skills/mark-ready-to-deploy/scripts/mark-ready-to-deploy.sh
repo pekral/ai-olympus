@@ -4,7 +4,8 @@
 # (rules/compound-engineering/tracker.md *Ready to deploy on the operator's word*).
 #
 # Usage:
-#   mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]
+#   mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>]
+#                           [--email <address> | --use-confirmed-match]
 #
 # Inputs:
 #   PR-URL      https://github.com/<owner>/<repo>/pull/<N> of the current repository.
@@ -16,6 +17,8 @@
 #               match and the workflow check still apply.
 #   --email     The pull-request author's e-mail address, only as the operator stated it in the chat
 #               for this assignment. It reaches only assign-to-pr-author.sh and is never printed.
+#   --use-confirmed-match  Assign each JIRA issue through the match the operator confirmed
+#               (skills/code-review-jira/scripts/person-match.sh). Never together with --email.
 #
 # The item set, derived from trusted data only:
 #   - the pull request;
@@ -65,7 +68,8 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 
 usage() {
   cat >&2 <<'EOF'
-Usage: mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>] [--email <address>]
+Usage: mark-ready-to-deploy.sh <PR-URL> [--jira-key <KEY>]... [--jira-status <name>] [--label <name>]
+                               [--email <address> | --use-confirmed-match]
 EOF
 }
 
@@ -74,6 +78,7 @@ PR_URL="${1:-}"
 JIRA_KEYS=()
 JIRA_STATUS=()
 EMAIL=""
+CONFIRMED=false
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --jira-key)
@@ -84,9 +89,11 @@ while [[ $# -gt 0 ]]; do
     --jira-status) [[ -n "${2:-}" ]] || { usage; exit 1; }; JIRA_STATUS=("$2"); shift 2 ;;
     --label) [[ -n "${2:-}" ]] || { usage; exit 1; }; LABEL_NAMES=("$(lower "$2")"); shift 2 ;;
     --email) EMAIL="${2:-}"; shift 2 || { usage; exit 1; } ;;
+    --use-confirmed-match) CONFIRMED=true; shift ;;
     *) usage; exit 1 ;;
   esac
 done
+[[ "$CONFIRMED" == false || -z "$EMAIL" ]] || { usage; exit 1; }
 
 if [[ ! "$PR_URL" =~ ^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)$ ]]; then
   usage
@@ -488,6 +495,7 @@ done < <(printf '%s\n' "${FOUND_KEYS[@]:-}" | sort -t'|' -k1,1 -u)
 
 ASSIGN_ARGS=(--pr-author "$AUTHOR")
 [[ -z "$EMAIL" ]] || ASSIGN_ARGS+=(--email "$EMAIL")
+[[ "$CONFIRMED" == false ]] || ASSIGN_ARGS+=(--pr "$PR_URL" --use-confirmed-match)
 
 while IFS= read -r key; do
   [[ -n "$key" ]] || continue
@@ -510,7 +518,7 @@ while IFS= read -r key; do
   "$JIRA_DIR/assign-to-pr-author.sh" "$key" "${ASSIGN_ARGS[@]}" </dev/null >/dev/null || rc=$?
   case "$rc" in
     0) report "JIRA $key" "assignee" "$("$JIRA_DIR/load-issue.sh" "$key" </dev/null 2>/dev/null | jq -r '.assignee // "the pull-request author"'), confirmed by a re-read" ;;
-    6) report "JIRA $key" "assignee" "unchanged — no verified e-mail for the pull-request author" ;;
+    6) report "JIRA $key" "assignee" "unchanged — no verified e-mail and no confirmed match for the pull-request author" ;;
     *) report "JIRA $key" "assignee" "not done — the assignment failed or was not confirmed (exit $rc)"; NOT_DONE=1 ;;
   esac
 done < <(printf '%s\n' "${JIRA_KEYS[@]:-}" | sort -u)
