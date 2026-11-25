@@ -32,12 +32,12 @@ test('no review or walkthrough text switches the main tree to the head of a pull
 test('the checkout gate reads the branch in a detached worktree and leaves the main tree on its branch', function (string $text): void {
     expect(normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md'))->toContain($text);
 })->with([
-    'the principle' => ['**The main working tree is never checked out on a branch under review.**'],
     'the head commit' => ['`HEAD_SHA` is the head commit the gate opens: the PR head SHA from the loaded context (`headRefOid`)'],
-    'the open' => ['Run `skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"` in the main tree.'],
     'the later reads' => ['as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.'],
-    'the remote ref' => ['Require `git rev-parse "origin/$HEAD_REF"` to print `HEAD_SHA`.'],
     'the one owner of the options' => ['it is the one owner of the git options that do this.'],
+    'the open' => ['Run `skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"` in the main tree.'],
+    'the principle' => ['**The main working tree is never checked out on a branch under review.**'],
+    'the remote ref' => ['Require `git rev-parse "origin/$HEAD_REF"` to print `HEAD_SHA`.'],
 ]);
 
 test('every worktree that reads a branch under review is created and moved only through the worktree script', function (string $path, string $text): void {
