@@ -4,8 +4,6 @@
 [Render this block only for explicit requirements that still need a change or an answer. Omit satisfied requirements, positive verdicts, and completion counts.]
 
 * [Only a criterion that is NOT met, is partially met, or needs a human to confirm it. What is missing and why the review judged it so, in plain prose. When a question for a human is open, it is the closing sentence of this bullet.]
-
-[Only when a criterion is not met or partially met: one sentence mentioning the author of the changes as [~accountid:<id>], asking them to confirm and fix the gap, or refute the claim in a reply.]
 {expand}
 
 {expand:Findings from the code review}
@@ -86,9 +84,9 @@ Acceptance criteria
   or answer and its evidence. Omit satisfied requirements, positive verdicts,
   and completion counts throughout the report. When every requirement is
   satisfied, omit the whole section. Omit it too when no criteria are stated.
-  An unmet or partially met criterion states why, and one closing sentence
-  mentions the author of the changes (@skills/pr-summary/SKILL.md, An unmet
-  criterion addresses the author).
+  An unmet or partially met criterion states why. The block carries no call
+  to the author of the changes: no sentence asks the author to confirm and fix
+  the gap, or refute it in a reply (references/jira-shape.md, item 2).
   The caller passes the full @skills/assignment-compliance-check/SKILL.md
   verdict internally; only its requests
   for changes render here. The pull request retains its functional verdict.

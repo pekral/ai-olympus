@@ -106,6 +106,17 @@ function jiraSummaryChangesViolations(array $blocks): array
 }
 
 /**
+ * @param array{title: string, group: int, body: list<string>}|null $block
+ * @return list<string>
+ */
+function jiraSummaryCriteriaViolations(?array $block): array
+{
+    $calls = array_filter($block['body'] ?? [], static fn (string $line): bool => str_contains($line, '[~accountid:'));
+
+    return array_map(static fn (string $line): string => 'criteria: the block calls on nobody: ' . $line, array_values($calls));
+}
+
+/**
  * @param list<array{title: string, group: int, body: list<string>}> $blocks
  * @return list<array{title: string, group: int, body: list<string>}>
  */
@@ -138,7 +149,7 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
             );
         }
 
-        return [...$violations, ...jiraSummaryChangesViolations($issueBlocks)];
+        return [...$violations, ...jiraSummaryCriteriaViolations($criteriaUnmet ? $issueBlocks[0] ?? null : null), ...jiraSummaryChangesViolations($issueBlocks)];
     }
 
     $findingsTitle = jiraSummaryGroupBlocks($layout['blocks'], 1)[0]['title'] ?? '';
@@ -148,6 +159,8 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
     if (count($criteriaBlocks) !== $expectedIssueBlocks || count($issueBlocks) - count($criteriaBlocks) > 1) {
         $violations[] = sprintf('sections: %d issue-level blocks, expected %d', count($criteriaBlocks), $expectedIssueBlocks);
     }
+
+    $violations = [...$violations, ...jiraSummaryCriteriaViolations($criteriaUnmet ? array_values($criteriaBlocks)[0] ?? null : null)];
 
     for ($group = 1; $group <= $layout['groups']; $group++) {
         $groupBlocks = jiraSummaryGroupBlocks($layout['blocks'], $group);
