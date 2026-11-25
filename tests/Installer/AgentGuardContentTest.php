@@ -189,3 +189,11 @@ test('no confined role keeps a write exception inside a review worktree', functi
         ->and(agentGuardPackageFile('SECURITY.md'))->not->toContain('of their own review worktree')
         ->and(agentGuardPackageFile('agents/leonardo.md'))->not->toContain('the one directory below the worktree that you may write');
 });
+
+test('SECURITY.md states that the macOS confinement creates no symbolic link anywhere', function (): void {
+    $guard = installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard');
+
+    expect($guard)->toContain('On macOS a confined command creates no symbolic link anywhere')
+        ->and($guard)->toContain('8. **Linux only:** `bwrap` binds by directory, never by name.')
+        ->and(agentGuardPackageFile('skills/_shared/agent-guard.sh'))->toContain("profile+='(deny file-write-create (vnode-type SYMLINK))'");
+});

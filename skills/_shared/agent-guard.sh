@@ -28,14 +28,14 @@
 #   The confined roles and their write allowances are literals of this script. It reads no file of the working tree
 #   and nothing under `.claude/run/` to build them, so no branch and no agent can widen them. Writes are refused by
 #   default. A confined role may write only:
-#     every confined role   `.claude/run/**` and `.codex/run/**` of the project (no symbolic link is created there on
-#                           macOS), a private temporary directory that `exec` creates for the one command, points
-#                           `TMPDIR` at, and removes afterwards, the machine lock directory, and the terminal and null
-#                           devices. On macOS also the `sh-thd*` file of a here-document directly in `/tmp`, because
-#                           the system bash 3.2 ignores `TMPDIR` there. Never any other file in `/tmp`, the `TMPDIR` of
-#                           the session, the project, its git directories, any
-#                           worktree under `.claude/worktrees/` or `<git common dir>/worktrees/`, the home directory, a
-#                           directory on PATH, a shell startup file, or the git configuration.
+#     every confined role   `.claude/run/**` and `.codex/run/**` of the project, a private temporary directory that
+#                           `exec` creates for the one command, points `TMPDIR` at, and removes afterwards, the machine
+#                           lock directory, and the terminal and null devices. On macOS also the `sh-thd*` file of a
+#                           here-document directly in `/tmp`, because the system bash 3.2 ignores `TMPDIR` there. Never
+#                           any other file in `/tmp`, the `TMPDIR` of the session, the project, its git directories,
+#                           any worktree under `.claude/worktrees/` or `<git common dir>/worktrees/`, the home
+#                           directory, a directory on PATH, a shell startup file, or the git configuration. On macOS a
+#                           confined command creates no symbolic link anywhere.
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
 #
 # Strict mode
@@ -422,9 +422,7 @@ macos_profile() {
   profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
   [[ "$role" == "casey" ]] && profile+='(allow file-write* (subpath (param "LOGS")))'
-  profile+='(deny file-write-create (require-all (subpath (param "RUN_CLAUDE")) (vnode-type SYMLINK)))'
-  profile+='(deny file-write-create (require-all (subpath (param "RUN_CODEX")) (vnode-type SYMLINK)))'
-  profile+='(deny file-write-create (require-all (regex (param "HEREDOC_RE")) (vnode-type SYMLINK)))'
+  profile+='(deny file-write-create (vnode-type SYMLINK))'
   printf '%s' "$profile"
 }
 

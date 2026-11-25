@@ -274,6 +274,55 @@ test('a symbolic link inside .claude/run is refused in the confinement on macOS'
     'only the macOS profile refuses a symbolic link; bwrap cannot, which SECURITY.md names as a residual',
 );
 
+test('no symbolic link reaches .claude/run inside a moved directory on macOS', function (string $command): void {
+    $root = AgentGuardRun::repository();
+    mkdir(dirname($root) . '/home/.cache/ai-olympus', 0777, recursive: true);
+
+    try {
+        AgentGuardRun::exec($root, 'splinter', $command);
+        $links = [];
+
+        foreach ([$root . '/.claude/run', dirname($root) . '/home/.cache/ai-olympus'] as $directory) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($directory, FilesystemIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::SELF_FIRST,
+            );
+
+            foreach ($iterator as $file) {
+                assert($file instanceof SplFileInfo);
+                $links[] = is_link($file->getPathname()) ? $file->getPathname() : null;
+            }
+        }
+
+        expect(array_values(array_filter($links)))->toBe([]);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'from the private temporary directory' => ['mkdir "$TMPDIR/d"; ln -s "$PWD" "$TMPDIR/d/l"; mv "$TMPDIR/d" .claude/run/d'],
+    'from the lock directory' => ['d="$HOME/.cache/ai-olympus/d"; mkdir "$d"; ln -s "$PWD" "$d/l"; mv "$d" .claude/run/d'],
+    'a link left in the lock directory' => ['ln -s "$PWD" "$HOME/.cache/ai-olympus/l"'],
+])->skip(
+    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
+    'only the macOS profile refuses a symbolic link; bwrap cannot, which SECURITY.md names as a residual',
+);
+
+test('a confined command creates no symbolic link in its private temporary directory on macOS', function (): void {
+    $root = AgentGuardRun::repository();
+
+    try {
+        $process = AgentGuardRun::exec($root, 'leonardo', 'ln -s "$PWD" "$TMPDIR/l" || touch .claude/run/refused');
+
+        expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+            ->and(file_exists($root . '/.claude/run/refused'))->toBeTrue();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(
+    PHP_OS_FAMILY !== 'Darwin' || agentGuardSkipWithoutConfinement(),
+    'only the macOS profile refuses a symbolic link; bwrap cannot, which SECURITY.md names as a residual',
+);
+
 test('a nested sandbox with a looser profile cannot write into the git toplevel', function (): void {
     $root = AgentGuardRun::repository();
     $nested = 'if [ -x /usr/bin/sandbox-exec ]; then /usr/bin/sandbox-exec -p "(version 1)(allow default)" sh -c "echo x > target"; '
