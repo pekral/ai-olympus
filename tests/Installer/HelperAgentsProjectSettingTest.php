@@ -473,9 +473,12 @@ test('a configuration hash that cannot be computed exits 4 and prints no hash, s
         )
         ->toContain('Run it with `--user` in the tree the session started in, so it also covers the user-level files the script header lists.')
         ->toContain(
-            '- **Not covered:** the auto memory of the harness, `~/.claude.json`, and a file that a git `include.path`'
-            . ' setting names. A change there is not detected.',
-        );
+            '- **Not covered:** the auto memory of the harness, `~/.claude.json`, the system git configuration, and a file'
+            . ' that a git `include.path` setting names. A change there is not detected.',
+        )
+        ->toContain('It leaves out the session lock `.claude/scheduled_tasks.lock`, which the harness rewrites.')
+        ->toContain('That list includes the user git configuration.')
+        ->toContain('A symbolic link counts by its target path and by the content of its target.');
 });
 
 test('the role guard self-test passes and is registered', function (): void {
