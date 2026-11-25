@@ -35,9 +35,16 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         '----',
         '',
         '_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._',
+        '',
+        jiraSummaryMarkerBlock(),
     ]);
 
     return str_replace(array_keys($replace), array_values($replace), $source);
+}
+
+function jiraSummaryMarkerBlock(): string
+{
+    return "{expand:Technická značka pro AI agenty}\n{agent-marker}\n{expand}";
 }
 
 function jiraSummaryVerdict(): string
@@ -82,6 +89,7 @@ function jiraSummaryForTwoPullRequests(): string
         $group(12),
         '[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]',
         "----\n\n_Tento komentář je generovaný automaticky._",
+        jiraSummaryMarkerBlock(),
     ]);
 }
 
@@ -217,13 +225,25 @@ test('a summary over 3 000 characters fails the check', function (): void {
 
 test('a summary without the footer fails the check', function (): void {
     $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(["\n----\n\n_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._" => '']),
+        jiraSummaryWithoutCriteria(["\n----\n\n_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._\n\n" . jiraSummaryMarkerBlock() => '']),
         'none',
     );
 
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: footer: a ---- line followed by the italic footer line is missing');
 });
+
+test('the agent marker must sit alone in the last collapsed block', function (string $search, string $replacement): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: marker: the comment must end with one collapsed block that holds only the {agent-marker} line');
+})->with([
+    'no marker block' => ["\n\n" . jiraSummaryMarkerBlock(), ''],
+    'a marker slot in plain view' => [jiraSummaryMarkerBlock(), '{agent-marker}'],
+    'a second slot in a section' => ['* Blokuje sloučení:', "{agent-marker}\n* Blokuje sloučení:"],
+    'text beside the slot' => ["{agent-marker}\n{expand}", "{agent-marker}\nPro agenty.\n{expand}"],
+]);
 
 test('the check refuses a wrong call and a missing source file', function (string $arguments, string $error): void {
     $packageDir = dirname(__DIR__, 3);

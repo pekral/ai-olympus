@@ -1738,7 +1738,7 @@ test('every comment an agent publishes on GitHub or JIRA carries a marker, and n
         ->and($jira)->not->toContain('A replacement TL;DR published through the JIRA MCP fallback carries none');
 
     expect($prSummary)->toContain('Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call')
-        ->and($prSummary)->toContain('append the same `_cr-comment:actor=<actor-digest>_` marker line to that ADF');
+        ->and($prSummary)->toContain('put the same `_cr-comment:actor=<actor-digest>_` marker line into the marker block of that ADF');
 });
 
 test('a JIRA comment addressed to another account is compared by account ID, never by display name (issue #156)', function (): void {

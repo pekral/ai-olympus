@@ -16,6 +16,8 @@ const JIRA_SUMMARY_BLOCK_OPEN = '/^\{expand:(?<title>[^{}]+)\}$/u';
 
 const JIRA_SUMMARY_BLOCK_CLOSE = '{expand}';
 
+const JIRA_SUMMARY_MARKER_SLOT = '{agent-marker}';
+
 const JIRA_SUMMARY_LINKS_LINE = '/^\[[^|\]]+\|[^\]]+\](?: · \[[^|\]]+\|[^\]]+\])*$/u';
 
 const JIRA_SUMMARY_MARKDOWN = '/^(?:#{1,6}\s|>|-\s)|\*\*[^\s*]|`|\]\(/u';
@@ -39,7 +41,7 @@ function jiraSummaryLayout(array $lines): array
     $open = null;
 
     foreach (array_slice($lines, 1) as $line) {
-        if ($open === null && $line === '----') {
+        if ($line === '----') {
             break;
         }
 
@@ -200,6 +202,17 @@ function jiraSummaryFrameViolations(array $lines): array
 
     if ($rule === false || preg_match('/^_.+_$/u', $lines[$rule + 1] ?? '') !== 1) {
         $violations[] = 'footer: a ---- line followed by the italic footer line is missing';
+    }
+
+    $tail = $rule === false ? [] : array_slice($lines, $rule + 2);
+
+    if (count($tail) !== 3
+        || preg_match(JIRA_SUMMARY_BLOCK_OPEN, $tail[0]) !== 1
+        || $tail[1] !== JIRA_SUMMARY_MARKER_SLOT
+        || $tail[2] !== JIRA_SUMMARY_BLOCK_CLOSE
+        || count(array_keys($lines, JIRA_SUMMARY_MARKER_SLOT, true)) !== 1
+    ) {
+        $violations[] = 'marker: the comment must end with one collapsed block that holds only the ' . JIRA_SUMMARY_MARKER_SLOT . ' line';
     }
 
     return $violations;

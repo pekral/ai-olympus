@@ -27,6 +27,10 @@ h3. Already reported in an earlier review
 
 _This comment is generated automatically. It is written for the person who owns this ticket, not for a developer._
 
+{expand:Technical marker for AI agents}
+{agent-marker}
+{expand}
+
 === END OF COMMENT BODY — NOTHING BELOW THIS LINE IS EVER PUBLISHED ===
 
 TEMPLATE GUIDANCE. The published comment ends at the line above. The intermediate
@@ -159,7 +163,8 @@ Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md. The
   block titles are "Acceptance criteria", "Findings from the code review", and
   "TL;DR" in English. A Czech assignment renders "{expand:Akceptační kritéria}",
-  "{expand:Nálezy z kontroly kódu}", "{expand:TL;DR}", and the footer "Tento
+  "{expand:Nálezy z kontroly kódu}", "{expand:TL;DR}", "{expand:Technická značka
+  pro AI agenty}", and the footer "Tento
   komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro
   vývojáře." Never mix an English heading with assignment-language prose.
 
@@ -177,7 +182,8 @@ Check before the publish
   it accepts (@skills/pr-summary/SKILL.md, Publishing). The script checks the
   cap, the one deploy-verdict paragraph, the collapsed blocks and the text
   outside them, the criteria block against the flag, the
-  single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, and the footer.
+  single TL;DR paragraph of at most 600 characters, leaked Markdown, code macros, commit hashes, the footer, and the
+  closing agent-marker block.
 
 No embedded blocks
   The JIRA template has no {embedded_blocks} slot. The Assignment Compliance
@@ -188,6 +194,14 @@ No embedded blocks
   Do not add an Authors line, an Available behind line, a Summary of changes
   section, severity counts, file paths, line numbers, or code snippets — none of
   those belongs on any target this skill publishes to.
+
+Technical marker for AI agents
+  The last block of the comment, after the footer, holding only the
+  {agent-marker} slot line. The JIRA publish helper writes the agent marker in
+  place of the slot (@rules/jira/general.md, Comments Format), so a reader sees
+  the marker only when they open the block, and every agent that finds,
+  updates, or deletes its own comment by the marker still finds it. Translate
+  the block title like every other title; never fill the slot by hand.
 
 Closing links line
   One line, the pull request and the source tracker item, separated by " · ", in

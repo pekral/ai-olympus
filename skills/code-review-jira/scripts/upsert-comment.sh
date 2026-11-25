@@ -12,9 +12,12 @@
 # explicit request from the same owner; the older CHANGELOG entry stays as
 # history.
 #
-# JIRA has no hidden-comment mechanism, so the marker is a visible but
-# unobtrusive italic line at the bottom of the body:
+# JIRA has no hidden-comment mechanism, so the marker is an italic line:
 #   _cr-comment:actor=<actor-digest>_
+# A source that carries the slot line `{agent-marker}` gets the marker in place of
+# that slot, which the code-review template puts inside a collapsed block, so a
+# reader sees it only on purpose. Any other source gets the marker as the last
+# line of the body.
 #
 # The actor half is the first 16 hex characters of the SHA-256 digest of the
 # authenticated account e-mail, never the address itself. The marker is readable
@@ -64,9 +67,10 @@
 #      That status output carries no account ID, and no `acli` subcommand
 #      returns one for the current user, so the account ID is resolved through
 #      JQL `currentUser()` (`jira_actor_account_id` in jira-actor.sh).
-#   2. Derive the actor digest from that e-mail and append the marker line
-#      `_<namespace>:actor=<actor-digest>_` to the Wiki Markup source (only when
-#      the source does not already carry it). The raw address never leaves this
+#   2. Derive the actor digest from that e-mail and write the marker line
+#      `_<namespace>:actor=<actor-digest>_` into the Wiki Markup source (only when
+#      the source does not already carry it): in place of the last `{agent-marker}`
+#      slot line, or appended as the last line when the source has no slot. The raw address never leaves this
 #      process: it is used only for the local author comparison in step 4.
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
 #   4. Read the issue's comments through `acli jira workitem view <KEY>
@@ -265,8 +269,8 @@ fi
 
 # The same status output carries the authenticated account e-mail. The marker
 # publishes a digest of it rather than the address: JIRA has no hidden-comment
-# syntax, so the marker is a visible italic line at the bottom of the body that
-# every reader of the issue can see. `php` computes the digest because this
+# syntax, so every reader of the issue can open the marker line, even when it
+# sits in a collapsed block. `php` computes the digest because this
 # script already requires it for the ADF conversion, so no further tool has to
 # be present for the publisher to work.
 EMAIL="$(jira_auth_status_field "$AUTH_STATUS" email)"
@@ -282,10 +286,17 @@ if [[ -z "$ACTOR_ID" ]]; then
 fi
 
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
+MARKER_SLOT='{agent-marker}'
 if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
-  BODY="${BODY}
+  if grep -Fxq "$MARKER_SLOT" <<<"$BODY"; then
+    BODY="$(printf '%s\n' "$BODY" | awk -v slot="$MARKER_SLOT" -v marker="_${MARKER_TEXT}_" '
+      { lines[NR] = $0; if ($0 == slot) { last = NR } }
+      END { for (i = 1; i <= NR; i++) { print (i == last ? marker : lines[i]) } }')"
+  else
+    BODY="${BODY}
 
 _${MARKER_TEXT}_"
+  fi
 fi
 
 # Build valid ADF before the external write. The create call has no dedicated

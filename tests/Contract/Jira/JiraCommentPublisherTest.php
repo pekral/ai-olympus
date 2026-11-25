@@ -721,6 +721,81 @@ test('the JIRA publisher creates a marked comment when no marker-carrying commen
     }
 });
 
+test('the JIRA publisher writes the marker into the collapsed marker block of a source that carries the slot', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $body = "It cannot be deployed yet.\n\n{expand:Findings from the code review}\n* One finding.\n{expand}\n\n----\n\n_Generated._\n\n"
+        . "{expand:Technical marker for AI agents}\n{agent-marker}\n{expand}";
+    $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', '--create', 'TEAM-42', '-'], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10008"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => '{"comments":[]}',
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], $body);
+
+    try {
+        $process->run();
+        /** @var array{content: list<array<string, mixed>>} $adf */
+        $adf = json_decode((string) file_get_contents($fixture['adf']), associative: true, flags: JSON_THROW_ON_ERROR);
+        $marked = array_values(array_filter(
+            $adf['content'],
+            static fn (array $node): bool => str_contains(json_encode($node, JSON_THROW_ON_ERROR), jiraActorMarker('bot@example.com')),
+        ));
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($marked)->toHaveCount(1)
+            ->and($marked[0]['type'] ?? null)->toBe('expand')
+            ->and($marked[0]['attrs'] ?? null)->toBe(['title' => 'Technical marker for AI agents'])
+            ->and($adf['content'][array_key_last($adf['content'])])->toBe($marked[0])
+            ->and(json_encode($adf, JSON_THROW_ON_ERROR))->not->toContain('{agent-marker}');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
+test('the JIRA publisher finds and updates its own comment whose marker sits in a collapsed block', function (): void {
+    $packageDir = dirname(__DIR__, 3);
+    $fixture = createJiraCommentPublisherFixture();
+    $listJson = json_encode(['comments' => [[
+        'id' => '9002',
+        'created' => '2026-01-01T00:00:00.000+0000',
+        'author' => ['emailAddress' => 'bot@example.com'],
+        'body' => ['type' => 'doc', 'version' => 1, 'content' => [
+            ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
+            ['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
+            ]],
+        ]],
+    ]]], JSON_THROW_ON_ERROR);
+    $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
+        'FAKE_ACLI_ADF' => $fixture['adf'],
+        'FAKE_ACLI_CALLS' => $fixture['calls'],
+        'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
+        'FAKE_ACLI_CREATE_JSON' => '{"id":"10009"}',
+        'FAKE_ACLI_EMAIL' => 'bot@example.com',
+        'FAKE_ACLI_LIST_JSON' => $listJson,
+        'FAKE_ACLI_UPDATE_OK' => '1',
+        'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),
+    ], "Verdict.\n\n{expand:Technical marker for AI agents}\n{agent-marker}\n{expand}");
+
+    try {
+        $process->run();
+        $calls = (string) file_get_contents($fixture['calls']);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($calls)->toContain('comment update --key TEAM-42 --id 9002 --body-adf')
+            ->and($calls)->not->toContain('comment create')
+            ->and($process->getErrorOutput())->toContain('action=updated id=9002')
+            ->and($process->getErrorOutput())->toContain('carried_lines=0');
+    } finally {
+        removeJiraCommentPublisherFixture($fixture);
+    }
+});
+
 test('a failed JIRA comment lookup publishes nothing instead of risking a duplicate', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
