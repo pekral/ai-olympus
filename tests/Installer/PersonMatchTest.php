@@ -853,6 +853,44 @@ test(
     'the match without a pull request' => ['--use-confirmed-match', 1],
 ]);
 
+test('the assign helper reports a lookup that failed for another reason than no match as not done', function (Closure $arrange, string $pullRequest, int $lookupExit): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+    $arrange($fixture);
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', '--pr', $pullRequest, '--use-confirmed-match']);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getErrorOutput())->toContain('could not be read (person-match.sh exit ' . $lookupExit . ') — assignee unchanged, not done')
+            ->and($process->getErrorOutput())->not->toContain('no confirmed match')
+            ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'a failed read (lookup exit 3)' => [
+        personMatchArrange(static function (array $fixture): array {
+            unlink($fixture['state'] . '/api/users_pat');
+
+            return [];
+        }),
+        PERSON_MATCH_PR,
+        3,
+    ],
+    'another repository (lookup exit 4)' => [personMatchArrange(static fn (array $fixture): array => []), 'https://github.com/other/lib/pull/3', 4],
+    'an unsafe store (lookup exit 5)' => [
+        personMatchArrange(static function (array $fixture): array {
+            rename(personMatchStore($fixture), $fixture['directory'] . '/store.json');
+            symlink($fixture['directory'] . '/store.json', personMatchStore($fixture));
+
+            return [];
+        }),
+        PERSON_MATCH_PR,
+        5,
+    ],
+]);
+
 test('the assign helper assigns the confirmed account and confirms it by a re-read of the account ID', function (): void {
     $fixture = personMatchFixture();
     personMatchConfirm($fixture);
