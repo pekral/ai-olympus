@@ -5,9 +5,19 @@ declare(strict_types = 1);
 use Symfony\Component\Process\Process;
 use Tests\Support\ReportCheckRun;
 
-function runJiraSummaryCheck(string $source, string $criteria): Process
+function runJiraSummaryCheck(string $source, string $criteria, string $author = 'none'): Process
 {
-    return ReportCheckRun::over('skills/pr-summary/scripts/check-jira-comment.php', $source, '--criteria', $criteria);
+    return ReportCheckRun::over('skills/pr-summary/scripts/check-jira-comment.php', $source, '--criteria', $criteria, '--author', $author);
+}
+
+function jiraSummaryAuthor(): string
+{
+    return '712020:a1b2c3d4e5f6-0a1b-4c2d-9e8f-a1b2c3d4e5f6';
+}
+
+function jiraSummaryWithRefactor(string $mention): string
+{
+    return jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(refactor):* " . $mention . 'Blokuje sloučení:']);
 }
 
 /**
@@ -119,7 +129,7 @@ test('a JIRA summary in the shape of the template passes the check', function (s
 test('a summary that passes the check converts to ADF with no wiki markup left', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $process = new Process(['php', $packageDir . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'], $packageDir);
-    $process->setInput(jiraSummaryWithCriteria());
+    $process->setInput(jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] '));
     $process->mustRun();
 
     /** @var array{content: list<array{type: string}>} $adf */
@@ -128,7 +138,8 @@ test('a summary that passes the check converts to ADF with no wiki markup left',
     expect(array_column($adf['content'], 'type')[0])->toBe('paragraph')
         ->and(str_contains($process->getOutput(), 'h2.'))->toBeFalse()
         ->and(str_contains($process->getOutput(), '{expand'))->toBeFalse()
-        ->and(str_contains($process->getOutput(), '"type": "expand"'))->toBeTrue();
+        ->and(str_contains($process->getOutput(), '"type": "expand"'))->toBeTrue()
+        ->and(str_contains($process->getOutput(), '"id": "' . jiraSummaryAuthor() . '"'))->toBeTrue();
 });
 
 test('the acceptance criteria carry no call to the author of the changes', function (string $source): void {
@@ -185,6 +196,39 @@ test('findings of one type keep their order, and the order restarts for the alre
     'two bugs in their original order' => ["* *(bug):* Druhý bod.\n* *(bug):* Blokuje sloučení:"],
     'a security point before a bug' => ["* *(security):* Citlivé soubory nejsou chráněné.\n* *(bug):* Blokuje sloučení:"],
     'a new refactor above an already reported bug' => ['* *(refactor):* Blokuje sloučení:'],
+]);
+
+test('a refactor finding mentions the author right after its type', function (): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] '), 'none', jiraSummaryAuthor());
+
+    expect($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
+test('only a refactor finding mentions anyone, and only the author', function (string $source, string $author, string $violation): void {
+    $process = runJiraSummaryCheck($source, 'none', $author);
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: mention: ' . $violation);
+})->with([
+    'a refactor finding without the mention' => [jiraSummaryWithRefactor(''), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type'],
+    'another account than the author' => [jiraSummaryWithRefactor('[~accountid:acc-someone-else] '), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type'],
+    'the mention after the finding text' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(refactor):* Blokuje [~accountid:" . jiraSummaryAuthor() . '] sloučení:']),
+        jiraSummaryAuthor(),
+        'a (refactor) finding mentions the author right after its type',
+    ],
+    'a mention with no matching account' => [jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] '), 'none', 'only a (refactor) finding mentions anyone, the author right after its type'],
+    'a mention on a bug finding' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(bug):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
+        jiraSummaryAuthor(),
+        'only a (refactor) finding mentions anyone, the author right after its type',
+    ],
+    'a mention in the deploy verdict' => [
+        str_replace('Za mě je to', '[~accountid:' . jiraSummaryAuthor() . '] za mě je to', jiraSummaryWithoutCriteria()),
+        jiraSummaryAuthor(),
+        'only a (refactor) finding mentions anyone, the author right after its type',
+    ],
 ]);
 
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
@@ -313,8 +357,9 @@ test('the check refuses a wrong call and a missing source file', function (strin
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
     'missing source file' => ['--criteria none /nonexistent/source', 'cannot read /nonexistent/source'],
-    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> <source-file>'],
-    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> <source-file>'],
+    'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
+    'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
+    'an author value that is no account ID' => ['--criteria none --author [x] /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
 ]);
 
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {
