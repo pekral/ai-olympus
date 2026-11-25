@@ -175,9 +175,12 @@ def round_record_errors:
     ["schema", "finding_id", "repo", "pr", "revision", "time", "category", "cause_key", "severity", "security",
      "file", "line", "description", "impact", "evidence", "recommendation", "status"] as $keys
     | [
-        (($r | keys) - $keys | .[] | "unknown key \(.)"),
+        (($r | keys) - $keys - ["reports"] | .[] | "unknown key \(.)"),
         ($keys - ($r | keys) | .[] | "missing key \(.)"),
         (if $r.schema == 2 then empty else "schema must be 2" end),
+        # The findings one record merges; a record an older version wrote has none.
+        (if ($r | has("reports") | not) or (($r.reports | type) == "number" and ($r.reports | floor) == $r.reports and $r.reports >= 1) then empty
+         else "reports must be a positive integer" end),
         (if isstr($r.finding_id; "^r-[0-9a-f]{16}$") then empty else "finding_id must be r- followed by 16 hex digits" end),
         (if isstr($r.repo; "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$") then empty else "repo must be owner/name" end),
         (if ($r.pr | type) == "number" and ($r.pr | floor) == $r.pr and $r.pr > 0 then empty else "pr must be a positive integer" end),
@@ -382,15 +385,17 @@ def is_security($f):
      security: is_security($f), file: $f.file, line: $f.line,
      description: (if ($f.title | test("\\S")) then $f.title else ($f.cause_hypothesis | .[0:200]) end),
      impact: $f.cause_hypothesis, evidence: $f.evidence, recommendation: $f.proposed_fix,
-     status: (if $f.verify then "needs-verification" else "new" end)} ]
+     status: (if $f.verify then "needs-verification" else "new" end), reports: 1} ]
 # One identity is one record: the higher severity, the more blocking status, and a security flag on either side win.
+# `reports` counts the findings the record merges, so a reader knows when one record stands for several defects.
 | reduce .[] as $r ([];
     (map(.finding_id) | index([$r.finding_id])) as $ix
     | if $ix == null then . + [$r]
       else .[$ix] |= (
           (if ($r.severity | severity_rank) > (.severity | severity_rank) then .severity = $r.severity else . end)
           | (if ($r.status | status_rank) > (.status | status_rank) then .status = $r.status | .evidence = $r.evidence else . end)
-          | .security = (.security or $r.security))
+          | .security = (.security or $r.security)
+          | .reports += 1)
       end)
 EOF
 
@@ -1084,7 +1089,7 @@ self_test() {
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q1.md" >"$tmp/q1.out"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q2.md" >"$tmp/q2.out"
   check 'round: a finding with evidence is a new schema-2 record with file and line' "$(jq -e '
-      (keys | length) == 17 and .schema == 2 and (.finding_id | test("^r-[0-9a-f]{16}$")) and .status == "new"
+      (keys | length) == 18 and .schema == 2 and (.finding_id | test("^r-[0-9a-f]{16}$")) and .status == "new"
       and .severity == "critical" and .security == true and .file == "app/Http/Orders.php" and .line == 42' "$tmp/q1.out" >/dev/null && echo 0 || echo 1)"
   check 'round: the same finding on another line in other words keeps its finding_id' "$([[ "$(jq -r .finding_id "$tmp/q1.out")" == "$(jq -r .finding_id "$tmp/q2.out")" ]] && echo 0 || echo 1)"
 
@@ -1096,6 +1101,7 @@ self_test() {
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Critical 'Copied step again' 'src/Foo/Bar.php:30' "$STRUCT" 'rule-violation — the step is copied at line 30'; printf '## Needs verification\n\n'; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q4.md"
   "$script" --round --repo acme/shop --pr 7 --input "$tmp/q4.md" >"$tmp/q4.out"
   check 'round: two records with one identity keep the higher severity and the more blocking status' "$(jq -e -s 'length == 1 and .[0].severity == "critical" and .[0].status == "new" and (.[0].evidence | test("line 30"))' "$tmp/q4.out" >/dev/null && echo 0 || echo 1)"
+  check 'round: a record counts the findings it merges' "$(jq -e -s '.[0].reports == 2' "$tmp/q4.out" >/dev/null && jq -e '.reports == 1' "$tmp/q1.out" >/dev/null && echo 0 || echo 1)"
 
   { head_of "$SHA1" 2026-10-01T10:00:00Z; finding Moderate 'Copied step' 'src/Foo/Bar.php:1' "$STRUCT" '-' Low; } >"$tmp/q5.md"
   run_case 'round: a finding under Findings without Evidence is refused' 3 yes -- --round --repo acme/shop --pr 7 --input "$tmp/q5.md"

@@ -71,11 +71,14 @@
 #                    it: an assignee of the linked issue who also wrote it, so the login holds write access. JIRA
 #                    carries no role data, so a security finding is never a JIRA known point. The state stores the
 #                    task, the issue, and the owner, and the review shows the owner. Every refusal exits 4 and leaves
-#                    the state unchanged. A known point is not blocking, so it never counts in a verdict, and a
-#                    reviewer that reports the same finding again keeps it known, in every round and at the cap round
-#                    too. The one exception is a report that turns it into a security finding with no owner: that
-#                    reopens it. Every `record` and every `evaluate` checks each known point again with the same checks,
-#                    through the loaders, and reopens one that fails them, a loader that fails included. --reopen moves
+#                    the state unchanged. A known point is not blocking, so it never counts in a verdict. The state
+#                    stores the finding as it was marked (`marked`: severity, security, file, line, title, impact, and
+#                    evidence), and `known` refuses a finding whose record merges more than one reported finding. A
+#                    reviewer that reports the same finding again, unchanged, keeps it known, in every round and at the
+#                    cap round too. Every other report of its identity, `late` included, opens it again as a finding,
+#                    for the orchestrator to compare again. Every `record` and every `evaluate` checks each known
+#                    point again with the same checks, through the loaders, and reopens one that fails them, a loader
+#                    that fails included. --reopen moves
 #                    a known point back to an open finding when the orchestrator's comparison of a later round no
 #                    longer finds the same problem. `known` refuses (exit 4) a finding that is not open (with --reopen:
 #                    not known), and refuses (exit 5) an escalated loop. The one exception is a loop that its own cap
@@ -184,6 +187,14 @@ def is_hard($threshold): .security or ((.severity | severity_rank) >= ($threshol
 # whose location names no file (".") is outside every delta.
 def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index([$f.file])) == null;
 
+# The fields of a finding that a known point stores when it is marked, and that a later report must repeat to keep it
+# known: a report that differs in any of them is another finding of the same identity, or the same one changed.
+def marked_view: {severity, security, file, line, description, impact, evidence};
+def marked_ok: type == "object" and keys == ["description", "evidence", "file", "impact", "line", "security", "severity"]
+  and (.severity | severity_rank) > 0 and (.security | type) == "boolean" and (.file | type) == "string"
+  and (.line == null or (.line | type) == "number") and (.description | type) == "string" and (.impact | type) == "string"
+  and (.evidence == null or (.evidence | type) == "string");
+
 # Every problem the state has; an empty array means the state is valid.
 def state_errors:
   . as $s
@@ -241,11 +252,14 @@ def state_errors:
          then empty else "a deferral is malformed or names an unknown finding" end),
         # The known points the orchestrator marked; an older state has none. Each names one finding of the state and
         # the task whose link list holds the issue, so every later round checks the link again. A security finding is
-        # a known point only with the owner the script verified.
+        # a known point only with the owner the script verified. `marked` is the finding as it was marked; an entry an
+        # older version wrote has none, and the next report of its identity opens it.
         (if ($s | has("known_points") | not) or (($s.known_points | type) == "array"
               and ($s.known_points | map(.finding_id?) | unique | length) == ($s.known_points | length)
               and all($s.known_points[];
-                type == "object" and keys == ["covers", "finding_id", "owner", "source", "url"] and (.finding_id as $id | $ids | index([$id])) != null
+                type == "object" and ((keys - ["marked"]) == ["covers", "finding_id", "owner", "source", "url"])
+                and ((has("marked") | not) or (.marked | marked_ok))
+                and (.finding_id as $id | $ids | index([$id])) != null
                 and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
                 and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")
@@ -348,31 +362,31 @@ def settle($cap; $threshold; $final):
 # A first report of a finding is a new finding, and a second report with evidence confirms it.
 def lift: if . == "new" then "confirmed" else . end;
 
+# An open finding $p merged with a report $c of its identity: the stronger status and severity, and either security flag.
+def merge_open($c; $p):
+  ([($c.status | lift), ($p.status | lift)] | max_by(status_rank)) as $st
+  | $c
+  | .status = $st
+  | .severity = ([$c.severity, $p.severity] | max_by(severity_rank))
+  | .security = ($c.security or $p.security)
+  | .evidence = (if $st == "confirmed" then ($c.evidence // $p.evidence) else $c.evidence end);
+
 # One finding a round report carries, merged with the state's finding of the same identity ($prev maps the
-# identity to the stored finding). A closed finding reopens, an open one keeps the stronger status and severity. A
-# known point stays known, so no round counts it, unless the report makes it a security finding that has no owner.
-def merge_reported($prev):
+# identity to the stored finding, $marks maps it to the finding as its known point was marked). A closed finding
+# reopens, an open one keeps the stronger status and severity. A known point stays known only when the report is one
+# finding that repeats the marked one: any other report of the identity (a second defect merged into it, another
+# line or text, a higher severity, a security flag) opens it as the finding it was, merged with the report.
+def merge_reported($prev; $marks):
   . as $c | $prev[$c.finding_id] as $p
   | if $p == null then {rec: $c, from: null, carried: false}
-    elif $p.status == "known" and ($c.security and ($p.security | not)) then
-      {rec: ($c | .status = (.status | lift)), from: $p.status, carried: false}
+    elif $p.status == "known" and $c.reports == 1 and ($c | marked_view) == $marks[$c.finding_id] then
+      {rec: ($c | .status = "known"), from: $p.status, carried: false}
     elif $p.status == "known" then
-      {rec: ($c
-          | .status = "known"
-          | .severity = ([$c.severity, $p.severity] | max_by(severity_rank))
-          | .security = ($c.security or $p.security)
-          | .evidence = ($c.evidence // $p.evidence)),
-       from: $p.status, carried: false}
+      {rec: merge_open($c; $p | .status = (if .evidence == null then "needs-verification" else "confirmed" end)), from: $p.status, carried: false}
     elif ($p.status == "resolved" or $p.status == "dismissed") then
       {rec: ($c | .status = (.status | lift)), from: $p.status, carried: false}
     else
-      ([($c.status | lift), ($p.status | lift)] | max_by(status_rank)) as $st
-      | {rec: ($c
-          | .status = $st
-          | .severity = ([$c.severity, $p.severity] | max_by(severity_rank))
-          | .security = ($c.security or $p.security)
-          | .evidence = (if $st == "confirmed" then ($c.evidence // $p.evidence) else $c.evidence end)),
-         from: $p.status, carried: false}
+      {rec: merge_open($c; $p), from: $p.status, carried: false}
     end;
 
 # The counters of one round: what its moves did, and the status mix of the findings after them.
@@ -419,8 +433,9 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
 | ($s.iteration + 1) as $n
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
+| (($s.known_points // []) | map({key: .finding_id, value: .marked}) | from_entries) as $marks
 | (if $s.iteration == 0 then "full" else ($s.scope // "delta") end) as $scope
-| [ $cur[] | merge_reported($prev) ]
+| [ $cur[] | merge_reported($prev; $marks) ]
   + [ $s.findings[] | select($now[.finding_id] == null) | . as $f
       | if ($f | is_open | not) then {rec: $f, from: $f.status, carried: false}
         elif $scope == "delta" and $changed != null and ($f | outside_delta($changed)) then {rec: $f, from: $f.status, carried: true}
@@ -452,7 +467,8 @@ IFS= read -r -d '' JQ_LATE <<'EOF' || true
 | $s.iteration as $n
 | ($s.findings | map({key: .finding_id, value: .}) | from_entries) as $prev
 | ($cur | map({key: .finding_id, value: .}) | from_entries) as $now
-| ([ $cur[] | merge_reported($prev) ]
+| (($s.known_points // []) | map({key: .finding_id, value: .marked}) | from_entries) as $marks
+| ([ $cur[] | merge_reported($prev; $marks) ]
    + [ $s.findings[] | select($now[.finding_id] == null) | {rec: ., from: .status, carried: false} ]) as $merged
 | [ $merged[] | select(.from != .rec.status)
     | {iteration: $n, finding_id: .rec.finding_id, from, to: .rec.status, actor: "reviewer"} ] as $moves
@@ -1115,6 +1131,9 @@ cmd_known() {
   else
     jq -e '.status == "new" or .status == "confirmed" or .status == "needs-verification"' <<<"$finding" >/dev/null \
       || fail 4 "finding $id is not open; the status is unchanged"
+    # One record can merge several findings of one identity, and a comparison sees only the text of the first.
+    jq -e '.reports == 1' <<<"$finding" >/dev/null \
+      || fail 4 "finding $id merges more than one reported finding, or does not say how many; the state is unchanged"
     local security verdict
     security="$(jq -c '.security == true' <<<"$finding")"
     [[ "$security" == true || -z "$owner" ]] || die_usage '--owner applies only to a security finding'
@@ -1127,7 +1146,8 @@ cmd_known() {
       | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "known", actor: "orchestrator"}]
       | .findings = (.findings | map(if .finding_id == $id then .status = "known" else . end))
       | .known_points = (((.known_points // []) | map(select(.finding_id != $id)))
-          + [{finding_id: $id, source: $source, url: $url, covers: $covers, owner: (if $owner == "" then null else $owner end)}])
+          + [{finding_id: $id, source: $source, url: $url, covers: $covers, owner: (if $owner == "" then null else $owner end),
+              marked: ($f | marked_view)}])
       | (if $cap_round then .status = "open" | .escalation_reason = null else . end)
       | settle($cap; $threshold; false) | refresh_round($cap; $threshold)' "$TMP/state.json" >"$TMP/next.json"
   fi
@@ -1463,8 +1483,10 @@ EOF
   run_case 'a finding the linked issue reports is marked known' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.'
   check 'a known point is not blocking and is counted on its own' "$(q '.counts.known == 1 and .counts.remaining_blocking == 1 and (.blocking | length) == 1 and .blocking[0].file == "app/Http/Orders.php"')"
   check 'the state keeps the task, the issue, the sentence, no owner, and an orchestrator transition' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "known"
-      and .known_points == [{finding_id: $id, source: "https://github.com/acme/shop/issues/10", url: "https://github.com/acme/shop/issues/12",
+      and (.known_points | map(del(.marked))) == [{finding_id: $id, source: "https://github.com/acme/shop/issues/10", url: "https://github.com/acme/shop/issues/12",
         covers: "The issue describes the copied step.", owner: null}]
+      and .known_points[0].marked == {severity: "medium", security: false, file: "src/Foo/Bar.php", line: 10, description: "Copied step",
+        impact: "Copied step impact.", evidence: "rule-violation — the step is copied"}
       and any(.transitions[]; .finding_id == $id and .to == "known" and .actor == "orchestrator")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   run_case 'the state with a known point is valid' 0 -- evaluate --state "$S"
   run_case 'a known point is not marked twice' 4 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'again'
@@ -1635,6 +1657,59 @@ EOF
   check 'a JIRA known point whose issue is resolved is open again' "$([[ "$(pair_status)" == 'confirmed known' ]] && echo 0 || echo 1)"
   gh_issue 10 OWNER OPEN maintainer
   gh_issue 12 OWNER OPEN maintainer maintainer
+
+  # A known point stays known only while the report of its identity is the finding that was marked. Any other
+  # report of the identity, a second defect merged into it included, opens it again for a new comparison.
+  local F_SQL_FILTER F_STRUCT_CRIT
+  F_SQL_FILTER="$(finding Critical 'Raw query via filter' 'app/Http/Orders.php:88' "$SQL" 'exploit-path — filter=1;DROP reaches DB::raw')"
+  F_STRUCT_CRIT="$(finding Critical 'Step before the check' 'src/Foo/Bar.php:30' "$STRUCT" 'logic-trace — the step runs before the check')"
+  # marked_alone <finding> <id> [--owner <login>] — a new loop whose round 1 reports one finding, marked known.
+  marked_alone() {
+    local f="$1" id="$2"
+    shift 2
+    rm -f "$repo/$S"
+    (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+    report "$tmp/m1.md" 1 "$f"
+    (cd "$repo" && "$script" record --state "$S" --input "$tmp/m1.md" >/dev/null)
+    (cd "$repo" && "$script" known --state "$S" --finding "$id" --source "$task" --issue "$known_issue" --covers 'The issue describes it.' "$@" >/dev/null)
+  }
+  marked_alone "$F_SQL" "$sql_id" --owner maintainer
+  report "$tmp/m2.md" 2 "$F_SQL" "$F_SQL_FILTER"
+  run_case 'a round reports the known point and a second defect of its identity' 0 -- record --state "$S" --input "$tmp/m2.md" --changed-files "$tmp/changed-both"
+  check 'a second defect of the identity on another line opens the known point again' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
+  check 'the opened point leaves the known points' "$(jq -e '(.known_points // []) == []' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  marked_alone "$F_SQL" "$sql_id" --owner maintainer
+  report "$tmp/m3.md" 2 "$F_SQL_FILTER"
+  run_case 'a round reports only another defect of the identity of a known point' 0 -- record --state "$S" --input "$tmp/m3.md" --changed-files "$tmp/changed-both"
+  check 'another defect of the identity opens the known point again' "$(q '.verdict == "continue" and .counts.known == 0 and .blocking[0].line == 88')"
+  marked_alone "$F_STRUCT" "$struct_id"
+  report "$tmp/m4.md" 2 "$F_STRUCT_CRIT"
+  run_case 'a round reports a Critical of the identity of a known Moderate' 0 -- record --state "$S" --input "$tmp/m4.md" --changed-files "$tmp/changed-both"
+  check 'a higher severity under a known Moderate blocks' "$(q '.verdict == "continue" and .counts.known == 0 and .blocking[0].severity == "critical"')"
+  marked_alone "$F_SQL" "$sql_id" --owner maintainer
+  report "$tmp/m5.md" 1 "$F_SQL_FILTER"
+  run_case 'a late report carries another defect of the identity of a known point' 0 -- late --state "$S" --input "$tmp/m5.md"
+  check 'a late report of another defect of the identity opens the known point again' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
+  run_case 'the evaluation after the late report keeps the point open' 0 -- evaluate --state "$S"
+  check 'the late defect still blocks after the evaluation' "$(q '.verdict == "continue" and .counts.remaining_blocking == 1')"
+  marked_alone "$F_SQL" "$sql_id" --owner maintainer
+  report "$tmp/m6.md" 2 "$F_SQL"
+  run_case 'a round reports the known point unchanged' 0 -- record --state "$S" --input "$tmp/m6.md" --changed-files "$tmp/changed-both"
+  check 'an unchanged known point stays known' "$(q '.verdict == "converged" and .counts.known == 1 and .counts.remaining_blocking == 0')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/m7.md" 1 "$F_SQL" "$F_SQL_FILTER"
+  (cd "$repo" && "$script" record --state "$S" --input "$tmp/m7.md" >/dev/null)
+  run_case 'a finding that merges two defects of one identity is never marked known' 4 -- known --state "$S" --finding "$sql_id" --source "$task" --issue "$known_issue" --covers 'x' --owner maintainer
+  marked_alone "$F_SQL" "$sql_id" --owner maintainer
+  jq -c '.known_points[0].marked.severity = "none"' "$repo/$S" >"$tmp/marked-bad"
+  cp "$repo/$S" "$tmp/marked-good"
+  cp "$tmp/marked-bad" "$repo/$S"
+  run_case 'a known point with a malformed marked finding makes the state invalid' 3 -- evaluate --state "$S"
+  jq -c 'del(.known_points[].marked)' "$tmp/marked-good" >"$repo/$S"
+  report "$tmp/m8.md" 2 "$F_SQL"
+  run_case 'a known point that an older version marked is recorded' 0 -- record --state "$S" --input "$tmp/m8.md" --changed-files "$tmp/changed-both"
+  check 'a known point with no marked finding opens on the next report of its identity' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
 
   # --- the cap and the threshold: default branch only, range-checked ---------------------------------------
   manifest '{ "review": { "max-iterations": 2, "blocking-threshold": "medium" } }'

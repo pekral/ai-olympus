@@ -15,7 +15,7 @@ test('review-state ships a late command that counts a late security finding for 
         ->toContain('late) cmd_late "$@" ;;')
         ->toContain('cmd_late() {')
         ->toContain('JQ_LATE=')
-        ->toContain('def merge_reported($prev):');
+        ->toContain('def merge_reported($prev; $marks):');
 });
 
 test('the review-state self-test proves each rule of a late security finding (issue #620)', function (string $label): void {
