@@ -48,19 +48,23 @@ QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|
 RUNNER_COLLECTED_RE='tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[^/]*\.py$|(^|/)test[^/]*\.txt$|(^|/)conftest\.py$|(^|/)__tests__/.*\.[cm]?[jt]sx?$|(^|/)phpunit\.xml|(^|/)pest\.php$'
 TEST_RE='(^|/)tests?/|(^|/)spec/|(^|/)__tests__/|(^|/)testdata/|'"$RUNNER_COLLECTED_RE"
 
-# DOC_NAME_RE names a documentation file by its own lower-cased name: a readme, changelog, license, contributing,
-# or code-of-conduct file. DOC_RE names a documentation file by its lower-cased path: a DOC_NAME_RE file and a file
-# with a documentation extension. A file is documentation by what it is, never by the directory it sits in, so a
-# configuration, a build file, or a script under `docs/` is not. `classify-risk.sh` reads DOC_RE for the
-# `documentation-only` signal and for the files whose added lines carry no rollback signal.
-DOC_NAME_RE='(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
-DOC_RE='\.(md|mdx|markdown|rst|txt|adoc)$|'"$DOC_NAME_RE"
+# DOC_NAME_RE names a documentation file by its own lower-cased name: a readme, changelog, license, notice,
+# authors, contributing, or code-of-conduct file, bare, with a `-<word>` suffix (`license-mit`), or with a
+# documentation extension. A code file of such a name (`License.php`) is not one. DOC_RE names a documentation
+# file by its lower-cased path: a DOC_NAME_RE file, a file with a documentation extension other than `.txt`, and a
+# `.txt` file inside a documentation directory (`docs/`, `doc/`, `documentation/`, or a compound name such as
+# `user-docs/`). A file is documentation by what it is, never by the directory it sits in, so a configuration, a
+# build file, or a script under `docs/` is not, and a `.txt` file elsewhere (a dependency list, the expected
+# output of a test) is not either. `classify-risk.sh` reads DOC_RE for the `documentation-only` signal and for
+# the files whose added lines carry no rollback signal.
+DOC_NAME_RE='(^|/)(readme|changelog|license|notice|authors|contributing|code_of_conduct)(-[a-z0-9]+)?(\.(md|mdx|markdown|rst|txt|adoc))?$'
+DOC_RE='\.(md|mdx|markdown|rst|adoc)$|(^|/)[^/]*(docs?|documentation)/.*\.txt$|'"$DOC_NAME_RE"
 
 # TOOL_LIST_RE names a `.txt` file by its lower-cased path that a common tool reads as its list of tests or of
 # dependencies: a CMake `CMakeLists.txt`, whose `add_test()` calls are the CTest tests, a pip requirements or
 # constraints file (`requirements-dev.txt`, `dev-requirements.txt`, `requirements/base.txt`), and a Conan
-# `conanfile.txt`. `classify-risk.sh` never grades such a file as documentation, and `test-integrity.sh` reads
-# it as a runner configuration, so it is a check path of the scan.
+# `conanfile.txt`. `classify-risk.sh` never grades such a file as documentation, inside a documentation directory
+# included, and `test-integrity.sh` reads it as a runner configuration, so it is a check path of the scan.
 TOOL_LIST_RE='(^|/)cmakelists\.txt$|(^|/)[^/]*(requirements|constraints)[^/]*\.txt$|(^|/)requirements/[^/]*\.txt$|(^|/)conanfile\.txt$'
 
 # CHECKER_CONFIG_RE names the configuration of a checker by its lower-cased path: Prettier, ESLint,
