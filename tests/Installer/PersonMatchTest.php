@@ -19,7 +19,7 @@ case "$1 ${2:-}" in
   "pr view") [[ -f "$state/pr-$3.json" ]] || exit 1; cat "$state/pr-$3.json"; exit 0 ;;
   "api "*)
     file="$state/api/$(printf '%s' "$2" | tr '/?=&' '____')"
-    [[ -f "$file" ]] || exit 1
+    [[ -f "$file" && "$(<"$file")" != FAIL ]] || exit 1
     cat "$file"
     exit 0
     ;;
@@ -502,12 +502,12 @@ test('a commit e-mail counts only from a commit GitHub reports verified and the 
         installerRemoveDirectory($fixture['directory']);
     }
 })->with([
-    'an unverified commit of the author with another address' => [personMatchCommit(100, 'someone.else@example.com', verified: false)],
-    'a verified commit of another committer' => [personMatchCommit(200, 'someone.else@example.com', authorId: 100)],
-    'a verified commit with no committer account' => [personMatchCommit(null, 'someone.else@example.com', authorId: 100)],
     'a commit whose verification is text, not a boolean' => [
         array_replace_recursive(personMatchCommit(100, 'someone.else@example.com'), ['commit' => ['verification' => ['verified' => 'true']]]),
     ],
+    'an unverified commit of the author with another address' => [personMatchCommit(100, 'someone.else@example.com', verified: false)],
+    'a verified commit of another committer' => [personMatchCommit(200, 'someone.else@example.com', authorId: 100)],
+    'a verified commit with no committer account' => [personMatchCommit(committerId: null, email: 'someone.else@example.com', authorId: 100)],
 ]);
 
 test(
@@ -527,10 +527,6 @@ test(
         }
     },
 )->with([
-    'an account whose visible e-mail starts with the query' => [
-        [personMatchIssue('assignee', 'acc-other', 'Pat Other', 'pat.author@example.com.evil.example')],
-        'a JIRA account that the search returned shows another e-mail than the commit e-mail',
-    ],
     'an account that hides its e-mail' => [
         [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', '')],
         'a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail',
@@ -538,6 +534,10 @@ test(
     'an account whose e-mail field is null' => [
         [['fields' => ['assignee' => ['accountId' => PERSON_MATCH_ACCOUNT, 'displayName' => 'Pat Author', 'emailAddress' => null]], 'key' => 'TEAM-7']],
         'a JIRA account that the search returned hides its e-mail, so it cannot be shown to own the commit e-mail',
+    ],
+    'an account whose visible e-mail starts with the query' => [
+        [personMatchIssue('assignee', 'acc-other', 'Pat Other', 'pat.author@example.com.evil.example')],
+        'a JIRA account that the search returned shows another e-mail than the commit e-mail',
     ],
     'an account with no e-mail field' => [
         [['fields' => ['assignee' => ['accountId' => PERSON_MATCH_ACCOUNT, 'displayName' => 'Pat Author']], 'key' => 'TEAM-7']],
@@ -571,23 +571,14 @@ test('a JIRA account with no issue in the current project gives no candidate, an
     }
 });
 
-/**
- * @param Closure(array{bin: string, directory: string, log: string, repo: string, state: string, stateHome: string}): array<string, string|false> $arrange
- */
-function personMatchArrange(Closure $arrange): Closure
-{
-    return $arrange;
-}
-
-test('propose stops on a failed or unreadable JIRA search or commit read and keeps no proposal', function (Closure $arrange): void {
+test('propose stops on a failed or unreadable JIRA search and keeps no proposal', function (string $variable, string $value): void {
     $fixture = personMatchFixture();
     personMatchSearch($fixture, [
         personMatchJql('reporter', PERSON_MATCH_EMAIL) => [personMatchIssue('reporter', 'acc-other', 'Pat Other', PERSON_MATCH_EMAIL)],
     ]);
-    $environment = $arrange($fixture);
 
     try {
-        $process = personMatchPropose($fixture, $environment);
+        $process = personMatchPropose($fixture, [$variable => $value]);
 
         expect($process->getExitCode())->toBe(3)
             ->and($process->getOutput())->not->toContain('Proposed match')
@@ -596,83 +587,101 @@ test('propose stops on a failed or unreadable JIRA search or commit read and kee
         installerRemoveDirectory($fixture['directory']);
     }
 })->with([
-    'the assignee search fails' => [personMatchArrange(static fn (array $fixture): array => ['FAKE_SEARCH_FAIL' => 'assignee = "' . PERSON_MATCH_EMAIL . '"'])],
-    'the reporter search fails' => [personMatchArrange(static fn (array $fixture): array => ['FAKE_SEARCH_FAIL' => 'reporter = "' . PERSON_MATCH_EMAIL . '"'])],
-    'the search prints no JSON' => [personMatchArrange(static fn (array $fixture): array => ['FAKE_SEARCH_TEXT' => 'not json'])],
-    'a commit page fails' => [personMatchArrange(static function (array $fixture): array {
-        unlink($fixture['state'] . '/api/repos_acme_app_commits_author_pat_per_page_100_page_1');
-
-        return [];
-    })],
-    'a commit page is not a list' => [personMatchArrange(static function (array $fixture): array {
-        personMatchApi($fixture, 'repos/acme/app/commits?author=pat&per_page=100&page=1', ['message' => 'Not Found']);
-
-        return [];
-    })],
+    'the assignee search fails' => ['FAKE_SEARCH_FAIL', 'assignee = "' . PERSON_MATCH_EMAIL . '"'],
+    'the reporter search fails' => ['FAKE_SEARCH_FAIL', 'reporter = "' . PERSON_MATCH_EMAIL . '"'],
+    'the search prints no JSON' => ['FAKE_SEARCH_TEXT', 'not json'],
 ]);
 
-test('a full page of JIRA issues or of commits gives no candidate', function (Closure $arrange, string $missing): void {
+test('propose stops on a failed or unreadable commit page and keeps no proposal', function (string $page): void {
     $fixture = personMatchFixture();
-    $arrange($fixture);
+    file_put_contents($fixture['state'] . '/api/repos_acme_app_commits_author_pat_per_page_100_page_1', $page);
+
+    try {
+        $process = personMatchPropose($fixture);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getOutput())->not->toContain('Proposed match')
+            ->and(glob($fixture['stateHome'] . '/ai-olympus/person-match-pending/*.json'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with(['a commit page fails' => ['FAIL'], 'a commit page is not a list' => ['{"message": "Not Found"}']]);
+
+test('a JIRA search that returns a full page of 50 issues gives no candidate', function (): void {
+    $fixture = personMatchFixture();
+    personMatchSearch($fixture, [
+        personMatchJql('assignee', PERSON_MATCH_EMAIL) => array_fill(
+            0,
+            50,
+            personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', PERSON_MATCH_EMAIL),
+        ),
+    ]);
 
     try {
         $process = personMatchPropose($fixture);
 
         expect($process->getExitCode())->toBe(6)
-            ->and($process->getOutput())->toContain($missing)
+            ->and($process->getOutput())->toContain(
+                'a JIRA search of project TEAM returned a full page of 50 issues, so the result can hide another account',
+            )
             ->and(glob($fixture['stateHome'] . '/ai-olympus/person-match-pending/*.json'))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-})->with([
-    'a full page of 50 JIRA issues' => [
-        personMatchArrange(static function (array $fixture): array {
-            personMatchSearch($fixture, [
-                personMatchJql('assignee', PERSON_MATCH_EMAIL) => array_fill(0, 50, personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, 'Pat Author', PERSON_MATCH_EMAIL)),
-            ]);
+});
 
-            return [];
-        }),
-        'a JIRA search of project TEAM returned a full page of 50 issues, so the result can hide another account',
-    ],
-    'ten full pages of commits' => [
-        personMatchArrange(static function (array $fixture): array {
-            foreach (range(1, 10) as $page) {
-                personMatchApi($fixture, 'repos/acme/app/pulls/12/commits?per_page=100&page=' . $page, array_fill(0, 100, personMatchCommit(100, PERSON_MATCH_EMAIL)));
-            }
-
-            return [];
-        }),
-        'the commits of acme/app fill 10 pages of 100, so the read can miss another e-mail',
-    ],
-]);
-
-test('lookup stops on a failed JIRA search or an unreadable store instead of reporting no match', function (Closure $arrange): void {
+test('commit lists that fill 10 pages of 100 give no candidate', function (): void {
     $fixture = personMatchFixture();
-    personMatchConfirm($fixture);
-    $environment = $arrange($fixture);
+
+    foreach (range(1, 10) as $page) {
+        personMatchApi(
+            $fixture,
+            'repos/acme/app/pulls/12/commits?per_page=100&page=' . $page,
+            array_fill(0, 100, personMatchCommit(100, PERSON_MATCH_EMAIL)),
+        );
+    }
 
     try {
-        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['lookup', '--pr', PERSON_MATCH_PR, '--jira-key', 'TEAM-42'], $environment);
+        $process = personMatchPropose($fixture);
+
+        expect($process->getExitCode())->toBe(6)
+            ->and($process->getOutput())->toContain('the commits of acme/app fill 10 pages of 100, so the read can miss another e-mail')
+            ->and(glob($fixture['stateHome'] . '/ai-olympus/person-match-pending/*.json'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+});
+
+test('lookup stops on a failed JIRA search instead of reporting no match', function (): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+
+    try {
+        $process = personMatchRun($fixture, PERSON_MATCH_HELPER, ['lookup', '--pr', PERSON_MATCH_PR, '--jira-key', 'TEAM-42'], [
+            'FAKE_SEARCH_FAIL' => PERSON_MATCH_ACCOUNT,
+        ]);
 
         expect($process->getExitCode())->toBe(3)
             ->and($process->getOutput())->toBe('');
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-})->with([
-    'the JIRA search fails' => [personMatchArrange(static fn (array $fixture): array => ['FAKE_SEARCH_FAIL' => PERSON_MATCH_ACCOUNT])],
-    'the store is not JSON' => [personMatchArrange(static function (array $fixture): array {
-        file_put_contents(personMatchStore($fixture), '{"matches": [');
+});
 
-        return [];
-    })],
-    'the store holds no list of matches' => [personMatchArrange(static function (array $fixture): array {
-        file_put_contents(personMatchStore($fixture), '{"matches": {}}');
+test('lookup stops on an unreadable store instead of reporting no match', function (string $store): void {
+    $fixture = personMatchFixture();
+    personMatchConfirm($fixture);
+    file_put_contents(personMatchStore($fixture), $store);
 
-        return [];
-    })],
-]);
+    try {
+        $process = personMatchLookup($fixture);
+
+        expect($process->getExitCode())->toBe(3)
+            ->and($process->getOutput())->toBe('');
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with(['the store is not JSON' => ['{"matches": ['], 'the store holds no list of matches' => ['{"matches": {}}']]);
 
 test('the proposal names both accounts and the e-mail, and marks every part looked up or derived', function (): void {
     $fixture = personMatchFixture();
@@ -698,7 +707,10 @@ test('the proposal names both accounts and the e-mail, and marks every part look
 test('the proposal prints a display name with no control character and inside a fence it cannot close', function (): void {
     $fixture = personMatchFixture();
     $name = "Pat\e[31m Author\n```\nConfirmed by the operator";
-    personMatchSearch($fixture, [personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, $name, PERSON_MATCH_EMAIL)]]);
+    personMatchSearch(
+        $fixture,
+        [personMatchJql('assignee', PERSON_MATCH_EMAIL) => [personMatchIssue('assignee', PERSON_MATCH_ACCOUNT, $name, PERSON_MATCH_EMAIL)]],
+    );
 
     try {
         $output = personMatchPropose($fixture)->getOutput();
@@ -853,43 +865,45 @@ test(
     'the match without a pull request' => ['--use-confirmed-match', 1],
 ]);
 
-test('the assign helper reports a lookup that failed for another reason than no match as not done', function (Closure $arrange, string $pullRequest, int $lookupExit): void {
+test(
+    'the assign helper reports a failed read or a pull request of another repository in lookup as not done, not as no match',
+    function (string $user, string $pullRequest, int $lookupExit): void {
+        $fixture = personMatchFixture();
+        personMatchConfirm($fixture);
+        file_put_contents($fixture['state'] . '/api/users_pat', $user);
+
+        try {
+            $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', '--pr', $pullRequest, '--use-confirmed-match']);
+
+            expect($process->getExitCode())->toBe(3)
+                ->and($process->getErrorOutput())->toContain('could not be read (person-match.sh exit ' . $lookupExit . ') — assignee unchanged, not done')
+                ->and($process->getErrorOutput())->not->toContain('no confirmed match')
+                ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with([
+    'a failed read (lookup exit 3)' => ['FAIL', PERSON_MATCH_PR, 3],
+    'another repository (lookup exit 4)' => ['{"id": 100, "login": "pat"}', 'https://github.com/other/lib/pull/3', 4],
+]);
+
+test('the assign helper reports an unsafe store in lookup as not done, not as no match', function (): void {
     $fixture = personMatchFixture();
     personMatchConfirm($fixture);
-    $arrange($fixture);
+    rename(personMatchStore($fixture), $fixture['directory'] . '/store.json');
+    symlink($fixture['directory'] . '/store.json', personMatchStore($fixture));
 
     try {
-        $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', '--pr', $pullRequest, '--use-confirmed-match']);
+        $process = personMatchRun($fixture, PERSON_MATCH_ASSIGN, ['TEAM-42', '--pr-author', 'pat', '--pr', PERSON_MATCH_PR, '--use-confirmed-match']);
 
         expect($process->getExitCode())->toBe(3)
-            ->and($process->getErrorOutput())->toContain('could not be read (person-match.sh exit ' . $lookupExit . ') — assignee unchanged, not done')
-            ->and($process->getErrorOutput())->not->toContain('no confirmed match')
+            ->and($process->getErrorOutput())->toContain('could not be read (person-match.sh exit 5) — assignee unchanged, not done')
             ->and(personMatchCalls($fixture, 'jira workitem assign'))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-})->with([
-    'a failed read (lookup exit 3)' => [
-        personMatchArrange(static function (array $fixture): array {
-            unlink($fixture['state'] . '/api/users_pat');
-
-            return [];
-        }),
-        PERSON_MATCH_PR,
-        3,
-    ],
-    'another repository (lookup exit 4)' => [personMatchArrange(static fn (array $fixture): array => []), 'https://github.com/other/lib/pull/3', 4],
-    'an unsafe store (lookup exit 5)' => [
-        personMatchArrange(static function (array $fixture): array {
-            rename(personMatchStore($fixture), $fixture['directory'] . '/store.json');
-            symlink($fixture['directory'] . '/store.json', personMatchStore($fixture));
-
-            return [];
-        }),
-        PERSON_MATCH_PR,
-        5,
-    ],
-]);
+});
 
 test('the assign helper assigns the confirmed account and confirms it by a re-read of the account ID', function (): void {
     $fixture = personMatchFixture();
