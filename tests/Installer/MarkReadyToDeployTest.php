@@ -1274,7 +1274,11 @@ test('a merged pull request gets no label when its base-branch tip may run on la
         'title' => 'fix: login',
     ]);
     unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge');
-    readyToDeployRemoteWorkflows($fixture, ['.github/workflows/deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\n"], tree: READY_TO_DEPLOY_BASE_SHA);
+    readyToDeployRemoteWorkflows(
+        $fixture,
+        ['.github/workflows/deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\n"],
+        tree: READY_TO_DEPLOY_BASE_SHA,
+    );
 
     try {
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
@@ -1288,29 +1292,32 @@ test('a merged pull request gets no label when its base-branch tip may run on la
     }
 });
 
-test('the closing issue gets no label when the default-branch tip may run on label activity, whatever a tree of the bare branch name shows', function (): void {
-    $ci = ['.github/workflows/ci.yml' => "on: push\n"];
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, $ci, [
-        'baseRefName' => 'release/2.0',
-        'body' => '',
-        'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']],
-        'title' => 'fix: login',
-    ]);
-    readyToDeployRemoteWorkflows($fixture, [...$ci, '.github/workflows/deploy.yml' => "on:\n  issues:\n    types: [labeled]\n"]);
-    readyToDeployRemoteWorkflows($fixture, $ci, tree: 'master');
-
-    try {
-        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
-
-        expect($process->getOutput())->toContain(
-            'https://github.com/acme/app/issues/11 | label | not applied — the default-branch workflow .github/workflows/deploy.yml subscribes to label activity',
-        )
-            ->and(readyToDeployCalls($fixture, 'issue edit 11 --repo acme/app --add-label'))->toBe([]);
-    } finally {
-        installerRemoveDirectory($fixture['directory']);
-    }
-});
+test(
+    'the closing issue gets no label when the default-branch tip may run on label activity, whatever a tree of the bare branch name shows',
+    function (): void {
+        $ci = ['.github/workflows/ci.yml' => "on: push\n"];
+        $fixture = readyToDeployFixture();
+        readyToDeployGithub($fixture, $ci, [
+            'baseRefName' => 'release/2.0',
+            'body' => '',
+            'closingIssuesReferences' => [['number' => 11, 'url' => 'https://github.com/acme/app/issues/11']],
+            'title' => 'fix: login',
+        ]);
+        readyToDeployRemoteWorkflows($fixture, [...$ci, '.github/workflows/deploy.yml' => "on:\n  issues:\n    types: [labeled]\n"]);
+        readyToDeployRemoteWorkflows($fixture, $ci, tree: 'master');
+    
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+    
+            expect($process->getOutput())->toContain(
+                'https://github.com/acme/app/issues/11 | label | not applied — the default-branch workflow .github/workflows/deploy.yml subscribes to label activity',
+            )
+                ->and(readyToDeployCalls($fixture, 'issue edit 11 --repo acme/app --add-label'))->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+);
 
 test('a bot pull-request author receives no assignee write on any item', function (): void {
     $fixture = readyToDeployFixture();
