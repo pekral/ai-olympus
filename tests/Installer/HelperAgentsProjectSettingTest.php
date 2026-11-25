@@ -340,3 +340,16 @@ test('every final report says whether helper agents were allowed, and a forbidde
         ->and(normalizedPackageSource('skills/verify-merge-readiness/SKILL.md'))
         ->toContain('- when the project forbids helper agents, the line `Review independence: not independent — helper agents are forbidden for this project`');
 });
+
+test('the documentation states what the setting does, its default, and how to change it', function (string $rule): void {
+    expect(normalizedPackageSource('docs/installation.md'))->toContain($rule);
+})->with([
+    'every check stays' => ['Every check stays: the review to zero blocking findings, the security review, the tests, CI, and the checks before a merge.'],
+    'how to change it' => ['{ "extra": { "ai-olympus": { "helper-agents": false } } }'],
+    'how to undo it' => ['To allow them again, set the key to `true` or remove it.'],
+    'the default' => ['The installer never writes the key, so the documented default (`true`) applies until you set it. Only `false` forbids helper agents.'],
+    'the default branch' => ['The setting is read from the default branch, so a pull request that sets it takes effect only after it is merged.'],
+    'the heading' => ['**Helper agents are allowed by default.**'],
+    'the table row' => ['| `helper-agents` | `resolve-project-switch.sh`, `krang`, every command and skill that starts an agent |'],
+    'the two platforms' => ['It behaves the same way on Claude Code and on Codex.'],
+]);
