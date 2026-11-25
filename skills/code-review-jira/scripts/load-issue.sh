@@ -205,6 +205,8 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
             "version": 1, "type": "doc",
             "content": [ { "type": "paragraph", "content": [
               { "type": "text", "text": "No mention here." }
+            ] }, { "type": "expand", "attrs": { "title": "Technical marker for AI agents" }, "content": [
+              { "type": "paragraph", "content": [ { "type": "text", "text": "cr-comment:actor=0123456789abcdef lines=" } ] }
             ] } ]
           },
           "created": "2026-01-02T00:00:00.000+0000",
@@ -279,6 +281,7 @@ STUB
   check 'mentionAccountIds extracted from the ADF body' '.comments[0].mentionAccountIds | join(",")' 'acc-mentioned'
   check 'authorAccountId falls back to the view-embedded author' '.comments[1].authorAccountId' 'acc-view-fallback'
   check 'mentionAccountIds is empty with no mention node' '.comments[1].mentionAccountIds | length' '0'
+  check 'a marker inside a collapsed block stays in the body' '.comments[1].body | contains("cr-comment:actor=0123456789abcdef")' 'true'
   check 'a whole comment thread is complete' '.commentsComplete' 'true'
   check 'an issue without attachments has no attachmentsFetch' '.attachmentsFetch' 'null'
 

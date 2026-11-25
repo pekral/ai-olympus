@@ -579,7 +579,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
         // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
         // Re-baselined: the Wiki Markup cheatsheet gained the collapsed `{expand:Title}` block (issue #709).
-        'rules/jira/general.md' => '67a479519c006fd9272949163e26dba0df2e4dc527c1d89e256f6573e42c067b',
+        // Re-baselined: the helper writes the agent marker in place of the `{agent-marker}` slot, which the review template puts in a collapsed block (issue #709).
+        'rules/jira/general.md' => 'b834b5758823864c8e01e113ee692dfb4d2f9008eebeb481e3d4b0d08d31e0cb',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
