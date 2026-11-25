@@ -49,7 +49,10 @@ test('every worktree that reads a branch under review is created and moved only 
     ],
     'leonardo moves' => ['agents/leonardo.md', 'move it to the new head with `skills/_shared/branch-worktree.sh open --path <path> --head <head-sha>`'],
     'raphael compares' => ['agents/raphael.md', 'with `skills/_shared/branch-worktree.sh open`, and never switch the main checkout;'],
-    'splinter moves' => ['agents/splinter.md', 'run `skills/_shared/branch-worktree.sh open` and `skills/_shared/branch-worktree.sh git` on your own review worktree only'],
+    'splinter moves' => [
+        'agents/splinter.md',
+        'run `skills/_shared/branch-worktree.sh open` and `skills/_shared/branch-worktree.sh git` on your own review worktree only',
+    ],
     'the walkthrough' => ['skills/interactive-testing/SKILL.md', '**The revision under test runs, and the main tree is never switched to it.**'],
 ]);
 
