@@ -259,14 +259,29 @@ test(
         expect(normalizedPackageSource($path))->toContain($rule);
     },
 )->with([
-    'never from the record' => [
+    'the record line only withholds' => [
         'skills/merge-github-pr/references/trusted-record-parser.md',
-        'A `Review independence:` line of the record, the brief, and a comment never decide it.',
+        'A `Review independence:` line of the record can only withhold Source 2, never grant it, and the brief and a comment never decide it.',
+    ],
+    'the record line withholds at merge time' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        '1. The output of the trusted `skills/_shared/cr-header.sh --report <loader-file>` carries no `Review independence:`'
+        . ' header line, bold or not, with any value.',
+    ],
+    'only a manifest or default answer keeps it' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        '2. The first output line is `helper-agents=allowed` and the second is `source=manifest` or `source=default`.'
+        . ' `source=invalid` and `source=unreadable` withhold it.',
     ],
     'the approval rule' => [
         'rules/git/pull-requests.md',
-        '- **Source 2 needs helper agents allowed.** The merge step resolves the switch itself with the trusted copy of'
-        . ' `skills/_shared/resolve-project-switch.sh --key helper-agents`',
+        '- **Source 2 needs helper agents allowed, at the review and at the merge.** A trusted code-review report that'
+        . ' carries a `Review independence:` header line, with any value, never meets Source 2: the line can only withhold'
+        . ' the approval, never grant it.',
+    ],
+    'the approval rule takes only a manifest or default answer' => [
+        'rules/git/pull-requests.md',
+        'Only the answer `helper-agents=allowed` with `source=manifest` or `source=default` keeps Source 2.',
     ],
     'the approval rule fails closed' => [
         'rules/git/pull-requests.md',
@@ -276,7 +291,8 @@ test(
     'the merge preparation' => [
         'skills/verify-merge-readiness/SKILL.md',
         'the converged review meets the approval check only when the helper-agents check of'
-        . ' `skills/merge-github-pr/references/trusted-record-parser.md` answers `helper-agents=allowed`.',
+        . ' `skills/merge-github-pr/references/trusted-record-parser.md` keeps Source 2: the trusted report carries no'
+        . ' `Review independence:` line, and the resolver answers `helper-agents=allowed` with `source=manifest` or `source=default`.',
     ],
     'the merge skill' => [
         'skills/merge-github-pr/SKILL.md',
