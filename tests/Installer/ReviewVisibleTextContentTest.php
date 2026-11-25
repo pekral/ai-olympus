@@ -60,7 +60,8 @@ test('the wrapper checks the visible text against the reviewed repository and ne
     expect($script)->toContain('CHECK_VISIBLE="$HERE/../../_shared/check-visible-review-text.php"')
         ->and($script)->toContain('gh api "repos/${NWO}/git/trees/${commit}?recursive=1"')
         ->and($script)->toContain(
-            'visible_text: ([$walk.tldr, $risk.sentence, $walk_content] + $walk.routes + $entries | join("\n\n"))',
+            'visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries'
+            . ' | map(select(. != null)) | join("\n\n"))',
         )
         ->and($script)->toContain('php "$CHECK_VISIBLE" --text "$TMP_ROOT/visible.md" --repo-paths "$TMP_ROOT/repo-paths.txt"');
 });
