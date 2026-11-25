@@ -626,7 +626,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        'rules/reports/general.md' => '3e37a3ef9596fbfbf05bef567719f0476f10da20bc0c2f7bae0b2b43f0bb538c',
+        'rules/reports/general.md' => '5f4d9fab82d4e826fc86b3ecbcc6a22cf8db93f6dd0d77979c24d155e491d505',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

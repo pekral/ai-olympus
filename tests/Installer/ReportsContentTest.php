@@ -212,3 +212,20 @@ test('every restatement of the JIRA shape names what changed and what it affects
         ->and($summary)->toContain('a few bullets with no TL;DR label combine observable changes with what to watch after the release')
         ->and($summary)->not->toContain('one TL;DR paragraph');
 });
+
+test('exception 2 keeps the link of a finding outside the pull request at the reviewed head commit, and every publisher keeps it', function (): void {
+    $rule = packageSource('rules/reports/general.md');
+    $april = packageSource('agents/april.md');
+    $wrapper = packageSource('skills/code-review-jira/SKILL.md');
+
+    expect(packageSection($rule, '2. **Links into the pull request.**', '3. **Links to related tracker items'))->toContain(
+        'A finding about code outside the pull request that no pull request fixes ends with the link to its file and line in the task repository '
+        . 'at the reviewed head commit, the `Reviewed revision:` of the code-review report (owner decision of 2026-11-25).',
+    )
+        ->and($april)->toContain(
+            'every link that exception 2 of that rule allows — the links into the pull request, and the link of a finding outside the pull request '
+            . 'to its file and line at the reviewed head commit.',
+        )
+        ->and($april)->not->toContain('and the links into the pull request that exception 2 of that rule allows.')
+        ->and($wrapper)->toContain('the link of a finding outside the pull request to its file and line at the reviewed head commit are the exceptions');
+});
