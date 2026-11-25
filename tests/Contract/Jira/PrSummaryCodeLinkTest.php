@@ -34,14 +34,14 @@ test('the link builder refuses an address it cannot prove', function (array $arg
         ->and($process->getOutput())->toBe('')
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
-    'no argument' => [[], 'expected a pull-request URL'],
-    'a path without a line' => [['https://github.com/acme/app/pull/12', 'src/A.php'], 'expected a pull-request URL'],
-    'a URL that is no pull request' => [['https://github.com/acme/app/issues/12'], 'not a github.com pull-request URL'],
-    'another host' => [['https://example.com/acme/app/pull/12'], 'not a github.com pull-request URL'],
-    'a trailing path after the number' => [['https://github.com/acme/app/pull/12/files'], 'not a github.com pull-request URL'],
+    'a line that is no number' => [['https://github.com/acme/app/pull/12', 'src/A.php', '4a'], 'not a line number: 4a'],
     'an absolute path' => [['https://github.com/acme/app/pull/12', '/etc/passwd', '1'], 'not a relative repository path'],
+    'another host' => [['https://example.com/acme/app/pull/12'], 'not a github.com pull-request URL'],
     'a path that climbs out' => [['https://github.com/acme/app/pull/12', 'src/../../secret', '1'], 'not a relative repository path'],
     'a path with a line break' => [['https://github.com/acme/app/pull/12', "src/A.php\n[x|https://example.com]", '1'], 'not a relative repository path'],
+    'a path without a line' => [['https://github.com/acme/app/pull/12', 'src/A.php'], 'expected a pull-request URL'],
+    'a trailing path after the number' => [['https://github.com/acme/app/pull/12/files'], 'not a github.com pull-request URL'],
+    'a URL that is no pull request' => [['https://github.com/acme/app/issues/12'], 'not a github.com pull-request URL'],
     'line zero' => [['https://github.com/acme/app/pull/12', 'src/A.php', '0'], 'not a line number: 0'],
-    'a line that is no number' => [['https://github.com/acme/app/pull/12', 'src/A.php', '4a'], 'not a line number: 4a'],
+    'no argument' => [[], 'expected a pull-request URL'],
 ]);

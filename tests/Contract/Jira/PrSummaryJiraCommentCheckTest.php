@@ -122,7 +122,6 @@ test('a JIRA summary in the shape of the template passes the check', function (s
         ->and($process->getExitCode())->toBe(0);
 })->with([
     'all criteria met or no criteria stated' => [jiraSummaryWithoutCriteria(), 'none'],
-    'two pull requests' => [jiraSummaryForTwoPullRequests(), 'unmet'],
     'a stack with a shared point above the groups' => [
         str_replace(
             "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
@@ -131,6 +130,7 @@ test('a JIRA summary in the shape of the template passes the check', function (s
         ),
         'none',
     ],
+    'two pull requests' => [jiraSummaryForTwoPullRequests(), 'unmet'],
     'unmet criteria' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
@@ -156,7 +156,12 @@ test('the acceptance criteria carry no call to the author of the changes', funct
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: criteria: the block calls on nobody: ' . jiraSummaryAuthorCall());
 })->with([
-    'one pull request' => [str_replace("ověřené. Kdo může takové odeslání spustit?\n", "ověřené. Kdo může takové odeslání spustit?\n\n" . jiraSummaryAuthorCall() . "\n", jiraSummaryWithCriteria())],
+    'one pull request' => [str_replace(
+        "ověřené. Kdo může takové odeslání spustit?\n",
+        "ověřené. Kdo může takové odeslání spustit?\n\n" . jiraSummaryAuthorCall() . "\n",
+        jiraSummaryWithCriteria(),
+    ),
+    ],
     'two pull requests' => [str_replace("vyžaduje opravu.\n", "vyžaduje opravu.\n" . jiraSummaryAuthorCall() . "\n", jiraSummaryForTwoPullRequests())],
 ]);
 
@@ -171,14 +176,19 @@ test('every finding opens with its change type in bold parentheses', function (s
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: findings: a finding must open with its change type, for example *(bug):*: ' . $replacement);
 })->with([
-    'no type' => ['* Blokuje sloučení:'],
+    'an unknown type' => ['* *(chore):* Blokuje sloučení:'],
     'a type that is not bold' => ['* (bug): Blokuje sloučení:'],
     'a type with no colon' => ['* *(bug)* Blokuje sloučení:'],
-    'an unknown type' => ['* *(chore):* Blokuje sloučení:'],
+    'no type' => ['* Blokuje sloučení:'],
 ]);
 
 test('every change type the shape names passes the check', function (string $type): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(' . $type . '):* Blokuje sloučení:', '* *(bug):* Objednávka' => '* *(documentation):* Objednávka']), 'none');
+    $process = runJiraSummaryCheck(
+        jiraSummaryWithoutCriteria(
+            ['* *(bug):* Blokuje sloučení:' => '* *(' . $type . '):* Blokuje sloučení:', '* *(bug):* Objednávka' => '* *(documentation):* Objednávka'],
+        ),
+        'none',
+    );
 
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
@@ -188,11 +198,13 @@ test('the findings are ordered by the severity of their type', function (string 
     $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => $replacement]), 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: findings: order the findings security, bug, tests, refactor, performance, documentation; ' . $violation);
+        ->and($process->getOutput())->toContain(
+            'violation: findings: order the findings security, bug, tests, refactor, performance, documentation; ' . $violation,
+        );
 })->with([
     'a bug after a refactor' => ["* *(refactor):* Dva bloky kódu se opakují.\n* *(bug):* Blokuje sloučení:", '(bug) stands after (refactor)'],
-    'a security point after a test' => ["* *(tests):* Chybí test.\n* *(security):* Blokuje sloučení:", '(security) stands after (tests)'],
     'a refactor after a documentation request' => ["* *(documentation):* Chybí popis.\n* *(refactor):* Blokuje sloučení:", '(refactor) stands after (documentation)'],
+    'a security point after a test' => ["* *(tests):* Chybí test.\n* *(security):* Blokuje sloučení:", '(security) stands after (tests)'],
 ]);
 
 test('findings of one type keep their order, and the order restarts for the already reported ones', function (string $replacement): void {
@@ -201,9 +213,9 @@ test('findings of one type keep their order, and the order restarts for the alre
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
 })->with([
-    'two bugs in their original order' => ["* *(bug):* Druhý bod.\n* *(bug):* Blokuje sloučení:"],
-    'a security point before a bug' => ["* *(security):* Citlivé soubory nejsou chráněné.\n* *(bug):* Blokuje sloučení:"],
     'a new refactor above an already reported bug' => ['* *(refactor):* Blokuje sloučení:'],
+    'a security point before a bug' => ["* *(security):* Citlivé soubory nejsou chráněné.\n* *(bug):* Blokuje sloučení:"],
+    'two bugs in their original order' => ["* *(bug):* Druhý bod.\n* *(bug):* Blokuje sloučení:"],
 ]);
 
 test('a refactor finding mentions the author right after its type', function (): void {
@@ -219,51 +231,60 @@ test('only a refactor finding mentions anyone, and only the author', function (s
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: mention: ' . $violation);
 })->with([
-    'a refactor finding without the mention' => [jiraSummaryWithRefactor(''), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type'],
-    'another account than the author' => [jiraSummaryWithRefactor('[~accountid:acc-someone-else] '), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type'],
-    'the mention after the finding text' => [
-        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(refactor):* Blokuje [~accountid:" . jiraSummaryAuthor() . '] sloučení:']),
-        jiraSummaryAuthor(),
-        'a (refactor) finding mentions the author right after its type',
-    ],
-    'a mention with no matching account' => [jiraSummaryWithRefactor('[~accountid:' . jiraSummaryAuthor() . '] '), 'none', 'only a (refactor) finding mentions anyone, the author right after its type'],
-    'a mention on a bug finding' => [
-        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(bug):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
-        jiraSummaryAuthor(),
-        'only a (refactor) finding mentions anyone, the author right after its type',
-    ],
     'a mention in the deploy verdict' => [
         str_replace('Za mě je to', '[~accountid:' . jiraSummaryAuthor() . '] za mě je to', jiraSummaryWithoutCriteria()),
         jiraSummaryAuthor(),
         'only a (refactor) finding mentions anyone, the author right after its type',
     ],
+    'a mention on a bug finding' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(bug):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
+        jiraSummaryAuthor(),
+        'only a (refactor) finding mentions anyone, the author right after its type',
+    ],
+    'a mention with no matching account' => [jiraSummaryWithRefactor(
+        '[~accountid:' . jiraSummaryAuthor() . '] ',
+    ), 'none', 'only a (refactor) finding mentions anyone, the author right after its type',
+    ],
+    'another account than the author' => [jiraSummaryWithRefactor(
+        '[~accountid:acc-someone-else] ',
+    ), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type',
+    ],
+    'a refactor finding without the mention' => [jiraSummaryWithRefactor(
+        '',
+    ), jiraSummaryAuthor(), 'a (refactor) finding mentions the author right after its type',
+    ],
+    'the mention after the finding text' => [
+        jiraSummaryWithoutCriteria(
+            ['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(refactor):* Blokuje [~accountid:" . jiraSummaryAuthor() . '] sloučení:'],
+        ),
+        jiraSummaryAuthor(),
+        'a (refactor) finding mentions the author right after its type',
+    ],
 ]);
 
-test('every link of the comment points into the pull request or the issue of the task', function (string $search, string $replacement, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
-
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: links: ' . $violation);
-})->with([
-    'no line that links the whole change' => [
-        "Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]\n",
-        '',
-        'the findings block opens with one line that links the whole change of the pull request',
-    ],
+test(
+    'every link of the comment points into the pull request or the issue of the task',
+    function (string $search, string $replacement, string $violation): void {
+        $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+    
+        expect($process->getExitCode())->toBe(2)
+            ->and($process->getOutput())->toContain('violation: links: ' . $violation);
+    },
+)->with([
     'a code link in the middle of a finding' => [
         'Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
         jiraSummaryCodeLink() . ' Oprava: nová verze ji musí umět dokončit.',
         'a code link ends a finding: ',
     ],
-    'a link to a file outside the pull request' => [
-        jiraSummaryCodeLink(),
-        '[Zobrazit v kódu →|https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42]',
-        'a GitHub link points into a pull request or an issue of the task repository: https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42',
-    ],
     'a link to a commit' => [
         jiraSummaryCodeLink(),
         '[Zobrazit v kódu →|https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567]',
         'a GitHub link points into a pull request or an issue of the task repository',
+    ],
+    'a link to a file outside the pull request' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42]',
+        'a GitHub link points into a pull request or an issue of the task repository: https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42',
     ],
     'a link to another repository' => [
         jiraSummaryCodeLink(),
@@ -271,6 +292,11 @@ test('every link of the comment points into the pull request or the issue of the
         'every GitHub link points into one repository: acme/app, stranger/fork',
     ],
     'a link without https' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|http://example.com/a]', 'a link uses https: http://example.com/a'],
+    'no line that links the whole change' => [
+        "Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]\n",
+        '',
+        'the findings block opens with one line that links the whole change of the pull request',
+    ],
 ]);
 
 test('a comment must open with exactly one deploy-verdict paragraph', function (string $source): void {
@@ -279,11 +305,15 @@ test('a comment must open with exactly one deploy-verdict paragraph', function (
     expect($process->getExitCode())->toBe(2)
         ->and($process->getOutput())->toContain('violation: verdict: the comment must open with one deploy-verdict paragraph above the first section');
 })->with([
-    'no verdict above the first section' => [str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria())],
-    'a second paragraph that retells what the review ran' => [
-        str_replace(jiraSummaryVerdict(), jiraSummaryVerdict() . "\n\nPustil jsem všechny kontroly a testy, interaktivní test jsem nedělal.", jiraSummaryWithoutCriteria()),
-    ],
     'a bullet in place of the verdict' => [str_replace(jiraSummaryVerdict(), '* Nejde nasadit.', jiraSummaryWithoutCriteria())],
+    'a second paragraph that retells what the review ran' => [
+        str_replace(
+            jiraSummaryVerdict(),
+            jiraSummaryVerdict() . "\n\nPustil jsem všechny kontroly a testy, interaktivní test jsem nedělal.",
+            jiraSummaryWithoutCriteria(),
+        ),
+    ],
+    'no verdict above the first section' => [str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria())],
 ]);
 
 test('the criteria section must match whether any requirement still needs action', function (string $source, string $criteria, string $violation): void {
@@ -301,15 +331,18 @@ test('the criteria section must match whether any requirement still needs action
     'missing criteria section for an unmet requirement' => [jiraSummaryWithoutCriteria(), 'unmet', '2 collapsed blocks, expected 3 with a criteria section'],
 ]);
 
-test('what changed and what it affects is a short summary of bullets with no TL;DR label', function (string $search, string $replacement, string $violation): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
-
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: changes: ' . $violation);
-})->with([
+test(
+    'what changed and what it affects is a short summary of bullets with no TL;DR label',
+    function (string $search, string $replacement, string $violation): void {
+        $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
+    
+        expect($process->getExitCode())->toBe(2)
+            ->and($process->getOutput())->toContain('violation: changes: ' . $violation);
+    },
+)->with([
     'a prose paragraph' => [jiraSummaryChangesLine(), '„Refresh products“ nyní aktualizuje jen produkty.', 'write what changed and what it affects as a few bullets, one fact per bullet'],
-    'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
     'a TL;DR label' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
+    'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
     'the label written with a space' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
 ]);
 
@@ -333,7 +366,9 @@ test('a collapsed block must close and never nests', function (string $search, s
 
 test('a review finding may be longer than the whole summary of changes', function (): void {
     $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('Dlouhý nález. ', 30) . 'Blokuje sloučení: synchronizace']),
+        jiraSummaryWithoutCriteria(
+            ['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('Dlouhý nález. ', 30) . 'Blokuje sloučení: synchronizace'],
+        ),
         'none',
     );
 
@@ -361,7 +396,9 @@ test('Markdown and developer tokens fail the check', function (string $line, str
 ]);
 
 test('a summary over 3 000 characters fails the check', function (): void {
-    $source = jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('ž', 3_000) . ' Blokuje sloučení: synchronizace']);
+    $source = jiraSummaryWithoutCriteria(
+        ['* *(bug):* Blokuje sloučení: synchronizace' => '* *(bug):* ' . str_repeat('ž', 3_000) . ' Blokuje sloučení: synchronizace'],
+    );
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
@@ -370,7 +407,9 @@ test('a summary over 3 000 characters fails the check', function (): void {
 
 test('a summary without the footer fails the check', function (): void {
     $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(["\n----\n\n_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._\n\n" . jiraSummaryMarkerBlock() => '']),
+        jiraSummaryWithoutCriteria(
+            ["\n----\n\n_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._\n\n" . jiraSummaryMarkerBlock() => ''],
+        ),
         'none',
     );
 
@@ -382,11 +421,13 @@ test('the agent marker must sit alone in the last collapsed block', function (st
     $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: marker: the comment must end with one collapsed block that holds only the {agent-marker} line');
+        ->and($process->getOutput())->toContain(
+            'violation: marker: the comment must end with one collapsed block that holds only the {agent-marker} line',
+        );
 })->with([
-    'no marker block' => ["\n\n" . jiraSummaryMarkerBlock(), ''],
     'a marker slot in plain view' => [jiraSummaryMarkerBlock(), '{agent-marker}'],
     'a second slot in a section' => ['* *(bug):* Blokuje sloučení:', "{agent-marker}\n* *(bug):* Blokuje sloučení:"],
+    'no marker block' => ["\n\n" . jiraSummaryMarkerBlock(), ''],
     'text beside the slot' => ["{agent-marker}\n{expand}", "{agent-marker}\nPro agenty.\n{expand}"],
 ]);
 
@@ -398,10 +439,10 @@ test('the check refuses a wrong call and a missing source file', function (strin
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
+    'an author value that is no account ID' => ['--criteria none --author [x] /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
     'missing source file' => ['--criteria none /nonexistent/source', 'cannot read /nonexistent/source'],
     'no criteria flag' => ['/nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
     'unknown criteria value' => ['--criteria maybe /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
-    'an author value that is no account ID' => ['--criteria none --author [x] /nonexistent/source', 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] <source-file>'],
 ]);
 
 test('the summary check and the support comment check read a developer token the same way', function (string $text, string $violation): void {

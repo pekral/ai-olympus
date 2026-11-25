@@ -250,15 +250,18 @@ test('an expand block becomes a collapsed ADF expand node that keeps its content
         ->and(json_encode($document, JSON_THROW_ON_ERROR))->not->toContain('{expand');
 });
 
-test('an expand block never nests, never stays empty, and stays text without its closing line', function (string $source, array $types, string $text): void {
-    $document = jiraAdfConvert($source);
-
-    expect(array_column(jiraAdfChildren($document), 'type'))->toBe($types)
-        ->and(json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE))->toContain($text);
-})->with([
-    'no closing line' => ["{expand:Open}\ntext\n", ['paragraph', 'paragraph'], '{expand:Open}'],
-    'an inner opening line' => ["{expand:Outer}\n{expand:Inner}\n{expand}\n", ['expand'], '{expand:Inner}'],
+test(
+    'an expand block never nests, never stays empty, and stays text without its closing line',
+    function (string $source, array $types, string $text): void {
+        $document = jiraAdfConvert($source);
+    
+        expect(array_column(jiraAdfChildren($document), 'type'))->toBe($types)
+            ->and(json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE))->toContain($text);
+    },
+)->with([
     'an empty block' => ["{expand:Empty}\n{expand}\n", ['expand'], '{"type":"paragraph"}'],
+    'an inner opening line' => ["{expand:Outer}\n{expand:Inner}\n{expand}\n", ['expand'], '{expand:Inner}'],
+    'no closing line' => ["{expand:Open}\ntext\n", ['paragraph', 'paragraph'], '{expand:Open}'],
 ]);
 
 test('a JIRA account mention becomes an ADF mention node', function (): void {
@@ -274,7 +277,9 @@ test('the merge-preparation consolidation opens a JIRA comment with the deploy v
     $skill = normalizedPackageSource('skills/verify-merge-readiness/SKILL.md');
 
     expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($april)->toContain('On a JIRA ticket the comment opens with the deploy verdict paragraph, which names the exact blocker, and the `Review findings` follow the type order of the JIRA shape.')
+        ->and($april)->toContain(
+            'On a JIRA ticket the comment opens with the deploy verdict paragraph, which names the exact blocker, and the `Review findings` follow the type order of the JIRA shape.',
+        )
         ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
         ->and($skill)->toContain('the exact blocker named in the deploy verdict');
 });

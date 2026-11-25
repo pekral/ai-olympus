@@ -760,17 +760,22 @@ test('the JIRA publisher writes the marker into the collapsed marker block of a 
 test('the JIRA publisher finds and updates its own comment whose marker sits in a collapsed block', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $fixture = createJiraCommentPublisherFixture();
-    $listJson = json_encode(['comments' => [[
-        'id' => '9002',
-        'created' => '2026-01-01T00:00:00.000+0000',
-        'author' => ['emailAddress' => 'bot@example.com'],
-        'body' => ['type' => 'doc', 'version' => 1, 'content' => [
-            ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
-            ['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [
-                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
-            ]],
-        ]],
-    ]]], JSON_THROW_ON_ERROR);
+    $listJson = json_encode(['comments' => [
+        [
+            'id' => '9002',
+            'created' => '2026-01-01T00:00:00.000+0000',
+            'author' => ['emailAddress' => 'bot@example.com'],
+            'body' => ['type' => 'doc', 'version' => 1, 'content' => [
+                ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Verdict.']]],
+                ['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [
+                    ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => jiraActorMarker('bot@example.com') . ' lines=']]],
+                ],
+                ],
+            ],
+            ],
+        ],
+    ],
+    ], JSON_THROW_ON_ERROR);
     $process = new Process([$packageDir . '/skills/code-review-jira/scripts/upsert-comment.sh', 'TEAM-42', '-'], $packageDir, [
         'FAKE_ACLI_ADF' => $fixture['adf'],
         'FAKE_ACLI_CALLS' => $fixture['calls'],
