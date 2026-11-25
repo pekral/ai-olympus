@@ -447,6 +447,7 @@ test('the configuration hash changes on a write to the agent configuration and n
         ->and($after->getOutput())->not->toBe($before->getOutput());
 })->with([
     'a Codex agent' => ['.codex/agents/splinter.toml'],
+    'a Codex override instruction file' => ['AGENTS.override.md'],
     'a Codex skill' => ['.agents/skills/x/SKILL.md'],
     'a hook' => ['.claude/hooks/x.sh'],
     'a local instruction file' => ['CLAUDE.local.md'],
@@ -473,8 +474,10 @@ test('a configuration hash that cannot be computed exits 4 and prints no hash, s
         )
         ->toContain('Run it with `--user` in the tree the session started in, so it also covers the user-level files the script header lists.')
         ->toContain(
-            '- **Not covered:** the auto memory of the harness, `~/.claude.json`, the system git configuration, and a file'
-            . ' that a git `include.path` setting names. A change there is not detected.',
+            '- **Not covered:** the auto memory of the harness, `~/.claude.json`, the system git configuration, a file that'
+            . ' a git `include.path` setting names, an instruction file in a subdirectory of the tree, a file that an'
+            . ' instruction file imports with `@path` outside the hashed paths, and a file name that the Codex setting'
+            . ' `project_doc_fallback_filenames` adds. A change there is not detected.',
         )
         ->toContain('It leaves out the session lock `.claude/scheduled_tasks.lock`, which the harness rewrites.')
         ->toContain('That list includes the user git configuration.')
