@@ -17,7 +17,7 @@
 #   - the JIRA site: the `Site` line of `acli jira auth status`;
 #   - the JIRA project: the prefix of the issue key.
 #
-# propose (read-only):
+# propose:
 #   Reads the pull-request author through the GitHub loader, the numeric GitHub user ID
 #   (`gh api users/<login>`), the access of that account to the repository, and the author e-mails
 #   of the commits of this repository whose GitHub `author.id` equals that ID (the commits of the
@@ -27,8 +27,9 @@
 #   candidate needs exactly one account in all those results, and no result whose visible e-mail
 #   differs from the query. It never calls `acli jira workitem assign`, a GitHub search, the events
 #   or repositories of a user, another repository, or another JIRA project.
-#   With a candidate it prints the proposal (exit 0) and keeps a pending proposal that holds no
-#   e-mail and expires after one hour. The proposal is the only output that names the e-mail.
+#   It writes nothing to a tracker. With a candidate it prints the proposal (exit 0) and writes a
+#   pending proposal to the state directory that holds no e-mail and expires after one hour. The
+#   proposal is the only output that names the e-mail.
 #   Without a candidate it prints what is missing (exit 6).
 #
 # record --proposal <ID>:
@@ -49,6 +50,9 @@
 # display name at confirmation, the evidence kinds, and the time; never an e-mail. The helper
 # refuses a store, a pending proposal, or a directory that is a symbolic link, is not owned by the
 # user, or sits inside a git work tree. No message prints the path.
+# Every subcommand creates the state directory and removes an expired pending proposal. These
+# three paths are the only writes outside the git toplevel (rules/compound-engineering/orchestration.md
+# *Bash capability boundary*): person-matches.json, person-match-pending/, and person-matches.lock.
 #
 # Audit trail: record and forget append their own line through `skills/_shared/audit-trail.sh
 # record` (AUDIT_TRAIL_FILE, AUDIT_TRAIL_ROLE). The target names the pull-request author, never an

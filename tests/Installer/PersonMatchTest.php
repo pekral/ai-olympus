@@ -292,9 +292,32 @@ test('only the operator\'s own chat message confirms a person match, never track
 test('the consent table carries an L2 row of the top-level session for recording and for assigning a confirmed person match', function (): void {
     $orchestration = packageSource('rules/compound-engineering/orchestration.md');
 
-    expect($orchestration)->toContain('| top-level session | Record a confirmed person match on the operator\'s word | L2 |')
+    expect($orchestration)->toContain('| top-level session | Record a confirmed person match, or forget one, on the operator\'s word | L2 |')
+        ->and($orchestration)->toContain('`skills/code-review-jira/scripts/person-match.sh record` and `forget`, run by')
         ->and($orchestration)->toContain('| top-level session | Assign a JIRA issue to a confirmed person match | L2 |')
         ->and($orchestration)->toContain('`person-match.sh` (`record` and `forget`)');
+});
+
+test('the Bash capability boundary names the person-match state as the second write outside the git toplevel', function (): void {
+    $boundary = packageSection(
+        packageSource('rules/compound-engineering/orchestration.md'),
+        '## Bash capability boundary (advisory, not harness-enforced)',
+        '## Untrusted content boundary',
+    );
+    $header = packageSource(PERSON_MATCH_HELPER);
+
+    expect($boundary)->toContain('(the two named exceptions are the machine lock directory and the person-match state directory, below)')
+        ->and($boundary)->toContain('**The first named write outside the git toplevel is the machine lock.**')
+        ->and($boundary)->toContain('**The second named write outside the git toplevel is the person-match state.**')
+        ->and($boundary)->toContain('Only the top-level session writes it, and only through `skills/code-review-jira/scripts/person-match.sh`')
+        ->and($boundary)->toContain(
+            'The helper writes three paths there and nothing else: the store `person-matches.json`, the pending proposals in '
+            . '`person-match-pending/`, and the lock `person-matches.lock`.',
+        )
+        ->and($boundary)->not->toContain('The one named write outside the git toplevel')
+        ->and($boundary)->not->toContain('the one named exception is the machine lock directory')
+        ->and($header)->not->toContain('propose (read-only)')
+        ->and($header)->toContain('*Bash capability boundary*): person-matches.json, person-match-pending/, and person-matches.lock.');
 });
 
 test('no second JIRA assign script exists: only the In Progress claim and the pull-request author helper call acli assign', function (): void {
