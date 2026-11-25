@@ -1450,6 +1450,19 @@ TEXT
   done
   expect_line 'a guide and a readme stay documentation' 'signal=-2|documentation-only' \
     --files "$(writefiles 'docs/guide.md' 'docs/guide.txt' 'DOCS/Setup/Guide.MD' 'README.md' 'docs/images/README')" --assignment "$tmp/clear.txt"
+  # A .txt file is documentation only inside a documentation directory or by a documentation name, and a code
+  # file is never documentation for its name: a dependency list, the expected output of a test, and a build
+  # option file are material, in any case and when git quotes the path.
+  local txt_material
+  for txt_material in 'app/reqs/base.txt' 'app/deps.txt' 'app/requirements/dev/extra.txt' 'App/Deps.TXT' \
+    'src/App.Tests/Calc.verified.txt' 'src/App.Tests/Calc.approved.txt' 'meson_options.txt' 'docs/requirements.txt' \
+    'app/Models/License.php' 'src/Notice.php' 'src/readme.js' '"app/d\303\251ps.txt"'; do
+    expect_tier "$txt_material is never documentation" STANDARD \
+      --files "$(writefiles "$txt_material")" --assignment "$tmp/clear.txt"
+  done
+  expect_line 'a .txt guide and a documentation name stay documentation' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'docs/guide.txt' 'user-docs/notes.txt' 'Docs/Guide/Setup.TXT' 'LICENSE' 'LICENSE.txt' \
+      'LICENSE-MIT' 'NOTICE.txt' 'AUTHORS.txt' 'README.txt' 'skills/unslop/LICENSE' 'CHANGELOG.md')" --assignment "$tmp/clear.txt"
 
   # --- Project-declared critical paths ---------------------------------------
   manifest_repo() {
