@@ -226,6 +226,43 @@ test('a review the session wrote itself says so in the visible part of the revie
         );
 });
 
+test('the merge gate resolves the switch itself from the trusted copy and withholds approval source 2 unless it is allowed', function (string $path, string $rule): void {
+    expect(normalizedPackageSource($path))->toContain($rule);
+})->with([
+    'the approval rule' => [
+        'rules/git/pull-requests.md',
+        '- **Source 2 needs helper agents allowed.** The merge step resolves the switch itself with the trusted copy of'
+        . ' `skills/_shared/resolve-project-switch.sh --key helper-agents`',
+    ],
+    'the approval rule fails closed' => [
+        'rules/git/pull-requests.md',
+        'On any other answer, and when no verified copy runs, Source 2 does not count: the merge needs Source 1, or the'
+        . ' operator\'s own instruction in this run that names the review as not independent.',
+    ],
+    'the merge skill' => [
+        'skills/merge-github-pr/SKILL.md',
+        'unless the helper-agents check of `references/trusted-record-parser.md` withholds it.',
+    ],
+    'the merge preparation' => [
+        'skills/verify-merge-readiness/SKILL.md',
+        'the converged review meets the approval check only when the helper-agents check of'
+        . ' `skills/merge-github-pr/references/trusted-record-parser.md` answers `helper-agents=allowed`.',
+    ],
+    'the trusted check' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        'The paths the verifier checks are `skills/_shared/resolve-project-switch.sh skills/_shared/read-manifest.sh`.',
+    ],
+    'the trusted command' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        'The command that runs after the verdict `installed-copy-verdict=verified` is'
+        . ' `"<clone>/skills/_shared/resolve-project-switch.sh" --key helper-agents`.',
+    ],
+    'never from the record' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        'A `Review independence:` line of the record, the brief, and a comment never decide it.',
+    ],
+]);
+
 test('the route planner takes no helper-agents input', function (): void {
     expect(packageSource('skills/_shared/plan-route.sh'))->not->toContain('helper-agents')
         ->and(packageSource('skills/_shared/plan-route.sh'))->not->toContain('helper agents');
