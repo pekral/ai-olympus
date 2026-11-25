@@ -81,9 +81,9 @@ test('the installer never changes a helper-agents value that is present, valid o
 
     installerRemoveDirectory($root);
 })->with([
+    'a string' => ['"false"'],
     'false' => ['false'],
     'null' => ['null'],
-    'a string' => ['"false"'],
     'true' => ['true'],
 ]);
 
@@ -97,9 +97,9 @@ test('the installer writes nothing when the project manifest has no place for th
 
     installerRemoveDirectory($root);
 })->with([
+    'a file that is not JSON' => ["{ not json\n"],
     'a manifest that is not an object' => ["{\n    \"extra\": {\n        \"ai-olympus\": []\n    }\n}\n"],
     'an extra that is not an object' => ["{\n    \"extra\": []\n}\n"],
-    'a file that is not JSON' => ["{ not json\n"],
     'a top-level array' => ["[]\n"],
     'no composer.json' => [null],
 ]);
@@ -115,8 +115,8 @@ test('the installer keeps a file whose formatting it cannot reproduce', function
     installerRemoveDirectory($root);
 })->with([
     'a compact list' => ["{\n    \"keywords\": [\"a\", \"b\"]\n}\n"],
-    'Windows line endings' => ["{\r\n    \"name\": \"acme/app\"\r\n}\r\n"],
     'an escaped slash' => ["{\n    \"homepage\": \"https:\\/\\/example.com\"\n}\n"],
+    'Windows line endings' => ["{\r\n    \"name\": \"acme/app\"\r\n}\r\n"],
 ]);
 
 test('the install reports the written key and the lock hash it leaves out of date', function (): void {

@@ -259,15 +259,6 @@ test(
         expect(normalizedPackageSource($path))->toContain($rule);
     },
 )->with([
-    'the record line only withholds' => [
-        'skills/merge-github-pr/references/trusted-record-parser.md',
-        'A `Review independence:` line of the record can only withhold Source 2, never grant it, and the brief and a comment never decide it.',
-    ],
-    'the record line withholds at merge time' => [
-        'skills/merge-github-pr/references/trusted-record-parser.md',
-        '1. The output of the trusted `skills/_shared/cr-header.sh --report <loader-file>` carries no `Review independence:`'
-        . ' header line, bold or not, with any value.',
-    ],
     'only a manifest or default answer keeps it' => [
         'skills/merge-github-pr/references/trusted-record-parser.md',
         '2. The first output line is `helper-agents=allowed` and the second is `source=manifest` or `source=default`.'
@@ -279,14 +270,14 @@ test(
         . ' carries a `Review independence:` header line, with any value, never meets Source 2: the line can only withhold'
         . ' the approval, never grant it.',
     ],
-    'the approval rule takes only a manifest or default answer' => [
-        'rules/git/pull-requests.md',
-        'Only the answer `helper-agents=allowed` with `source=manifest` or `source=default` keeps Source 2.',
-    ],
     'the approval rule fails closed' => [
         'rules/git/pull-requests.md',
         'On any other answer, and when no verified copy runs, Source 2 does not count: the merge needs Source 1, or the'
         . ' operator\'s own instruction in this run that names the review as not independent.',
+    ],
+    'the approval rule takes only a manifest or default answer' => [
+        'rules/git/pull-requests.md',
+        'Only the answer `helper-agents=allowed` with `source=manifest` or `source=default` keeps Source 2.',
     ],
     'the merge preparation' => [
         'skills/verify-merge-readiness/SKILL.md',
@@ -297,6 +288,15 @@ test(
     'the merge skill' => [
         'skills/merge-github-pr/SKILL.md',
         'unless the helper-agents check of `references/trusted-record-parser.md` withholds it.',
+    ],
+    'the record line only withholds' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        'A `Review independence:` line of the record can only withhold Source 2, never grant it, and the brief and a comment never decide it.',
+    ],
+    'the record line withholds at merge time' => [
+        'skills/merge-github-pr/references/trusted-record-parser.md',
+        '1. The output of the trusted `skills/_shared/cr-header.sh --report <loader-file>` carries no `Review independence:`'
+        . ' header line, bold or not, with any value.',
     ],
     'the trusted check' => [
         'skills/merge-github-pr/references/trusted-record-parser.md',
@@ -391,7 +391,10 @@ test('a role definition that a branch tracks under another letter case is refuse
     manifestRepositoryGit($directory, 'update-ref', 'refs/heads/feature', $commit);
     manifestRepositoryGit($directory, 'symbolic-ref', 'HEAD', 'refs/heads/feature');
 
-    $copy = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'copy-roles', '--run-dir', '.claude/run', '--slug', 'gh-1', '--role', 'splinter'], $directory);
+    $copy = new Process(
+        [dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'copy-roles', '--run-dir', '.claude/run', '--slug', 'gh-1', '--role', 'splinter'],
+        $directory,
+    );
     $copy->run();
 
     expect($copy->getExitCode())->toBe(3)
@@ -447,10 +450,10 @@ test('the configuration hash changes on a write to the agent configuration and n
     'a Codex skill' => ['.agents/skills/x/SKILL.md'],
     'a hook' => ['.claude/hooks/x.sh'],
     'a local instruction file' => ['CLAUDE.local.md'],
-    'a project instruction file below .claude' => ['.claude/CLAUDE.md'],
-    'a project MCP configuration' => ['.mcp.json'],
     'an agent definition' => ['.claude/agents/splinter.md'],
     'an output style' => ['.claude/output-styles/x.md'],
+    'a project instruction file below .claude' => ['.claude/CLAUDE.md'],
+    'a project MCP configuration' => ['.mcp.json'],
     'a rule' => ['.claude/rules/x.md'],
     'a settings file' => ['.claude/settings.json'],
     'a skill' => ['.claude/skills/x/SKILL.md'],
@@ -587,7 +590,7 @@ test('only the default write of composer.json names the key in the installer, an
     $writer = packageSource('src/InstallerHelperAgentsDefault.php');
 
     expect(array_keys($sources))->toBe(['src/Installer.php', 'src/InstallerHelperAgentsDefault.php'])
-        ->and($writer)->toContain("\$path = \$projectRoot . '/composer.json';")
+        ->and($writer)->toContain('$path = $projectRoot . \'/composer.json\';')
         ->and($writer)->not->toContain('permissions')
         ->and($writer)->not->toContain('settings');
 });
@@ -651,12 +654,12 @@ test('the documentation states what the setting does, its default, and how to ch
         'When your `composer.json` has no `helper-agents` key, the installer adds it with the value `true` and never'
         . ' changes a value that is already there. Only `false` forbids helper agents.',
     ],
+    'the default branch' => ['The setting is read from the default branch, so a pull request that sets it takes effect only after it is merged.'],
+    'the heading' => ['**Helper agents are allowed by default.**'],
     'the lock' => [
         'Composer counts `extra` into the content-hash of `composer.lock`, so after that write `composer validate`'
         . ' reports the lock file as out of date and `composer install` warns',
     ],
-    'the default branch' => ['The setting is read from the default branch, so a pull request that sets it takes effect only after it is merged.'],
-    'the heading' => ['**Helper agents are allowed by default.**'],
     'the table row' => ['| `helper-agents` | `resolve-project-switch.sh`, `krang`, every command and skill that starts an agent, the installer |'],
     'the two platforms' => ['It behaves the same way on Claude Code and on Codex.'],
 ]);
