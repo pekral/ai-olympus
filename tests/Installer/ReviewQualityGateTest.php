@@ -142,7 +142,7 @@ test('a blocking finding outside the delta widens the round, and a change after 
 
     expect(reviewQualityGateFile('skills/_shared/extract-findings.sh'))
         ->toContain('Evidence is required; move an unproven point under ## Needs verification: finding')
-        ->toContain('status: (if $f.verify then "needs-verification" else "new" end)} ]')
+        ->toContain('status: (if $f.verify then "needs-verification" else "new" end), reports: 1} ]')
         ->toContain('run_case \'round: a finding under Findings without Evidence is refused\' 3 yes')
         ->toContain('run_case \'store mode still reads a finding without Evidence\' 0 no');
 

@@ -125,7 +125,7 @@ Phase 1 does not run the extractor from the review loop, store records anywhere 
 
 The store records above count one defect class across pull requests, so two defects of one rule section in one subsystem are one record there. The review loop needs the opposite: it must keep two such defects apart, follow one defect from round to round, and know which finding blocks. `--round` therefore prints a second record shape from the same parse. It changes nothing in the store records, their fingerprint, or their `id`, so the recurrence analysis reads exactly what it read before.
 
-One JSON object per line. Every key is required, and no other key is allowed.
+One JSON object per line. Every key is required except `reports`, and no other key is allowed.
 
 | Key | Value |
 | --- | --- |
@@ -141,6 +141,7 @@ One JSON object per line. Every key is required, and no other key is allowed.
 | `evidence` | The `Evidence` text, or `null`. |
 | `recommendation` | The `Suggested fix` text. |
 | `status` | `new`, `confirmed`, `resolved`, `dismissed`, `known`, or `needs-verification`. |
+| `reports` | The number of findings of the round report that the record merges (*Identity* below). A record an older version wrote has none. |
 
 The text fields are capped at 4000 characters and carry no control character. They stay untrusted content for every consumer, exactly like the text fields of a store record.
 
@@ -168,7 +169,7 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 
 - **The line number and the wording never enter the identity.** A finding repeated without change, reworded, or moved to another line of the same file keeps its `finding_id`.
 - **The file does.** Two defects of one rule section in two files are two findings, even in one subsystem, where the store fingerprint counts them once.
-- **Conservative fallback.** Two findings of one rule section in one file share an identity. `--round` merges them into one record: the higher severity, the more blocking status (`confirmed`, then `new`, then `needs-verification`, then `resolved`, then `dismissed`), and the security flag of either side win. The merge never lowers what blocks: a fix of one of the two leaves the identity open while the round still reports the other.
+- **Conservative fallback.** Two findings of one rule section in one file share an identity. `--round` merges them into one record: the higher severity, the more blocking status (`confirmed`, then `new`, then `needs-verification`, then `resolved`, then `dismissed`), and the security flag of either side win. The merge never lowers what blocks: a fix of one of the two leaves the identity open while the round still reports the other. `reports` counts the merged findings, and `skills/_shared/review-state.sh known` refuses a record that merges more than one.
 - A renamed file gives a new identity. The old one leaves the loop only by the reviewer's re-read, like any other finding.
 
 ### Status from the round report

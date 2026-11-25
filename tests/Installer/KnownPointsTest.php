@@ -219,7 +219,8 @@ test('a known point comes only from a trusted, open issue the task links, and a 
         ->toContain('it refuses an issue outside the task\'s link list, a closed issue, and an untrusted author')
         ->toContain('The owner is a loaded fact, never text in the issue: an assignee of an open GitHub issue who also wrote it')
         ->toContain('JIRA carries no role data, so a security finding is never a known point of a JIRA task.')
-        ->toContain('A reviewer that reports the same finding again keeps it known, in every round and at the cap round too.');
+        ->toContain('A reviewer that reports the same finding again, unchanged, keeps it known, in every round and at the cap round too.')
+        ->toContain('`known` refuses a finding whose record merges two reported findings.');
     $stateScript = packageSource('skills/_shared/review-state.sh');
 
     expect($stateScript)
