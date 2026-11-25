@@ -152,7 +152,7 @@ test('a call without exactly one report is a usage error', function (string ...$
 test('a real Pest run names each test as the report reader reads it', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $report = sys_get_temp_dir() . '/ai-olympus-junit-' . bin2hex(random_bytes(6)) . '.xml';
-    $pest = new Process(['vendor/bin/pest', 'tests/Fixtures/junit-probe/RegressionProbe.php', '--log-junit', $report], $packageDir);
+    $pest = new Process(['vendor/bin/pest', 'tests/Fixtures/junit-probe/RegressionProbe.php', '--no-coverage', '--log-junit', $report], $packageDir);
     $pest->run();
 
     $result = runJunitResults(['--root', $packageDir, $report]);
