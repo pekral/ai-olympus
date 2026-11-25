@@ -41,11 +41,11 @@ Run `skills/_shared/resolve-project-switch.sh --key helper-agents`. It reads the
    - Fixes land only in a fix stage, as commits.
 5. **Each stage leaves the record the agent would leave.** The session appends the handoff section of the stage to the brief under the heading the agent writes, and writes every verdict file the agent writes (`.claude/run/<slug>.view-<view>-<sha>`). Every reader of the brief works unchanged.
 6. **The ledgers say what ran.** The dispatch ledger records the stage with the state `inline — helper agents forbidden` where a dispatch writes `dispatched`, then `delivered` or `failed`. The routing ledger records `stage|executed|<role>|inline — helper agents forbidden, model <the model of this session>`. It records no `escalation` line, because no other model ran. When the tier called for the escalated tier, the stage line adds `escalated tier not applied`.
-7. **Every gate stays.** These keep their text and apply unchanged: the convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4), the coverage gate (`@rules/code-review/review-process.md` *Validation & Coverage Gate*), the CI wait (`@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*), and the pre-merge quality gate (`@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*). The security floor of `@rules/general/general.md` *Project instructions take precedence* stays in force, and this switch is no exception to it.
+7. **Every gate stays.** These keep their text and apply unchanged: the convergence gate (`@skills/process-code-review/SKILL.md` *Review loop* step 4), the coverage gate (`@rules/code-review/review-process.md` *Validation & Coverage Gate*), the CI wait (`@rules/git/pull-requests.md` *Waiting for CI — read the checks every 3 minutes*), and the pre-merge quality gate (`@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*). The security floor of `@rules/general/general.md` *Project instructions take precedence* stays in force, with the one exception it names for this switch. That paragraph owns what the switch weakens and what stays.
 8. **Both security views run.** The review stage of `leonardo` and the view of `splinter` each run and each write their own verdict file. A missing view still leaves the round not converged (`@rules/code-review/review-process.md` *A missing view is stated, never assumed clean*).
 9. **Every publish goes through a package helper.** A comment goes only through the comment helpers of this package, which write the agent marker (`@rules/code-review/general.md` *Authorship trust*; the helpers are listed in `@rules/compound-engineering/orchestration.md` *Bash capability boundary*). Every other write goes through `skills/_shared/audit-trail.sh run --`. No step posts a raw `gh` comment.
 
-**The independent review is the one thing this switch changes.** The session that wrote the change also reviews it. Until the owner decides otherwise, the session does the review itself and every report says that the review was not independent (*Report lines* below).
+**The independent review is the one thing this switch changes.** The session that wrote the change also reviews it, and the command does not stop for it. Every report says that the review was not independent (*Report lines* below), and the merge never counts that review as an approval (`@rules/git/pull-requests.md` *Merging*, Source 2).
 
 ## A stage that needs a helper agent
 
@@ -54,7 +54,7 @@ The session may be unable to perform a stage itself. For example, a session star
 ## Report lines
 
 - **Every final report** carries `Helper agents: allowed (source: <source>)` or `Helper agents: forbidden (source: manifest)`. On `invalid` and `unreadable` it adds the sentence of *Resolve the value* above.
-- **When forbidden,** the published CR record, the merge-readiness TL;DR, and the final report carry `Review independence: not independent — helper agents are forbidden for this project`. The final report names the second security view as run in the same session, and the model each stage ran on, from the routing ledger.
+- **When forbidden,** the published CR record, the visible part of the published review, the merge-readiness TL;DR, and the final report carry `Review independence: not independent — helper agents are forbidden for this project`. On GitHub the review wrapper shows the line of the record under the summary. The final report names the second security view as run in the same session, and the model each stage ran on, from the routing ledger.
 
 ## Claude Code and Codex
 

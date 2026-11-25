@@ -348,15 +348,22 @@ JQ
 
 # The Merge Risk block reads its grade and its sentence from the `Merge risk:` line of the hidden record, the one owner
 # of both. The line is `**Merge risk:** <low|medium|high> — <one sentence> · impact: … · up to <short SHA>`. The sentence
-# ends where the next ` · ` segment of the line starts.
+# ends where the next ` · ` segment of the line starts. The one allowed `Review independence:` line of the record, the
+# line of a review that the session which wrote the change ran itself, is shown under the summary; any other value of
+# that line is refused.
 IFS= read -r -d '' JQ_RISK <<'JQ' || true
-($meta | split("\n") | map(select(startswith("**Merge risk:** "))) | first // "") as $line
+"**Review independence:** not independent — helper agents are forbidden for this project" as $self_review
+| ($meta | split("\n") | map(sub("\\s+$"; "")) | map(select(startswith("**Review independence:**")))) as $independence_lines
+| (if ($independence_lines | length) == 0 then null
+   elif $independence_lines == [$self_review] then $self_review
+   else error("the record carries a Review independence line other than `\($self_review)`") end) as $independence
+| ($meta | split("\n") | map(select(startswith("**Merge risk:** "))) | first // "") as $line
 | ($line | capture("^\\*\\*Merge risk:\\*\\* (?<grade>low|medium|high) — (?<rest>.+)$")? // null)
 | if . == null then error("the record has no Merge risk line of the form `**Merge risk:** low|medium|high — <sentence>`")
   else
     (.rest | split(" · ") | .[0] | printable | gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ")) as $sentence
     | if ($sentence | length) < 1 then error("the Merge risk line of the record holds no sentence")
-      else {grade, sentence: ($sentence | inert), icon: (if .grade == "low" then "🟢" elif .grade == "medium" then "🟡" else "🔴" end)}
+      else {grade, sentence: ($sentence | inert), icon: (if .grade == "low" then "🟢" elif .grade == "medium" then "🟡" else "🔴" end), independence: $independence}
       end
   end
 JQ
@@ -451,8 +458,8 @@ def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<
     code_shown: ([$coded.out[] | select(.show)] | length),
     code_omitted: ([$coded.out[] | select(.show | not) | select(.suggestion != null)] | length),
     blocks: ((if $walk.diagram == null then [] else ["```mermaid\n\($walk.diagram)\n```"] end) + [$coded.out[] | select(.show) | code_block]),
-    body: ([$tldr_block, $risk_block, $walk_block, $test_block, $actionable_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
-    visible_text: ([$walk.tldr, $risk.sentence, $walk_content] + $walk.routes + $entries | join("\n\n"))
+    body: ([$tldr_block, $risk.independence, $risk_block, $walk_block, $test_block, $actionable_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
+    visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries | map(select(. != null)) | join("\n\n"))
   }
 JQ
 
@@ -904,6 +911,8 @@ JSON
 MD
   printf '**Status:** clean\n' >"$tmp/meta-bad.md"
   grep -v '^\*\*Merge risk:' "$tmp/meta.md" >"$tmp/meta-norisk.md"
+  awk '/^\*\*Last updated:\*\*/ { print "**Review independence:** not independent — helper agents are forbidden for this project" } { print }' "$tmp/meta.md" >"$tmp/meta-self-review.md"
+  awk '/^\*\*Last updated:\*\*/ { print "**Review independence:** independent" } { print }' "$tmp/meta.md" >"$tmp/meta-self-review-forged.md"
   { cat "$tmp/meta.md"; printf '\n- **Suggested fix:**\n  ```suggestion\n  echo e($v);\n  ```\n'; } >"$tmp/meta-suggestion.md"
   local walk_head=$'\n## Interactive testing\n\n| Scenario | Viewport | Verdict | Observation |\n|---|---|---|---|\n'
   { cat "$tmp/meta.md"; printf '%s' "$walk_head"; printf '| Open the page | desktop | Blocked | No browser was available. |\n| Open the page | mobile | Blocked | No browser was available. |\n'; } >"$tmp/meta-walk-blocked.md"
@@ -1395,6 +1404,13 @@ Outside the diff.
   check 'a missing record publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
   META_FILE="$tmp/meta-norisk.md" run_post "[$f_in]"
   check 'a record with no Merge risk line publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'Merge Risk block could not be read' "$tmp/stderr" && echo yes || echo no)"
+  META_FILE="$tmp/meta-self-review.md" run_post "[$f_in]"
+  check 'a review the session wrote itself says so in the visible body, under the summary' \
+    "$([[ $rc -eq 0 ]] && visible_of | grep -qxF '**Review independence:** not independent — helper agents are forbidden for this project' && yes_if review_has '.body | index("**Review independence:** not independent") < index("Merge Risk:</strong>")' || echo no)"
+  META_FILE="$tmp/meta-self-review-forged.md" run_post "[$f_in]"
+  check 'a record with another Review independence line publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'Review independence line' "$tmp/stderr" && echo yes || echo no)"
+  run_post "[$f_in]"
+  check 'a review with no Review independence line shows none' "$([[ $rc -eq 0 ]] && ! visible_of | grep -qF 'Review independence' && echo yes || echo no)"
   META_FILE="$tmp/meta-suggestion.md" run_post "[$f_in]"
   check 'a record that holds a suggestion block publishes nothing' "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'holds a suggestion block' "$tmp/stderr" && echo yes || echo no)"
   META_FILE="$tmp/meta-walk-blocked.md" run_post "[$f_in]"
