@@ -589,7 +589,7 @@ test('only the default write of composer.json names the key in the installer, an
     ksort($sources);
     $writer = packageSource('src/InstallerHelperAgentsDefault.php');
 
-    expect(array_keys($sources))->toBe(['src/Installer.php', 'src/InstallerHelperAgentsDefault.php'])
+    expect(array_keys($sources))->toBe(['src/HelperAgentsDefaultOutcome.php', 'src/InstallerHelperAgentsDefault.php'])
         ->and($writer)->toContain('$path = $projectRoot . \'/composer.json\';')
         ->and($writer)->not->toContain('permissions')
         ->and($writer)->not->toContain('settings');

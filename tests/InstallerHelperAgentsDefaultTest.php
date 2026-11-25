@@ -54,7 +54,8 @@ test('the installer adds helper-agents true when the key is missing and keeps th
 })->with([
     'a manifest without the key, indented by two spaces' => [
         "{\n  \"name\": \"acme/app\",\n  \"extra\": {\n    \"ai-olympus\": {\n      \"voice\": \"technical\"\n    }\n  }\n}\n",
-        "{\n  \"name\": \"acme/app\",\n  \"extra\": {\n    \"ai-olympus\": {\n      \"voice\": \"technical\",\n      \"helper-agents\": true\n    }\n  }\n}\n",
+        "{\n  \"name\": \"acme/app\",\n  \"extra\": {\n    \"ai-olympus\": {\n      \"voice\": \"technical\",\n"
+        . "      \"helper-agents\": true\n    }\n  }\n}\n",
     ],
     'an empty file object without a trailing newline' => [
         '{}',
@@ -62,11 +63,13 @@ test('the installer adds helper-agents true when the key is missing and keeps th
     ],
     'extra without a manifest, indented by tabs' => [
         "{\n\t\"name\": \"acme/app\",\n\t\"extra\": {\n\t\t\"class\": \"Acme\\\\Plugin\"\n\t}\n}\n",
-        "{\n\t\"name\": \"acme/app\",\n\t\"extra\": {\n\t\t\"class\": \"Acme\\\\Plugin\",\n\t\t\"ai-olympus\": {\n\t\t\t\"helper-agents\": true\n\t\t}\n\t}\n}\n",
+        "{\n\t\"name\": \"acme/app\",\n\t\"extra\": {\n\t\t\"class\": \"Acme\\\\Plugin\",\n"
+        . "\t\t\"ai-olympus\": {\n\t\t\t\"helper-agents\": true\n\t\t}\n\t}\n}\n",
     ],
     'no extra, with a float and a URL' => [
         "{\n    \"version\": 1.0,\n    \"homepage\": \"https://example.com/app\"\n}\n",
-        "{\n    \"version\": 1.0,\n    \"homepage\": \"https://example.com/app\",\n    \"extra\": {\n        \"ai-olympus\": {\n            \"helper-agents\": true\n        }\n    }\n}\n",
+        "{\n    \"version\": 1.0,\n    \"homepage\": \"https://example.com/app\",\n"
+        . "    \"extra\": {\n        \"ai-olympus\": {\n            \"helper-agents\": true\n        }\n    }\n}\n",
     ],
 ]);
 
