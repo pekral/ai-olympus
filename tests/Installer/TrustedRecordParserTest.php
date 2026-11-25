@@ -29,9 +29,10 @@ test('the merge gate reads the review record only with the verified default-bran
         )
         ->and($owner)->toContain(
             'the verdict `installed-copy-verdict=verified` are `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>"'
-            . ' && "<clone>/skills/_shared/cr-header.sh" --report "<loader-file>";'
-            . ' "<clone>/skills/_shared/review-state.sh" known-check --loader "<loader-file>"`',
+            . ' && "<clone>/skills/_shared/cr-header.sh" --report "<loader-file>"'
+            . ' && "<clone>/skills/_shared/review-state.sh" known-check --loader "<loader-file>"`',
         )
+        ->and($owner)->not->toContain('--report "<loader-file>";')
         ->and($owner)->not->toContain('GIT_CONFIG_COUNT=2')
         ->and($owner)->toContain(
             '`.claude/skills/code-review-github/scripts/load-issue.sh .claude/skills/_shared/cr-header.sh '
