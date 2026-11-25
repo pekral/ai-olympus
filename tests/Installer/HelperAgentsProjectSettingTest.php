@@ -131,7 +131,10 @@ function helperAgentsDispatchPattern(array $texts): string
     $agentFiles = array_filter(array_keys($texts), static fn (string $path): bool => preg_match('#^agents/[a-z]+\.md$#', $path) === 1);
     $roster = array_map(static fn (string $path): string => basename($path, '.md'), $agentFiles);
 
-    return '/\\b(?:[Dd]ispatch(?:es|ed|ing)?|[Ss]pawn(?:s|ed|ing)?)(?: the| a| one| its own)? `(?:' . implode('|', $roster) . ')`/';
+    $roles = '`(?:' . implode('|', $roster) . ')`';
+    $verb = '(?:[Dd]ispatch(?:es|ed|ing)?|[Ss]pawn(?:s|ed|ing)?)';
+
+    return '/\\b' . $verb . '(?: the| a| one| its own)? ' . $roles . '|' . $roles . ' (?:agent )?' . $verb . '\\b/';
 }
 
 function helperAgentsIsDispatchSite(string $path, string $text, string $pattern): bool
