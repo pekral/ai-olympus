@@ -56,7 +56,9 @@ extend those steps in the dispatch prompt');
     expect($leonardo)->toContain('review the pull request\'s head SHA in your review worktree, because no review checks out the main tree');
     expect($leonardo)->toContain('That invocation always runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
     expect($krang)->toContain('its review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request, exactly once.');
-    expect($krang)->toContain('It serves the application from its own test worktree, never from the main tree: it runs `@skills/code-review/references/branch-checkout-gate.md`');
+    expect($krang)->toContain(
+        'It serves the application from its own test worktree, never from the main tree: it runs `@skills/code-review/references/branch-checkout-gate.md`',
+    );
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     expect($prSummary)
