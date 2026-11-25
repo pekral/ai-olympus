@@ -1560,8 +1560,8 @@ test('the JIRA publisher removes a created comment whose stored body lost the ag
         ->and(array_column($result['rows'], 3))->toBe(['jira comment 10003 on TEAM-42', 'jira comment 10003 delete on TEAM-42'])
         ->and($result['rows'][1][4])->toContain('(exit 0)');
 })->with([
-    'the stored body carries no marker' => ['unmarked', 'does not carry the agent marker in its stored body'],
     'the stored body cannot be read back' => ['fail', 'could not be read back to confirm the agent marker'],
+    'the stored body carries no marker' => ['unmarked', 'does not carry the agent marker in its stored body'],
 ]);
 
 test('the JIRA publisher names an unmarked comment it could not remove and its ID', function (): void {
@@ -1596,7 +1596,10 @@ test('the JIRA publisher reports an updated comment whose stored body lost the a
         'FAKE_ACLI_CREATE_BODY' => $fixture['created'],
         'FAKE_ACLI_CREATE_JSON' => '{"id":"10001"}',
         'FAKE_ACLI_EMAIL' => 'bot@example.com',
-        'FAKE_ACLI_LIST_JSON' => json_encode([jiraComment('9002', '2026-01-02T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com'))], JSON_THROW_ON_ERROR),
+        'FAKE_ACLI_LIST_JSON' => json_encode(
+            [jiraComment('9002', '2026-01-02T00:00:00.000+0000', 'bot@example.com', jiraActorMarker('bot@example.com'))],
+            JSON_THROW_ON_ERROR,
+        ),
         'FAKE_ACLI_READBACK' => 'unmarked',
         'FAKE_ACLI_UPDATE_OK' => '1',
         'PATH' => $fixture['bin'] . PATH_SEPARATOR . jiraCommentSystemPath(),

@@ -153,7 +153,9 @@ test('reports/general.md bans developer content from a JIRA comment and names it
     expect($content)->toContain('which is where `@skills/merge-github-pr/SKILL.md` reads it');
 
     // The cap, and the bullets that are never the ones dropped. A JIRA comment has no How to test.
-    expect($content)->toContain('A JIRA comment fits within **3 000 characters**, counted over the visible text of the published body: a link counts its label, never its address.');
+    expect($content)->toContain(
+        'A JIRA comment fits within **3 000 characters**, counted over the visible text of the published body: a link counts its label, never its address.',
+    );
     expect($content)->toContain('**Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**');
     expect($content)->not->toContain('**Never shorten *How to test***');
 
