@@ -199,3 +199,14 @@ test('every remaining JIRA publish path renders the JIRA shape rather than anoth
     expect($trackerFollowUp)->not->toContain('travel **inside** the `How to test` steps they belong to');
     expect($trackerFollowUp)->toContain('Before the code review runs, `Review findings` is one sentence stating that the review has not run yet.');
 });
+
+test('every restatement of the JIRA shape names what changed and what it affects with no TL;DR label (#709)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
+    $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($reports)->toContain('*Nálezy z kontroly kódu*, and *Co se změnilo a co to ovlivní*, never an English heading')
+        ->and($summary)->toContain('`Nálezy z kontroly kódu` / `Co se změnilo a co to ovlivní`.')
+        ->and($summary)->toContain('a few bullets with no TL;DR label combine observable changes with what to watch after the release')
+        ->and($summary)->not->toContain('one TL;DR paragraph');
+});
