@@ -496,7 +496,6 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the offset-paging check also covers a growing set that the loop only reads, and the gating gives that call to this section alone (issue #696).
         // Re-baselined: a project that switched interactive testing off gets the one switched-off sentence in the review (issue #666).
         // Re-baselined: floor item 1 of *Conflict resolution* points at its one exception, the switched-off walkthrough (issue #666).
-        // Re-baselined: on JIRA the author is named only on a `(refactor)` finding, and an unmet criterion calls on nobody (issue #709).
         'rules/code-review/general.md' => 'ce66a10e55c525ec46e8773534fecc2bfe267f3b9c828b28f16abbf5001783e6',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
@@ -579,8 +578,6 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a third sanctioned transition, to the ready-to-deploy status on the operator's own word,
         // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
         // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
-        // Re-baselined: the Wiki Markup cheatsheet gained the collapsed `{expand:Title}` block (issue #709).
-        // Re-baselined: the helper writes the agent marker in place of the `{agent-marker}` slot, which the review template puts in a collapsed block (issue #709).
         'rules/jira/general.md' => 'b834b5758823864c8e01e113ee692dfb4d2f9008eebeb481e3d4b0d08d31e0cb',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
@@ -629,10 +626,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        // Re-baselined: a JIRA comment opens with the deploy verdict, and its shape is owned by `pr-summary/references/jira-shape.md` (issue #709).
-        // Re-baselined: a JIRA comment that overflows shortens the wording of *What changed and what it affects* first and keeps each of its facts (issue #709).
-        // Re-baselined: exception 2 allows the links into the pull request: the whole change, and each finding's file and line or the pull request that fixes it (issue #709).
-        'rules/reports/general.md' => '773a3a6f043ea030602d61077fbd1c05e316e5ef70267d07698d25969a11af2f',
+        'rules/reports/general.md' => '3e37a3ef9596fbfbf05bef567719f0476f10da20bc0c2f7bae0b2b43f0bb538c',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {
