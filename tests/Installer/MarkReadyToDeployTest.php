@@ -439,20 +439,28 @@ test(
     },
 );
 
-test('no agent Bash boundary on either platform grants the ready-to-deploy helpers or the person-match helper', function (): void {
-    $claudeAgents = glob(dirname(__DIR__, 2) . '/agents/*.md');
-    $codexAgents = glob(dirname(__DIR__, 2) . '/codex/agents/*.toml');
+test('no agent Bash boundary on either platform grants the ready-to-deploy helpers, and only krang names the person-match lookup', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $claudeAgents = glob($packageDir . '/agents/*.md');
+    $codexAgents = glob($packageDir . '/codex/agents/*.toml');
     $roster = [...($claudeAgents === false ? [] : $claudeAgents), ...($codexAgents === false ? [] : $codexAgents)];
 
     expect(count($roster))->toBeGreaterThan(10);
 
     foreach ($roster as $agent) {
         $definition = (string) file_get_contents($agent);
+        $personMatch = $agent === $packageDir . '/agents/krang.md'
+            ? (string) preg_replace('/person-match\.sh lookup\b/', '', $definition)
+            : $definition;
 
-        foreach (['mark-ready-to-deploy', 'transition-to-ready-to-deploy.sh', 'assign-to-pr-author.sh', 'person-match.sh'] as $helper) {
+        foreach (['mark-ready-to-deploy', 'transition-to-ready-to-deploy.sh', 'assign-to-pr-author.sh'] as $helper) {
             expect(str_contains($definition, $helper))->toBeFalse();
         }
+
+        expect(str_contains($personMatch, 'person-match.sh'))->toBeFalse();
     }
+
+    expect(packageSource('agents/krang.md'))->toContain('only as the top-level session, and never its `propose`, `record`, or `forget`');
 });
 
 test('the consent table carries one L2 row per ready-to-deploy write, acted by the top-level session', function (): void {
