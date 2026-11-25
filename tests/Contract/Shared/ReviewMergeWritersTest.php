@@ -340,14 +340,14 @@ test('the GitHub delete helper deletes nothing when the comments cannot be liste
 });
 
 dataset('merge delete pull requests', [
-    'a pull request URL' => ['https://github.com/pekral/ai-olympus/pull/42', [], 1],
-    'a pull request named through an issue URL' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'], 4],
-    'a pull request named with a trailing slash' => [REVIEW_MERGE_ITEM . '/', ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{}}'], 4],
-    'an answer with a null pull_request field' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 4],
+    'a failed read' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_OK' => '0'], 3],
     'an answer of another number' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":43}'], 3],
     'an answer that is no issue' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"message":"Not Found"}'], 3],
     'an answer that is not JSON' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => 'not json'], 3],
-    'a failed read' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_OK' => '0'], 3],
+    'an answer with a null pull_request field' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":null}'], 4],
+    'a pull request named through an issue URL' => [REVIEW_MERGE_ITEM, ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{"url":"x"}}'], 4],
+    'a pull request named with a trailing slash' => [REVIEW_MERGE_ITEM . '/', ['FAKE_GH_ITEM_JSON' => '{"number":42,"pull_request":{}}'], 4],
+    'a pull request URL' => ['https://github.com/pekral/ai-olympus/pull/42', [], 1],
 ]);
 
 test(
@@ -614,6 +614,7 @@ dataset('merge delete mention replies', [
     'a mention after a fence closed by its own character only' => ["~~~\n```\n~~~\n@bot finding 2 is wrong.", 4, false],
     'a mention after a fence of a list item' => ["- Finding 2:\n\n  ```\n@bot this is wrong.", 4, false],
     'a mention after a fence of a quote' => ["> ```\n    ```\n@bot finding 2 is wrong.", 4, false],
+    'a mention after a leading NUL' => ["\u{0}@bot finding 2 is wrong.", 4, false],
     'a mention after an escaped backtick' => ['Type \\`@bot, finding 2 is wrong `.', 4, false],
     'a mention after an unmatched backtick' => ['Type `@bot to look again.', 4, false],
     'a mention after a shorter fence line inside a block' => ["````\n```\n````\n@bot finding 2 is wrong.", 4, false],
@@ -657,6 +658,9 @@ dataset('merge delete mention replies', [
     'an HTML-block mention whose login holds a reference without a semicolon' => ['<div>@b&#111t finding 2 is wrong.</div>', 4, false],
     'an HTML paragraph mention whose at sign is a zero-padded reference' => ['<p>&#0064bot finding 2 is wrong.</p>', 4, false],
     'an HTML table mention whose at sign is a reference without a semicolon' => ['<table><tr><td>&#64bot finding 2 is wrong.</td></tr></table>', 4, false],
+    'a NUL inside the login of the operator account' => ["@b\u{0}ot finding 2 is wrong.", 0, true],
+    'a quote after a leading NUL' => ["\u{0}> Round 1: the limit is 2 MB.", 4, false],
+    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> finding 2 is wrong.", 4, false],
     'a tag reply that mentions another login' => ['<b>@alice</b> finding 2 is wrong.', 4, false],
     'a tag reply whose at sign is a decimal reference' => ['&#64;b</td>ot finding 2 is wrong.', 4, false],
     'a tag reply whose at sign is a named reference' => ['&commat;</b>bot finding 2 is wrong.', 4, false],
@@ -666,10 +670,6 @@ dataset('merge delete mention replies', [
     'a tag reply with a dropped tag after the at sign' => ['@</b>bot finding 2 is wrong.', 4, false],
     'a tag reply with a quoted greater-than sign in the tag' => ['<div>@b</span title="a>b">ot x</div>', 4, false],
     'a tag without an at sign' => ['<b>Finding 2</b> is wrong.', 0, true],
-    'a mention after a leading NUL' => ["\u{0}@bot finding 2 is wrong.", 4, false],
-    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> finding 2 is wrong.", 4, false],
-    'a NUL inside the login of the operator account' => ["@b\u{0}ot finding 2 is wrong.", 0, true],
-    'a quote after a leading NUL' => ["\u{0}> Round 1: the limit is 2 MB.", 4, false],
 ]);
 
 test(
