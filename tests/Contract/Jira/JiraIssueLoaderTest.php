@@ -405,15 +405,24 @@ test('the description is trusted only when the operator wrote it and no other ac
     expect(decodedJsonField($output, 'descriptionTrusted'))->toBe($trusted)
         ->and(decodedJsonField($output, 'mentionedKeys'))->toBe($trusted ? ['ACME-77', 'ACME-78', 'ACME-80'] : ['ACME-80']);
 })->with([
-    'the operator wrote it and changed it' => [jiraLoaderTrustViewJson(), true],
-    'another account changed another field' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'status']])]), true],
-    'another account edited the description' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'description']])]), false],
+    'another account changed another field' => [jiraLoaderTrustViewJson(
+        ['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'status']])],
+    ), true,
+    ],
     'another account changed the reporter' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-stranger', 'reporter']])]), false],
-    'another account created the issue' => [jiraLoaderTrustViewJson(fields: ['creator' => ['accountId' => 'acc-stranger', 'displayName' => 'Stranger']]), false],
-    'the view carries no creator' => [jiraLoaderTrustViewJson(fields: ['creator' => null]), false],
-    'the view carries no change log' => [jiraLoaderTrustViewJson(remove: ['changelog']), false],
-    'the change log is cut' => [jiraLoaderTrustViewJson(['changelog' => ['total' => 2] + jiraLoaderChangelog([['acc-operator', 'description']])]), false],
+    'another account created the issue' => [jiraLoaderTrustViewJson(
+        fields: ['creator' => ['accountId' => 'acc-stranger', 'displayName' => 'Stranger']],
+    ), false,
+    ],
+    'another account edited the description' => [jiraLoaderTrustViewJson(
+        ['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'description']])],
+    ), false,
+    ],
     'the change log cannot be read' => [jiraLoaderTrustViewJson(['changelog' => ['histories' => 'unreadable']]), false],
+    'the change log is cut' => [jiraLoaderTrustViewJson(['changelog' => ['total' => 2] + jiraLoaderChangelog([['acc-operator', 'description']])]), false],
+    'the operator wrote it and changed it' => [jiraLoaderTrustViewJson(), true],
+    'the view carries no change log' => [jiraLoaderTrustViewJson(remove: ['changelog']), false],
+    'the view carries no creator' => [jiraLoaderTrustViewJson(fields: ['creator' => null]), false],
 ]);
 
 test('a comment of the operator account names an issue even when the operator is not the assignee', function (): void {
