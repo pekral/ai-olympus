@@ -7,7 +7,7 @@
 # `gate-context.sh` (which project knowledge a task needs). Both must agree on
 # what an auth, a data-loss, or a concurrency signal is, so the word lists
 # exist here once. A word added here changes both verdicts. `test-integrity.sh`
-# sources it too, for TEST_RE and FORMAT_RE below.
+# sources it too, for TEST_RE, TOOL_LIST_RE, and FORMAT_RE below.
 #
 # It also holds the two parts of reading an assignment text that `classify-risk.sh`
 # and `count-assignment.sh` share: the names of the business-only headings
@@ -47,6 +47,13 @@ QUEUE_RE='(^|/)jobs?/|(^|/)queues?/|queue|worker|(^|/)listeners?/|(^|/)events?/|
 # expressions of jq all read.
 RUNNER_COLLECTED_RE='tests?\.php$|\.test\.[a-z]+$|\.spec\.[a-z]+$|_test\.[a-z]+$|(^|/)test_[^/]*\.py$|(^|/)test[^/]*\.txt$|(^|/)conftest\.py$|(^|/)__tests__/.*\.[cm]?[jt]sx?$|(^|/)phpunit\.xml|(^|/)pest\.php$'
 TEST_RE='(^|/)tests?/|(^|/)spec/|(^|/)__tests__/|(^|/)testdata/|'"$RUNNER_COLLECTED_RE"
+
+# TOOL_LIST_RE names a `.txt` file by its lower-cased path that a common tool reads as its list of tests or of
+# dependencies: a CMake `CMakeLists.txt`, whose `add_test()` calls are the CTest tests, a pip requirements or
+# constraints file (`requirements-dev.txt`, `dev-requirements.txt`, `requirements/base.txt`), and a Conan
+# `conanfile.txt`. `classify-risk.sh` never grades such a file as documentation, and `test-integrity.sh` reads
+# it as a runner configuration, so it is a check path of the scan.
+TOOL_LIST_RE='(^|/)cmakelists\.txt$|(^|/)[^/]*(requirements|constraints)[^/]*\.txt$|(^|/)requirements/[^/]*\.txt$|(^|/)conanfile\.txt$'
 
 # CHECKER_CONFIG_RE names the configuration of a checker by its lower-cased path: Prettier, ESLint,
 # StyleCI, Pint, PHP CS Fixer, PHP_CodeSniffer, Rector, and PHPStan. FORMAT_RE adds the editor and
