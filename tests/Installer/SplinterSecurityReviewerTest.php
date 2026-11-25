@@ -154,7 +154,7 @@ test('splinter limits its Bash boundary to its own worktree and an independent a
         )
         ->and($splinter)->toContain('never its `full` mode')
         ->and($splinter)->toContain('checkout --detach <head-sha>')
-        ->and($splinter)->toContain('only under `.claude/run/security-audit/<run-id>/` inside your own review worktree')
+        ->and($splinter)->toContain('only under `.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief, with `--tree <your review worktree>` on every call')
         ->and($splinter)->toContain('never a base run of `leonardo` or of any other agent')
         ->and((string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md'))
         ->toContain('The read-only security reviewer `splinter` holds the same grant for its own review worktree.');

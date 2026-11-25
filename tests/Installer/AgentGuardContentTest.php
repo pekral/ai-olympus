@@ -172,3 +172,20 @@ test(
 test('the install summary of the guard makes no claim about when a session reads its hooks', function (): void {
     expect(AgentGuardOutcome::Registered->installMessage())->not->toContain('session start');
 });
+
+test('a review in a worktree keeps its audit run directory outside the worktree and the cleanup ignores nested repositories', function (string $file, string $needle): void {
+    expect(agentGuardPackageFile($file))->toContain($needle);
+})->with([
+    'leonardo' => ['agents/leonardo.md', '**The audit run directory stays outside the worktree.**'],
+    'the head check' => ['agents/leonardo.md', 'It checks the head with `skills/_shared/agent-guard.sh review-head <head-sha>`.'],
+    'splinter' => ['agents/splinter.md', '`.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief'],
+    'the skill' => ['skills/security-audit/SKILL.md', 'every `scripts/audit-artifacts.sh` call names the worktree with `--tree <path>`'],
+    'the clean check' => ['agents/krang.md', '-C <path> status --porcelain --ignore-submodules=all` prints nothing'],
+    'SECURITY.md' => ['SECURITY.md', 'keeps its security-audit run directory under `.claude/run/security-audit/<slug>-<role>/` of the project, outside the worktree'],
+]);
+
+test('no confined role keeps a write exception inside a review worktree', function (): void {
+    expect(agentGuardPackageFile('skills/_shared/agent-guard.sh'))->not->toContain('AUDIT_RE')
+        ->and(agentGuardPackageFile('SECURITY.md'))->not->toContain('of their own review worktree')
+        ->and(agentGuardPackageFile('agents/leonardo.md'))->not->toContain('the one directory below the worktree that you may write');
+});

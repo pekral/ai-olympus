@@ -15,6 +15,7 @@
 #   agent-guard.sh exec <role> [--project <dir>] -- <command>
 #                                           run <command> with `/bin/bash -c` in the confinement of <role>
 #   agent-guard.sh probe                    prove whether the current process can write into the project
+#   agent-guard.sh review-head <commit>     check that a commit may get a review worktree
 #   agent-guard.sh verify                   check the installed copy and the hook handler
 #   agent-guard.sh --self-test
 #
@@ -35,9 +36,6 @@
 #                           the session, the project, its git directories, any
 #                           worktree under `.claude/worktrees/` or `<git common dir>/worktrees/`, the home directory, a
 #                           directory on PATH, a shell startup file, or the git configuration.
-#     leonardo, splinter    the security-audit run directories below `.claude/run/security-audit/` (or `.codex/run/`)
-#                           inside their own review worktree `.claude/worktrees/agent-cr-*-<role>`; the session that
-#                           dispatches them creates the worktree and that directory, never the role
 #     casey                 `storage/logs/**` (Laravel writes its log there while tinker runs)
 #
 # Strict mode
@@ -66,6 +64,11 @@
 #   written and with its quotes and backslashes removed. In `bypassPermissions` a command whose name is a variable or
 #   a glob asks when a deny rule exists.
 #
+# Review head
+#   Run by the unconfined session before it creates or moves a review worktree. Exit 0 when the tree of <commit>
+#   carries no symbolic link and no gitlink at `.claude` or `.codex` or below them (compared without case); otherwise
+#   exit 3 with `review-head=refused reason=link-below-agent-config path=<path>` on stdout.
+#
 # Probe
 #   Creates `<project root>/.ai-olympus-guard-probe-<random>` and `<git common dir>/ai-olympus-guard-probe-<random>`
 #   without overwriting anything, and removes what it created on every exit path. Prints `protection=active` only when
@@ -77,6 +80,7 @@
 #           private temporary directory could be created
 #   hook    0 decision printed (or none needed); 2 strict mode and the hook could not decide
 #   probe   0 the result line was printed; 64 usage error
+#   review-head  0 the commit may get a review worktree; 3 refused; 64 usage error or not a commit
 #   verify  0 verified; 3 refused (the line names the reason)
 #   other   1 usage error; 2 missing required tool (jq)
 set -uo pipefail
@@ -98,6 +102,7 @@ usage() {
 Usage: agent-guard.sh hook
        agent-guard.sh exec <role> [--project <dir>] -- <command>
        agent-guard.sh probe
+       agent-guard.sh review-head <commit>
        agent-guard.sh verify
        agent-guard.sh --self-test
 EOF
@@ -405,10 +410,6 @@ resolve_writable() {
   return 0
 }
 
-is_review_role() {
-  [[ "$1" == "leonardo" || "$1" == "splinter" ]]
-}
-
 macos_profile() {
   local role="$1" profile
   profile='(version 1)(allow default)(deny file-write*)'
@@ -420,20 +421,15 @@ macos_profile() {
   profile+=' (subpath (param "COMMON")) (subpath (param "PCOMMON")))'
   profile+='(deny file-write* (subpath (param "HOME_CLAUDE")) (subpath (param "HOME_CODEX")))'
   profile+='(allow file-write* (subpath (param "RUN_CLAUDE")) (subpath (param "RUN_CODEX")))'
-  case "$role" in
-  leonardo | splinter) profile+='(allow file-write* (regex (param "AUDIT_RE")))' ;;
-  casey) profile+='(allow file-write* (subpath (param "LOGS")))' ;;
-  esac
+  [[ "$role" == "casey" ]] && profile+='(allow file-write* (subpath (param "LOGS")))'
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CLAUDE")) (vnode-type SYMLINK)))'
   profile+='(deny file-write-create (require-all (subpath (param "RUN_CODEX")) (vnode-type SYMLINK)))'
-  profile+='(deny file-write-create (require-all (regex (param "AUDIT_RE")) (vnode-type SYMLINK)))'
   profile+='(deny file-write-create (require-all (regex (param "HEREDOC_RE")) (vnode-type SYMLINK)))'
   printf '%s' "$profile"
 }
 
 run_macos() {
-  local role="$1" command="$2" root_re
-  root_re="$(regex_escape "$ROOT")"
+  local role="$1" command="$2"
   /usr/bin/sandbox-exec \
     -D ROOT="$ROOT" -D TOP="$TOP" -D CWD_ROOT="$CWD_ROOT" \
     -D COMMON="${COMMON:-$NONE}" -D PCOMMON="${PCOMMON:-$NONE}" \
@@ -441,23 +437,8 @@ run_macos() {
     -D HEREDOC_RE="^$(regex_escape "${TMP_SYS:-$NONE}")/sh-thd[^/]*\$" \
     -D HOME_CLAUDE="${HOME_DIR:-$NONE}/.claude" -D HOME_CODEX="${HOME_DIR:-$NONE}/.codex" \
     -D RUN_CLAUDE="$ROOT/.claude/run" -D RUN_CODEX="$ROOT/.codex/run" \
-    -D AUDIT_RE="^$root_re/\\.claude/worktrees/agent-cr-[^/]+-${role}[0-9]*/\\.(claude|codex)/run/security-audit/.+" \
     -D LOGS="$ROOT/storage/logs" \
     -p "$(macos_profile "$role")" /usr/bin/env PATH="$ORIGINAL_PATH" TMPDIR="$PRIVATE_TMP" /bin/bash -c "$command"
-}
-
-# Prints the security-audit run directory of every review worktree of <role> that the dispatcher prepared: a real
-# directory below the physical project root, with no symbolic link on its path.
-review_audit_dirs() {
-  local role="$1" entry dir sub
-  for entry in "$ROOT/.claude/worktrees"/agent-cr-*; do
-    [[ "${entry##*/}" =~ ^agent-cr-.+-${role}[0-9]*$ ]] || continue
-    for sub in .claude .codex; do
-      dir="$entry/$sub/run/security-audit"
-      [[ -d "$dir" && "$(physical_dir "$dir")" == "$dir" ]] && printf '%s\n' "$dir"
-    done
-  done
-  return 0
 }
 
 run_linux() {
@@ -472,11 +453,6 @@ run_linux() {
   mkdir -p "$ROOT/.claude/run" 2>/dev/null || true
   args+=(--bind "$ROOT/.claude/run" "$ROOT/.claude/run")
   [[ -d "$ROOT/.codex/run" ]] && args+=(--bind "$ROOT/.codex/run" "$ROOT/.codex/run")
-  if is_review_role "$role"; then
-    while IFS= read -r dir; do
-      args+=(--bind "$dir" "$dir")
-    done < <(review_audit_dirs "$role")
-  fi
   [[ "$role" == "casey" && -d "$ROOT/storage/logs" ]] && args+=(--bind "$ROOT/storage/logs" "$ROOT/storage/logs")
   bwrap "${args[@]}" -- /usr/bin/env PATH="$ORIGINAL_PATH" TMPDIR="$PRIVATE_TMP" /bin/bash -c "$command"
 }
@@ -523,6 +499,26 @@ run_exec() {
     echo "$GUARD_PREFIX $role ran this command in its read-only confinement (exit $status); a refused write is a Blocked stop, never a retry another way" >&2
   fi
   return "$status"
+}
+
+# --- review head ------------------------------------------------------------------------------------------------
+
+run_review_head() {
+  local commit="${1:-}" entry mode path lower tab=$'\t'
+  [[ $# -eq 1 && "$commit" =~ ^[0-9a-f]{7,64}$ ]] || { usage; return 64; }
+  git_safe rev-parse --verify --quiet "$commit^{commit}" >/dev/null || { echo "$PROG: not a commit: $commit" >&2; return 64; }
+  while IFS= read -r -d '' entry; do
+    mode="${entry%% *}"
+    [[ "$mode" == "120000" || "$mode" == "160000" ]] || continue
+    path="${entry#*"$tab"}"
+    lower="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$lower" == ".claude" || "$lower" == ".codex" || "$lower" == .claude/* || "$lower" == .codex/* ]]; then
+      printf 'review-head=refused reason=link-below-agent-config path=%q\n' "$path"
+      return 3
+    fi
+  done < <(git_safe ls-tree -r -z --full-tree "$commit")
+  echo 'review-head=ok'
+  return 0
 }
 
 # --- probe and verify ---------------------------------------------------------------------------------------------
@@ -710,6 +706,11 @@ main() {
     ;;
   probe)
     run_probe
+    return $?
+    ;;
+  review-head)
+    shift
+    run_review_head "$@"
     return $?
     ;;
   esac

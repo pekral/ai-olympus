@@ -155,7 +155,6 @@ final class AgentGuardRun
     {
         $path = '.claude/worktrees/agent-cr-slug-' . $role;
         self::git($root, 'worktree', 'add', '-q', '--detach', $path, 'HEAD');
-        mkdir($root . '/' . $path . '/.claude/run/security-audit', 0777, recursive: true);
 
         return $path;
     }

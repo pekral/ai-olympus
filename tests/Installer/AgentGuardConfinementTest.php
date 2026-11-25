@@ -317,8 +317,10 @@ test('each confined role keeps the reads and writes its definition documents', f
         . ' && git -C ' . $review . ' diff --stat HEAD && git -C ' . $review . ' status --short && git -C ' . $review . ' log -1 --format=%H'
         . ' && { ! command -v gh >/dev/null || gh --version >/dev/null; } && ' . $fetch;
     $scratch = " && cat > \"\$TMPDIR/note\" <<'EOF'\nscratch\nEOF\ntest -s \"\$TMPDIR/note\"";
-    $audit = ' && mkdir .claude/worktrees/agent-cr-slug-' . $role . '/.claude/run/security-audit/run-1'
-        . ' && echo "{}" > .claude/worktrees/agent-cr-slug-' . $role . '/.claude/run/security-audit/run-1/metadata.json';
+    $audit = ' && mkdir -p .claude/run/security-audit/slug-' . $role . '/run-1'
+        . ' && echo "{}" > .claude/run/security-audit/slug-' . $role . '/run-1/metadata.json'
+        . ' && bash ' . escapeshellarg(dirname(AgentGuardRun::script(), 2) . '/security-audit/scripts/audit-artifacts.sh')
+        . ' --tree .claude/worktrees/agent-cr-slug-' . $role . ' snapshot >/dev/null';
 
     try {
         $process = AgentGuardRun::exec($root, $role, $command . (in_array($role, ['leonardo', 'splinter'], strict: true) ? $audit : '') . $scratch);
@@ -345,6 +347,85 @@ test('a confined role cannot change a worktree or a worktree directory of git', 
         AgentGuardRun::remove($root);
     }
 })->with(agentGuardWorktreeWrites())->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('a review role cannot build a nested repository at a gitlink of its review worktree', function (string $role): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::git($root, 'update-index', '--add', '--cacheinfo', '160000,' . AgentGuardRun::head($root) . ',.claude/run/security-audit/x');
+    AgentGuardRun::git($root, 'commit', '-q', '-m', 'gitlink');
+    $review = AgentGuardRun::reviewWorktree($root, $role);
+    $nested = $review . '/.claude/run/security-audit/x';
+    $planted = dirname($root) . '/planted';
+    $build = 'git init -q ' . $nested . ' && cd ' . $nested . " && echo a > f && printf '* filter=x\\n' > .gitattributes"
+        . ' && git add . && git -c user.name=t -c user.email=t@example.test commit -qm a'
+        . ' && git config filter.x.clean ' . escapeshellarg('touch ' . $planted . '; cat') . ' && echo b > f';
+
+    try {
+        AgentGuardRun::exec($root, $role, $build);
+        AgentGuardRun::git($root, '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', $review, 'status', '--porcelain');
+
+        expect(file_exists($root . '/' . $nested . '/.git'))->toBeFalse()
+            ->and(file_exists($planted))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with(['leonardo', 'splinter'])->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('the clean check of a review worktree runs no program of a nested repository', function (): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::git($root, 'update-index', '--add', '--cacheinfo', '160000,' . AgentGuardRun::head($root) . ',.claude/run/security-audit/x');
+    AgentGuardRun::git($root, 'commit', '-q', '-m', 'gitlink');
+    $review = $root . '/' . AgentGuardRun::reviewWorktree($root, 'leonardo');
+    $nested = $review . '/.claude/run/security-audit/x';
+    $planted = dirname($root) . '/planted';
+    AgentGuardRun::git($nested, 'init', '-q');
+    file_put_contents($nested . '/f', 'a');
+    file_put_contents($nested . '/.gitattributes', "* filter=x\n");
+    AgentGuardRun::git($nested, 'add', '.');
+    AgentGuardRun::git($nested, 'commit', '-q', '-m', 'a');
+    AgentGuardRun::git($nested, 'config', 'filter.x.clean', 'touch ' . escapeshellarg($planted) . '; cat');
+    file_put_contents($nested . '/f', 'b');
+
+    try {
+        $status = AgentGuardRun::git($root, '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=/dev/null', '-C', $review, 'status', '--porcelain', '--ignore-submodules=all');
+
+        expect(file_exists($planted))->toBeFalse()
+            ->and($status->getOutput())->toBe('');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
+
+test('review-head refuses a commit with a link at or below .claude or .codex', function (string $mode, string $path, int $exit): void {
+    $root = AgentGuardRun::repository();
+    AgentGuardRun::git($root, 'update-index', '--add', '--cacheinfo', $mode . ',' . AgentGuardRun::head($root) . ',' . $path);
+    AgentGuardRun::git($root, 'commit', '-q', '-m', 'link');
+
+    try {
+        $process = AgentGuardRun::run($root, ['review-head', AgentGuardRun::head($root)]);
+
+        expect($process->getExitCode())->toBe($exit)
+            ->and($process->getOutput())->toContain($exit === 0 ? 'review-head=ok' : 'review-head=refused reason=link-below-agent-config');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with([
+    'a gitlink below the former audit path' => ['160000', '.claude/run/security-audit/x', 3],
+    'a gitlink in another case' => ['160000', '.CLAUDE/run/x', 3],
+    'a symbolic link at .codex' => ['120000', '.codex', 3],
+    'a symbolic link below .codex' => ['120000', '.codex/run/x', 3],
+    'a gitlink elsewhere' => ['160000', 'vendor/package', 0],
+    'a symbolic link elsewhere' => ['120000', 'public/storage', 0],
+]);
+
+test('review-head refuses a value that is not a commit', function (string $value): void {
+    $root = AgentGuardRun::repository();
+
+    try {
+        expect(AgentGuardRun::run($root, ['review-head', $value])->getExitCode())->toBe(64);
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->with(['not hex' => ['HEAD'], 'no such commit' => ['0123456789abcdef0123456789abcdef01234567']]);
 
 test('a confined role cannot write the shared temporary directories', function (string $target): void {
     $root = AgentGuardRun::repository();
