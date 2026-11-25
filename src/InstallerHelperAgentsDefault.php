@@ -19,20 +19,9 @@ final class InstallerHelperAgentsDefault
         $path = $projectRoot . '/composer.json';
         $contents = is_file($path) ? file_get_contents($path) : false;
         $composer = $contents === false ? null : self::decode($contents);
+        $manifest = $composer instanceof stdClass ? self::manifestOf($composer) : null;
 
-        if ($contents === false || !$composer instanceof stdClass || !self::isObjectOrAbsent($composer, 'extra')) {
-            return HelperAgentsDefaultOutcome::Unchanged;
-        }
-
-        $extra = $composer->extra ?? new stdClass();
-
-        if (!$extra instanceof stdClass || !self::isObjectOrAbsent($extra, self::MANIFEST)) {
-            return HelperAgentsDefaultOutcome::Unchanged;
-        }
-
-        $manifest = $extra->{self::MANIFEST} ?? new stdClass();
-
-        if (!$manifest instanceof stdClass || property_exists($manifest, self::KEY)) {
+        if ($contents === false || !$composer instanceof stdClass || !$manifest instanceof stdClass || property_exists($manifest, self::KEY)) {
             return HelperAgentsDefaultOutcome::Unchanged;
         }
 
@@ -40,13 +29,33 @@ final class InstallerHelperAgentsDefault
             return HelperAgentsDefaultOutcome::FormatKept;
         }
 
+        return self::write($path, self::encode(self::withDefault($composer, $manifest), $contents))
+            ? HelperAgentsDefaultOutcome::Written
+            : HelperAgentsDefaultOutcome::WriteFailed;
+    }
+
+    private static function manifestOf(stdClass $composer): ?stdClass
+    {
+        $extra = $composer->extra ?? new stdClass();
+
+        if (!$extra instanceof stdClass || !self::isObjectOrAbsent($composer, 'extra') || !self::isObjectOrAbsent($extra, self::MANIFEST)) {
+            return null;
+        }
+
+        $manifest = $extra->{self::MANIFEST} ?? new stdClass();
+
+        return $manifest instanceof stdClass ? $manifest : null;
+    }
+
+    private static function withDefault(stdClass $composer, stdClass $manifest): stdClass
+    {
+        $extra = $composer->extra ?? null;
+        $extra = $extra instanceof stdClass ? $extra : new stdClass();
         $manifest->{self::KEY} = true;
         $extra->{self::MANIFEST} = $manifest;
         $composer->extra = $extra;
 
-        return self::write($path, self::encode($composer, $contents))
-            ? HelperAgentsDefaultOutcome::Written
-            : HelperAgentsDefaultOutcome::WriteFailed;
+        return $composer;
     }
 
     private static function decode(string $contents): ?stdClass
