@@ -227,7 +227,8 @@ test('the security floor names the forbidden switch as an exception, with what i
     ],
     'what it weakens' => [
         '- **What it weakens:** one session writes the change, reviews it, and runs the second security view, so neither'
-        . ' view is independent. The harness no longer holds the reviewer read-only, and the escalated model of a role is not used.',
+        . ' view is independent. The harness no longer holds the reviewer read-only: a configuration hash checks the stage'
+        . ' instead, and the files it does not cover are named in that file. The escalated model of a role is not used.',
     ],
     'what stays' => [
         '- **What stays:** every security skill and every rule of `@rules/security/**` runs. The convergence gate, the'
@@ -425,11 +426,35 @@ test('the configuration hash changes on a write to the agent configuration and n
 })->with([
     'a Codex agent' => ['.codex/agents/splinter.toml'],
     'a Codex skill' => ['.agents/skills/x/SKILL.md'],
+    'a hook' => ['.claude/hooks/x.sh'],
+    'a local instruction file' => ['CLAUDE.local.md'],
+    'a project instruction file below .claude' => ['.claude/CLAUDE.md'],
+    'a project MCP configuration' => ['.mcp.json'],
     'an agent definition' => ['.claude/agents/splinter.md'],
+    'an output style' => ['.claude/output-styles/x.md'],
     'a rule' => ['.claude/rules/x.md'],
     'a settings file' => ['.claude/settings.json'],
     'a skill' => ['.claude/skills/x/SKILL.md'],
 ]);
+
+test('a configuration hash that cannot be computed exits 4 and prints no hash, so the round stops', function (): void {
+    $missingRoot = sys_get_temp_dir() . '/ai-olympus-missing-' . bin2hex(random_bytes(6));
+    $hash = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'config-hash', '--root', $missingRoot]);
+    $hash->run();
+
+    expect($hash->getExitCode())->toBe(4)
+        ->and($hash->getOutput())->toBe('')
+        ->and(normalizedPackageSource('skills/_shared/orchestration/helper-agents.md'))
+        ->toContain(
+            '- **A guard that fails is a stop too.** A non-zero exit of either command, or an output that is not one'
+            . ' `config-hash=<hex>` line, stops the round as not converged. Two empty outputs never count as equal.',
+        )
+        ->toContain('Run it with `--user` in the tree the session started in, so it also covers the user-level files the script header lists.')
+        ->toContain(
+            '- **Not covered:** the auto memory of the harness, `~/.claude.json`, and a file that a git `include.path`'
+            . ' setting names. A change there is not detected.',
+        );
+});
 
 test('the role guard self-test passes and is registered', function (): void {
     $selfTest = new Process([dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', '--self-test']);

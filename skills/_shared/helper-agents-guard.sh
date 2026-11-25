@@ -10,7 +10,7 @@
 # Usage (run in the tree the session started in, never in a unit, review, or gate worktree)
 #   helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role> [--role <role>]...
 #   helper-agents-guard.sh read-role  --run-dir <dir> --slug <slug> --role <role> --sha256 <hex>
-#   helper-agents-guard.sh config-hash [--root <dir>]
+#   helper-agents-guard.sh config-hash [--root <dir>] [--user]
 #   helper-agents-guard.sh --self-test
 #
 #   --run-dir   the run directory of the platform: a path that ends in `.claude/run` (the role is read from
@@ -29,11 +29,16 @@
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
-# config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the agent configuration that a
-# later session loads, below --root (default: the current directory): `.claude/agents`, `.claude/skills`,
-# `.claude/rules`, `.claude/commands`, `.claude/settings*.json`, `.codex` (without `.codex/run` and
-# `.codex/worktrees`), and `.agents`. A symbolic link counts by its target. The output names no file and no value, so
-# a settings file is hashed and never shown. The session runs it before and after each review stage and compares.
+# config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the configuration that a later
+# session or git loads, below --root (default: the current directory): `.claude` (without `.claude/run` and
+# `.claude/worktrees`), `.codex` (without `.codex/run` and `.codex/worktrees`), `.agents`, `CLAUDE.md`,
+# `CLAUDE.local.md`, `AGENTS.md`, `.mcp.json`, the git hooks directory, and every local git setting except the
+# `branch.*` entries a checkout writes. --user adds the user-level files below the home directory: `.claude/CLAUDE.md`,
+# `.claude/settings.json`, `.claude/settings.local.json`, `.claude/rules`, `.claude/agents`, `.claude/skills`,
+# `.claude/commands`, `.claude/hooks`, `.claude/output-styles`, `.codex/config.toml`, `.codex/AGENTS.md`,
+# `.codex/prompts`, `.codex/agents`, and `.agents`. A symbolic link counts by the content of its target. The output
+# names no file and no value, so a settings file is hashed and never shown. The session runs it before and after each
+# review stage and compares.
 #
 # Exit codes
 #   0  done
@@ -41,6 +46,8 @@
 #   2  a required tool is missing (git, and sha256sum or shasum)
 #   3  the trusted role definition is not available: the stage stops with
 #      `Blocked: helper agents forbidden — trusted role definition not available`
+#   4  config-hash cannot compute the hash (a root it cannot enter, a path it cannot read, more than 100000 entries):
+#      it prints no hash, and the round stops as not converged
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,7 +55,7 @@ SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 BLOCKED='Blocked: helper agents forbidden — trusted role definition not available'
 
 usage() {
-  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-hash [--root <dir>] | --self-test" >&2
+  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-hash [--root <dir>] [--user] | --self-test" >&2
   exit 1
 }
 
@@ -159,30 +166,70 @@ read_role() {
   printf '%s' "$content"
 }
 
+hash_fails() {
+  echo "helper-agents-guard.sh: config-hash: $1" >&2
+  exit 4
+}
+
+# Prints one hash line per entry of the local git configuration, without the `branch.*` entries that a checkout writes.
+git_config_lines() {
+  local entry
+  while IFS= read -r -d '' entry; do
+    [[ "$entry" == branch.* ]] || printf 'c %s\n' "$(printf '%s' "$entry" | sha256_stdin)"
+  done < <(g config --local --null --list 2>/dev/null)
+}
+
 config_hash() {
-  local root="$1" sha_cmd path
-  local -a paths files
-  cd -- "$root" 2>/dev/null || { echo "helper-agents-guard.sh: cannot enter the root directory" >&2; exit 1; }
-  if command -v sha256sum >/dev/null 2>&1; then sha_cmd=(sha256sum); else sha_cmd=(shasum -a 256); fi
+  local root="$1" with_user="$2" tmp path count=0
+  local -a paths
+  cd -- "$root" 2>/dev/null || hash_fails "the root directory cannot be entered"
+  HASH_TMP="$(mktemp -d)" || hash_fails "no temporary directory"
+  trap 'rm -rf "$HASH_TMP"' EXIT
+  tmp="$HASH_TMP"
 
   paths=()
-  for path in .claude/agents .claude/skills .claude/rules .claude/commands .claude/settings*.json .codex .agents; do
+  for path in .claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md .mcp.json; do
     [[ -e "$path" || -L "$path" ]] && paths+=("$path")
   done
+  if [[ "$(g rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]]; then
+    for path in "$(g rev-parse --git-common-dir 2>/dev/null)/hooks" "$(git -c core.fsmonitor=false rev-parse --git-path hooks 2>/dev/null)"; do
+      [[ "$path" != /hooks && -e "$path" ]] && paths+=("$path")
+    done
+    git_config_lines >"$tmp/lines" || hash_fails "the local git configuration cannot be read"
+  fi
+  if [[ "$with_user" == 1 ]]; then
+    [[ -n "${HOME:-}" && -d "$HOME" ]] || hash_fails "the home directory is not available"
+    for path in .claude/CLAUDE.md .claude/settings.json .claude/settings.local.json .claude/rules .claude/agents \
+      .claude/skills .claude/commands .claude/hooks .claude/output-styles .codex/config.toml .codex/AGENTS.md \
+      .codex/prompts .codex/agents .agents; do
+      [[ -e "$HOME/$path" || -L "$HOME/$path" ]] && paths+=("$HOME/$path")
+    done
+  fi
 
-  {
-    if [[ ${#paths[@]} -gt 0 ]]; then
-      files=()
-      while IFS= read -r -d '' path; do
-        if [[ -L "$path" ]]; then
-          printf 'l %s %s\n' "$(readlink -- "$path")" "$path"
-        else
-          files+=("$path")
-        fi
-      done < <(find -P "${paths[@]}" \( -path .codex/run -o -path .codex/worktrees \) -prune -o \( -type f -o -type l \) -print0 | LC_ALL=C sort -z)
-      [[ ${#files[@]} -eq 0 ]] || "${sha_cmd[@]}" -- "${files[@]}" </dev/null | sed 's/^/f /'
+  : >>"$tmp/lines"
+  : >"$tmp/files"
+  if [[ ${#paths[@]} -gt 0 ]]; then
+    while IFS= read -r -d '' path; do
+      count=$((count + 1))
+      [[ $count -le 100000 ]] || hash_fails "more than 100000 entries"
+      if [[ -L "$path" ]]; then
+        printf 'b %s %s\n' "$path" "$(readlink -- "$path")" >>"$tmp/lines"
+      else
+        printf '%s\0' "$path" >>"$tmp/files"
+      fi
+    done < <(find -L "${paths[@]}" \( -path .claude/run -o -path .claude/worktrees -o -path .codex/run -o -path .codex/worktrees \) -prune \
+      -o \( -type f -o -type l \) -print0 2>"$tmp/find.err")
+    [[ -s "$tmp/find.err" ]] && hash_fails "a path cannot be read"
+    if [[ -s "$tmp/files" ]]; then
+      if command -v sha256sum >/dev/null 2>&1; then
+        xargs -0 sha256sum -- <"$tmp/files" >"$tmp/sums" 2>/dev/null || hash_fails "a file cannot be hashed"
+      else
+        xargs -0 shasum -a 256 -- <"$tmp/files" >"$tmp/sums" 2>/dev/null || hash_fails "a file cannot be hashed"
+      fi
+      sed 's/^/f /' "$tmp/sums" >>"$tmp/lines"
     fi
-  } | LC_ALL=C sort | sha256_stdin | sed 's/^/config-hash=/'
+  fi
+  LC_ALL=C sort "$tmp/lines" | sha256_stdin | sed 's/^/config-hash=/'
 }
 
 self_test() {
@@ -338,6 +385,57 @@ self_test() {
   check 'a new Codex skill changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
   check 'an empty tree has a hash too' "$([[ "$("$SELF" config-hash --root "$tmp/repo/.git")" =~ ^config-hash=[0-9a-f]{64}$ ]] && echo yes || echo no)"
 
+  local loaded
+  for loaded in .claude/CLAUDE.md CLAUDE.local.md CLAUDE.md AGENTS.md .mcp.json .claude/hooks/h.sh .claude/output-styles/o.md .claude/new-kind/x; do
+    first="$("$SELF" config-hash --root "$cfg")"
+    mkdir -p "$cfg/$(dirname "$loaded")"
+    printf 'written by a stage\n' >>"$cfg/$loaded"
+    check "a write to $loaded changes the hash" "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  done
+  mkdir -p "$tmp/linked-target"
+  printf 'skill\n' >"$tmp/linked-target/SKILL.md"
+  ln -s "$tmp/linked-target" "$cfg/.claude/skills/linked"
+  first="$("$SELF" config-hash --root "$cfg")"
+  printf 'changed through the link\n' >>"$tmp/linked-target/SKILL.md"
+  check 'a write to the target of a linked skill changes the hash' "$([[ "$("$SELF" config-hash --root "$cfg")" != "$first" ]] && echo yes || echo no)"
+  mkdir -p "$cfg/.claude/worktrees/agent-cr-x"
+  first="$("$SELF" config-hash --root "$cfg")"
+  printf 'review checkout\n' >"$cfg/.claude/worktrees/agent-cr-x/file"
+  check 'a write to a review worktree leaves the hash unchanged' "$([[ "$("$SELF" config-hash --root "$cfg")" == "$first" ]] && echo yes || echo no)"
+
+  first="$("$SELF" config-hash --root "$repo")"
+  printf '#!/bin/sh\n' >"$repo/.git/hooks/pre-commit"
+  check 'a new git hook changes the hash' "$([[ "$("$SELF" config-hash --root "$repo")" != "$first" ]] && echo yes || echo no)"
+  first="$("$SELF" config-hash --root "$repo")"
+  (cd "$repo" && g config core.hooksPath elsewhere) >/dev/null 2>&1
+  check 'a changed local git setting changes the hash' "$([[ "$("$SELF" config-hash --root "$repo")" != "$first" ]] && echo yes || echo no)"
+  first="$("$SELF" config-hash --root "$repo")"
+  (cd "$repo" && g config branch.feature.remote origin) >/dev/null 2>&1
+  check 'the upstream of a checked-out branch leaves the hash unchanged' "$([[ "$("$SELF" config-hash --root "$repo")" == "$first" ]] && echo yes || echo no)"
+
+  local home="$tmp/home"
+  mkdir -p "$home/.claude"
+  first="$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)"
+  printf 'user instruction\n' >"$home/.claude/CLAUDE.md"
+  check 'with --user a write to the user CLAUDE.md changes the hash' \
+    "$([[ "$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)" != "$first" ]] && echo yes || echo no)"
+  first="$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)"
+  mkdir -p "$home/.codex"
+  printf 'model = "x"\n' >"$home/.codex/config.toml"
+  check 'with --user a write to the Codex configuration changes the hash' \
+    "$([[ "$(HOME="$home" "$SELF" config-hash --root "$cfg" --user)" != "$first" ]] && echo yes || echo no)"
+
+  out="$("$SELF" config-hash --root "$tmp/missing" 2>/dev/null)"
+  rc=$?
+  check 'a missing root exits 4 and prints no hash' "$([[ $rc -eq 4 && -z "$out" ]] && echo yes || echo no)"
+  mkdir -p "$cfg/.claude/rules/closed"
+  printf 'rule\n' >"$cfg/.claude/rules/closed/r.md"
+  chmod 000 "$cfg/.claude/rules/closed"
+  out="$("$SELF" config-hash --root "$cfg" 2>/dev/null)"
+  rc=$?
+  chmod 700 "$cfg/.claude/rules/closed"
+  check 'a directory it cannot read exits 4 and prints no hash' "$([[ $rc -eq 4 && -z "$out" ]] && echo yes || echo no)"
+
   [[ "$failed" -eq 0 ]] && echo "helper-agents-guard.sh self-test passed"
   return "$failed"
 }
@@ -358,13 +456,23 @@ case "$command" in
   ;;
 copy-roles | read-role) ;;
 config-hash)
-  root="."
-  if [[ $# -gt 0 ]]; then
-    [[ $# -eq 2 && "$1" == "--root" && -n "$2" ]] || usage
-    root="$2"
-  fi
+  root="." with_user=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --root)
+      [[ $# -ge 2 && -n "$2" ]] || usage
+      root="$2"
+      shift 2
+      ;;
+    --user)
+      with_user=1
+      shift
+      ;;
+    *) usage ;;
+    esac
+  done
   require_tools
-  config_hash "$root"
+  config_hash "$root" "$with_user"
   exit $?
   ;;
 *) usage ;;
