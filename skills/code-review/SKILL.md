@@ -30,8 +30,8 @@ Perform structured code review of exactly the four areas of `@rules/code-review/
 
 ## Execution
 
-- **Branch checkout gate (mandatory, always).** Before any analysis step, run `@skills/code-review/references/branch-checkout-gate.md`: it pulls the default branch, then checks out and pulls the branch with the changes. When a step fails, **stop and report it** instead of reviewing from a diff.
-Every subsequent step reads the checked-out files so findings reflect the real state of the code.
+- **Branch checkout gate (mandatory, always).** Before any analysis step, run `@skills/code-review/references/branch-checkout-gate.md`: it fetches, then opens the head commit of the branch with the changes in a detached worktree, never in the main tree. When a step fails, **stop and report it** instead of reviewing from a diff.
+Every subsequent step reads the files of that worktree so findings reflect the real state of the code.
 - Identify changes vs main branch.
 - Deduplicate previous findings.
 

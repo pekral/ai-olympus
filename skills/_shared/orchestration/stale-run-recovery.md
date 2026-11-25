@@ -56,7 +56,7 @@ Closing it fully needs an exclusive create the atomic-`mv` requirement above rul
 
 ## CR worktree at Run cleanup
 
-*Run cleanup* (`agents/krang.md` step 7) reads this section before it removes a CR worktree that `leonardo` or `splinter` created.
+*Run cleanup* (`agents/krang.md` step 7) reads this section before it removes a CR worktree that `leonardo` or `splinter` created, or the test worktree of `raphael`.
 
 - **Probe liveness first — the same confirmed-dead gate the startup sweep uses (step 2, *Stale worktrees*), never a weaker one.** A clean `git status` and a `locked` line prove nothing about whether a reviewer is still working in there: a live CR pass and a crashed one look **identical** on both signals. Removing a worktree out from under a live reviewer takes its `Bash` away mid-run and it can then deliver nothing — that is exactly how ~590 k tokens of finished analysis were once stranded (the failure `agents/leonardo.md` *Deliver as you go* now also defends against from the other side).
 - So before removing, read the `pid <N>` token out of the worktree's `locked <reason>` line, validate it against `^[0-9]{1,7}$`, and probe it with `LC_ALL=C kill -0 "$pid" 2>&1`: remove **only** on a confirmed-dead probe (a failure whose message does **not** mention `not permitted`). A live probe, an EPERM probe, a missing `locked` line, or an unparseable token all mean **leave it in place** and report it — never remove on the absence of a liveness signal.

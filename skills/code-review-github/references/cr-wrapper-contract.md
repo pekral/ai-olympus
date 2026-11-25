@@ -40,7 +40,7 @@ Confirm the pull request belongs to the current checkout by running `skills/_sha
 
 #### Branch checkout gate (mandatory, always)
 
-Before running any review step, run `@skills/code-review/references/branch-checkout-gate.md` with the PR's `headRefName` from the loaded PR JSON as the branch under review. Confirm local `HEAD` equals the PR head SHA from the loaded context. When a step fails, **stop and report it** instead of reviewing from the diff. Every sub-review then reads the checked-out files.
+Before running any review step, run `@skills/code-review/references/branch-checkout-gate.md` with the PR's `headRefName` from the loaded PR JSON as the branch under review. Confirm that `HEAD` of the review worktree equals the PR head SHA from the loaded context. When a step fails, **stop and report it** instead of reviewing from the diff. Every sub-review then reads the files of that worktree.
 
 #### Incremental review scope (mandatory, after the checkout)
 

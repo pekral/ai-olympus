@@ -10,7 +10,6 @@
 # Usage (run in the tree the session started in, never in a unit, review, or gate worktree)
 #   helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role> [--role <role>]...
 #   helper-agents-guard.sh read-role  --run-dir <dir> --slug <slug> --role <role> --sha256 <hex>
-#   helper-agents-guard.sh config-diff --base <rev> --target <rev>
 #   helper-agents-guard.sh config-hash [--root <dir>] [--user]
 #   helper-agents-guard.sh --self-test
 #
@@ -25,16 +24,13 @@
 # It refuses (exit 3) a definition that is missing, that is not a regular file, that has a symbolic link in its
 # path, that a git tree tracks under any letter case while its HEAD is not the default branch, or that a git tree
 # tracks under any letter case with a change against HEAD. It also refuses a git tree that is not on the default
-# branch and that changes, against the default branch, a path that a later session loads (as config-diff defines it).
+# branch and that changes, against the default branch, a path that holds a byte outside ASCII or the byte 0x01, or a
+# path with a component, at any depth and in any letter case, that is one of CONFIG_NAMES.
 # It also refuses a copy that already exists: the copies are taken once per run.
 #
 # read-role prints the copy when its SHA-256 equals --sha256 and refuses (exit 3) every other case.
 #
-# config-diff compares two commits for the branch checkout gate (skills/code-review/references/branch-checkout-gate.md)
-# and exits 3 when a changed path holds a byte outside ASCII or the byte 0x01, or when a component of a changed path,
-# at any depth and in any letter case, is one of CONFIG_NAMES. It exits 0 when no changed path does, and 4 when a
-# revision cannot be resolved or the diff cannot be listed. CONFIG_NAMES is the one list of the names that a later
-# session loads.
+# CONFIG_NAMES is the one list of the names that a later session loads at the root of a tree.
 #
 # config-hash prints `config-hash=<hex>`: one SHA-256 over the list and the content of the configuration that a later
 # session or git loads, below --root (default: the current directory): every entry of CONFIG_NAMES at the root, without
@@ -54,10 +50,9 @@
 #   1  usage error
 #   2  a required tool is missing (git, and sha256sum or shasum)
 #   3  the trusted role definition is not available: the stage stops with
-#      `Blocked: helper agents forbidden — trusted role definition not available`; for config-diff: the target changes
-#      a path that a later session loads, and the main tree is not checked out
+#      `Blocked: helper agents forbidden — trusted role definition not available`
 #   4  config-hash cannot compute the hash (a root it cannot enter, a path it cannot read, more than 100000 entries):
-#      it prints no hash, and the round stops as not converged; for config-diff: the diff cannot be computed
+#      it prints no hash, and the round stops as not converged
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +61,7 @@ BLOCKED='Blocked: helper agents forbidden — trusted role definition not availa
 CONFIG_NAMES=(.claude .codex .agents CLAUDE.md CLAUDE.local.md AGENTS.md AGENTS.override.md .mcp.json)
 
 usage() {
-  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-diff --base <rev> --target <rev> | config-hash [--root <dir>] [--user] | --self-test" >&2
+  echo "Usage: helper-agents-guard.sh copy-roles --run-dir <dir> --slug <slug> --role <role>... | read-role --run-dir <dir> --slug <slug> --role <role> --sha256 <hex> | config-hash [--root <dir>] [--user] | --self-test" >&2
   exit 1
 }
 
@@ -156,27 +151,6 @@ changes_no_configuration_path() {
   local ref
   ref="$(g symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null)" || return 1
   configuration_free --cached "$ref" -- && configuration_free "$ref" --
-}
-
-config_diff() {
-  local base="$1" target="$2" base_sha target_sha rc=0
-  if ! base_sha="$(g rev-parse --verify --quiet "$base^{commit}" 2>/dev/null)" \
-    || ! target_sha="$(g rev-parse --verify --quiet "$target^{commit}" 2>/dev/null)"; then
-    echo "helper-agents-guard.sh: config-diff: a revision cannot be resolved" >&2
-    exit 4
-  fi
-  configuration_free "$base_sha" "$target_sha" -- || rc=$?
-  case "$rc" in
-  0) exit 0 ;;
-  1)
-    echo "helper-agents-guard.sh: config-diff: the target changes a path that a later session loads" >&2
-    exit 3
-    ;;
-  *)
-    echo "helper-agents-guard.sh: config-diff: the diff cannot be listed" >&2
-    exit 4
-    ;;
-  esac
 }
 
 copy_roles() {
@@ -389,9 +363,6 @@ self_test() {
     rc=0
     run copy-roles --run-dir .claude/run --slug "gh-config-$m" --role leonardo >/dev/null 2>&1 || rc=$?
     check "a tree off the default branch that changes $config_path is refused" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
-    rc=0
-    (cd "$repo" && "$SELF" config-diff --base main --target "config-$m") >/dev/null 2>&1 || rc=$?
-    check "config-diff refuses a target that changes $config_path" "$([[ $rc -eq 3 ]] && echo yes || echo no)"
   done
   (
     cd "$repo" || exit 1
@@ -403,15 +374,6 @@ self_test() {
   rc=0
   run copy-roles --run-dir .claude/run --slug gh-code-only --role leonardo >/dev/null 2>&1 || rc=$?
   check 'a tree off the default branch that changes only code is copied' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
-  rc=0
-  (cd "$repo" && "$SELF" config-diff --base main --target code-only) >/dev/null 2>&1 || rc=$?
-  check 'config-diff passes a target that changes only code' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
-  rc=0
-  (cd "$repo" && "$SELF" config-diff --base main --target no-such-ref) >/dev/null 2>&1 || rc=$?
-  check 'config-diff exits 4 on a target it cannot resolve' "$([[ $rc -eq 4 ]] && echo yes || echo no)"
-  rc=0
-  (cd "$repo" && "$SELF" config-diff --base main --target --output=x) >/dev/null 2>&1 || rc=$?
-  check 'config-diff refuses an option in place of a revision' "$([[ $rc -eq 1 && ! -e "$repo/x" ]] && echo yes || echo no)"
   (cd "$repo" && g symbolic-ref HEAD refs/heads/feature && g read-tree feature) >/dev/null 2>&1
 
   local variant n=0
@@ -578,21 +540,6 @@ case "$command" in
   exit $?
   ;;
 copy-roles | read-role) ;;
-config-diff)
-  base="" target=""
-  while [[ $# -gt 0 ]]; do
-    [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || usage
-    case "$1" in
-    --base) base="$2" ;;
-    --target) target="$2" ;;
-    *) usage ;;
-    esac
-    shift 2
-  done
-  [[ -n "$base" && -n "$target" ]] || usage
-  require_tools
-  config_diff "$base" "$target"
-  ;;
 config-hash)
   root="." with_user=0
   while [[ $# -gt 0 ]]; do

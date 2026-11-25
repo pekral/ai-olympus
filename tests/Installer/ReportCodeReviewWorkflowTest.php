@@ -23,7 +23,7 @@ extend those steps in the dispatch prompt');
         'This section is the one owner of its steps: `commands/report-code-review.md` only validates the reference and hands it here',
     );
     expect($krang)->toContain('It changes nothing in the pull request: no fix and no test.');
-    expect($leonardo)->toContain('The branch checkout gate takes its worktree case there');
+    expect($leonardo)->toContain('which the branch checkout gate opens (`@skills/code-review/references/branch-checkout-gate.md` step 4)');
     expect($leonardo)->toContain(
         'Tell the wrapper to publish every comment as a new one, with `--create`, and to leave the comments of an earlier run unchanged.',
     );
@@ -53,10 +53,10 @@ extend those steps in the dispatch prompt');
         ->not->toContain('## Missing-tests mode');
     expect($leonardo)->toContain('**When the dispatch carries `review_only`**');
     expect($leonardo)->toContain('skip the step-10 fix loop');
-    expect($leonardo)->toContain('review the pull request\'s head SHA in your review worktree, because `raphael` owns the main working tree');
+    expect($leonardo)->toContain('review the pull request\'s head SHA in your review worktree, because no review checks out the main tree');
     expect($leonardo)->toContain('That invocation always runs `@skills/security-review/SKILL.md` over the current diff of the pull request');
     expect($krang)->toContain('its review always runs `@skills/security-review/SKILL.md` over the current diff of the pull request, exactly once.');
-    expect($krang)->toContain('It owns the main working tree for the round: it runs `@skills/code-review/references/branch-checkout-gate.md`');
+    expect($krang)->toContain('It serves the application from its own test worktree, never from the main tree: it runs `@skills/code-review/references/branch-checkout-gate.md`');
     expect($leonardo)->toContain('pass `review-only` and the published findings to `pr-summary`');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
     expect($prSummary)

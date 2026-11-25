@@ -4,82 +4,64 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-function branchCheckoutGateConfigurationCheck(string $branchPath, bool $settingsTrackedOnDefault = false): int
-{
-    $directory = sys_get_temp_dir() . '/ai-olympus-checkout-gate-' . bin2hex(random_bytes(6));
-    mkdir($directory);
-    register_shutdown_function(static fn (): int => (new Process(['rm', '-rf', $directory]))->run());
-    manifestRepositoryGit($directory, 'init', '-q', '-b', 'master');
-    file_put_contents($directory . '/.gitignore', ".claude/\n");
-    manifestRepositoryGit($directory, 'add', '.gitignore');
+test('no review or walkthrough text switches the main tree to the head of a pull request', function (string $path): void {
+    $text = normalizedPackageSource($path);
 
-    if ($settingsTrackedOnDefault) {
-        mkdir($directory . '/.claude');
-        file_put_contents($directory . '/.claude/settings.json', "{}\n");
-        manifestRepositoryGit($directory, 'add', '-f', '.claude/settings.json');
-    }
-
-    manifestRepositoryGit($directory, 'commit', '-q', '-m', 'init');
-    manifestRepositoryGit($directory, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
-    $blob = trim((new Process(['git', 'hash-object', '-w', '--stdin'], $directory, input: "branch content\n"))->mustRun()->getOutput());
-    manifestRepositoryGit($directory, 'update-index', '--add', '--cacheinfo', '100644,' . $blob . ',' . $branchPath);
-    $commit = manifestRepositoryGit($directory, 'commit-tree', manifestRepositoryGit($directory, 'write-tree'), '-p', 'master', '-m', 'branch');
-
-    $check = new Process(
-        [dirname(__DIR__, 2) . '/skills/_shared/helper-agents-guard.sh', 'config-diff', '--base', 'origin/master', '--target', $commit],
-        $directory,
-    );
-    $check->run();
-
-    return (int) $check->getExitCode();
-}
-
-test(
-    'the checkout gate refuses a main-tree checkout of a branch that changes a path a later session loads',
-    function (string $branchPath, int $exitCode): void {
-        expect(branchCheckoutGateConfigurationCheck($branchPath))->toBe($exitCode);
-    },
-)->with([
-    'a Codex instruction file in lower case' => ['agents.md', 3],
-    'a Codex setting in upper case' => ['.CODEX/config.toml', 3],
-    'a Codex skill' => ['.agents/skills/x/SKILL.md', 3],
-    'a deeper component with a letter outside ASCII' => ["src/caf\u{E9}.php", 3],
-    'a first component with a letter outside ASCII' => [".agent\u{17F}/skills/x/SKILL.md", 3],
-    'a local instruction file' => ['CLAUDE.local.md', 3],
-    'an agent definition' => ['.claude/agents/leonardo.md', 3],
-    'an agent definition in another letter case' => ['.Claude/agents/leonardo.md', 3],
-    'a nested instruction file' => ['docs/CLAUDE.md', 3],
-    'a nested skill directory' => ['packages/app/.claude/skills/x/SKILL.md', 3],
-    'a project instruction file' => ['CLAUDE.md', 3],
-    'a project MCP configuration' => ['.mcp.json', 3],
-    'a settings file in another letter case' => ['.Claude/settings.json', 3],
-    'a source file only' => ['src/Feature.php', 0],
+    expect($text)->not->toContain('gh pr checkout')
+        ->and($text)->not->toContain('git checkout -B')
+        ->and($text)->not->toContain('git checkout "$HEAD_REF"')
+        ->and($text)->not->toContain('git switch <')
+        ->and($text)->not->toContain('git pull --ff-only')
+        ->and($text)->not->toContain('owns the main working tree');
+})->with([
+    'agents/casey.md',
+    'agents/krang.md',
+    'agents/leonardo.md',
+    'agents/raphael.md',
+    'agents/splinter.md',
+    'skills/_shared/orchestration/batch-preparation.md',
+    'skills/_shared/orchestration/review-only-mode.md',
+    'skills/code-review/SKILL.md',
+    'skills/code-review/references/branch-checkout-gate.md',
+    'skills/code-review-github/references/cr-wrapper-contract.md',
+    'skills/interactive-testing/SKILL.md',
+    'skills/mysql-problem-solver/references/tinker-explain.md',
+    'skills/test-assignment/SKILL.md',
 ]);
 
-test('the checkout gate passes a branch that changes only code in a project that tracks a settings file', function (): void {
-    expect(branchCheckoutGateConfigurationCheck('src/Feature.php', settingsTrackedOnDefault: true))->toBe(0);
-});
-
-test('the checkout gate checks the loaded head commit and writes only that commit into the main tree', function (string $text): void {
+test('the checkout gate reads the branch in a detached worktree and leaves the main tree on its branch', function (string $text): void {
     expect(normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md'))->toContain($text);
 })->with([
-    'no second fetch' => ['It fetches nothing'],
-    'the checkout' => ['Run `git checkout -B "$HEAD_REF" "$HEAD_SHA"`.'],
-    'the configuration check' => [
-        'Run `skills/_shared/helper-agents-guard.sh config-diff --base "origin/$DEFAULT_BRANCH" --target "$HEAD_SHA"`.',
-    ],
-    'the fallback' => ['Review that branch in a detached review worktree (`agents/leonardo.md` *Review worktree*), or stop and report it.'],
-    'the head commit' => ['`HEAD_SHA` is the head commit the gate checks: the PR head SHA from the loaded context (`headRefOid`)'],
-    'the local branch' => ['require `git merge-base --is-ancestor "$HEAD_REF" "$HEAD_SHA"`'],
-    'the refusal' => ['A non-zero exit refuses the checkout in the main tree'],
+    'the principle' => ['**The main working tree is never checked out on a branch under review.**'],
+    'the head commit' => ['`HEAD_SHA` is the head commit the gate opens: the PR head SHA from the loaded context (`headRefOid`)'],
+    'the open' => ['Run `skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"` in the main tree.'],
+    'the later reads' => ['as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.'],
     'the remote ref' => ['Require `git rev-parse "origin/$HEAD_REF"` to print `HEAD_SHA`.'],
+    'the one owner of the options' => ['it is the one owner of the git options that do this.'],
 ]);
 
-test('the checkout gate fetches nothing after the check', function (): void {
-    $gate = normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md');
-    $checkout = substr($gate, (int) strpos($gate, '4. **Check out the branch under review.**'));
+test('every worktree that reads a branch under review is created and moved only through the worktree script', function (string $path, string $text): void {
+    expect(normalizedPackageSource($path))->toContain($text);
+})->with([
+    'leonardo creates' => [
+        'agents/leonardo.md',
+        '`skills/_shared/branch-worktree.sh open --path .claude/worktrees/agent-cr-<slug>-leonardo --head <head-sha> && git worktree lock',
+    ],
+    'leonardo moves' => ['agents/leonardo.md', 'move it to the new head with `skills/_shared/branch-worktree.sh open --path <path> --head <head-sha>`'],
+    'raphael compares' => ['agents/raphael.md', 'with `skills/_shared/branch-worktree.sh open`, and never switch the main checkout;'],
+    'splinter moves' => ['agents/splinter.md', 'run `skills/_shared/branch-worktree.sh open` and `skills/_shared/branch-worktree.sh git` on your own review worktree only'],
+    'the walkthrough' => ['skills/interactive-testing/SKILL.md', '**The revision under test runs, and the main tree is never switched to it.**'],
+]);
 
-    expect($checkout)->not->toContain('git pull')
-        ->and($checkout)->not->toContain('git fetch')
-        ->and($gate)->not->toContain('"origin/$HEAD_REF" --');
+test('no agent moves a review worktree with a plain git checkout', function (string $path): void {
+    expect(normalizedPackageSource($path))->not->toContain('checkout --detach <head-sha>');
+})->with(['agents/leonardo.md', 'agents/splinter.md', 'agents/raphael.md']);
+
+test('the worktree script runs no hook and no file-system monitor of the branch', function (): void {
+    $selfTest = new Process([dirname(__DIR__, 2) . '/skills/_shared/branch-worktree.sh', '--self-test']);
+    $selfTest->run();
+
+    expect($selfTest->getExitCode())->toBe(0)
+        ->and($selfTest->getOutput())->toContain('branch-worktree.sh self-test passed')
+        ->and(packageSource('composer.json'))->toContain('skills/_shared/branch-worktree.sh');
 });

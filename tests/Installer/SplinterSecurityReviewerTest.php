@@ -153,7 +153,7 @@ test('splinter limits its Bash boundary to its own worktree and an independent a
             . '*The trusted classifier* item 6 for the history scan',
         )
         ->and($splinter)->toContain('never its `full` mode')
-        ->and($splinter)->toContain('checkout --detach <head-sha>')
+        ->and($splinter)->toContain('skills/_shared/branch-worktree.sh open')
         ->and($splinter)->toContain('only under `.claude/run/security-audit/<run-id>/` inside your own review worktree')
         ->and($splinter)->toContain('never a base run of `leonardo` or of any other agent')
         ->and((string) file_get_contents($packageDir . '/rules/compound-engineering/concurrency.md'))
