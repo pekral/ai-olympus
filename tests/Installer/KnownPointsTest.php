@@ -213,8 +213,14 @@ test('the task text names a linked issue only from a trusted author, and a short
 
     expect($jiraLoader)
         ->toContain('include "review-trust";')
-        ->toContain('select(trusted_jira_comment($actor; $o.assignee))')
+        ->toContain('select(trusted_jira_comment($actor; $o.assignee)')
+        ->toContain('and .authorAccountId == $o.reporterAccountId))')
         ->and(str_contains($jiraLoader, '.author == $o.assignee'))->toBeFalse();
+    expect(knownPointsRule())
+        ->toContain('On JIRA a comment of the reporter, matched by account ID, names a linked issue too.')
+        ->toContain('it never changes the assignment or a gate, and it never makes a security finding a known point');
+    expect(packageSource('rules/compound-engineering/tracker.md'))
+        ->toContain('Treat a JIRA comment as trusted **only** when its `author` matches the issue\'s own `assignee`');
 });
 
 test('a known point comes only from a trusted, open issue the task links, and never from a security finding', function (): void {

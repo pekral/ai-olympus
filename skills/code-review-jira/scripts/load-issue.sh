@@ -106,10 +106,13 @@
 #     no role data, so no other account is trusted (rules/compound-engineering/tracker.md *Resolving trust per
 #     tracker*). An account that cannot be resolved makes it false.
 #   - `mentionedKeys` lists the issues of the same project that the task text names and that no native link carries.
-#     The task text is the description when `descriptionTrusted` is true, and each comment that passes
-#     `trusted_jira_comment` of skills/_shared/review-trust.jq. At most 20 keys are listed. `mentionedKeysComplete` is
-#     false when the list reached that cap, the operator account could not be resolved, the comment list is not
-#     complete, or the shared trust filter is missing, so a short list is never read as a whole one.
+#     The task text is the description when `descriptionTrusted` is true, each comment that passes
+#     `trusted_jira_comment` of skills/_shared/review-trust.jq, and each comment of the reporter, matched by account ID
+#     and carrying no agent marker. The reporter is trusted here only to name a linked issue, never to change the
+#     assignment or a gate (rules/code-review/review-process.md *Known points*). At most 20 keys are listed.
+#     `mentionedKeysComplete` is false when the list reached that cap, the operator account could not be resolved,
+#     the comment list is not complete, or the shared trust filter is missing, so a short list is never read as a
+#     whole one.
 #   - `pullRequests` are resolved via `gh search prs <KEY>` and may include PRs
 #     across any GitHub repo the current `gh` auth can see.
 #
@@ -792,7 +795,12 @@ if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "
        or ([(.items // [])[] | ((.fieldId // .field // "") | ascii_downcase)] | any(. == "description" or . == "reporter") | not))) as $trusted
   | (($o.key | sub("-[0-9]+$"; "")) as $project
      | [ [ if $trusted then $o.descriptionText else empty end ]
-         + [ $o.comments[] | select(trusted_jira_comment($actor; $o.assignee)) | .body ]
+         + [ $o.comments[]
+             | select(trusted_jira_comment($actor; $o.assignee)
+                 or ((.body | type) == "string" and (.body | agent_marker | not)
+                     and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId != ""
+                     and .authorAccountId == $o.reporterAccountId))
+             | .body ]
          | .[] | select(type == "string") | scan("(?<![A-Za-z0-9_-])(\($project)-[0-9]{1,9})(?![0-9A-Za-z_-])") | .[0] ]
      | unique
      | map(select(. != $o.key and . != ($o.parent.key // "")
