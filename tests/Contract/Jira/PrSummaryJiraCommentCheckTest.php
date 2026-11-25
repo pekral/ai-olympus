@@ -7,7 +7,15 @@ use Tests\Support\ReportCheckRun;
 
 function runJiraSummaryCheck(string $source, string $criteria, string $author = 'none'): Process
 {
-    return ReportCheckRun::over('skills/pr-summary/scripts/check-jira-comment.php', $source, '--criteria', $criteria, '--author', $author, ...jiraSummaryTaskArguments());
+    return ReportCheckRun::over(
+        'skills/pr-summary/scripts/check-jira-comment.php',
+        $source,
+        '--criteria',
+        $criteria,
+        '--author',
+        $author,
+        ...jiraSummaryTaskArguments(),
+    );
 }
 
 /**
@@ -35,7 +43,10 @@ function jiraSummaryUsage(): string
  */
 function jiraSummaryPublishedTargets(array $node): array
 {
-    $targets = array_map(static fn (array $mark): string => 'link ' . $mark['attrs']['href'], array_filter($node['marks'] ?? [], static fn (array $mark): bool => $mark['type'] === 'link'));
+    $targets = array_map(
+        static fn (array $mark): string => 'link ' . $mark['attrs']['href'],
+        array_filter($node['marks'] ?? [], static fn (array $mark): bool => $mark['type'] === 'link'),
+    );
 
     if ($node['type'] === 'mention') {
         $targets[] = 'mention ' . $node['attrs']['id'];
@@ -273,7 +284,11 @@ test('findings of one type keep their order, and the order restarts for the alre
 
 test('a refactor and a tests finding mention the author right after their type', function (): void {
     $mention = '[~accountid:' . jiraSummaryAuthor() . '] ';
-    $source = str_replace('* *(bug):* Druhý bod.', "* *(bug):* Druhý bod.\n* *(tests):* " . $mention . 'Chybí test synchronizace.', jiraSummaryWithRefactor($mention));
+    $source = str_replace(
+        '* *(bug):* Druhý bod.',
+        "* *(bug):* Druhý bod.\n* *(tests):* " . $mention . 'Chybí test synchronizace.',
+        jiraSummaryWithRefactor($mention),
+    );
 
     $process = runJiraSummaryCheck($source, 'none', jiraSummaryAuthor());
 
@@ -297,6 +312,11 @@ test('only a refactor finding mentions anyone, and only the author', function (s
         jiraSummaryAuthor(),
         'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
     ],
+    'a mention on a security finding' => [
+        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(security):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
+        jiraSummaryAuthor(),
+        'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
+    ],
     'a mention with no matching account' => [jiraSummaryWithRefactor(
         '[~accountid:' . jiraSummaryAuthor() . '] ',
     ), 'none', 'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
@@ -305,19 +325,14 @@ test('only a refactor finding mentions anyone, and only the author', function (s
         '[~accountid:acc-someone-else] ',
     ), jiraSummaryAuthor(), 'a (refactor) or (tests) finding mentions the author right after its type',
     ],
+    'a refactor finding without the mention' => [jiraSummaryWithRefactor(
+        '',
+    ), jiraSummaryAuthor(), 'a (refactor) or (tests) finding mentions the author right after its type',
+    ],
     'a tests finding without the mention' => [
         jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => "* *(bug):* Druhý bod.\n* *(tests):* Blokuje sloučení:"]),
         jiraSummaryAuthor(),
         'a (refactor) or (tests) finding mentions the author right after its type: * *(tests):* Blokuje sloučení:',
-    ],
-    'a mention on a security finding' => [
-        jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => '* *(security):* [~accountid:' . jiraSummaryAuthor() . '] Blokuje sloučení:']),
-        jiraSummaryAuthor(),
-        'only a (refactor) or (tests) finding mentions anyone, the author right after its type',
-    ],
-    'a refactor finding without the mention' => [jiraSummaryWithRefactor(
-        '',
-    ), jiraSummaryAuthor(), 'a (refactor) or (tests) finding mentions the author right after its type',
     ],
     'the mention after the finding text' => [
         jiraSummaryWithoutCriteria(
@@ -349,7 +364,9 @@ function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'sr
 }
 
 test('a finding outside the pull request may link its file and line at a commit of the task repository', function (): void {
-    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']']);
+    $source = jiraSummaryWithoutCriteria(
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+    );
 
     $process = runJiraSummaryCheck($source, 'none');
 
@@ -360,7 +377,10 @@ test('a finding outside the pull request may link its file and line at a commit 
 
 test('every code link the link builder prints passes the link check', function (string ...$arguments): void {
     $packageDir = dirname(__DIR__, 3);
-    $builder = new Process(['php', $packageDir . '/skills/pr-summary/scripts/pr-code-link.php', 'https://github.com/acme/app/pull/27625', ...$arguments], $packageDir);
+    $builder = new Process(
+        ['php', $packageDir . '/skills/pr-summary/scripts/pr-code-link.php', 'https://github.com/acme/app/pull/27625', ...$arguments],
+        $packageDir,
+    );
     $builder->mustRun();
     $source = jiraSummaryWithoutCriteria([jiraSummaryCodeLink() => '[Zobrazit v kódu →|' . trim($builder->getOutput()) . ']']);
 
@@ -369,9 +389,9 @@ test('every code link the link builder prints passes the link check', function (
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
 })->with([
-    'the whole change' => [],
-    'a line in the changes' => ['src/Sync/Order Sync.php', '42'],
     'a line at the reviewed commit' => ['src/Sync/Order Sync.php', '42', str_repeat('0123456789', 4)],
+    'a line in the changes' => ['src/Sync/Order Sync.php', '42'],
+    'the whole change' => [],
 ]);
 
 test(
@@ -385,62 +405,83 @@ test(
         expect($published)->toContain('link ' . $href)
             ->and($process->getExitCode())->toBe(2)
             ->and($process->getOutput())->toContain(
-                'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode($href, JSON_UNESCAPED_SLASHES),
+                'violation: links: a link points into a pull request of the task or to an issue of its JIRA site: ' . json_encode(
+                    $href,
+                    JSON_UNESCAPED_SLASHES,
+                ),
             );
     },
 )->with([
-    'a link to a commit' => [
-        jiraSummaryCodeLink(),
-        '[Zobrazit v kódu →|https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567]',
-        'https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567',
+    'a file link into another repository' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(
+        'stranger/fork',
+    ) . ']', jiraSummaryBlobLink(
+        'stranger/fork',
+    ),
     ],
     'a file link on a branch instead of a commit' => [
         jiraSummaryCodeLink(),
         '[Zobrazit v kódu →|https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42]',
         'https://github.com/acme/app/blob/main/src/Sync/OrderSync.php#L42',
     ],
-    'a file link into another repository' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink('stranger/fork') . ']', jiraSummaryBlobLink('stranger/fork')],
-    'a file link that climbs out' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src/../A.php') . ']', jiraSummaryBlobLink(path: 'src/../A.php')],
-    'a file link with a dot segment' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: './A.php') . ']', jiraSummaryBlobLink(path: './A.php')],
+    'a file link that climbs out' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src/../A.php') . ']', jiraSummaryBlobLink(
+        path: 'src/../A.php',
+    ),
+    ],
+    'a file link with a dot segment' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: './A.php') . ']', jiraSummaryBlobLink(
+        path: './A.php',
+    ),
+    ],
     'a file link with an encoded dot segment' => [
         jiraSummaryCodeLink(),
         '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src/%2e%2e/A.php') . ']',
         jiraSummaryBlobLink(path: 'src/%2e%2e/A.php'),
     ],
-    'a file link with an encoded slash' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(path: 'src%2FA.php') . ']', jiraSummaryBlobLink(path: 'src%2FA.php')],
+    'a file link with an encoded slash' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|' . jiraSummaryBlobLink(
+        path: 'src%2FA.php',
+    ) . ']', jiraSummaryBlobLink(
+        path: 'src%2FA.php',
+    ),
+    ],
     'a file link without https' => [
         jiraSummaryCodeLink(),
         '[Zobrazit v kódu →|' . str_replace('https://', 'http://', jiraSummaryBlobLink()) . ']',
         str_replace('https://', 'http://', jiraSummaryBlobLink()),
-    ],
-    'a link to another repository' => [
-        jiraSummaryCodeLink(),
-        '[Zobrazit v kódu →|https://github.com/stranger/fork/pull/27625/files#diff-' . hash('sha256', 'src/A.php') . 'R1]',
-        'https://github.com/stranger/fork/pull/27625/files#diff-' . hash('sha256', 'src/A.php') . 'R1',
-    ],
-    'a pull request the task does not name' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|https://github.com/acme/app/pull/9/files]', 'https://github.com/acme/app/pull/9/files'],
-    'a link without https' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|http://other.example/a]', 'http://other.example/a'],
-    'a link to another host' => [jiraSummaryCodeLink(), '[podrobnosti|https://other.example/login]', 'https://other.example/login'],
-    'an issue of another JIRA site' => [
-        '[ACME-6720|https://example.atlassian.net/browse/ACME-6720]',
-        '[ACME-6720|https://example.net/browse/ACME-6720]',
-        'https://example.net/browse/ACME-6720',
-    ],
-    'a link split across a quote with a script scheme' => [
-        '* *(bug):* Objednávka bez zákazníka',
-        "{quote}\nReporter wrote: [open\nthis|javascript:alert(1)] please\n{quote}\n* *(bug):* Objednávka bez zákazníka",
-        'javascript:alert(1)',
     ],
     'a link split across a quote into a fork' => [
         '* *(bug):* Objednávka bez zákazníka',
         "{quote}\n[Zobrazit v kódu →\n|https://github.com/stranger/fork/pull/9/files]\n{quote}\n* *(bug):* Objednávka bez zákazníka",
         'https://github.com/stranger/fork/pull/9/files',
     ],
+    'a link split across a quote with a script scheme' => [
+        '* *(bug):* Objednávka bez zákazníka',
+        "{quote}\nReporter wrote: [open\nthis|javascript:alert(1)] please\n{quote}\n* *(bug):* Objednávka bez zákazníka",
+        'javascript:alert(1)',
+    ],
+    'a link to a commit' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567]',
+        'https://github.com/acme/app/commit/0123456789abcdef0123456789abcdef01234567',
+    ],
+    'a link to another host' => [jiraSummaryCodeLink(), '[podrobnosti|https://other.example/login]', 'https://other.example/login'],
+    'a link to another repository' => [
+        jiraSummaryCodeLink(),
+        '[Zobrazit v kódu →|https://github.com/stranger/fork/pull/27625/files#diff-' . hash('sha256', 'src/A.php') . 'R1]',
+        'https://github.com/stranger/fork/pull/27625/files#diff-' . hash('sha256', 'src/A.php') . 'R1',
+    ],
+    'a link without https' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|http://other.example/a]', 'http://other.example/a'],
+    'an issue of another JIRA site' => [
+        '[ACME-6720|https://example.atlassian.net/browse/ACME-6720]',
+        '[ACME-6720|https://example.net/browse/ACME-6720]',
+        'https://example.net/browse/ACME-6720',
+    ],
+    'a pull request the task does not name' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|https://github.com/acme/app/pull/9/files]', 'https://github.com/acme/app/pull/9/files'],
 ]);
 
 test('a code link that does not end its finding is refused', function (): void {
     $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(['Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink() => jiraSummaryCodeLink() . ' Oprava: nová verze ji musí umět dokončit.']),
+        jiraSummaryWithoutCriteria(
+            ['Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink() => jiraSummaryCodeLink() . ' Oprava: nová verze ji musí umět dokončit.'],
+        ),
         'none',
     );
 
@@ -455,7 +496,9 @@ test('a findings block without the line that links the whole change is refused',
     );
 
     expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: links: the findings block opens with one line that links the whole change of the pull request');
+        ->and($process->getOutput())->toContain(
+            'violation: links: the findings block opens with one line that links the whole change of the pull request',
+        );
 });
 
 test('a mention the converter publishes for another account is refused', function (string $author): void {
@@ -595,7 +638,9 @@ test('a summary whose visible text is over 3 000 characters fails the check', fu
 test('the 3 000-character cap counts the label of a code link, never its address', function (): void {
     $finding = static fn (int $number): string => '* *(bug):* Bod ' . $number . ': synchronizace zařazená starou verzí po nasazení selže a objednávka zůstane neodeslaná. '
         . jiraSummaryCodeLink();
-    $source = jiraSummaryWithoutCriteria(['* *(bug):* Blokuje sloučení:' => implode("\n", array_map($finding, range(1, 14))) . "\n* *(bug):* Blokuje sloučení:"]);
+    $source = jiraSummaryWithoutCriteria(
+        ['* *(bug):* Blokuje sloučení:' => implode("\n", array_map($finding, range(1, 14))) . "\n* *(bug):* Blokuje sloučení:"],
+    );
 
     $process = runJiraSummaryCheck($source, 'none');
 
@@ -638,15 +683,15 @@ test('the check refuses a wrong call and a missing source file', function (strin
     expect($process->getExitCode())->toBe(1)
         ->and($process->getErrorOutput())->toContain($error);
 })->with([
+    'a JIRA issue URL that is no issue' => ['--criteria none --repository acme/app --pull-request 1 --jira-issue https://example.atlassian.net/login /nonexistent/source', jiraSummaryUsage()],
     'an author value that is no account ID' => ['--criteria none --author [x] ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
+    'a pull request that is no number' => ['--criteria none --repository acme/app --pull-request 1x --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
     'missing source file' => ['--criteria none ' . jiraSummaryTaskCall() . ' /nonexistent/source', 'cannot read /nonexistent/source'],
     'no criteria flag' => [jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
-    'unknown criteria value' => ['--criteria maybe ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
-    'no repository' => ['--criteria none --pull-request 1 --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
-    'no pull request' => ['--criteria none --repository acme/app --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
-    'a pull request that is no number' => ['--criteria none --repository acme/app --pull-request 1x --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
     'no JIRA issue' => ['--criteria none --repository acme/app --pull-request 1 /nonexistent/source', jiraSummaryUsage()],
-    'a JIRA issue URL that is no issue' => ['--criteria none --repository acme/app --pull-request 1 --jira-issue https://example.atlassian.net/login /nonexistent/source', jiraSummaryUsage()],
+    'no pull request' => ['--criteria none --repository acme/app --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
+    'no repository' => ['--criteria none --pull-request 1 --jira-issue https://example.atlassian.net/browse/ACME-1 /nonexistent/source', jiraSummaryUsage()],
+    'unknown criteria value' => ['--criteria maybe ' . jiraSummaryTaskCall() . ' /nonexistent/source', jiraSummaryUsage()],
 ]);
 
 function jiraSummaryTaskCall(): string

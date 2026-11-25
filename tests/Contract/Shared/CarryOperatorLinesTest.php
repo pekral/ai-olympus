@@ -134,7 +134,10 @@ function carryTestCollapsedComment(array $findings, string $marker): array
 test('an operator paragraph inside a collapsed section is carried alone, never the whole section', function (): void {
     $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
     $first = json_decode(
-        runCarryOperatorLines('adf', json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR))->getOutput(),
+        runCarryOperatorLines(
+            'adf',
+            json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        )->getOutput(),
         associative: true,
         flags: JSON_THROW_ON_ERROR,
     );
@@ -155,7 +158,10 @@ test('an operator paragraph inside a collapsed section is carried alone, never t
 test('an operator paragraph outside the collapsed sections is carried, and the marker block never is', function (): void {
     $paragraph = static fn (string $text): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
     $first = json_decode(
-        runCarryOperatorLines('adf', json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR))->getOutput(),
+        runCarryOperatorLines(
+            'adf',
+            json_encode(carryTestCollapsedComment([$paragraph('Round one finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        )->getOutput(),
         associative: true,
         flags: JSON_THROW_ON_ERROR,
     );
