@@ -750,7 +750,7 @@ test('the JIRA publisher writes the marker into the collapsed marker block of a 
             ->and($marked)->toHaveCount(1)
             ->and($marked[0]['type'] ?? null)->toBe('expand')
             ->and($marked[0]['attrs'] ?? null)->toBe(['title' => 'Technical marker for AI agents'])
-            ->and($adf['content'][array_key_last($adf['content'])])->toBe($marked[0])
+            ->and(array_slice($adf['content'], -1))->toBe($marked)
             ->and(json_encode($adf, JSON_THROW_ON_ERROR))->not->toContain('{agent-marker}');
     } finally {
         removeJiraCommentPublisherFixture($fixture);
