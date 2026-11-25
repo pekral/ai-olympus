@@ -666,6 +666,10 @@ dataset('merge delete mention replies', [
     'a tag reply with a dropped tag after the at sign' => ['@</b>bot finding 2 is wrong.', 4, false],
     'a tag reply with a quoted greater-than sign in the tag' => ['<div>@b</span title="a>b">ot x</div>', 4, false],
     'a tag without an at sign' => ['<b>Finding 2</b> is wrong.', 0, true],
+    'a mention after a leading NUL' => ["\u{0}@bot finding 2 is wrong.", 4, false],
+    'a tag reply after a leading NUL' => ["\u{0}<b>@alice</b> finding 2 is wrong.", 4, false],
+    'a NUL inside the login of the operator account' => ["@b\u{0}ot finding 2 is wrong.", 0, true],
+    'a quote after a leading NUL' => ["\u{0}> Round 1: the limit is 2 MB.", 4, false],
 ]);
 
 test(
