@@ -9,7 +9,8 @@
 #   person-match.sh lookup --pr <PR-URL> --jira-key <KEY>
 #   person-match.sh forget --pr <PR-URL> --jira-key <KEY>
 #
-# Only the top-level session runs it. No agent's Bash boundary grants it.
+# Only the top-level session runs it. When that session holds the krang role, it runs lookup only
+# (agents/krang.md *JIRA author account*). No subagent's Bash boundary grants it.
 #
 # Scope, derived here and never taken from an argument:
 #   - the repository: the pull request must belong to the current checkout

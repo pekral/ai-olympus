@@ -246,7 +246,7 @@ Post the summary as a comment to the related PR or issue if available, using the
   Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call, per `@rules/compound-engineering/tracker.md` *Every comment an agent publishes on GitHub or JIRA carries a marker*.
 - **Check a JIRA source before the publish.** Write the rendered source to a file and run `php skills/pr-summary/scripts/check-jira-comment.php --criteria <unmet|none> --author <account-id|none> --repository <owner/name> --pull-request <number> --jira-issue <issue-url> --revision <commit> <source-file>`.
   - `--criteria unmet` when an explicit requirement still needs a change or an answer, and `none` otherwise, including when every criterion is satisfied.
-  - `--author` with the account ID of the confirmed person match (`references/jira-shape.md` item 12), or `none` without one.
+  - `--author` with the account ID of the confirmed person match (`references/jira-shape.md` item 12), or `none` without one. In an orchestrated run the publishing agent takes it only from `krang`'s own dispatch line `jira author account: <id|none>`.
   - `--repository` and one `--pull-request` per pull request, from the validated pull-request URLs of `references/jira-shape.md` item 13: the pull request of the task and each pull request a finding links to.
   - `--jira-issue` with the `url` of the JIRA issue from the loader.
   - `--revision` with the `Reviewed revision:` of the code-review report, the commit `pr-code-link.php` takes for a finding outside the pull request. Without it the check refuses every link to a file at a commit.
