@@ -219,6 +219,7 @@ const READY_TO_DEPLOY_HEAD_SHA = 'cccccccccccccccccccccccccccccccccccccccc';
 const READY_TO_DEPLOY_MERGE_SHA = 'dddddddddddddddddddddddddddddddddddddddd';
 const READY_TO_DEPLOY_MERGE_TREE_SHA = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 const READY_TO_DEPLOY_DEFAULT_SHA = 'ffffffffffffffffffffffffffffffffffffffff';
+const READY_TO_DEPLOY_MERGED_SHA = '9999999999999999999999999999999999999999';
 
 function readyToDeployBlobSha(string $path, string $content): string
 {
@@ -1239,40 +1240,112 @@ test(
     'no head commit',
 ]);
 
-test('a merged pull request gets its label from its base-branch tip alone, without a merge ref', function (string $case): void {
-    $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: pull_request\n"], [
+/**
+ * The pull request #12 as merged, with its merge commit when one is given, and the tree of that merge
+ * commit with the given workflows.
+ *
+ * @param array{bin: string, directory: string, log: string, repo: string, state: string} $fixture
+ * @param array<string, string> $workflows
+ * @param array<string, string> $mergeCommitWorkflows
+ * @param array<string, mixed> $pullRequest
+ */
+function readyToDeployMergedPullRequest(
+    array $fixture,
+    array $workflows,
+    array $mergeCommitWorkflows,
+    ?string $mergeCommit = READY_TO_DEPLOY_MERGED_SHA,
+    array $pullRequest = [],
+): void {
+    readyToDeployGithub($fixture, $workflows, [
         'body' => '',
         'closingIssuesReferences' => [],
+        'mergeCommit' => $mergeCommit === null ? null : ['oid' => $mergeCommit],
         'mergedAt' => '2026-11-20T10:00:00Z',
         'state' => 'MERGED',
         'title' => 'fix: login',
+        ...$pullRequest,
     ]);
-    match ($case) {
-        'no merge ref' => unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge'),
-        default => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_STALE_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]),
-    };
+    readyToDeployRemoteWorkflows($fixture, $mergeCommitWorkflows, tree: READY_TO_DEPLOY_MERGED_SHA);
+}
+
+test(
+    'a merged pull request gets its label when its base-branch tip and its merge commit are clean, without a merge ref',
+    function (string $case): void {
+        $ci = ['.github/workflows/ci.yml' => "on: pull_request\n"];
+        $fixture = readyToDeployFixture();
+        readyToDeployMergedPullRequest($fixture, $ci, $ci);
+        match ($case) {
+            'no merge ref' => unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge'),
+            default => readyToDeployMergeRef($fixture, [READY_TO_DEPLOY_STALE_BASE_SHA, READY_TO_DEPLOY_HEAD_SHA]),
+        };
+
+        try {
+            $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+            expect($process->getExitCode())->toBe(0)
+                ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied')
+                ->and(readyToDeployCalls($fixture, 'api repos/acme/app/git/trees/' . READY_TO_DEPLOY_MERGED_SHA))->not->toBe([]);
+        } finally {
+            installerRemoveDirectory($fixture['directory']);
+        }
+    },
+)->with(['no merge ref', 'a merge ref left on an old base']);
+
+test('a merged pull request gets no label when its merge commit may run on label activity, whatever its base-branch tip shows', function (): void {
+    $fixture = readyToDeployFixture();
+    readyToDeployMergedPullRequest(
+        $fixture,
+        ['.github/workflows/ci.yml' => "on: push\n"],
+        ['.github/workflows/deploy.yml' => "on:\n  pull_request:\n    types: [labeled]\n"],
+    );
+    unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge');
 
     try {
         $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
 
-        expect($process->getExitCode())->toBe(0)
-            ->and($process->getOutput())->toContain(READY_TO_DEPLOY_PR . ' | label "ready to deploy" | applied');
+        expect($process->getOutput())->toContain(
+            READY_TO_DEPLOY_PR . ' | label | not applied — the merge-commit workflow .github/workflows/deploy.yml subscribes to label activity',
+        )
+            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
     } finally {
         installerRemoveDirectory($fixture['directory']);
     }
-})->with(['no merge ref', 'a merge ref left on an old base']);
+});
+
+test('a merged pull request gets no label when its merge commit is missing or cannot be read', function (?string $mergeCommit): void {
+    $ci = ['.github/workflows/ci.yml' => "on: push\n"];
+    $fixture = readyToDeployFixture();
+    readyToDeployMergedPullRequest($fixture, $ci, $ci, $mergeCommit);
+    unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge');
+
+    if ($mergeCommit === READY_TO_DEPLOY_MERGED_SHA) {
+        unlink($fixture['state'] . '/api/repos_acme_app_git_trees_' . READY_TO_DEPLOY_MERGED_SHA . '_recursive_1');
+    }
+
+    try {
+        $process = readyToDeployRun($fixture, READY_TO_DEPLOY_DRIVER, [READY_TO_DEPLOY_PR], ['FAKE_GH_LABELS' => 'ready to deploy']);
+
+        expect($process->getOutput())->toMatch(
+            '/' . preg_quote(READY_TO_DEPLOY_PR, '/') . ' \\| label \\| not applied — the merge[- ]commit .*could not be read/',
+        )
+            ->and(readyToDeployCalls($fixture, 'pr edit 12 --repo acme/app --add-label'))->toBe([]);
+    } finally {
+        installerRemoveDirectory($fixture['directory']);
+    }
+})->with([
+    'a merge commit that is not a commit SHA' => ['master'],
+    'a merge commit whose tree cannot be read' => [READY_TO_DEPLOY_MERGED_SHA],
+    'no merge commit' => [null],
+]);
 
 test('a merged pull request gets no label when its base-branch tip may run on label activity', function (): void {
     $fixture = readyToDeployFixture();
-    readyToDeployGithub($fixture, ['.github/workflows/ci.yml' => "on: push\n"], [
-        'baseRefName' => 'release/2.0',
-        'body' => '',
-        'closingIssuesReferences' => [],
-        'mergedAt' => '2026-11-20T10:00:00Z',
-        'state' => 'MERGED',
-        'title' => 'fix: login',
-    ]);
+    readyToDeployMergedPullRequest(
+        $fixture,
+        ['.github/workflows/ci.yml' => "on: push\n"],
+        ['.github/workflows/ci.yml' => "on: push\n"],
+        pullRequest: ['baseRefName' => 'release/2.0'],
+    );
     unlink($fixture['state'] . '/api/repos_acme_app_git_ref_pull_12_merge');
     readyToDeployRemoteWorkflows(
         $fixture,
