@@ -33,6 +33,7 @@
 #     `issues` trigger without a `types` filter, a trigger the check cannot read, or a read of the
 #     event label, or names the label in any letter case or separator; nor when those workflows
 #     cannot be read in full, or when `.github` or `.github/workflows` of a tree is not a directory.
+#     Every branch tip is read as the commit SHA of `git/ref/heads/<name>`, never by its bare name.
 #     An issue checks the workflows of the default-branch tip. The pull request also checks those of
 #     the tip of its base branch, and while it is not merged those of its merge ref
 #     `refs/pull/<N>/merge`; it gets no label when that merge ref is missing or does not merge the
@@ -258,7 +259,7 @@ workflow_issue_trigger() {
   '
 }
 
-# $1 = a branch name, a commit SHA, or a tree SHA. Sets TREE_FILES to the `path<TAB>blob` lines of the
+# $1 = a commit SHA or a tree SHA. Sets TREE_FILES to the `path<TAB>blob` lines of the
 # workflows of that tree on GitHub, never of a local ref. Exit 1 when the tree cannot be read in full,
 # or when `.github` or `.github/workflows` in it, in any letter case, is not a directory.
 read_workflow_tree() {
@@ -271,7 +272,7 @@ read_workflow_tree() {
   TREE_FILES="$(jq -r '.tree[] | select(.type == "blob" and (.path | test("^\\.github/workflows/[^/]+\\.ya?ml$"; "i"))) | [.path, .sha] | @tsv' <<<"$json")"
 }
 
-# $1 = a branch name or a commit SHA, $2 = how the report names its workflows. Sets SCAN_SKIP to why
+# $1 = a commit SHA or a tree SHA, $2 = how the report names its workflows. Sets SCAN_SKIP to why
 # the label is not applied, or to "" when no workflow of that tree may run on it.
 SCANNED_BLOBS=" "
 scan_workflows() {
@@ -296,6 +297,20 @@ scan_workflows() {
   done <<<"$TREE_FILES"
 }
 
+# $1 = a branch name. Prints the commit SHA of its tip on GitHub, read through `git/ref/heads/`, so a
+# tag of the same name is never read. Exit 1 when the name is not a branch name, or the tip cannot be
+# read or is not a commit.
+branch_tip() {
+  local sha
+  if [[ ! "$1" =~ ^[A-Za-z0-9._/-]+$ ]] || ! git check-ref-format --branch "$1" >/dev/null 2>&1; then
+    return 1
+  fi
+  sha="$(gh api "repos/$NWO/git/ref/heads/$1" </dev/null 2>/dev/null \
+    | jq -r --arg ref "refs/heads/$1" 'select(.ref == $ref and .object.type == "commit") | .object.sha')" || return 1
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
+  printf '%s' "$sha"
+}
+
 # A label on the pull request starts its `pull_request_target` workflows from the tip of its base
 # branch. While it is not merged, it starts its `pull_request` workflows from its merge ref
 # `refs/pull/<N>/merge`, whose parents are that tip and the head; once it is merged, GitHub removes
@@ -303,18 +318,12 @@ scan_workflows() {
 # unmerged pull request that is missing, or that does not merge the current base-branch tip with the
 # current head, skips the label.
 pr_label_skip() {
-  local number="${PR_URL##*/}" base_branch head merged_at base_tip merge_commit merge_json merge_tree
+  local number="${PR_URL##*/}" base_tip head merged_at merge_commit merge_json merge_tree
   PR_SKIP="not applied — the pull-request workflows could not be read"
-  base_branch="$(jq -r '.baseRefName // empty' <<<"$PR_JSON")"
   head="$(jq -r '.headRefOid // empty' <<<"$PR_JSON")"
   merged_at="$(jq -r '.mergedAt // empty' <<<"$PR_JSON")"
-  if [[ ! "$base_branch" =~ ^[A-Za-z0-9._/-]+$ || ! "$head" =~ ^[0-9a-f]{40}$ ]] \
-    || ! git check-ref-format --branch "$base_branch" >/dev/null 2>&1; then
-    return 0
-  fi
-  if ! base_tip="$(gh api "repos/$NWO/git/ref/heads/$base_branch" </dev/null 2>/dev/null \
-    | jq -r --arg ref "refs/heads/$base_branch" 'select(.ref == $ref and .object.type == "commit") | .object.sha')" \
-    || [[ ! "$base_tip" =~ ^[0-9a-f]{40}$ ]]; then
+  [[ "$head" =~ ^[0-9a-f]{40}$ ]] || return 0
+  if ! base_tip="$(branch_tip "$(jq -r '.baseRefName // empty' <<<"$PR_JSON")")"; then
     PR_SKIP="not applied — the base-branch tip could not be read"
     return 0
   fi
@@ -337,16 +346,16 @@ pr_label_skip() {
   PR_SKIP="$SCAN_SKIP"
 }
 
-# Closing issues run the `issues` workflows of the default branch; the pull request runs those of the
-# tip of its base branch and of its merge ref as well.
+# Closing issues run the `issues` workflows of the default-branch tip; the pull request runs those of
+# the tip of its base branch and of its merge ref as well.
 ISSUE_LABEL_SKIP="$LABEL_SKIP"
 PR_LABEL_SKIP="$LABEL_SKIP"
 if [[ -n "$LABEL" ]]; then
   if ! DEFAULT_BRANCH="$(gh api "repos/$NWO" </dev/null 2>/dev/null | jq -r '.default_branch // empty')" \
-    || [[ ! "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+    || ! DEFAULT_TIP="$(branch_tip "$DEFAULT_BRANCH")"; then
     ISSUE_LABEL_SKIP="not applied — the default-branch workflows could not be read"
   else
-    scan_workflows "$DEFAULT_BRANCH" default-branch
+    scan_workflows "$DEFAULT_TIP" default-branch
     ISSUE_LABEL_SKIP="$SCAN_SKIP"
   fi
   PR_LABEL_SKIP="$ISSUE_LABEL_SKIP"
