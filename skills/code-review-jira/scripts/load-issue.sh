@@ -23,6 +23,9 @@
 #     "timeTracking": { "originalEstimate", "remainingEstimate", "timeSpent", "ratio" },
 #     "descriptionAdf":  <raw ADF or null>,
 #     "descriptionText": "<flattened plain text>",
+#     "descriptionAssignmentText": "<descriptionText without the Original assignment block>",
+#     "descriptionOriginalText": "<the text of the Original assignment block>" | null,
+#     "descriptionSections": [ { "title", "text" } ],
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
 #     "subtasks":    [ { "key", "summary", "status", "type",
@@ -54,6 +57,14 @@
 #     its value, a list item as `- ` / `1. ` indented two spaces per nesting level, a task as
 #     `- [ ]` / `- [x]`, a rule as `---`, a table as `| cell | cell |` rows, and an expand as its
 #     title followed by its content. The same renderer produces `descriptionText`.
+#   - The three assignment fields follow rules/compound-engineering/assignment.md *The shape in a JIRA
+#     description*. When the last top-level node of the description is an expand titled exactly
+#     `Original assignment` or `Původní zadání`, that block is the preserved original:
+#     `descriptionOriginalText` is its content, and `descriptionAssignmentText` and
+#     `descriptionSections` leave it out. Without such a block `descriptionOriginalText` is null and
+#     `descriptionAssignmentText` equals `descriptionText`. `descriptionSections` lists every other
+#     top-level expand as its title and its content, in order. A reader takes no requirement from
+#     `descriptionOriginalText`.
 #   - `authorAccountId` and `mentionAccountIds` carry the JIRA account IDs a rule can compare against
 #     `jira_actor_account_id` without a display-name match: `authorAccountId` is the comment
 #     author's account ID (comment-list `author.accountId`, or the view-embedded one as a
@@ -175,7 +186,9 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   [[ "$mode" != "short" ]] || total=3
   attachments='[]'
   [[ "$mode" != "attachments" ]] || attachments='[{"id": "10500", "filename": "notes.md"}]'
-  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON'
+  description='null'
+  [[ "$mode" != "original" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Akceptační kritéria"}, "content": [{"type": "orderedList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Criterion."}]}]}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old technical text."}]}]}]}'
+  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON' | jq --argjson d "$description" '.fields.description = $d'
 {
   "fields": {
     "summary": "Fixture issue",
@@ -305,6 +318,13 @@ STUB
   check 'an issue attachment sets attachmentsFetch to the fetch of its key' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
   load_case subtask-attachments
   check 'a subtask attachment alone sets attachmentsFetch too' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
+  check 'a description without an original block has no original text' '.descriptionOriginalText' 'null'
+  load_case original
+  check 'the last Original assignment block is the original text' '.descriptionOriginalText' 'Old technical text.'
+  check 'the assignment text leaves the original block out' '.descriptionAssignmentText | contains("Old technical")' 'false'
+  check 'the description text still carries every block' '.descriptionText | contains("Old technical text.")' 'true'
+  check 'the sections list the collapsed sections without the original' '[.descriptionSections[].title] | join(",")' 'Akceptační kritéria'
+  check 'a section carries its own content' '.descriptionSections[0].text' '1. Criterion.'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
@@ -640,6 +660,13 @@ def viewCommentIdx:
 | ($f.description // null) as $desc
 | (if $desc == null then "" else ($desc | adfText) end) as $descText
 | (if $desc == null then [] else ($desc | mediaRefs($att)) end) as $descMedia
+| (if ($desc | type) == "object" then ($desc.content // []) else [] end) as $descNodes
+| (if ($descNodes | length) > 0
+     and ($descNodes[-1] | type) == "object"
+     and ($descNodes[-1].type // "") == "expand"
+     and (($descNodes[-1].attrs.title // "") | IN("Original assignment", "Původní zadání"))
+   then $descNodes[-1] else null end) as $descOriginal
+| (if $descOriginal == null then $descNodes else $descNodes[:-1] end) as $descOwn
 | {
     key: $key,
     url: (if $host != "" then "https://" + $host + "/browse/" + $key else null end),
@@ -672,6 +699,11 @@ def viewCommentIdx:
     descriptionAdf: $desc,
     descriptionText: ($descText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "")),
     descriptionMediaRefs: $descMedia,
+    descriptionAssignmentText: (if $descOriginal == null then ($descText | gsub("\n\n+"; "\n\n") | sub("\n+$"; ""))
+                                else ({ type: "doc", content: $descOwn } | adfPlain) end),
+    descriptionOriginalText: (if $descOriginal == null then null else ({ type: "doc", content: ($descOriginal.content // []) } | adfPlain) end),
+    descriptionSections: [$descOwn[] | select(type == "object" and (.type // "") == "expand")
+                          | { title: (.attrs.title // ""), text: ({ type: "doc", content: (.content // []) } | adfPlain) }],
     issueLinks: ($links | map(
       if .outwardIssue then
         { id: .id, type: (.type.name // null), direction: "outward",
