@@ -9,7 +9,7 @@
 # The file name keeps the word "inline" because the installed copies, the audit lines, and the callers name it.
 #
 # Usage:
-#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> <FINDINGS_FILE|->
+#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> [--screenshots <MANIFEST> --slug <SLUG>] <FINDINGS_FILE|->
 #   post-inline-review.sh resolve <NUMBER|URL> --fixed <FINDING_ID>[,<FINDING_ID>...]
 #   post-inline-review.sh --self-test
 #
@@ -37,6 +37,8 @@
 #                    author                optional `@login` of the pull request author; rendered as the last line of the
 #                                          Actionable comments entry of the finding
 #                    do_not_file_publicly  optional boolean; a security finding that must not reach a public repository
+#                    type                  optional, `bug`, `tests`, `refactor`, `performance`, `documentation`, or `security`; never
+#                                          rendered. A screenshot is shown only for a finding whose type is set and is not `security`
 #                    rule, provenance, evidence, expected_behavior, test_hint, answered
 #                                          optional text (4000 characters at most); accepted and never rendered: the
 #                                          full finding lives in the hidden record
@@ -44,6 +46,15 @@
 #                    level                 optional, `High`, `Medium`, or `Low`; a Moderate only; never rendered
 #                  A review carries no other code, so `faulty_example` and `faulty_example_lang` are refused, and so is
 #                  a title, problem, impact, fix, or existing value that holds a fenced block.
+#   --screenshots  Optional, with --slug. The screenshot manifest of skills/interactive-testing/references/defect-screenshots.md.
+#                  After every check below has passed, the script uploads each screenshot that passes
+#                  skills/_shared/screenshot-guard.sh and belongs to a listed finding that is no `security` finding, is not
+#                  flagged `do_not_file_publicly`, and has the manifest's type (skills/code-review-github/scripts/upload-review-asset.sh),
+#                  checks the returned URL again, and renders one `**<label>:**` line and one image under that finding. A
+#                  screenshot that fails any check, or an upload the repository refuses, leaves the finding text only and
+#                  names the reason on stderr; it never fails the review. A post that is refused (exit 1) or whose head moved
+#                  (exit 4) before the upload uploads nothing. The publisher writes the only image of the review: `![` in a
+#                  value stays inert.
 #   --commit-id    The head SHA the round reviewed. The script refuses a head that is not the current one (exit 4).
 #   --meta-file    The hidden machine record of the round: the text templates/pr-comment-output.md renders, which
 #                  skills/_shared/check-cr-header.sh accepts. It lists every published finding in full and never a
@@ -163,6 +174,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$HERE/../../_shared/audit-trail.sh"
 CHECK_HEADER="$HERE/../../_shared/check-cr-header.sh"
 CARRY_LINES="$HERE/../../_shared/carry-operator-lines.php"
+SCREENSHOT_GUARD="$HERE/../../_shared/screenshot-guard.sh"
+UPLOAD_ASSET="$HERE/upload-review-asset.sh"
 CHECK_VISIBLE="$HERE/../../_shared/check-visible-review-text.php"
 # shellcheck source=../../_shared/github-target.sh
 source "$HERE/../../_shared/github-target.sh"
@@ -175,7 +188,7 @@ source "$HERE/../../_shared/domain-vocabulary.sh"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> <FINDINGS_FILE|->
+Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> [--screenshots <MANIFEST> --slug <SLUG>] <FINDINGS_FILE|->
        post-inline-review.sh resolve <NUMBER|URL> --fixed <FINDING_ID>[,<FINDING_ID>...]
        post-inline-review.sh --self-test
 
@@ -184,6 +197,7 @@ Usage: post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file 
   --commit-id   the head SHA the round reviewed; a head that moved is refused
   --meta-file   the hidden machine record of the round (templates/pr-comment-output.md)
   --walkthrough-file  the data of the visible Walkthrough block, a JSON object (templates/review-body.md)
+  --screenshots  the screenshot manifest of defect-screenshots.md, with --slug, the source slug of its artifacts directory
   --fixed       finding ids whose inline threads are resolved
 EOF
 }
@@ -273,7 +287,7 @@ req(type == "array"; "the findings document must be a JSON array")
 | map(
     req(type == "object"; "every finding must be an object")
     | req((has("faulty_example") or has("faulty_example_lang")) | not; "a review carries no faulty example code: leave out faulty_example and faulty_example_lang")
-    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly", "rule", "provenance", "impact", "evidence", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
+    | req(((keys - ["finding_id", "severity", "title", "path", "line", "start_line", "side", "problem", "fix", "suggestion", "do_not_file_publicly", "type", "rule", "provenance", "impact", "evidence", "expected_behavior", "test_hint", "raised_by", "answered", "author", "level", "kind", "existing"]) | length) == 0; "a finding holds an unknown key")
     | req((.finding_id | type) == "string" and (.finding_id | test("^[rf]-[0-9a-f]{16}$")); "finding_id must be r- or f- and 16 hex digits")
     | req(.severity == "Critical" or .severity == "Moderate"; "severity must be Critical or Moderate")
     | req(.title | isstr(200); "title must be 1 to 200 characters")
@@ -294,6 +308,7 @@ req(type == "array"; "the findings document must be a JSON array")
     | req(.suggestion == null or (.suggestion | printable | test("<!--\\s*cr-") | not); "suggestion must not contain an agent marker")
     | req(.suggestion == null or (.suggestion | test("[\\x{061C}\\x{200E}\\x{200F}\\x{202A}-\\x{202E}\\x{2066}-\\x{2069}]") | not); "suggestion must not hold a bidirectional control character")
     | req(.do_not_file_publicly == null or (.do_not_file_publicly | type) == "boolean"; "do_not_file_publicly must be a boolean")
+    | req(.type == null or (.type | IN("bug", "tests", "refactor", "performance", "documentation", "security")); "type must be bug, tests, refactor, performance, documentation, or security when set")
     | req((.rule | optstr) and (.provenance | optstr) and (.impact | optstr) and (.evidence | optstr) and (.expected_behavior | optstr) and (.test_hint | optstr) and (.answered | optstr); "rule, provenance, impact, evidence, expected_behavior, test_hint, and answered must be 1 to 4000 characters when set")
     | req([.title, .problem, .impact, .fix, .existing] | map(select(. != null) | printable) | all(nocode); "a review carries no code: title, problem, impact, fix, and existing hold no fenced block")
     | req((.rule | if . == null then null else codespan | printable end) | marker_free; "rule must not contain an agent marker")
@@ -317,6 +332,7 @@ req(type == "array"; "the findings document must be a JSON array")
         lang: (.path | if . == null then "" else split("/") | last
           | if test("\\.blade\\.php$"; "i") then "blade" else (capture("\\.(?<e>[A-Za-z0-9+_-]{1,15})$") | .e | ascii_downcase) // "" end | if . == "suggestion" then "" else . end end),
         withhold: (.do_not_file_publicly == true),
+        type,
         author
       }
     | req([.problem, .impact, .fix, .existing] | all(marker_free); "a text field must not contain an agent marker")
@@ -418,13 +434,16 @@ def oneline: gsub("\\s+"; " ") | ltrimstr(" ") | rtrimstr(" ");
 def place: if .line == null then "" else " · " + ("`\(.path | gsub("`"; "")):\(.line)`" | inert) end;
 def fix_text: if .kind == "dry" then (.fix // "Use the existing implementation in \(.existing) instead of repeating the logic.") else .fix end;
 def mention: if .author == null then "" else "\n\(.author)" end;
+# The one image of the review: the label and the URL come from the screenshot step of this script, which checks the label
+# against the two allowed forms and the URL against the one allowed shape, never from a finding.
+def shot_lines: .finding_id as $id | [$shots[] | select(.finding_id == $id) | "\n\n**\(.label):**\n![\(.label)](\(.url))"] | join("");
 # The suggested code of a finding: a fence one backtick longer than the longest backtick run of the code (three at
 # least), so no line of the code closes it, and the language of the finding's file. The code renders as written.
 def fence($s): ((([$s | match("`+"; "g") | .length] | max) // 0) as $m | [$m, 2] | max + 1) as $n | ("`" * $n);
 def code_block: fence(.suggestion) as $f | "\($f)\(.lang)\n\(.suggestion)\n\($f)";
 def replaces: if .line == null or .side == "LEFT" then "" elif .start_line != null then " (replaces lines \(.start_line)–\(.line))" else " (replaces line \(.line))" end;
 def code_part: if .suggestion == null then "" else "\n**Suggested code**\(replaces):\n\(code_block)" end;
-def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)\(if .show then code_part else "" end)\(mention)";
+def entry($n): "**\(.severity | icon) \(.severity) \($n) — \(.title | oneline)**\(place)\n\(.problem | oneline)\n**Fix:** \(fix_text | oneline)\(if .show then code_part else "" end)\(shot_lines)\(mention)";
 def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<dl>\n<dd>\n<br>\n\n\($content)\n\n</dd>\n</dl>\n</details>";
 [.[] | select(.class == "listed") | .f] as $listed
 # The suggested code fits the budget of the body: it is shown in entry order, Critical first, while the code parts
@@ -558,9 +577,9 @@ read_head() {
 # fingerprint: writes draft.json, visible.md, and body.md.
 render_review_body() {
   local commit="$1" budget="$2"
-  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" \
+  jq --arg actor "$ACTOR" --rawfile meta "$TMP_ROOT/meta.wrapped" --slurpfile risk_doc "$TMP_ROOT/risk.json" --slurpfile walk_doc "$TMP_ROOT/walk.json" --slurpfile shots_doc "$TMP_ROOT/shots.json" \
     --arg short "${commit:0:7}" --argjson budget "$budget" \
-    "$JQ_DEFS"$'\n''$risk_doc[0] as $risk | $walk_doc[0] as $walk | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
+    "$JQ_DEFS"$'\n''$risk_doc[0] as $risk | $walk_doc[0] as $walk | $shots_doc[0] as $shots | '"$JQ_PAYLOAD" "$TMP_ROOT/classified.json" >"$TMP_ROOT/draft.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   jq -j '.visible_text' "$TMP_ROOT/draft.json" >"$TMP_ROOT/visible.md"
   local visible_rc=0
@@ -574,8 +593,70 @@ render_review_body() {
     || die 1 "the line fingerprint of the review body failed, nothing was published: $(head -c 300 "$TMP_ROOT/carry.err")"
 }
 
+# Renders the body for the largest code budget that fits the 65536 characters GitHub accepts: the suggested code never
+# fails the publish. When the body is too long, it is rendered again with a code budget smaller by the excess, so code
+# parts are left out until it fits, and the last pass shows no code at all. Writes draft.json and body.md.
+render_passes() {
+  local commit="$1" budget=65536 pass body_len code_used
+  for pass in 1 2 3 4; do
+    [[ "$pass" -lt 4 ]] || budget=0
+    render_review_body "$commit" "$budget"
+    body_len="$(jq -R -s 'length' "$TMP_ROOT/body.md")"
+    code_used="$(jq '.code_used' "$TMP_ROOT/draft.json")"
+    if [[ "$body_len" -le 65536 || "$code_used" -eq 0 ]]; then
+      break
+    fi
+    budget=$((code_used - (body_len - 65536) - 256))
+    [[ "$budget" -gt 0 ]] || budget=0
+  done
+}
+
+# Uploads the screenshots of the manifest that every check lets through, and writes the data the body renders to shots.json
+# (one {finding_id, label, url, state} per image, the base image of a finding first). It runs only after the record, the
+# withheld-finding, and the head checks passed. Every refusal leaves the finding text only and names the reason on stderr;
+# none fails the review. The screenshot guard owns the manifest conditions, upload-review-asset.sh the write, and the
+# `verify` call below the URL: the label must be one of the two allowed forms and the URL the one allowed shape of this
+# pull request, on a commit that `cr-assets` holds.
+publish_screenshots() {
+  local manifest="$1" slug="$2" commit="$3" pr_url guard_out ok entry fid state file url n i
+  pr_url="https://github.com/${NWO}/pull/${NUMBER}"
+  [[ -r "$manifest" ]] || { echo "$PROG: screenshots skipped: the manifest cannot be read; the findings stay text only" >&2; return 0; }
+  guard_out="$(bash "$SCREENSHOT_GUARD" manifest "$manifest" 2>/dev/null)" \
+    || { echo "$PROG: screenshots skipped: the manifest is not a valid screenshot manifest; the findings stay text only" >&2; return 0; }
+  jq -r '.skipped[] | "screenshot skipped for \(.finding_id): \(.reason); the finding stays text only"' <<<"$guard_out" | sed "s/^/$PROG: /" >&2
+  # A screenshot belongs to a published finding of the same type that is not withheld.
+  ok="$(jq -c --slurpfile cls "$TMP_ROOT/classified.json" '
+    [.accepted[] | . as $e
+      | select([$cls[0][] | select(.class == "listed" and .f.finding_id == $e.finding_id and .f.withhold == false and .f.type == $e.finding_type)] | length > 0)]' <<<"$guard_out")"
+  jq -r --argjson ok "$ok" '[.accepted[] | select(.finding_id | IN($ok[].finding_id) | not) | .finding_id] | unique[]
+    | "screenshot skipped for \(.): the finding is not published, is withheld, or has another type than the manifest; the finding stays text only"' <<<"$guard_out" | sed "s/^/$PROG: /" >&2
+  printf '[]' >"$TMP_ROOT/shots.new"
+  n="$(jq 'length' <<<"$ok")"
+  for ((i = 0; i < n; i++)); do
+    entry="$(jq -c ".[$i]" <<<"$ok")"
+    fid="$(jq -r '.finding_id' <<<"$entry")"
+    state="$(jq -r '.state' <<<"$entry")"
+    file="$(jq -r '.file' <<<"$entry")"
+    if ! url="$(bash "$UPLOAD_ASSET" upload "$pr_url" --head-sha "$commit" --slug "$slug" --finding "$fid" --state "$state" "$file" 2>"$TMP_ROOT/upload.err")"; then
+      echo "$PROG: screenshot of ${fid} (${state}) not published: $(head -c 300 "$TMP_ROOT/upload.err"); the finding stays text only" >&2
+      continue
+    fi
+    if ! bash "$UPLOAD_ASSET" verify "$pr_url" "$url" >/dev/null 2>"$TMP_ROOT/upload.err"; then
+      echo "$PROG: screenshot of ${fid} (${state}) not published: the URL did not verify: $(head -c 300 "$TMP_ROOT/upload.err"); the finding stays text only" >&2
+      continue
+    fi
+    jq -c --argjson e "$entry" --arg url "$url" '. + [{finding_id: $e.finding_id, label: $e.label, url: $url, state: $e.state}]' "$TMP_ROOT/shots.new" >"$TMP_ROOT/shots.tmp"
+    mv "$TMP_ROOT/shots.tmp" "$TMP_ROOT/shots.new"
+  done
+  jq -c --arg prefix "https://github.com/${NWO}/blob/" --arg number "$NUMBER" '
+    map(select((.label | test("^(This change|Default branch \\([A-Za-z0-9._/-]{1,100}\\))$"))
+      and (.url | startswith($prefix))
+      and (.url[($prefix | length):] | test("^[0-9a-f]{40}/pr-\($number)/[a-z0-9-]+\\.png\\?raw=true$"))))
+    | sort_by(.state == "head")' "$TMP_ROOT/shots.new" >"$TMP_ROOT/shots.json"
+}
+
 cmd_post() {
-  local commit="" findings_src="" meta_file="" walk_file="" arg
+  local commit="" findings_src="" meta_file="" walk_file="" shots_manifest="" shots_slug="" arg
   while [[ $# -gt 0 ]]; do
     arg="$1"
     case "$arg" in
@@ -594,6 +675,16 @@ cmd_post() {
         walk_file="$2"
         shift 2
         ;;
+      --screenshots)
+        [[ $# -ge 2 ]] || die 1 "--screenshots needs a value"
+        shots_manifest="$2"
+        shift 2
+        ;;
+      --slug)
+        [[ $# -ge 2 ]] || die 1 "--slug needs a value"
+        shots_slug="$2"
+        shift 2
+        ;;
       *)
         [[ -z "$findings_src" ]] || die 1 "unexpected argument: $arg"
         findings_src="$arg"
@@ -602,6 +693,7 @@ cmd_post() {
     esac
   done
   [[ -n "$commit" && -n "$findings_src" && -n "$meta_file" && -n "$walk_file" ]] || { usage; exit 1; }
+  [[ -z "$shots_manifest" && -z "$shots_slug" ]] || [[ -n "$shots_manifest" && -n "$shots_slug" ]] || die 1 "--screenshots and --slug go together"
   [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die 1 "--commit-id must be a full lowercase 40-digit SHA"
   [[ -r "$meta_file" && -s "$meta_file" ]] || die 1 "cannot read the review record: $meta_file"
   cat "$meta_file" >"$TMP_ROOT/meta.md"
@@ -700,25 +792,28 @@ cmd_post() {
   [[ -z "$leaked" ]] || die 1 "the review record, the walkthrough, or a published finding names the withheld finding(s) ${leaked}; a finding marked do_not_file_publicly stays out of every public text on a public repository, nothing was published"
 
   cr_review_meta_wrap <"$TMP_ROOT/meta.md" >"$TMP_ROOT/meta.wrapped"
-  # The suggested code never fails the publish: when the body is longer than the 65536 characters GitHub accepts, the
-  # body is rendered again with a code budget smaller by the excess, so code parts are left out until it fits, and the
-  # last pass shows no code at all.
-  local budget=65536 pass body_len code_used
-  for pass in 1 2 3 4; do
-    [[ "$pass" -lt 4 ]] || budget=0
-    render_review_body "$commit" "$budget"
-    body_len="$(jq -R -s 'length' "$TMP_ROOT/body.md")"
-    code_used="$(jq '.code_used' "$TMP_ROOT/draft.json")"
-    if [[ "$body_len" -le 65536 || "$code_used" -eq 0 ]]; then
-      break
-    fi
-    budget=$((code_used - (body_len - 65536) - 256))
-    [[ "$budget" -gt 0 ]] || budget=0
-  done
+  printf '[]' >"$TMP_ROOT/shots.json"
+  render_passes "$commit"
   jq --arg commit "$commit" --rawfile body "$TMP_ROOT/body.md" "$JQ_REVIEW" "$TMP_ROOT/draft.json" >"$TMP_ROOT/payload.json" 2>"$TMP_ROOT/payload.err" \
     || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
   if [[ "$(jq '.code_omitted' "$TMP_ROOT/draft.json")" -gt 0 ]]; then
     echo "$PROG: the suggested code of $(jq '.code_omitted' "$TMP_ROOT/draft.json") finding(s) was left out to keep the review body within 65536 characters" >&2
+  fi
+
+  if [[ -n "$shots_manifest" ]]; then
+    # Every refusal of the post happened above. The upload happens only now, after a fresh head check, and the body is
+    # rendered again with the images, so a refused post and a moved head upload nothing.
+    read_head
+    if [[ "$HEAD_SHA" != "$commit" ]]; then
+      echo "$PROG: the head of ${NWO}#${NUMBER} moved to ${HEAD_SHA} before the screenshots were uploaded; nothing was published" >&2
+      exit 4
+    fi
+    publish_screenshots "$shots_manifest" "$shots_slug" "$commit"
+    if [[ "$(jq 'length' "$TMP_ROOT/shots.json")" -gt 0 ]]; then
+      render_passes "$commit"
+      jq --arg commit "$commit" --rawfile body "$TMP_ROOT/body.md" "$JQ_REVIEW" "$TMP_ROOT/draft.json" >"$TMP_ROOT/payload.json" 2>"$TMP_ROOT/payload.err" \
+        || die 1 "the rendered review was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/payload.err" | head -n 1)"
+    fi
   fi
 
   local listed
@@ -828,6 +923,8 @@ self_test() {
   mkdir -p "$bin"
 
   local sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" other="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  local GH_MARKER_TEXT
+  GH_MARKER_TEXT="$(sed -n 's/^MARKER_TEXT="\(.*\)"$/\1/p' "$HERE/upload-review-asset.sh")"
   printf '%s' "$sha" >"$tmp/head"
 
   cat >"$bin/gh" <<'STUB'
@@ -853,6 +950,16 @@ case "$*" in
     if [[ "$*" == *"cursor="* ]]; then cat "$GH_THREADS_2"; else cat "$GH_THREADS_1"; fi
     ;;
   "api repos/o/r/pulls/7/files"*) cat "$GH_FILES" ;;
+  "api repos/o/r") echo '{"permissions":{"push":true}}' ;;
+  "api repos/o/r/git/ref/heads/cr-assets") printf '{"object":{"sha":"%040d"}}\n' 5 ;;
+  "api repos/o/r/contents/.ai-olympus-cr-assets?ref=cr-assets") printf '{"type":"file","content":"%s\\n"}\n' "$(printf '%s' "$GH_MARKER" | base64 | tr -d '\n')" ;;
+  "api repos/o/r/contents/pr-7/"*"?ref=cr-assets") echo '{"message":"Not Found"}'; echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
+  "api repos/o/r/contents/pr-7/"*"?ref="*) echo '{"type":"file"}' ;;
+  "api -X PUT repos/o/r/contents/pr-7/"*)
+    printf 'x\n' >>"$GH_SHOT_PUTS"
+    if [[ "${GH_SHOT_FORBIDDEN:-0}" == "1" ]]; then echo '{"message":"Repository rule violations found"}'; echo 'gh: Repository rule violations found (HTTP 403)' >&2; exit 1; fi
+    printf '{"commit":{"sha":"%040d"},"content":{"path":"pr-7/x"}}\n' 99 ;;
+  "api repos/o/r/compare/"*"...cr-assets") echo '{"status":"identical"}' ;;
   "api repos/o/r/compare/"*)
     if [[ "${GH_COMPARE_FAILS:-0}" == "1" ]]; then echo 'gh: Not Found' >&2; exit 1; fi
     cat "$GH_COMPARE"
@@ -932,12 +1039,15 @@ MD
     : >"$tmp/review.calls"
     : >"$tmp/graphql.calls"
     : >"$tmp/ledger.audit"
+    : >"$tmp/shot.puts"
     rm -f "$tmp/review.json"
+    local -a extra=()
+    [[ -z "${POST_SHOTS:-}" ]] || extra=(--screenshots "$POST_SHOTS" --slug demo)
     set +e
-    out="$(env "$@" PATH="$bin:$PATH" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_COMPARE="${GH_COMPARE_FILE:-$tmp/compare.ahead}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
+    out="$(cd "${POST_CWD:-$PWD}" && env "$@" PATH="$bin:$PATH" GH_MARKER="$GH_MARKER_TEXT" GH_SHOT_PUTS="$tmp/shot.puts" GH_ACTOR=bot GH_PRIVATE="${GH_PRIVATE_VALUE:-true}" GH_FILES="${GH_FILES_FILE:-$tmp/files.json}" GH_COMPARE="${GH_COMPARE_FILE:-$tmp/compare.ahead}" GH_TREE="${GH_TREE_FILE:-$tmp/tree.json}" \
       GH_THREADS_1="$tmp/threads.1" GH_THREADS_2="$tmp/threads.2" GH_HEAD="$tmp/head" GH_REVIEW="$tmp/review.json" \
       GH_REVIEW_CALLS="$tmp/review.calls" GH_GRAPHQL_CALLS="$tmp/graphql.calls" GH_RESOLVES="$tmp/resolves" GH_NODE_PAGE="$tmp/node.page" AUDIT_TRAIL_FILE="$tmp/ledger.audit" AUDIT_TRAIL_ROLE=leonardo \
-      bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" --walkthrough-file "${WALK_FILE:-$tmp/walk.json}" - <<<"$findings" 2>"$tmp/stderr")"
+      bash "$script" post https://github.com/o/r/pull/7 --commit-id "${COMMIT_ID:-$sha}" --meta-file "${META_FILE:-$tmp/meta.md}" --walkthrough-file "${WALK_FILE:-$tmp/walk.json}" "${extra[@]+"${extra[@]}"}" - <<<"$findings" 2>"$tmp/stderr")"
     rc=$?
     set -e
   }
@@ -1688,6 +1798,92 @@ JSON
   rc=$?
   set -e
   check 'resolve refuses a malformed id list' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
+
+  # 14. defect screenshots: the publisher writes the only image of the review, after every check, for a listed finding that
+  # is no security finding, and every other `![` stays inert
+  local shotrepo="$tmp/shotrepo" shot_png shot_manifest f_shot_a f_shot_sec f_shot_priv
+  mkdir -p "$shotrepo/.claude/run/demo.artifacts"
+  git -C "$shotrepo" init -q
+  shotrepo="$(cd "$shotrepo" && pwd -P)"
+  shot_png="$shotrepo/.claude/run/demo.artifacts/step-head.png"
+  # shellcheck disable=SC2016
+  php -r '
+    function chunk(string $t, string $d): string { return pack("N", strlen($d)) . $t . $d . pack("N", crc32($t . $d)); }
+    file_put_contents($argv[1], "\x89PNG\r\n\x1a\n" . chunk("IHDR", pack("NNCCCCC", 1, 1, 8, 2, 0, 0, 0)) . chunk("IDAT", gzcompress("\x00\xff\x00\x00")) . chunk("IEND", ""));
+  ' "$shot_png"
+  cp "$shot_png" "$shotrepo/.claude/run/demo.artifacts/step-base.png"
+  f_shot_a="$(jq -c '. + {type: "bug"}' <<<"$f_in")"
+  f_shot_sec="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Hard-coded token", path: "src/A.php", line: 11, problem: "A token is in the code.", impact: "Anyone reads it.", fix: "Move it to the environment.", type: "security"}')"
+  f_shot_priv="$(jq -n -c --arg id "$id3" '{finding_id: $id, severity: "Critical", title: "Hard-coded token", path: "src/A.php", line: 11, problem: "A token is in the code.", impact: "Anyone reads it.", fix: "Move it to the environment.", type: "bug", do_not_file_publicly: true}')"
+  shot_entry() {
+    jq -n -c --arg id "$1" --arg type "$2" --arg state "$3" --arg file "$shotrepo/.claude/run/demo.artifacts/step-$3.png" \
+      '{finding_id: $id, finding_type: $type, do_not_file_publicly: false, state: $state, default_branch: (if $state == "base" then "master" else null end), file: $file,
+        masking: "verified", crop: "element", own_data_only: true, not_error_page: true, masked_in_capture_session: true}'
+  }
+  shot_manifest="$tmp/shots.manifest.json"
+  local shot_url shot_base_url shot_commit
+  shot_commit="$(printf '%040d' 99)"
+  shot_url="https://github.com/o/r/blob/${shot_commit}/pr-7/aaaaaaaaaaaa-${id1}-head.png?raw=true"
+  shot_base_url="https://github.com/o/r/blob/${shot_commit}/pr-7/aaaaaaaaaaaa-${id1}-base.png?raw=true"
+
+  printf '[%s]' "$(shot_entry "$id1" bug head)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a screenshot of a listed bug finding is rendered right under its Fix line, with its label' \
+    "$([[ $rc -eq 0 ]] && jq -e --arg want "**Fix:** Escape the value before it is printed.
+
+**This change:**
+![This change]($shot_url)" '.body | contains($want)' "$tmp/review.json" >/dev/null && echo yes || echo no)"
+  check 'one upload wrote one file, and the audit trail names it' "$([[ "$(wc -l <"$tmp/shot.puts" | tr -d ' ')" == 1 ]] && grep -q "|external-write|${shot_url}|" "$tmp/ledger.audit" && echo yes || echo no)"
+  check 'the review carries exactly one image' "$([[ "$(jq -j '.body' "$tmp/review.json" | grep -oF '![' | wc -l | tr -d ' ')" == 1 ]] && echo yes || echo no)"
+
+  printf '[%s,%s]' "$(shot_entry "$id1" bug head)" "$(shot_entry "$id1" bug base)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a regression shows the default branch image first and the change image second, each under a bold label' \
+    "$([[ $rc -eq 0 ]] && jq -e --arg want "**Default branch (master):**
+![Default branch (master)]($shot_base_url)
+
+**This change:**
+![This change]($shot_url)" '.body | contains($want)' "$tmp/review.json" >/dev/null && echo yes || echo no)"
+
+  printf '[%s]' "$(shot_entry "$id1" bug head)" >"$shot_manifest"
+  f_md="$(jq -c '.problem = "Look ![x](https://evil.example/p.png) here"' <<<"$f_shot_a")"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_md]"
+  check 'an image form in a finding stays inert while the publisher image renders' \
+    "$([[ $rc -eq 0 ]] && jq -j '.body' "$tmp/review.json" | grep -qF 'Look &#33;[x]' && [[ "$(jq -j '.body' "$tmp/review.json" | grep -oF '![' | wc -l | tr -d ' ')" == 1 ]] && echo yes || echo no)"
+
+  printf '[%s]' "$(shot_entry "$id3" security head)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_sec]"
+  check 'a security finding gets no screenshot and nothing is uploaded' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" && "$(jq -j '.body' "$tmp/review.json" | grep -cF '![')" == 0 ]] && grep -q 'a security finding never gets a screenshot' "$tmp/stderr" && echo yes || echo no)"
+  printf '[%s]' "$(shot_entry "$id3" bug head)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_sec]"
+  check 'a security finding whose manifest claims another type gets no screenshot' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && grep -q 'another type than the manifest' "$tmp/stderr" && echo yes || echo no)"
+  GH_PRIVATE_VALUE=false POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_priv,$f_shot_a]"
+  check 'a withheld finding gets no screenshot on a public repository' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
+  GH_PRIVATE_VALUE=true POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_priv]"
+  check 'a finding flagged do_not_file_publicly gets no screenshot on a private repository either' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
+
+  printf '[%s]' "$(jq -c '.masking = "none"' <<<"$(shot_entry "$id1" bug head)")" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a screenshot whose masking is not verified leaves the finding text only, and the review is published' \
+    "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && grep -q 'masking is not verified' "$tmp/stderr" && echo yes || echo no)"
+  printf '[%s]' "$(shot_entry "$id2" bug head)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a screenshot of a finding that is not in the review is not uploaded' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
+
+  printf '[%s]' "$(shot_entry "$id1" bug head)" >"$shot_manifest"
+  POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]" GH_SHOT_FORBIDDEN=1
+  check 'a refused write leaves the finding text only and the review is published' \
+    "$([[ $rc -eq 0 && "$(jq -j '.body' "$tmp/review.json" | grep -cF '![')" == 0 ]] && grep -q 'stays text only' "$tmp/stderr" && grep -q '|note|' "$tmp/ledger.audit" && echo yes || echo no)"
+
+  # A refused post and a moved head upload nothing.
+  COMMIT_ID="$other" POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a head that moved (exit 4) uploads nothing' "$([[ $rc -eq 4 && ! -s "$tmp/shot.puts" && ! -s "$tmp/review.calls" ]] && echo yes || echo no)"
+  META_FILE="$tmp/meta-bad.md" POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$f_shot_a]"
+  check 'a refused record (exit 1) uploads nothing' "$([[ $rc -eq 1 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
+  META_FILE="$tmp/meta-markup.md" GH_TREE_FILE="$tmp/tree.package" POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" run_post "[$(jq -c '.title = "Uses classify-risk.sh"' <<<"$f_shot_a")]"
+  check 'a refused visible text (exit 1) uploads nothing' "$([[ $rc -eq 1 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
+  POST_CWD="$shotrepo" run_post "[$f_shot_a]"
+  check 'a review without a manifest makes no upload call' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "self-test: $failures of $checks checks failed" >&2
