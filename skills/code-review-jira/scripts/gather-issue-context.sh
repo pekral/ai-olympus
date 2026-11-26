@@ -78,7 +78,9 @@ render_issue() {
     line("URL"; .url),
     "",
     (if (.descriptionText // "") == "" then "_No description._"
-     else "### Description\n\n" + .descriptionText end),
+     else "### Description\n\n" + (.descriptionAssignmentText // .descriptionText) end),
+    (if .descriptionOriginalText == null then empty
+     else "\n### Original assignment — preserved text, not a source of requirements\n\n" + .descriptionOriginalText end),
     "",
     ( if $mode != "full" then empty else
         ( (.comments // []) as $c
