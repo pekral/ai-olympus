@@ -260,7 +260,8 @@ cmd_write() {
 
   if [[ "$lang" == "cs" ]]; then title='Původní zadání'; else title='Original assignment'; fi
   doc_file="$tmp/description.json"
-  jq -n -S -c --argjson new "$new" --argjson plan "$plan" --arg title "$title" '
+  printf '%s\n' "$new" "$plan" | jq -n -S -c --arg title "$title" '
+    input as $new | input as $plan |
     { version: 1, type: "doc",
       content: ($new.content + (if ($plan.nodes | length) == 0 then [] else [{ type: "expand", attrs: { title: $title }, content: $plan.nodes }] end)) }' >"$doc_file"
   written="$(cat "$doc_file")"
@@ -342,7 +343,7 @@ if [[ "$1 $2 $3" == "jira workitem view" ]]; then
     rm -f "$d/arm"
     desc="$(printf '%s' "$desc" | jq -c '.content |= .[:-1]')"
   fi
-  jq -n --argjson desc "$desc" '{ key: "ACME-1", fields: { summary: "Fixture", description: $desc, attachment: [], subtasks: [], comment: { total: 0, comments: [] } } }'
+  printf '%s' "$desc" | jq '{ key: "ACME-1", fields: { summary: "Fixture", description: ., attachment: [], subtasks: [], comment: { total: 0, comments: [] } } }'
   exit 0
 fi
 if [[ "$1 $2 $3" == "jira workitem edit" ]]; then
@@ -519,6 +520,28 @@ STUB
       expect "unnumbered criteria in $lang are refused ($item)" '[[ $rc -eq 5 && "$(edits)" == 0 ]]'
     done
   done
+
+  # The fixture records only whether a marker was passed as an argument, never the argument itself.
+  mkdir -p "$tmp/check-argv"
+  cat >"$tmp/check-argv/jq" <<STUB
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  case "\$arg" in
+    *PRIVATENEW*) : >"$tmp/new-argument" ;;
+    *PRIVATEOLD*) : >"$tmp/old-argument" ;;
+  esac
+done
+exec "$(command -v jq)" "\$@"
+STUB
+  chmod +x "$tmp/check-argv/jq"
+  extra_bin="$tmp/check-argv"
+  setup ok "${p_legacy/Technical notes/PRIVATEOLD}"
+  sed 's/The seller/PRIVATENEW/' "$good_en" >"$tmp/private.txt"
+  take_fingerprint
+  run_script write ACME-1 en "$fp" "$tmp/private.txt"
+  extra_bin=""
+  expect 'the new and original descriptions reach JIRA without entering jq arguments' \
+    '[[ $rc -eq 0 && "$(edits)" == 1 && ! -e "$tmp/new-argument" && ! -e "$tmp/old-argument" ]]'
 
   local bad
   setup ok "$p_legacy"
