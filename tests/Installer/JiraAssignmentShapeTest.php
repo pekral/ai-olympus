@@ -74,7 +74,8 @@ test('every reader of a JIRA assignment leaves the original out and takes the cr
 
 test('the rule reader line keeps the security exception of the original next to the ban', function (): void {
     expect(jiraShapeSection())->toContain(
-        'never from `descriptionOriginalText`, except a security requirement that only the original states: it stays a requirement, and the report names it.',
+        'never from `descriptionOriginalText`, except a security requirement that only the original states: '
+        . 'it stays a requirement, and the report names it.',
     )
         ->and(jiraShapeSection())->toContain('it adds no requirement except that security one');
 });
