@@ -45,11 +45,15 @@ test('every read-only review skill reads the branch only in the worktree of the 
     'skills/security-review/SKILL.md',
 ]);
 
-test('every review or test worktree is checked and removed only through the worktree script', function (string $path, string $text): void {
+test('every review or test worktree is checked and removed only through the worktree script', function (
+    string $path,
+    string $text,
+    string $plainRemove = 'git worktree remove <path>',
+): void {
     $source = normalizedPackageSource($path);
 
     expect($source)->toContain($text)
-        ->and($source)->not->toContain('git worktree remove <path>')
+        ->and($source)->not->toContain($plainRemove)
         ->and($source)->not->toContain('unlock|remove|prune')
         ->and($source)->not->toContain('`git worktree unlock`, `git worktree remove`')
         ->and($source)->not->toContain('git -C <path> status');
@@ -60,6 +64,11 @@ test('every review or test worktree is checked and removed only through the work
     'splinter grant' => ['agents/splinter.md', '`skills/_shared/branch-worktree.sh remove` on your own review worktree only'],
     'stale sweep' => ['skills/_shared/orchestration/stale-run-recovery.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>'],
     'walkthrough' => ['skills/interactive-testing/SKILL.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID'],
+    'cleanup rule' => [
+        'rules/git/general.md',
+        'Remove a review, test, or gate worktree only with `skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>`',
+        'then run `git worktree remove <path>`',
+    ],
 ]);
 
 test('no agent reads its review or test worktree with a plain git status', function (string $path, string $grant): void {
