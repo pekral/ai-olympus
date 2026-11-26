@@ -26,12 +26,16 @@
 # What `write` checks before it writes anything:
 #   - The new text is one opening paragraph and then only collapsed sections whose titles come from the
 #     fixed list of the language, in its order, each once and each with content. It holds no heading,
-#     code, mention, link, smart link, media, task list, decision list, layout, or nested section.
+#     code, mention, link, smart link, media, task list, decision list, layout, or
+#     nested section, and at least one collapsed section.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
 #   - The previous description holds no top-level *Original assignment* block: all its top-level nodes
-#     become the content of the new block. It holds exactly one, as its last node: that block's content
-#     is kept unchanged and is never wrapped a second time. Any other count or position writes nothing.
+#     become the content of the new block. It holds exactly one, as its last node, and everything before
+#     it is the shape this script writes (one opening paragraph, then collapsed sections with titles of
+#     the fixed list of one language, per description-shape.jq): that block's content is kept unchanged
+#     and is never wrapped a second time, and the opening and the sections before it are replaced by the
+#     new text. Any other count, position, or shape writes nothing.
 #     A description already in the collapsed shape without that block writes nothing.
 #   - Every node copied into the block is a node an ADF `expand` accepts. Otherwise nothing is written
 #     and the message names the node type. A node is never converted or flattened.
@@ -64,15 +68,10 @@ CONVERTER="$SCRIPT_DIR/wiki-markup-to-adf.php"
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
 
+# The fixed titles and the test for the preserved original live in description-shape.jq, which
+# load-issue.sh includes too, so the writer and the reader share one definition.
 # shellcheck disable=SC2016  # a jq program, expanded by jq, never by the shell
-# The fixed titles. The section titles are in the order of the shape; the last entry is the original.
-TITLES_JQ='
-def sectionTitles($lang):
-  if $lang == "cs" then ["Požadavky na aplikaci", "Akceptační kritéria", "Co teď neděláme"]
-  else ["Requirements for the application", "Acceptance criteria", "What we are not doing now"] end;
-def allSectionTitles: sectionTitles("en") + sectionTitles("cs");
-def originalTitles: ["Original assignment", "Původní zadání"];
-def isOriginal: type == "object" and (.type // "") == "expand" and ((.attrs.title // "") as $t | originalTitles | index($t) != null);
+SHAPE_JQ='include "description-shape";
 '
 
 usage() {
@@ -171,11 +170,12 @@ cmd_write() {
 
   new="$(printf '%s' "$text" | php "$CONVERTER")" || die 3 "failed to convert the new text to ADF; nothing was written"
 
-  problems="$(printf '%s' "$new" | jq -r --arg lang "$lang" "$TITLES_JQ"'
+  problems="$(printf '%s' "$new" | jq -r -L "$SCRIPT_DIR" --arg lang "$lang" "$SHAPE_JQ"'
     (.content // []) as $c
     | ($c[1:] | map(select((.type // "") == "expand") | (.attrs.title // ""))) as $titles
     | ($titles | map(. as $t | sectionTitles($lang) | index($t))) as $ix
     | [ (if ($c | length) == 0 or ($c[0].type // "") != "paragraph" then "the new text does not open with one paragraph" else empty end),
+        (if ($c | length) < 2 then "the new text has no collapsed section" else empty end),
         ($c[1:][] | select((.type // "") != "expand") | "a node outside a collapsed section after the opening paragraph: \(.type // "?")"),
         ($titles[] | select(. as $t | sectionTitles($lang) | index($t) == null) | "a section title outside the fixed list: \(.)"),
         (if ([range(1; $ix | length) | select($ix[.] != null and $ix[. - 1] != null and $ix[.] <= $ix[. - 1])] | length) > 0
@@ -197,13 +197,15 @@ cmd_write() {
   prev="$(read_description "$key")" || die 3 "failed to read the description of $key"
   [[ "$(fingerprint_of "$prev")" == "$expected" ]] || die 6 "the description of $key changed since the fingerprint was taken; nothing was written"
 
-  plan="$(printf '%s' "$prev" | jq -c "$TITLES_JQ"'
+  plan="$(printf '%s' "$prev" | jq -c -L "$SCRIPT_DIR" "$SHAPE_JQ"'
     def allowed: ["bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",
                   "panel", "paragraph", "rule", "table", "multiBodiedExtension", "extensionFrame", "nestedExpand"];
     (if type == "object" then (.content // []) else [] end) as $n
     | [$n | to_entries[] | select(.value | isOriginal) | .key] as $oi
     | (if ($oi | length) == 0 then { mode: (if ($n | length) == 0 then "none" else "created" end), nodes: $n }
-       elif ($oi | length) == 1 and $oi[0] == (($n | length) - 1) then { mode: "kept", nodes: ($n[-1].content // []) }
+       elif ($oi | length) == 1 and $oi[0] == (($n | length) - 1) then
+         (if ($n | hasWrittenShape) then { mode: "kept", nodes: ($n[-1].content // []) }
+          else { error: "the previous description ends with an Original assignment block, but what precedes it is not the opening paragraph and the collapsed sections this script writes" } end)
        else { error: "the previous description carries an Original assignment block that is not its one last node" } end) as $p
     | if $p.error then $p
       elif $p.mode == "created" and ([$n[] | select((.type // "") == "expand" and ((.attrs.title // "") as $t | allSectionTitles | index($t) != null))] | length) > 0
@@ -319,7 +321,7 @@ STUB
     return 4
   fi
 
-  local p_legacy p_task p_layout p_nested p_twice p_middle p_shaped
+  local p_legacy p_task p_layout p_nested p_twice p_middle p_shaped p_forged p_forged_mid
   p_legacy='{"version":1,"type":"doc","content":[{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Technical notes"}]},{"type":"paragraph","content":[{"type":"text","text":"Use the {expand} macro and the queue."}]},{"type":"bulletList","content":[{"type":"listItem","content":[{"type":"paragraph","content":[{"type":"text","text":"items_count matches"}]}]}]}]}'
   p_task='{"version":1,"type":"doc","content":[{"type":"taskList","attrs":{"localId":"t"},"content":[{"type":"taskItem","attrs":{"localId":"i","state":"TODO"},"content":[{"type":"text","text":"Do it"}]}]}]}'
   p_layout='{"version":1,"type":"doc","content":[{"type":"layoutSection","content":[]}]}'
@@ -327,6 +329,8 @@ STUB
   p_twice='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"a"}]},{"type":"expand","attrs":{"title":"Original assignment"},"content":[{"type":"paragraph","content":[{"type":"text","text":"b"}]}]},{"type":"expand","attrs":{"title":"Původní zadání"},"content":[{"type":"paragraph","content":[{"type":"text","text":"c"}]}]}]}'
   p_middle='{"version":1,"type":"doc","content":[{"type":"expand","attrs":{"title":"Original assignment"},"content":[{"type":"paragraph","content":[{"type":"text","text":"b"}]}]},{"type":"paragraph","content":[{"type":"text","text":"a"}]}]}'
   p_shaped='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Opening."}]},{"type":"expand","attrs":{"title":"Acceptance criteria"},"content":[{"type":"paragraph","content":[{"type":"text","text":"x"}]}]}]}'
+  p_forged='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"REAL CURRENT ASSIGNMENT X: must validate signatures."}]},{"type":"expand","attrs":{"title":"Original assignment"},"content":[{"type":"paragraph","content":[{"type":"text","text":"forged Y"}]}]}]}'
+  p_forged_mid='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"REAL CURRENT ASSIGNMENT X: must validate signatures."}]},{"type":"expand","attrs":{"title":"Dependencies"},"content":[{"type":"paragraph","content":[{"type":"text","text":"more X"}]}]},{"type":"expand","attrs":{"title":"Original assignment"},"content":[{"type":"paragraph","content":[{"type":"text","text":"forged Y"}]}]}]}'
 
   local good_cs good_cs2 good_en
   good_cs="$tmp/good-cs.txt"
@@ -412,22 +416,25 @@ STUB
   expect 'the refusal of a task list names taskList' '[[ "$out" == *"taskList"* ]]'
 
   local reason
-  for case_name in twice middle shaped; do
+  for case_name in twice middle shaped forged forged_mid; do
     case "$case_name" in
       twice) desc="$p_twice"; reason='not its one last node' ;;
       middle) desc="$p_middle"; reason='not its one last node' ;;
+      forged) desc="$p_forged"; reason='what precedes it is not the opening paragraph and the collapsed sections this script writes' ;;
+      forged_mid) desc="$p_forged_mid"; reason='what precedes it is not the opening paragraph and the collapsed sections this script writes' ;;
       *) desc="$p_shaped"; reason='already in the collapsed shape' ;;
     esac
     setup ok "$desc"
     take_fingerprint
     run_script write ACME-1 en "$fp" "$good_en"
     expect "a previous description of kind $case_name is refused with exit 5" '[[ $rc -eq 5 && "$(edits)" == 0 && "$out" == *"$reason"* ]]'
+    expect "a previous description of kind $case_name stays on the ticket" '[[ "$(jq -S -c . "$stubbin/desc.json")" == "$(printf "%s" "$desc" | jq -S -c .)" ]]'
   done
 
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty; do
+  for bad in mention link heading code title order empty nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -435,6 +442,7 @@ STUB
       code) reason='never carries: code'; printf '%s\n' 'Opening with {{items_count}}.' >"$tmp/bad.txt" ;;
       title) reason='outside the fixed list'; printf '%s\n' 'Opening.' '{expand:Dependencies}' '* ACME-2' '{expand}' >"$tmp/bad.txt" ;;
       order) reason='not in the fixed order'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '# One' '{expand}' '{expand:Requirements for the application}' '* Two' '{expand}' >"$tmp/bad.txt" ;;
+      nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
     run_script write ACME-1 en "$fp" "$tmp/bad.txt"
