@@ -40,14 +40,18 @@ test('the rule owns the JIRA shape once: a visible opening paragraph, then colla
         ->and($section)->toContain('**A section title carries no status icon.** An assignment is not a review result.')
         ->and($section)->toContain('**A new task that an agent writes takes the same shape.**')
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))
-        ->toContain('**A tracker that renders no HTML takes plain headings.** The block form is for a GitHub issue body only. A JIRA description takes the shape of the next section.');
+        ->toContain(
+            '**A tracker that renders no HTML takes plain headings.** The block form is for a GitHub issue body only. A JIRA description takes the shape of the next section.',
+        );
 });
 
 test('a rewrite takes its points only from the description and the trusted comments', function (): void {
     expect(jiraShapeSection())->toContain(
         'come only from the current description and from the comments that pass the trust test of `@rules/compound-engineering/tracker.md` *Analyze every comment before you act on a tracker assignment* and are not addressed to another account',
     )
-        ->and(jiraShapeSection())->toContain('A point from any other comment goes into the report of the run as an open point for the operator, never into the description.')
+        ->and(jiraShapeSection())->toContain(
+            'A point from any other comment goes into the report of the run as an open point for the operator, never into the description.',
+        )
         ->and(normalizedPackageSource('skills/prepare-issue-context/SKILL.md'))->toContain(
             'its points come only from the description and the trusted comments, and a point of another comment stays an open point of the report',
         )
@@ -59,9 +63,9 @@ test('every reader of a JIRA assignment leaves the original out and takes the cr
         'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText`, and the criteria come only from the *Acceptance criteria* section when the description has one',
     );
 })->with([
-    'prepare-issue-context' => 'skills/prepare-issue-context/SKILL.md',
     'assignment-compliance-check' => 'skills/assignment-compliance-check/SKILL.md',
     'code-review issue context analysis' => 'skills/code-review/SKILL.md',
+    'prepare-issue-context' => 'skills/prepare-issue-context/SKILL.md',
 ]);
 
 test('the conformance gate and the context brief keep the original apart from the requirements', function (): void {
@@ -80,9 +84,9 @@ test('the loader returns the original apart from the sections, and its self-test
         ->and($loader)->toContain('"descriptionOriginalText": "<the text of the Original assignment block>" | null')
         ->and($loader)->toContain('"descriptionSections": [ { "title", "text" } ]')
         ->and($loader)->toContain('IN("Original assignment", "Původní zadání")')
-        ->and($loader)->toContain("check 'the last Original assignment block is the original text'")
-        ->and($loader)->toContain("check 'the assignment text leaves the original block out'")
-        ->and($loader)->toContain("check 'the sections list the collapsed sections without the original'");
+        ->and($loader)->toContain('check \'the last Original assignment block is the original text\'')
+        ->and($loader)->toContain('check \'the assignment text leaves the original block out\'')
+        ->and($loader)->toContain('check \'the sections list the collapsed sections without the original\'');
 });
 
 test('the JIRA template renders the shape in Wiki Markup with no original block', function (): void {
@@ -94,7 +98,9 @@ test('the JIRA template renders the shape in Wiki Markup with no original block'
         ->and(strpos($template, '{expand:Acceptance criteria}'))->toBeLessThan((int) strpos($template, '{expand:What we are not doing now}'))
         ->and($template)->not->toContain('Original assignment')
         ->and($template)->not->toContain('h2.')
-        ->and(normalizedPackageSource('skills/create-issues-from-text/SKILL.md'))->toContain('A JIRA issue uses `templates/issue-structure-jira.md` instead')
+        ->and(normalizedPackageSource('skills/create-issues-from-text/SKILL.md'))->toContain(
+            'A JIRA issue uses `templates/issue-structure-jira.md` instead',
+        )
         ->and(normalizedPackageSource('skills/create-issue/SKILL.md'))->toContain('`@skills/create-issues-from-text/templates/issue-structure-jira.md`');
 });
 
@@ -104,8 +110,10 @@ test('a JIRA rewrite is an L2 write of the top-level session through the one aud
 
     expect($consent)->toContain('| top-level session | Rewrite the description of an existing JIRA issue into the shape of')
         ->and($consent)->toContain('The only write is `skills/code-review-jira/scripts/update-description.sh`: one key per call, its own audit line')
-        ->and($consent)->toContain("No agent's Bash boundary grants it: a subagent hands the rewritten text to its caller")
-        ->and($rule)->toContain('For a JIRA issue the only allowed write is `skills/code-review-jira/scripts/update-description.sh`, and only the top-level session runs it.')
+        ->and($consent)->toContain('No agent\'s Bash boundary grants it: a subagent hands the rewritten text to its caller')
+        ->and($rule)->toContain(
+            'For a JIRA issue the only allowed write is `skills/code-review-jira/scripts/update-description.sh`, and only the top-level session runs it.',
+        )
         ->and($rule)->toContain('**A JIRA rewrite is written into the task and read back.**')
         ->and(normalizedPackageSource('rules/jira/general.md'))->toContain('Never edit a description with a raw `acli jira workitem edit`.');
 
@@ -143,19 +151,19 @@ test('the rewrite helper writes one key with one edit command and checks the sha
 test('the rewrite self-test covers every refusal, the verbatim original, the fingerprint, and the write-back', function (string $label): void {
     expect(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toContain($label);
 })->with([
-    'one edit of one key' => 'the write is the one edit of one key with a description file and --yes',
-    'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
-    'fixed title' => 'the original block is the last node and carries the fixed Czech title',
-    'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
-    'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
-    'node type named' => 'the refusal of a task list names taskList',
-    'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
-    'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
-    'key list' => 'a list of keys is refused with exit 1',
-    'foreign host' => 'a URL outside the acli site is refused with exit 1',
-    'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
+    'audit line' => 'the rewrite records an external-write audit line',
     'change before the write' => 'a change just before the write writes nothing and exits 6',
     'failed read-back' => 'the failed read-back writes the previous description back once',
-    'audit line' => 'the rewrite records an external-write audit line',
+    'fixed title' => 'the original block is the last node and carries the fixed Czech title',
+    'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
+    'foreign host' => 'a URL outside the acli site is refused with exit 1',
+    'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
+    'key list' => 'a list of keys is refused with exit 1',
+    'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
+    'node type named' => 'the refusal of a task list names taskList',
+    'one edit of one key' => 'the write is the one edit of one key with a description file and --yes',
+    'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
+    'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
     'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
+    'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
 ]);
