@@ -138,6 +138,14 @@ test('the worktree script sets every environment switch of its table before its 
         ->and($script)->toContain('export GIT_ATTR_SOURCE="$empty"');
 });
 
+test('the worktree script creates a new worktree without a checkout and checks it out only after it switched off the hooks of the worktree', function (): void {
+    $script = packageSource('skills/_shared/branch-worktree.sh');
+
+    expect($script)->toContain('worktree add -q --no-checkout --detach "$path" "$head"')
+        ->and($script)->not->toContain('git "${SAFE[@]}" worktree add -q --detach')
+        ->and($script)->toMatch('/harden_context "\$path"\s*git -C "\$path" "\$\{SAFE\[@\]\}" checkout -q --detach --no-recurse-submodules "\$head"/');
+});
+
 test('no agent reads the diff of a branch under review with a plain git command', function (string $path, string $plain): void {
     expect(normalizedPackageSource($path))->not->toContain($plain);
 })->with([
