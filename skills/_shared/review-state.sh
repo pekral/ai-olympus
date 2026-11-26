@@ -1001,10 +1001,11 @@ lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 #   names in one of its commit messages, in its title or its body (a merge commit and a squash commit carry them), or
 #   in its branch name (the default merge commit message carries it), so such an issue makes no known point. The check
 #   is stricter than GitHub on purpose: in a text GitHub may read as a closing one it refuses when a reference to the
-#   linked issue (`#n`, `gh-n`, `owner/repo#n`, the issue URL, any case, leading zeros) stands on the same line as a
-#   closing keyword (close, fix, resolve, with or without -s and -d) or on the next line, whatever stands between the
-#   two (markup, brackets, a semicolon, the word issue). It names no reference form, so a new form of markup opens
-#   no gap. The branch name is refused when it holds a keyword and the number. The pull request must close the task.
+#   linked issue (`#n`, `gh-n`, `owner/repo#n`, the issue URL or the pull request URL of that number, any case, leading
+#   zeros) stands on the same line as a closing keyword (close, fix, resolve, with or without -s and -d) or on the next
+#   line, whatever stands between the two (markup, brackets, a semicolon, the word issue). Every keyword of a line
+#   counts, not only the first. It names no markup form, so a new form of markup opens no gap. The branch name is
+#   refused when it holds a keyword and the number. The pull request must close the task.
 #   The loader cuts a commit headline of 74 or more characters at 69 and puts the rest at the start of the message
 #   body, behind an ellipsis, so the check joins the headline and the body the ways that the cut can have split them
 #   (with nothing, a space, or a line break between), and tests every join. A commit list of COMMIT_PAGE or more
@@ -1033,25 +1034,34 @@ linked_issue_verdict() {
     verdict="$(jq -r -n -L "$HERE" --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
       --slurpfile prq "$TMP/closing.json" --arg source "$source" --arg issue "$issue" --arg repo "$repo" \
       --argjson pr "$pr" --argjson page "$COMMIT_PAGE" --arg n "${issue##*/}" 'include "review-trust";
-      # A closing keyword (close, fix, resolve, with or without -s and -d, any case) opens a reach: the rest of its
-      # line and the whole next line (the next line with text, when nothing but marks follows the keyword). A reference to issue $n of $repo in the reach closes it, whatever stands
-      # between the keyword and the reference: #n, gh-n, owner/name#n, or the issue URL (http or https, with or
-      # without www). Leading zeros of the number count. Another repository, another number, and a reference
+      # Every closing keyword (close, fix, resolve, with or without -s and -d, any case) of a line opens a reach: the
+      # rest of its line and the whole next line (the next line with text, when nothing but marks follows the
+      # keyword). A reference to issue $n of $repo in the reach closes it, whatever stands between the keyword and
+      # the reference: #n, gh-n, owner/name#n, or the issue URL or pull request URL of that number (http or https,
+      # with or without www). Leading zeros of the number count. Another repository, another number, and a reference
       # that no keyword reaches do not.
       ($repo | ascii_downcase | gsub("\\."; "\\.")) as $r
       | "(?<![a-z0-9])(close[sd]?|fix(e[sd])?|resolve[sd]?)(?![a-z])" as $kw
       | ("(?<![a-z0-9_./-])(#|gh-)0*\($n)(?![0-9])"
           + "|(?<![a-z0-9_.-])\($r)#0*\($n)(?![0-9])"
-          + "|https?://(www\\.)?github\\.com/\($r)/issues/0*\($n)(?![0-9])") as $ref
-      | def lines: split("\r\n|[\r\n\u000b\u000c\u0085\u2028\u2029]"; null);
+          + "|https?://(www\\.)?github\\.com/\($r)/(issues|pull)/0*\($n)(?![0-9])") as $ref
+      | # The lines of a text: a line break is CR LF, CR, LF, VT, FF, NEL, LS, or PS. Literal splits keep the cost linear,
+        # where a regex split of jq costs more than the square of the line count.
+        def lines: reduce ("\r\n", "\r", "\u000b", "\u000c", "\u0085", "\u2028", "\u2029") as $s (.; split($s) | join("\n"))
+          | split("\n");
+        # The next line with text of each line, computed once from the last line up.
+        def next_text($ls): reduce ($ls | to_entries | reverse)[] as $e ({n: "", out: []};
+            .out += [.n] | if ($e.value | test("\\S")) then .n = $e.value else . end) | .out | reverse;
         def closing: lines as $ls
+          | next_text($ls) as $nt
           | any(range(0; $ls | length); . as $i
-              | ([$ls[$i] | match($kw; "gi")] | .[0]) as $m
-              | if $m == null then false
-                else ($ls[$i][($m.offset + $m.length):]) as $tail
-                  | (if ($tail | test("[a-z0-9]"; "i")) then ($ls[$i + 1] // "")
-                     else ([$ls[($i + 1):][] | select(test("\\S"))] | .[0] // "") end) as $next
-                  | ($tail | test($ref; "i")) or ($next | test($ref; "i")) end);
+              | if ($ls[$i] | test($kw; "i") | not) then false
+                else (($ls[$i + 1] // "") | test($ref; "i")) as $imm
+                  | ($nt[$i] | test($ref; "i")) as $nxt
+                  | any($ls[$i] | match($kw; "gi");
+                      ($ls[$i][(.offset + .length):]) as $tail
+                      | ($tail | test($ref; "i"))
+                        or (if ($tail | test("[a-z0-9]"; "i")) then $imm else $nxt end)) end);
         # The messages a commit can have had before the loader cut its headline: the plain one, and, behind a cut
         # headline, the headline and the body joined with nothing, a space, or a line break between.
         def messages: .messageHeadline as $h | .messageBody as $b
@@ -1726,6 +1736,15 @@ EOF
   known_row refuse 'a keyword and a reference with text between them' 'feat: x' 'fix: z' 'Resolves the shipping total in the export, see #12' ''
   known_row refuse 'a reference on the line after the keyword' 'feat: x' 'fix: z' $'Fixes:\n\n#12' ''
   known_row refuse 'a reference on the line after a keyword in a list' 'feat: x' 'fix: z' $'- Closes\n- #12' ''
+  # Every closing keyword of a line reaches its reference, the first one and each later one, across a blank line too.
+  known_row refuse 'a second keyword on the line, a blank line, and the reference in a commit body' 'feat: x' 'fix: z' $'Fixes the export; closes\n\n#12' ''
+  known_row refuse 'a second keyword on the line, a blank line, and the reference in the pull request body' 'feat: x' 'fix: z' '' $'Fixes the export, closes\n\n#12'
+  known_row refuse 'a second keyword and the reference apart by two U+2028 separators' 'feat: x' 'fix: z' $'Fixes the export; closes\xe2\x80\xa8\xe2\x80\xa8#12' ''
+  known_row refuse 'a second keyword at the end of a commit headline and the reference in its body' 'feat: x' 'fix(export): the total; closes' '#12' ''
+  known_row refuse 'a second keyword that holds the reference against its own line start' 'feat: x' 'fix: z' 'Closes the total, then fixes#12' ''
+  known_row refuse 'a pull request URL of the number of the linked issue' 'feat: x' 'fix: z' 'Fixes https://github.com/acme/shop/pull/12' ''
+  known_row accept 'a second keyword and a blank line before text with no reference' 'feat: x' 'fix: z' $'Fixes the export; closes\n\nSee the thread.' ''
+  known_row accept 'a pull request URL of another number' 'feat: x' 'fix: z' 'Fixes https://github.com/acme/shop/pull/13' ''
   # The default merge commit message names the branch.
   known_row refuse 'a branch named after a keyword and the number' 'feat: x' 'fix: z' '' '' 'acme/fixes#12'
   known_row refuse 'a branch with a keyword and the number with leading zeros' 'feat: x' 'fix: z' '' '' 'fix/gh-0012-export'
@@ -1743,6 +1762,7 @@ EOF
   known_row accept 'a reference without a keyword in the title and the body' 'feat: x (#12)' 'fix: z' 'See gh-12.' 'Related to #12.'
   # A long text with no match ends: the pattern has no catastrophic backtracking.
   known_row accept 'a long list of references that never reaches the linked issue' 'feat: x' 'fix: z' "Closes $(printf '#1, %.0s' {1..4000})#13" ''
+  known_row accept 'a long list of lines that each hold a keyword and no reference to the linked issue' 'feat: x' 'fix: z' "$(printf 'Fixes\n\n%.0s' {1..4000}; printf '#13')" ''
   # The loader lists at most 100 commits and does not page: a full page may lack the commits after it.
   pr_page 100 "$task"
   cp "$repo/$S" "$tmp/row-before"
