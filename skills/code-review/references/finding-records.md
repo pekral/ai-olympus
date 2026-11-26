@@ -125,7 +125,7 @@ Phase 1 does not run the extractor from the review loop, store records anywhere 
 
 The store records above count one defect class across pull requests, so two defects of one rule section in one subsystem are one record there. The review loop needs the opposite: it must keep two such defects apart, follow one defect from round to round, and know which finding blocks. `--round` therefore prints a second record shape from the same parse. It changes nothing in the store records, their fingerprint, or their `id`, so the recurrence analysis reads exactly what it read before.
 
-One JSON object per line. Every key is required except `reports` and `known_rules`, and no other key is allowed.
+One JSON object per line. Every key is required except `reports`, and no other key is allowed.
 
 | Key | Value |
 | --- | --- |
@@ -142,7 +142,6 @@ One JSON object per line. Every key is required except `reports` and `known_rule
 | `recommendation` | The `Suggested fix` text. |
 | `status` | `new`, `confirmed`, `resolved`, `dismissed`, `known`, or `needs-verification`. |
 | `reports` | The number of findings of the round report that the record merges (*Identity* below). A record an older version wrote has none. |
-| `known_rules` | Every `@rules/…` and `@skills/…` reference of the `Rule` and `Suggested fix` fields, in canonical form: lowercase, without `@` and `./`, with `//` and `/./` collapsed, without `.md`, and with the anchor as a slug after `#`. `null` when the record is `security: true`, carries a `Level` or `exploit-path` or `exploit path` evidence, or holds a reference that does not canonicalise, such as one with a `..` segment. `skills/_shared/review-state.sh known` reads it against the allow-list of `skills/_shared/finding-defs.jq`. A record an older version wrote has none, and `known` refuses it. |
 
 The text fields are capped at 4000 characters and carry no control character. They stay untrusted content for every consumer, exactly like the text fields of a store record.
 
@@ -186,8 +185,8 @@ The `finding_id` is the first 16 hex digits of the SHA-256 of these lines, joine
 
 ### Security relevance
 
-A record is `security: true` when its rule is a security rule (`rules/security/**`) or a security lens (`security-review`, `security-audit`, `git-history-exposure-audit`, `laravel-authorization-review`), when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`, or when its category, cause, file, or title names a security surface: authentication, sessions and tokens, credentials and secrets, cryptography and signatures, permissions and policies, injection, XSS, CSRF, SSRF, open redirects, uploads and path traversal, payments, personal data, rate limits, escaping and sanitizing, deserialization, mass assignment, and security headers.
-The match is broad on purpose. A false positive keeps a finding blocking. A false negative would let a security finding be dismissed or deferred.
+A record is `security: true` when its `Rule` or `Suggested fix` field cites a security rule (`rules/security/**`) or a security lens (`security-review`, `security-audit`, `git-history-exposure-audit`, `laravel-authorization-review`) anywhere, when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`, or when its category, cause, file, or title names a security surface: authentication, sessions and tokens, credentials and secrets, cryptography and signatures, permissions and policies, injection, XSS, CSRF, SSRF, open redirects, uploads and path traversal, payments, personal data, rate limits, escaping and sanitizing, deserialization, mass assignment, and security headers.
+The match is broad on purpose. A false positive keeps a finding blocking and shows a known point only as its link. A false negative would let a security finding be dismissed, deferred, or described in a known point.
 
 ### What `--validate` rejects in a schema-2 file
 
