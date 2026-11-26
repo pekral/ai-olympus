@@ -44,7 +44,7 @@
 #                                                    it cannot pass is refused (exit 3). The event switches
 #                                                    (-c hook.<event>.enabled=false for post-checkout,
 #                                                    reference-transaction, and post-index-change) take effect
-#                                                    only on git 2.56 or later; an older git ignores them for a
+#                                                    only on git 2.55 or later; an older git ignores them for a
 #                                                    hook of another name, so the name switch is the guard there
 #   a setting that a conditional include loads       the hook names and the partial-clone refusal are read again
 #   only in the worktree (includeIf gitdir:)         in the worktree (git -C), so they hold there too. A new
@@ -231,7 +231,7 @@ open_worktree() {
     git -C "$path" "${SAFE[@]}" checkout -q --detach --no-recurse-submodules "$head" >&2 \
       || fails "the worktree cannot be moved to the head"
   else
-    # No checkout yet: git before 2.56 has no event switch, and a hook of the configuration that only the git directory of
+    # No checkout yet: git before 2.55 has no event switch, and a hook of the configuration that only the git directory of
     # the new worktree loads cannot be named before that directory exists. The checkout waits until harden_context has
     # switched it off by name.
     git "${SAFE[@]}" worktree add -q --no-checkout --detach "$path" "$head" >&2 || fails "the worktree cannot be created"
