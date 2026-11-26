@@ -62,8 +62,7 @@
 #     and the message names the node type. A node is never converted or flattened.
 #
 # The write is `acli jira workitem edit --key <KEY> --description-file <file> --yes`, and nothing else.
-# The read-back goes through load-issue.sh: the rendered original must equal the rendered previous
-# description, and the assignment text must open with the new opening paragraph. On a mismatch the
+# The read-back goes through load-issue.sh and compares the whole ADF document. On a mismatch the
 # script reads the description once more. Only when that is still the document the script wrote does it
 # write the saved previous description once, read it back, and exit 4. Otherwise it writes nothing more,
 # prints the saved previous description to stdout as canonical ADF (`jq -S -c`) so the operator can
@@ -150,6 +149,12 @@ read_description() {
   printf '%s' "$raw" | jq -S -c '.fields.description // null' 2>/dev/null || return 3
 }
 
+read_back() {
+  local loaded
+  loaded="$("$LOADER" "$1" 2>/dev/null)" || return 3
+  printf '%s' "$loaded" | jq -S -c '.descriptionAdf'
+}
+
 fingerprint_of() {
   printf '%s' "$1" | php -r 'echo hash("sha256", (string) stream_get_contents(STDIN));'
 }
@@ -187,7 +192,7 @@ cmd_write() {
   need jq
   need php
 
-  local key text tmp new norm problems prev plan mode pre post opening expected_original title doc_file
+  local key text tmp new norm problems prev plan mode title doc_file written
   key="$(resolve_key "$input")"
   if [[ "$source" == "-" ]]; then
     text="$(cat)"
@@ -253,19 +258,12 @@ cmd_write() {
   fi
   mode="$(printf '%s' "$plan" | jq -r '.mode')"
 
-  pre="$("$LOADER" "$key" 2>/dev/null)" || die 3 "failed to read $key through load-issue.sh; nothing was written"
-  case "$mode" in
-    kept) expected_original="$(printf '%s' "$pre" | jq -c '.descriptionOriginalText')" ;;
-    created) expected_original="$(printf '%s' "$pre" | jq -c '.descriptionText')" ;;
-    *) expected_original='null' ;;
-  esac
-
   if [[ "$lang" == "cs" ]]; then title='Původní zadání'; else title='Original assignment'; fi
   doc_file="$tmp/description.json"
-  jq -n -c --argjson new "$new" --argjson plan "$plan" --arg title "$title" '
+  jq -n -S -c --argjson new "$new" --argjson plan "$plan" --arg title "$title" '
     { version: 1, type: "doc",
       content: ($new.content + (if ($plan.nodes | length) == 0 then [] else [{ type: "expand", attrs: { title: $title }, content: $plan.nodes }] end)) }' >"$doc_file"
-  opening="$(printf '%s' "$new" | jq -c '[.content[0] | .. | objects | if .type == "text" then (.text // "") elif .type == "hardBreak" then "\n" else empty end] | join("")')"
+  written="$(cat "$doc_file")"
 
   # The last read before the write: a change made while the document was built writes nothing.
   local again
@@ -274,9 +272,7 @@ cmd_write() {
 
   write_description "$key" "$doc_file" "description rewritten" || die 3 "acli workitem edit failed for $key"
 
-  post="$("$LOADER" "$key" 2>/dev/null || true)"
-  if [[ -n "$post" ]] && printf '%s' "$post" | jq -e --argjson orig "$expected_original" --argjson opening "$opening" '
-      (.descriptionOriginalText == $orig) and ((.descriptionAssignmentText // "") | startswith($opening))' >/dev/null 2>&1; then
+  if [[ "$(read_back "$key")" == "$written" ]]; then
     printf '%s\n' "$key"
     echo "action=rewritten key=$key original=$mode" >&2
     return 0
@@ -289,19 +285,17 @@ cmd_write() {
     previous_adf "$prev"
     die 4 "the read-back of $key did not show the rewrite, and the description could not be read again; nothing was written back. The previous description is on stdout as canonical ADF; restore it by hand."
   fi
-  if [[ "$(fingerprint_of "$current")" != "$(fingerprint_of "$(jq -S -c . "$doc_file")")" ]]; then
+  if [[ "$current" != "$written" ]]; then
     previous_adf "$prev"
     die 4 "the read-back of $key did not show the rewrite, and the description is no longer the document this script wrote (another change, or a store that differs from the written document); nothing was written back. The previous description is on stdout as canonical ADF; restore it by hand."
   fi
 
-  local restore="$tmp/previous.json" restored=""
+  local restore="$tmp/previous.json"
   previous_adf "$prev" >"$restore"
-  if write_description "$key" "$restore" "previous description restored after a failed read-back"; then
-    restored="$("$LOADER" "$key" 2>/dev/null || true)"
-  fi
-  if [[ -n "$restored" ]] && [[ "$(printf '%s' "$restored" | jq -c '.descriptionText')" == "$(printf '%s' "$pre" | jq -c '.descriptionText')" ]]; then
+  if write_description "$key" "$restore" "previous description restored after a failed read-back" && [[ "$(read_back "$key")" == "$(cat "$restore")" ]]; then
     die 4 "the read-back of $key did not show the rewrite; the previous description was written back and read back"
   fi
+  cat "$restore"
   die 4 "the read-back of $key did not show the rewrite, and the previous description could not be confirmed after the write-back; check the issue by hand"
 }
 
@@ -356,7 +350,13 @@ if [[ "$1 $2 $3" == "jira workitem edit" ]]; then
     : >"$d/lossy-done"
     jq -c '.content |= .[:-1]' "$7" >"$d/desc.json"
   else
-    jq -c . "$7" >"$d/desc.json"
+    if [[ "$mode" == changed-criterion ]]; then
+      jq -c '(.content[2] | .. | objects | select(.type == "text") | .text) = "Different criterion."' "$7" >"$d/desc.json"
+    elif [[ "$mode" == viewlossy-restoremark && -f "$d/armed-once" ]]; then
+      jq -c '.content[1].content[0].marks = [{"type":"strong"}]' "$7" >"$d/desc.json"
+    else
+      jq -c . "$7" >"$d/desc.json"
+    fi
     if [[ "$mode" == "late" && ! -f "$d/lossy-done" ]]; then
       : >"$d/lossy-done"
       printf '%s' '{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited by another account."}]}]}' >"$d/desc.json"
@@ -661,6 +661,18 @@ PHP
   expect 'the failed read-back writes the previous description back once' \
     '[[ "$(edits)" == 2 && "$(jq -S -c . "$stubbin/desc.json")" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
   expect 'the write-back records its own audit line' 'grep -q "previous description restored" "$tmp/run.audit"'
+
+  setup changed-criterion "$p_legacy"
+  take_fingerprint
+  run_script write ACME-1 cs "$fp" "$good_cs"
+  expect 'a changed criterion prevents confirmation and is not overwritten' \
+    '[[ $rc -eq 4 && "$(edits)" == 1 && "$sout" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]] && grep -q "Different criterion" "$stubbin/desc.json"'
+
+  setup viewlossy-restoremark "$p_legacy"
+  take_fingerprint
+  run_script write ACME-1 cs "$fp" "$good_cs"
+  expect 'a changed mark prevents restoration confirmation and the operator receives the original ADF' \
+    '[[ $rc -eq 4 && "$(edits)" == 2 && "$out" == *"could not be confirmed"* && "$sout" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
 
   setup viewlossy-unreadable "$p_legacy"
   take_fingerprint
