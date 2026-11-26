@@ -169,6 +169,8 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--jql')
         ->and($script)->not->toContain('--from-json')
         ->and($script)->not->toContain('--filter')
+        ->and($script)->toContain('([a-z][a-z0-9+.-]*://|mailto:|www\\\\.)')
+        ->and($script)->toContain('"a link written as text"')
         ->and($script)->toContain('^[A-Z][A-Z0-9_]+-[0-9]+$')
         ->and($script)->toContain('refused — the URL host is not the JIRA site of the acli account')
         ->and($script)->toContain('"bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",')
