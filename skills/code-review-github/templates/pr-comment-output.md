@@ -161,11 +161,12 @@ History exposure: not run — the repository is private.  *(render this one body
 
 ## Known points
 
-> Render only when `krang` marked at least one finding of the round as a known point (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*), on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding: it has no severity, it is in no `Counts:` slot, and it blocks nothing. The entries come from the `known_points` of the loop state. A security finding is never an entry: it stays a finding under `## Findings`, counted and blocking, with its `Linked issue:` field.
+> Render only when `krang` marked at least one finding of the round as a known point (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*), on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding: it has no severity, it is in no `Counts:` slot, and it blocks nothing. The entries come from the `known_points` of the loop state. A security known point is entry 2 below and nothing more: no title, no place, and no sentence on what the issue covers.
 
 1. **Finding:** {the short title of the finding} — `path/to/file.php:42`
    **Linked issue:** {URL of the linked issue}
    **Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}
+2. **Security point** — **Linked issue:** {URL of the linked issue}
 
 ---
 
