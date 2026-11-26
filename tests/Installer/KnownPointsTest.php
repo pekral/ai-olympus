@@ -384,9 +384,10 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('in the title of the pull request, in its body, in the full message of one of its commits, or in its branch name')
         ->toContain('`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, and `resolved`')
         ->toContain(
-            '- **The test names no markup.** A reference to the linked issue (`#N`, `gh-N`, `owner/repo#N`, or the issue URL with `http` or `https`',
+            '- **The test names no markup.** A reference to the linked issue (`#N`, `gh-N`, `owner/repo#N`, or the issue URL or the pull request URL',
         )
-        ->toContain('on the same line as a keyword, or on the next line, refuses the point.')
+        ->toContain('of that number with `http` or `https`, with or without `www`, any case, leading zeros of `N` counted)')
+        ->toContain('on the same line as a keyword, or on the next line, refuses the point. Every keyword of a line counts, not only the first.')
         ->toContain(
             '- **A branch name** is refused when it holds a keyword and the number of the linked issue. A pull request without a branch name is refused;',
         )
