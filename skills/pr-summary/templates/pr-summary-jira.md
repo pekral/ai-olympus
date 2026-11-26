@@ -185,6 +185,13 @@ What changed and what it affects
   the review found no affected part outside the diff: include only features
   the diff changes, with no caveat.
 
+Screenshots
+  Only a finding that the interactive test reproduced has one, and only inside the rules of
+  @skills/interactive-testing/references/defect-screenshots.md (references/jira-shape.md, item 14). Directly under its
+  bullet, write one slot line per image: {screenshot:<finding id>:head}, and for a regression
+  {screenshot:<finding id>:base} above it. Write no slot for a passed scenario, a code-only finding, a security
+  finding, or a finding marked do not file publicly. The publisher fills the slot or removes it.
+
 Headings and field labels
   Translate them into the assignment language per @rules/reports/general.md. The
   block titles are "Acceptance criteria", "Findings from the code review", and

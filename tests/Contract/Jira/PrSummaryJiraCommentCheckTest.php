@@ -218,6 +218,17 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'unmet criteria' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
+test('a screenshot slot line under a finding bullet does not change the verdict of the check', function (): void {
+    $source = jiraSummaryWithoutCriteria();
+    $withSlots = (string) preg_replace('/^(\* \*\(bug\):\*.*)$/m', "$1\n{screenshot:f-0123456789abcdef:base}\n{screenshot:f-0123456789abcdef:head}", $source, 1);
+    $process = runJiraSummaryCheck($withSlots, 'none');
+
+    expect($withSlots)->not->toBe($source)
+        ->and($withSlots)->toContain('{screenshot:f-0123456789abcdef:head}')
+        ->and($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
 test('a summary that passes the check converts to ADF with no wiki markup left', function (): void {
     $packageDir = dirname(__DIR__, 3);
     $process = new Process(['php', $packageDir . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'], $packageDir);

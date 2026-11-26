@@ -661,10 +661,21 @@ function jiraSummaryMarkerViolations(array $lines): array
 }
 
 /**
+ * The publisher places a screenshot at a slot line directly under the bullet of its finding
+ * (skills/interactive-testing/references/defect-screenshots.md). The slot carries no visible text, so the checks read the
+ * source without it.
+ */
+function jiraSummaryWithoutScreenshotSlots(string $source): string
+{
+    return (string) preg_replace('/^\{screenshot:[rf]-[0-9a-f]{16}:(?:head|base)\}\n/m', '', $source);
+}
+
+/**
  * @return list<string>
  */
 function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryTask $task): array
 {
+    $source = jiraSummaryWithoutScreenshotSlots($source);
     $lines = reportCheckLines($source);
     $layout = jiraSummaryLayout($lines);
     $findings = jiraSummaryFindingsBlocks($layout, $criteriaUnmet);
