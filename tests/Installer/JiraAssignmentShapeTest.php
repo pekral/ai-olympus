@@ -140,10 +140,10 @@ test('both wrapper inventories of the orchestration rule name the JIRA descripti
 
     expect($rule)->toContain('the JIRA transition and assign helpers, the JIRA `update-description.sh`, `create-issue`)')
         ->and($rule)->toContain(
-            '`update-description.sh` (JIRA, the rewrite and the write-back, each with its own line), and `file-deferred-moderate.sh` append',
+            '`update-description.sh` (JIRA), and `file-deferred-moderate.sh` append',
         )
         ->and($rule)->toContain(
-            'the previous description written back when the read-back fails and the description is still the document the script wrote.',
+            'and, after a failed read-back, a write-back only over the document it wrote.',
         );
 });
 
@@ -159,7 +159,7 @@ test('the writer and the loader share one definition of the original block, whic
             'The loader takes the last block for the original only when everything before it has the shape the script writes',
         )
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
-            'The one exception is security: a security requirement that only the original states stays a requirement',
+            'a security requirement that only the original states stays a requirement',
         )
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
             'A second rewrite keeps that block unchanged and replaces the opening paragraph and the sections of the first rewrite with its new text.',
