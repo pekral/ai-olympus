@@ -4,12 +4,13 @@
 # The main working tree is never checked out on a branch under review
 # (skills/code-review/references/branch-checkout-gate.md). A review and a walkthrough read the branch in a detached
 # worktree below `.claude/worktrees/` instead. This script is the one owner of the git options that keep the branch
-# from running anything while the worktree is written or read: no git hook, no file-system monitor, and no submodule
-# checkout. Every caller runs these git commands only through this script.
+# from running a program while the worktree is written, read, or removed: the table below lists every git mechanism
+# that runs an external program or a shell during the operations of this script. Every caller runs these git
+# commands only through this script.
 #
 # Usage (run in the main working tree, at its root)
 #   branch-worktree.sh open --path <path> --head <sha>
-#   branch-worktree.sh git --path <path> -- <git subcommand> [<argument>...]
+#   branch-worktree.sh git --path <path> -- <read subcommand> [<argument>...]
 #   branch-worktree.sh remove --path <path> [--lock-pid <pid>]
 #   branch-worktree.sh --self-test
 #
@@ -23,8 +24,9 @@
 #   worktree=<path> head=<sha>
 # It never locks the worktree: the caller locks it with its own reason.
 #
-# git runs one git command in a worktree of this repository with the same options. The subcommand comes first, so no
-# argument can set a git option of its own.
+# git runs one read in a worktree of this repository with the same options. The subcommand comes first, so no
+# argument can set a git option of its own, and it is one of: status, diff, show, log, rev-parse, ls-files, ls-tree,
+# cat-file, rev-list, diff-tree, merge-base. Every other subcommand, and every alias, is a usage error.
 #
 # remove removes a worktree of this repository with the same options, never with `--force`. It refuses a worktree
 # whose `git status --porcelain` prints anything, and a locked worktree whose lock reason does not name
@@ -32,27 +34,55 @@
 #   worktree=<path> removed=yes      (or removed=absent when the path is already gone; it then only prunes)
 # The caller probes the liveness of the lock holder first; this script never decides that a holder is dead.
 #
-# The options, on every git command of this script:
-#   -c core.hooksPath=/dev/null   no hook runs, whatever directory the configuration names
-#   -c core.fsmonitor=false       no file-system monitor runs
-#   -c submodule.recurse=false    no submodule is checked out or updated (and `checkout --no-recurse-submodules`)
+# The operations are: worktree list, add, unlock, remove, and prune; checkout; status; cat-file; and the reads above.
+# Each mechanism of git that runs a program during them, and what this script does with it:
+#   hooks: the hooks directory, core.hooksPath       -c core.hooksPath=/dev/null
+#   hooks: hook.<name>.command of the configuration  -c hook.<name>.enabled=false for each configured name, and the
+#                                                    event switch off for post-checkout, reference-transaction, and
+#                                                    post-index-change; a name it cannot pass is refused (exit 3)
+#   core.fsmonitor                                   -c core.fsmonitor=false
+#   filter.<driver>.clean, .smudge, .process;        the empty tree as the attribute source (--attr-source and
+#   diff.<driver>.textconv, .command;                GIT_ATTR_SOURCE, which a nested git inherits), so no file of
+#   merge.<driver>.driver: the attributes select     the branch selects a driver; -c core.attributesFile=/dev/null;
+#   them                                             a git without an attribute source is refused (exit 2), and an
+#                                                    info/attributes file with a rule is refused (exit 3)
+#   diff.external                                    refused (exit 3); GIT_EXTERNAL_DIFF is unset
+#   core.pager, pager.<command>                      --no-pager and GIT_PAGER=cat
+#   gpg.program, gpg.<format>.program                -c log.showSignature=false and each program set to its default
+#   submodule.recurse, submodule.<name>.update       -c submodule.recurse=false and checkout --no-recurse-submodules
+#   a lazy fetch of a partial clone, which runs      GIT_NO_LAZY_FETCH=1; a partial clone with a git older than 2.45
+#   remote.<name>.uploadpack, core.sshCommand,       is refused (exit 3)
+#   core.gitProxy, credential.helper, core.askPass
+#   alias.<name>, core.editor, sequence.editor,      never run: the git command accepts only the reads above, and no
+#   difftool and mergetool programs, interactive.    other operation of this script edits, merges, fetches, or pushes
+#   diffFilter, uploadpack.packObjectsHook,
+#   core.alternateRefsCommand, protocol and url
+#   settings of a fetch or a push
+# The --self-test command has one fixture for each row that this script switches off or refuses: a plain git command
+# runs the program of the branch, and the same command through this script does not. Two rows have none: the
+# submodule row, because this script never initialises a submodule, and the git version refusals, which need an
+# older git than the one that runs the self-test.
 #
 # Exit codes
 #   0  done
 #   1  usage error
-#   2  git is missing
+#   2  git is missing, or it cannot use the empty tree as the attribute source
 #   3  refused: a symbolic link in the path, a path that exists and is not a worktree of this repository, a change to
-#      a tracked file in the worktree (any change for remove), a head that is not a commit of this repository, or a
-#      lock that does not name the pid of --lock-pid
+#      a tracked file in the worktree (any change for remove), a head that is not a commit of this repository, a
+#      lock that does not name the pid of --lock-pid, or a configuration of the table above that it cannot switch off
 #   4  a git command failed, or `HEAD` of the worktree is not <sha> afterwards
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
-SAFE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false -c submodule.recurse=false)
+SAFE=(--no-pager -c core.hooksPath=/dev/null -c core.fsmonitor=false -c submodule.recurse=false
+  -c core.attributesFile=/dev/null -c log.showSignature=false -c gpg.program=gpg -c gpg.openpgp.program=gpg
+  -c gpg.x509.program=gpgsm -c gpg.ssh.program=ssh-keygen -c hook.post-checkout.enabled=false
+  -c hook.reference-transaction.enabled=false -c hook.post-index-change.enabled=false)
+READS='^(status|diff|show|log|rev-parse|ls-files|ls-tree|cat-file|rev-list|diff-tree|merge-base)$'
 
 usage() {
-  echo "Usage: branch-worktree.sh open --path <path> --head <sha> | git --path <path> -- <subcommand> [<argument>...] | remove --path <path> [--lock-pid <pid>] | --self-test" >&2
+  echo "Usage: branch-worktree.sh open --path <path> --head <sha> | git --path <path> -- <read subcommand> [<argument>...] | remove --path <path> [--lock-pid <pid>] | --self-test" >&2
   exit 1
 }
 
@@ -64,6 +94,45 @@ refuse() {
 fails() {
   echo "branch-worktree.sh: $1" >&2
   exit 4
+}
+
+# True when the version of git is at least <major>.<minor>.
+git_at_least() {
+  [[ "$(git version 2>/dev/null)" =~ ([0-9]+)\.([0-9]+) ]] || return 1
+  ((BASH_REMATCH[1] > $1 || (BASH_REMATCH[1] == $1 && BASH_REMATCH[2] >= $2)))
+}
+
+# Sets up the git environment of the table in the header, and refuses a configuration it cannot switch off. Runs in
+# the main tree before any other git command of this script.
+prepare_git() {
+  local empty common record name rc
+  unset GIT_EXTERNAL_DIFF
+  export GIT_PAGER=cat GIT_NO_LAZY_FETCH=1
+  git rev-parse --git-dir >/dev/null 2>&1 || fails "this is not a git repository"
+  empty="$(git hash-object -t tree /dev/null 2>/dev/null)" || fails "the empty tree cannot be computed here"
+  git "--attr-source=$empty" rev-parse --git-dir >/dev/null 2>&1 \
+    || { echo "branch-worktree.sh: git must accept the empty tree as the attribute source (--attr-source)" >&2; exit 2; }
+  export GIT_ATTR_SOURCE="$empty"
+  SAFE=("--attr-source=$empty" "${SAFE[@]}")
+  [[ -z "$(git "${SAFE[@]}" config --get diff.external 2>/dev/null)" ]] \
+    || refuse "the git configuration names an external diff program (diff.external)"
+  common="$(git "${SAFE[@]}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
+    || fails "the git directory cannot be read"
+  if [[ -e "$common/info/attributes" || -L "$common/info/attributes" ]]; then
+    grep -qvE '^[[:space:]]*(#|$)' "$common/info/attributes" 2>/dev/null
+    rc=$?
+    [[ "$rc" -eq 1 ]] || refuse "the info/attributes file of the repository assigns attributes"
+  fi
+  if [[ -n "$(git "${SAFE[@]}" config --get extensions.partialClone 2>/dev/null)" ]] && ! git_at_least 2 45; then
+    refuse "a partial clone needs git 2.45 or later, which can switch off the lazy fetch"
+  fi
+  while IFS= read -r -d '' record; do
+    name="${record%%$'\n'*}"
+    name="${name#hook.}"
+    name="${name%.command}"
+    [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || refuse "the git configuration names a hook that cannot be switched off"
+    SAFE+=(-c "hook.$name.enabled=false")
+  done < <(git "${SAFE[@]}" config --null --get-regexp '^hook\..*\.command$' 2>/dev/null)
 }
 
 valid_path() { [[ "$1" =~ ^\.claude/worktrees/agent-[A-Za-z0-9._-]{1,120}$ && "$1" != *..* ]]; }
@@ -155,6 +224,7 @@ run_git() {
 
 self_test() {
   local failed=0 tmp repo proof head_main head_branch out rc
+  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
   tmp="$(mktemp -d)" || return 1
   trap 'rm -rf "$tmp"' RETURN
 
@@ -288,7 +358,223 @@ self_test() {
   check 'the fixture is sound: a plain git worktree remove runs the file-system monitor of the branch' \
     "$([[ -e "$proof" ]] && grep -q monitor "$proof" && echo yes || echo no)"
 
+  self_test_programs || failed=1
+
   [[ "$failed" -eq 0 ]] && echo "branch-worktree.sh self-test passed"
+  return "$failed"
+}
+
+# Runs a command with a terminal as its standard output, so git starts its pager.
+on_terminal() {
+  python3 -c 'import os, pty, sys
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(sys.argv[1], sys.argv[1:])
+while True:
+    try:
+        data = os.read(fd, 4096)
+    except OSError:
+        break
+    if not data:
+        break
+os.waitpid(pid, 0)' "$@"
+}
+
+# One fixture per mechanism of the header table: a plain git command runs the program of the branch (the check that
+# the fixture is sound), and the same command through this script does not.
+self_test_programs() {
+  local failed=0 tmp prog proof head_main head_signed wt out rc hooks=no
+  tmp="$(mktemp -d)" || return 1
+  prog="$tmp/prog"
+  proof="$tmp/proof"
+  wt=.claude/worktrees/agent-cr-gh-2-leonardo
+  git help -c 2>/dev/null | grep -qx 'hook\.<friendly-name>\.command' && hooks=yes
+
+  check() {
+    if [[ "$2" != "yes" ]]; then
+      echo "FAIL $1" >&2
+      failed=1
+    fi
+  }
+  ran() { [[ -e "$proof" ]] && grep -qx -- "$1" "$proof"; }
+  quiet() { [[ ! -e "$proof" ]]; }
+
+  mkdir -p "$prog"
+  (
+    cd "$prog" || exit 1
+    git init -q -b main && git config user.email t@example.com && git config user.name t
+    printf '.claude/\n' >.gitignore
+    printf 'main\n' | tee y.dat w.md z.prc >z.txt
+    git add . && git commit -q -m init
+    git checkout -q -b branch
+    # shellcheck disable=SC2016 # the tool script expands its own arguments
+    printf '#!/bin/sh\necho "$1" >>%s\ncase "$1" in textconv) cat "$2" ;; clean | smudge | pager) cat ;; esac\nexit 0\n' \
+      "$proof" >tool.sh
+    chmod +x tool.sh
+    printf '*.txt filter=x diff=x\n*.dat diff=y\n*.prc filter=p\n' >.gitattributes
+    printf 'branch\n' | tee y.dat w.md z.prc >z.txt
+    git -c core.hooksPath=/dev/null add . && git -c core.hooksPath=/dev/null commit -q -m 'branch programs'
+    git cat-file commit HEAD | awk '{ print } /^committer / && !done { print "gpgsig -----BEGIN PGP SIGNATURE-----"; print " iQ=="; print " -----END PGP SIGNATURE-----"; done = 1 }' \
+      | git hash-object -t commit -w --stdin | xargs git update-ref refs/heads/signed
+    git -c core.hooksPath=/dev/null checkout -q main
+    printf '*.md diff=x\n' >"$tmp/attributes"
+    git config filter.x.clean './tool.sh clean'
+    git config filter.x.smudge './tool.sh smudge'
+    git config filter.p.process './tool.sh process'
+    git config diff.x.textconv './tool.sh textconv'
+    git config diff.y.command './tool.sh command'
+    git config core.attributesFile "$tmp/attributes"
+    git config core.pager './tool.sh pager'
+    git config log.showSignature true
+    git config gpg.program ./tool.sh
+    if [[ "$hooks" == yes ]]; then
+      git config hook.review.command './tool.sh hook'
+      git config hook.review.event post-checkout
+    fi
+  ) >/dev/null 2>&1 || { echo "FAIL program fixture repository" >&2; rm -rf "$tmp"; return 1; }
+  head_main="$(git -C "$prog" rev-parse main)"
+  head_signed="$(git -C "$prog" rev-parse signed)"
+  run() { (cd "$prog" && "$SELF" "$@"); }
+  dirty() { touch -t 203001010000 "$prog/$wt/z.txt" "$prog/$wt/z.prc"; }
+
+  run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'open runs no filter, process filter, or configured hook of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  dirty
+  run git --path "$wt" -- status --porcelain >/dev/null 2>&1
+  rc=$?
+  check 'status through the script runs no clean or process filter of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'diff through the script runs no text conversion or diff driver of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  run git --path "$wt" -- show "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'show through the script runs no program of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  run git --path "$wt" -- log -1 >/dev/null 2>&1
+  rc=$?
+  check 'log through the script runs no signature program of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  (cd "$prog" && on_terminal "$SELF" git --path "$wt" -- log -1 --format=%H) >/dev/null 2>&1
+  check 'log on a terminal through the script runs no pager of the branch' "$(quiet && echo yes || echo no)"
+  GIT_EXTERNAL_DIFF=./tool.sh run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'diff through the script runs no external diff program that the environment names' "$(quiet && echo yes || echo no)"
+
+  git -C "$prog/$wt" status --porcelain >/dev/null 2>&1
+  check 'the fixture is sound: a plain git status runs the clean filter of the branch' "$(ran clean && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" -- z.txt >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the text conversion of the branch' "$(ran textconv && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" -- y.dat >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the diff driver of the branch' "$(ran command && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" -- w.md >/dev/null 2>&1
+  check 'the fixture is sound: the attributes file of the configuration selects a driver of the branch' "$(ran textconv && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" log -1 >/dev/null 2>&1
+  check 'the fixture is sound: a plain git log runs the signature program of the branch' \
+    "$([[ -e "$proof" ]] && grep -q -- '^--' "$proof" && echo yes || echo no)"
+  rm -f "$proof"
+  on_terminal git -C "$prog/$wt" -c log.showSignature=false log -1 --format=%H >/dev/null 2>&1
+  check 'the fixture is sound: a plain git log on a terminal runs the pager of the branch' "$(ran pager && echo yes || echo no)"
+  rm -f "$proof"
+  GIT_EXTERNAL_DIFF=./tool.sh git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the external diff program the environment names' "$([[ -e "$proof" ]] && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_main" >/dev/null 2>&1
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git checkout runs the smudge filter of the branch' "$(ran smudge && echo yes || echo no)"
+  check 'the fixture is sound: a plain git checkout runs the process filter of the branch' "$(ran process && echo yes || echo no)"
+  if [[ "$hooks" == yes ]]; then
+    check 'the fixture is sound: a plain git checkout runs a hook the configuration names, whatever core.hooksPath says' \
+      "$(ran hook && echo yes || echo no)"
+  fi
+  rm -f "$proof"
+
+  git -C "$prog" config diff.external './tool.sh external'
+  run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'the script refuses a configuration that names an external diff program' "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog" config --unset diff.external
+
+  mkdir -p "$prog/.git/info"
+  printf '# a comment\n\n' >"$prog/.git/info/attributes"
+  run git --path "$wt" -- status --porcelain >/dev/null 2>&1
+  rc=$?
+  check 'the script accepts an info/attributes file with comments only' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
+  printf '*.txt filter=x\n' >>"$prog/.git/info/attributes"
+  dirty
+  run git --path "$wt" -- status --porcelain >/dev/null 2>&1
+  rc=$?
+  check 'the script refuses an info/attributes file that assigns an attribute' "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
+  run remove --path "$wt" >/dev/null 2>&1
+  check 'remove refuses an info/attributes file that assigns an attribute and keeps the worktree' \
+    "$([[ $? -eq 3 && -d "$prog/$wt" ]] && quiet && echo yes || echo no)"
+  git -C "$prog/$wt" status --porcelain >/dev/null 2>&1
+  check 'the fixture is sound: info/attributes selects the clean filter of the branch' "$(ran clean && echo yes || echo no)"
+  rm -f "$proof" "$prog/.git/info/attributes"
+
+  git -C "$prog" config alias.st '!./tool.sh alias'
+  local subcommand
+  for subcommand in st difftool fetch config checkout submodule grep; do
+    run git --path "$wt" -- "$subcommand" >/dev/null 2>&1
+    check "git refuses the subcommand $subcommand, which is not a read" "$([[ $? -eq 1 ]] && quiet && echo yes || echo no)"
+  done
+  git -C "$prog/$wt" st >/dev/null 2>&1
+  check 'the fixture is sound: a plain git alias runs the program of the branch' "$(ran alias && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog" config --unset alias.st
+
+  if [[ "$hooks" == yes ]]; then
+    git -C "$prog" config 'hook.a b.command' './tool.sh hook'
+    run git --path "$wt" -- status --porcelain >/dev/null 2>&1
+    check 'the script refuses a configured hook whose name it cannot switch off' "$([[ $? -eq 3 ]] && echo yes || echo no)"
+    git -C "$prog" config --unset 'hook.a b.command'
+  fi
+
+  dirty
+  run remove --path "$wt" >/dev/null 2>&1
+  rc=$?
+  check 'remove runs no filter or configured hook of the branch' "$([[ $rc -eq 0 && ! -e "$prog/$wt" ]] && quiet && echo yes || echo no)"
+
+  self_test_lazy_fetch "$tmp" || failed=1
+  rm -rf "$tmp"
+  return "$failed"
+}
+
+# A partial clone fetches a missing object on demand, and that fetch runs the upload-pack program of the configuration.
+self_test_lazy_fetch() {
+  local tmp="$1" origin="$1/origin" clone="$1/clone" proof="$1/lazy-proof" wt=.claude/worktrees/agent-cr-gh-3-leonardo
+  local with_tool secret failed=0
+  (
+    git init -q -b main "$origin" && cd "$origin" || exit 1
+    git config user.email t@example.com && git config user.name t
+    git config uploadpack.allowFilter true && git config uploadpack.allowAnySHA1InWant true
+    printf '.claude/\n' >.gitignore && git add .gitignore && git commit -q -m init
+    git checkout -q -b branch
+    # shellcheck disable=SC2016 # the tool script expands its own arguments
+    printf '#!/bin/sh\necho "$1" >>%s\nexit 1\n' "$proof" >tool.sh && chmod +x tool.sh
+    git add tool.sh && git -c core.hooksPath=/dev/null commit -q -m tool
+    printf 'secret\n' >secret.txt && git add secret.txt && git -c core.hooksPath=/dev/null commit -q -m secret
+    git -c core.hooksPath=/dev/null checkout -q main
+    git clone -q --no-local --filter=blob:none "file://$origin" "$clone"
+  ) >/dev/null 2>&1 || { echo "FAIL lazy-fetch fixture repository" >&2; return 1; }
+  with_tool="$(git -C "$origin" rev-parse branch~1)"
+  secret="$(git -C "$origin" rev-parse branch)"
+  git -C "$clone" -c core.hooksPath=/dev/null worktree add -q --detach "$wt" "$with_tool" >/dev/null 2>&1
+  git -C "$clone" config remote.origin.uploadpack './tool.sh upload'
+  (cd "$clone" && "$SELF" git --path "$wt" -- show "$secret:secret.txt") >/dev/null 2>&1
+  if [[ -e "$proof" ]]; then
+    echo "FAIL a read through the script in a partial clone runs no fetch program of the branch" >&2
+    failed=1
+  fi
+  git -C "$clone/$wt" show "$secret:secret.txt" >/dev/null 2>&1
+  if [[ ! -e "$proof" ]] || ! grep -qx upload "$proof"; then
+    echo "FAIL the fixture is sound: a plain git read in a partial clone runs the fetch program of the branch" >&2
+    failed=1
+  fi
   return "$failed"
 }
 
@@ -317,15 +603,17 @@ open)
   if ! valid_path "$path" || ! valid_head "$head"; then
     usage
   fi
+  prepare_git
   open_worktree "$path" "$head"
   ;;
 git)
   [[ $# -ge 4 && "$1" == --path && "$3" == -- ]] || usage
   path="$2"
   shift 3
-  if ! valid_path "$path" || [[ ! "$1" =~ ^[a-z][a-z-]*$ ]]; then
+  if ! valid_path "$path" || [[ ! "$1" =~ $READS ]]; then
     usage
   fi
+  prepare_git
   run_git "$path" "$@"
   ;;
 remove)
@@ -342,6 +630,7 @@ remove)
   if ! valid_path "$path" || [[ -n "$pid" && ! "$pid" =~ ^[0-9]{1,7}$ ]]; then
     usage
   fi
+  prepare_git
   remove_worktree "$path" "$pid"
   ;;
 *) usage ;;

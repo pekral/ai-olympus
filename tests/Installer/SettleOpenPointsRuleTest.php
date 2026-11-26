@@ -103,7 +103,7 @@ test('the settle step states what its closed git lists do not cover', function (
     expect(settleOpenPointsOwner())
         ->toContain(
             'The review creates and moves its worktree only through `skills/_shared/branch-worktree.sh` '
-            . '(`@skills/code-review/references/branch-checkout-gate.md`), which runs no git hook and no file-system monitor.',
+            . '(`@skills/code-review/references/branch-checkout-gate.md`), which runs no program of the branch.',
         );
 });
 
