@@ -58,17 +58,17 @@ test('every review or test worktree is checked and removed only through the work
         ->and($source)->not->toContain('`git worktree unlock`, `git worktree remove`')
         ->and($source)->not->toContain('git -C <path> status');
 })->with([
+    'cleanup rule' => [
+        'rules/git/general.md',
+        'Remove a review, test, or gate worktree only with `skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>`',
+        'then run `git worktree remove <path>`',
+    ],
     'krang cleanup' => ['agents/krang.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>'],
     'leonardo standalone' => ['agents/leonardo.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID'],
     'raphael grant' => ['agents/raphael.md', '`skills/_shared/branch-worktree.sh remove` on `.claude/worktrees/agent-test-<slug>-raphael` only'],
     'splinter grant' => ['agents/splinter.md', '`skills/_shared/branch-worktree.sh remove` on your own review worktree only'],
     'stale sweep' => ['skills/_shared/orchestration/stale-run-recovery.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>'],
     'walkthrough' => ['skills/interactive-testing/SKILL.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID'],
-    'cleanup rule' => [
-        'rules/git/general.md',
-        'Remove a review, test, or gate worktree only with `skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>`',
-        'then run `git worktree remove <path>`',
-    ],
 ]);
 
 test('no agent reads its review or test worktree with a plain git status', function (string $path, string $grant): void {
@@ -76,12 +76,14 @@ test('no agent reads its review or test worktree with a plain git status', funct
 })->with([
     'leonardo' => [
         'agents/leonardo.md',
-        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
+        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, '
+            . 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
     ],
     'raphael' => ['agents/raphael.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
     'splinter' => [
         'agents/splinter.md',
-        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
+        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, '
+            . 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
     ],
     'splinter diff' => ['agents/splinter.md', 'its diff through `skills/_shared/branch-worktree.sh git --path <path> -- diff <base>..<head>`'],
 ]);
@@ -90,7 +92,9 @@ test('the checkout gate reads the branch in a detached worktree and leaves the m
     expect(normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md'))->toContain($text);
 })->with([
     'the head commit' => ['`HEAD_SHA` is the head commit the gate opens: the PR head SHA from the loaded context (`headRefOid`)'],
-    'the later reads' => ['such as `git status`, `git diff`, `git show`, or `git log`, as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.'],
+    'the later reads' => [
+        'such as `git status`, `git diff`, `git show`, or `git log`, as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.',
+    ],
     'the one list of the mechanisms' => ['the table in its header is the one list of the git mechanisms that run a program'],
     'the open' => ['Run `skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"` in the main tree.'],
     'the principle' => ['**The main working tree is never checked out on a branch under review.**'],
@@ -130,6 +134,6 @@ test('no agent reads the diff of a branch under review with a plain git command'
     expect(normalizedPackageSource($path))->not->toContain($plain);
 })->with([
     'leonardo' => ['agents/leonardo.md', 'run read-only `git diff` / `git log` / `git show`'],
-    'splinter grant' => ['agents/splinter.md', 'run read-only `git` (`diff`, `log`, `show`'],
     'splinter context' => ['agents/splinter.md', 'its diff through `git diff <base>..<head>`'],
+    'splinter grant' => ['agents/splinter.md', 'run read-only `git` (`diff`, `log`, `show`'],
 ]);
