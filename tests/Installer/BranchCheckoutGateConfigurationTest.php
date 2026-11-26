@@ -74,17 +74,24 @@ test('every review or test worktree is checked and removed only through the work
 test('no agent reads its review or test worktree with a plain git status', function (string $path, string $grant): void {
     expect(normalizedPackageSource($path))->toContain($grant);
 })->with([
-    'leonardo' => ['agents/leonardo.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
+    'leonardo' => [
+        'agents/leonardo.md',
+        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
+    ],
     'raphael' => ['agents/raphael.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
-    'splinter' => ['agents/splinter.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
+    'splinter' => [
+        'agents/splinter.md',
+        'run `git diff`, `git log`, `git show`, and every other read of your review worktree, such as `git status`, only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`',
+    ],
+    'splinter diff' => ['agents/splinter.md', 'its diff through `skills/_shared/branch-worktree.sh git --path <path> -- diff <base>..<head>`'],
 ]);
 
 test('the checkout gate reads the branch in a detached worktree and leaves the main tree on its branch', function (string $text): void {
     expect(normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md'))->toContain($text);
 })->with([
     'the head commit' => ['`HEAD_SHA` is the head commit the gate opens: the PR head SHA from the loaded context (`headRefOid`)'],
-    'the later reads' => ['as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.'],
-    'the one owner of the options' => ['it is the one owner of the git options that do this.'],
+    'the later reads' => ['such as `git status`, `git diff`, `git show`, or `git log`, as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.'],
+    'the one list of the mechanisms' => ['the table in its header is the one list of the git mechanisms that run a program'],
     'the open' => ['Run `skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"` in the main tree.'],
     'the principle' => ['**The main working tree is never checked out on a branch under review.**'],
     'the remote ref' => ['Require `git rev-parse "origin/$HEAD_REF"` to print `HEAD_SHA`.'],
@@ -110,7 +117,7 @@ test('no agent moves a review worktree with a plain git checkout', function (str
     expect(normalizedPackageSource($path))->not->toContain('checkout --detach <head-sha>');
 })->with(['agents/leonardo.md', 'agents/splinter.md', 'agents/raphael.md']);
 
-test('the worktree script runs no hook and no file-system monitor of the branch', function (): void {
+test('the worktree script runs no program of the branch through any mechanism of its table', function (): void {
     $selfTest = new Process([dirname(__DIR__, 2) . '/skills/_shared/branch-worktree.sh', '--self-test']);
     $selfTest->run();
 
@@ -118,3 +125,11 @@ test('the worktree script runs no hook and no file-system monitor of the branch'
         ->and($selfTest->getOutput())->toContain('branch-worktree.sh self-test passed')
         ->and(packageSource('composer.json'))->toContain('skills/_shared/branch-worktree.sh');
 });
+
+test('no agent reads the diff of a branch under review with a plain git command', function (string $path, string $plain): void {
+    expect(normalizedPackageSource($path))->not->toContain($plain);
+})->with([
+    'leonardo' => ['agents/leonardo.md', 'run read-only `git diff` / `git log` / `git show`'],
+    'splinter grant' => ['agents/splinter.md', 'run read-only `git` (`diff`, `log`, `show`'],
+    'splinter context' => ['agents/splinter.md', 'its diff through `git diff <base>..<head>`'],
+]);
