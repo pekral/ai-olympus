@@ -379,15 +379,22 @@ test('the publishing review reads a brief section only outside every fenced bloc
 test('a linked issue that the pull request closes makes no known point, in every round', function (): void {
     expect(knownPointsRule())
         ->toContain('- **An issue that this pull request closes makes no known point.** The merge closes it')
-        ->toContain('refuses a linked issue in its `closingIssues[]`, a linked issue that a closing keyword in the headline or the body')
-        ->toContain('a pull request that does not close the task, and a pull request it cannot load. Every round checks this again.')
-        ->toContain('**Known limit:** a closing keyword that reaches the pull request after its last review round is not checked');
+        ->toContain('- a linked issue in its `closingIssues[]`;')
+        ->toContain('names in the headline or the body of one of its commits, in its title')
+        ->toContain('`close`, `closes`, `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, and `resolved`')
+        ->toContain('The reference is `#N`, `gh-N`, `owner/repo#N`, or the issue URL with `http` or `https`, with or without `www`')
+        ->toContain('- a commit list of 100 or more entries, because `gh pr view --json commits` returns one page of 100 and does not page')
+        ->toContain('Every round checks this again.')
+        ->toContain('**Not covered:** a closing keyword that reaches the pull request, or the merge-commit or squash-commit message that a person edits in the merge dialog');
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('linked_issue_verdict "$repo" "$pr" "$source" "$url"')
         ->toContain('echo \'refused:the pull request cannot be loaded\'')
         ->toContain('then "refused:the pull request does not close the task"')
         ->toContain('then "refused:the pull request closes the linked issue"')
         ->toContain('then "refused:a commit of the pull request closes the linked issue"')
+        ->toContain('then "refused:the title of the pull request closes the linked issue"')
+        ->toContain('then "refused:the body of the pull request closes the linked issue"')
+        ->toContain('then "refused:the loader may have cut the commit list at its page size of \($page)"')
         ->toContain('"a linked issue that a commit body closes by its URL|pr_closes');
     expect(packageSource('skills/code-review-github/scripts/load-issue.sh'))
         ->toContain('      messageBody: (.messageBody // null),');
