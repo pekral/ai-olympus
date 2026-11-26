@@ -353,12 +353,15 @@ fi
 if [[ "$1 $2 $3" == "jira workitem view" ]]; then
   desc="$(cat "$d/desc.json")"
   if [[ "$6" == "description" ]]; then
+    if [[ "$mode" == "viewlossy-unreadable" && -f "$d/armed-once" ]]; then
+      exit 1
+    fi
     n=$(($(cat "$d/views") + 1))
     printf '%s' "$n" >"$d/views"
     if [[ "$mode" == "drift" && "$n" -ge 2 ]]; then
       desc='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited meanwhile."}]}]}'
     fi
-  elif [[ "$mode" == "viewlossy" && -f "$d/arm" ]]; then
+  elif [[ "$mode" == viewlossy* && -f "$d/arm" ]]; then
     rm -f "$d/arm"
     desc="$(printf '%s' "$desc" | jq -c '.content |= .[:-1]')"
   fi
@@ -375,7 +378,7 @@ if [[ "$1 $2 $3" == "jira workitem edit" ]]; then
       : >"$d/lossy-done"
       printf '%s' '{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited by another account."}]}]}' >"$d/desc.json"
     fi
-    if [[ "$mode" == "viewlossy" && ! -f "$d/armed-once" ]]; then
+    if [[ "$mode" == viewlossy* && ! -f "$d/armed-once" ]]; then
       : >"$d/armed-once"
       : >"$d/arm"
     fi
@@ -640,6 +643,14 @@ STUB
   expect 'the failed read-back writes the previous description back once' \
     '[[ "$(edits)" == 2 && "$(jq -S -c . "$stubbin/desc.json")" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
   expect 'the write-back records its own audit line' 'grep -q "previous description restored" "$tmp/run.audit"'
+
+  setup viewlossy-unreadable "$p_legacy"
+  take_fingerprint
+  run_script write ACME-1 cs "$fp" "$good_cs"
+  expect 'an unreadable description after a failed read-back exits 4 without a second edit' \
+    '[[ $rc -eq 4 && "$(edits)" == 1 && "$out" == *"could not be read again"* ]]'
+  expect 'the operator receives the previous description when the second read fails' \
+    '[[ "$sout" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
 
   setup late "$p_legacy"
   take_fingerprint
