@@ -144,8 +144,8 @@ test('both wrapper inventories of the orchestration rule name the JIRA descripti
 
 test('the rule limits when the loader can recognise a preserved original', function (): void {
     expect(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
-            'The loader takes the last block for the original only when everything before it has the shape the script writes',
-        )
+        'The loader takes the last block for the original only when everything before it has the shape the script writes',
+    )
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
             'a security requirement that only the original states stays a requirement',
         )
@@ -157,7 +157,7 @@ test('the rule limits when the loader can recognise a preserved original', funct
 test('both JIRA helpers are shipped executable and run their self-tests in the build', function (string $helper): void {
     $path = 'skills/code-review-jira/scripts/' . $helper . '.sh';
     /** @var array{scripts: array<string, list<string>>} $composer */
-    $composer = json_decode(packageSource('composer.json'), true, flags: JSON_THROW_ON_ERROR);
+    $composer = json_decode(packageSource('composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
 
     expect(is_executable(dirname(__DIR__, 2) . '/' . $path))->toBeTrue()
         ->and(explode(' ', implode(' ', $composer['scripts']['shell-self-tests'])))->toContain($path);
