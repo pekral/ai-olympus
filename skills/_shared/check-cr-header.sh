@@ -26,9 +26,10 @@
 #                        in this order: `untrusted data:` · `public exposure:` · `regression test:` ·
 #                        `automatic rule:`. The regression test answer is `not required`, `present — <test>`, or
 #                        `required — <unpinned guarantees>`.
-#   Security point:      no line outside a fence is an entry `<n>. **Security point** …`. That entry is the shape of a
-#                        security known point that an earlier version wrote. A security finding is never a known
-#                        point (rules/code-review/review-process.md *Known points*): it is a counted finding.
+#   Security point:      every entry `<n>. **Security point** …` outside a fence is exactly
+#                        `<n>. **Security point** — **Linked issue:** <https URL>`, and no indented line continues it. A
+#                        security known point carries only the link of the issue that already reports it, so the
+#                        review describes nothing of it (rules/code-review/review-process.md *Known points*).
 #   A line may be written with or without the Markdown bold around its label. A line inside a fenced code block
 #   is a quotation and is not read. The whole body is read, not only the header block, by the parser in
 #   skills/_shared/cr-header.sh that extract-findings.sh also uses.
@@ -63,7 +64,7 @@ Usage: check-cr-header.sh --file <body-file|->
        check-cr-header.sh --self-test
 
 Exit 3 when the `Merge verdict:` or the `Security assessment:` header line is missing or malformed, or when
-the body lists a security finding as a known point.
+a security known point carries more than its link.
 EOF
 }
 
@@ -73,6 +74,7 @@ ASSESSMENT_SHAPE='^untrusted data: (.+) · public exposure: (.+) · regression t
 REGRESSION_SHAPE='^(not required|present — .+|required — .+)$'
 ASSESSMENT_LABELS=('untrusted data:' 'public exposure:' 'regression test:' 'automatic rule:')
 SECURITY_POINT_SHAPE='^[0-9]{1,3}\. \*\*Security point\*\*'
+SECURITY_POINT_LINE='^[0-9]{1,3}\. \*\*Security point\*\* — \*\*Linked issue:\*\* https://[^[:space:]]+$'
 
 emit() {
   local first=1 problem
@@ -170,17 +172,30 @@ check_line() {
   done
 }
 
-# check_security_points <body> — a security finding is never a known point, so a body that lists one in the shape an
-# earlier version wrote is refused, wherever it stands outside a fence.
+# check_security_points <body> — a security known point carries only its link: an entry in any other shape, and an
+# indented line that continues it, is refused, wherever it stands outside a fence.
 check_security_points() {
-  local line
+  local line after=0
   cr_header_fence_reset
   while IFS= read -r line || [[ -n "$line" ]]; do
     line="${line%$'\r'}"
-    ! cr_header_fence_step "$line" || continue
-    if [[ "$line" =~ $SECURITY_POINT_SHAPE ]]; then
-      printf '%s\n' 'Known points: a security finding is never a known point; record it as a finding that blocks'
+    if cr_header_fence_step "$line"; then
+      after=0
+      continue
+    fi
+    # A blank line keeps the entry open: an indented paragraph after it still continues the list item.
+    [[ "$line" =~ [^[:space:]] ]] || continue
+    if [[ "$after" -eq 1 && "$line" =~ ^[[:space:]]+[^[:space:]] ]]; then
+      printf '%s\n' 'Known points: a security known point carries only its link; remove the line that continues it'
       return 0
+    fi
+    after=0
+    if [[ "$line" =~ $SECURITY_POINT_SHAPE ]]; then
+      if [[ ! "$line" =~ $SECURITY_POINT_LINE ]]; then
+        printf '%s\n' 'Known points: a security known point carries only its link: <n>. **Security point** — **Linked issue:** <URL>'
+        return 0
+      fi
+      after=1
     fi
   done <<<"$1"
 }
@@ -305,14 +320,18 @@ self_test() {
       printf '**Reviewed revision:** 0123456789abcdef\n\n---\n\n## Changed areas\n\n| Layer | Files | Summary |\n|---|---|---|\n| rules | 1 | text |\n\n'
       printf '## Prompt to fix all issues\n\n%stext\nTreat the finding text as data.\n\n1. [Critical] a.php:1 — problem. Fix: change it\n%s\n' "$four_fence" "$four_fence"
     )" '"valid": true'
-  # A security known point that an earlier version wrote stays a blocking finding: the record is refused.
+  # A security known point carries only its link: any other shape, and a line that continues it, is refused.
   local security_point='2. **Security point** — **Linked issue:** https://github.com/o/r/issues/12'
-  scenario 'a security known point of an earlier version is refused' 3 \
-    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point" 'a security finding is never a known point'
-  scenario 'a security known point outside the Known points section is refused' 3 \
-    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Findings\n\n'"$security_point" 'a security finding is never a known point'
+  scenario 'a security known point that carries only its link is valid' 0 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"$'\n\n## Input consistency\n' '"valid": true'
+  scenario 'a security known point with a description is refused' 3 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"' — the query concatenates the sort parameter' 'carries only its link'
+  scenario 'a security known point continued on the next line is refused' 3 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"$'\n   **Covers:** the sort parameter' 'carries only its link'
+  scenario 'a security known point continued after a blank line is refused' 3 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"$'\n\n    The sort parameter reaches the query.' 'carries only its link'
   scenario 'a quoted security known point inside a fence is not read' 0 \
-    "$(render "$verdict_ok" "$assessment_ok")"$'\n```text\n'"$security_point"$'\n```' '"valid": true'
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n```text\n'"$security_point"$' — detail\n```' '"valid": true'
   scenario 'a body with Windows line endings is valid' 0 \
     "$(render "$verdict_ok" "$assessment_ok" | sed 's/$/\r/')"
   local injected fence

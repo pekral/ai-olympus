@@ -23,7 +23,7 @@ How to test
 
 Already reported in a linked issue
 
-- [Only when the review marked a finding as a known point. One item per point: what it is in plain language, what the linked issue covers, and the URL of that issue written out in full. It is no point to resolve, so the section carries no count and no severity.]
+- [Only when the review marked a finding as a known point. One item per point: what it is in plain language, what the linked issue covers, and the URL of that issue written out in full. It is no point to resolve, so the section carries no count and no severity. A security known point is only the link and one neutral sentence that a linked issue already reports it.]
 
 {embedded_blocks}
 

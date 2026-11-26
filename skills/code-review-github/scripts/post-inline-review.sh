@@ -83,10 +83,12 @@
 #                                  already reports (rules/code-review/review-process.md *Known points*). `title` is the
 #                                  short name of the finding, `place` the optional `path` or `path:line`, `issue` the URL
 #                                  of the linked issue (a GitHub issue or a JIRA /browse/ link), and `covers` one sentence
-#                                  on what the issue covers and why it is the same problem. A security finding is never a
-#                                  known point, so a row with any other key, `security` included, is refused. A known
-#                                  point is no finding: the Known points block lists it and no count includes it. Left
-#                                  out when none exists
+#                                  on what the issue covers and why it is the same problem. A security known point is the
+#                                  row {issue, security: true} instead: it carries no title, no place, and no sentence,
+#                                  and the wrapper renders the link and one fixed neutral sentence, so the review
+#                                  describes nothing that the linked issue does not. A row with any other key is refused.
+#                                  A known point is no finding: the Known points block lists it and no count includes it.
+#                                  Left out when none exists
 #
 # Behavior of post:
 #   1. Validate the findings, the walkthrough, and the record. A bad document, a record that check-cr-header.sh
@@ -396,9 +398,11 @@ def testfile: ascii_downcase | test($test_re);
 | req(.known_points == null or ((.known_points | type) == "array" and (.known_points | length) >= 1 and (.known_points | length) <= 30
     and (.known_points | all(type == "object"
       and (.issue | isstr(300) and test("^https://(github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$"))
-      and ((keys - ["title", "place", "issue", "covers"]) | length) == 0
-      and (.title | isstr(200)) and (.place == null or (.place | isstr(200) and test("^[^\\s`<>|]+$")))
-      and (.covers | isstr(400))))); "known_points must hold 1 to 30 rows of a title, an optional place, the https URL of a GitHub issue or a JIRA issue, and one sentence on what the issue covers; a security finding is never a known point")
+      and (if has("security")
+           then (keys == ["issue", "security"]) and .security == true
+           else ((keys - ["title", "place", "issue", "covers"]) | length) == 0
+             and (.title | isstr(200)) and (.place == null or (.place | isstr(200) and test("^[^\\s`<>|]+$")))
+             and (.covers | isstr(400)) end)))); "known_points must hold 1 to 30 rows of a title, an optional place, the https URL of a GitHub issue or a JIRA issue, and one sentence on what the issue covers; a security row holds only the issue URL and security true")
 | req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .path, .try), (.known_points // [] | .[] | .title, .covers)] | map(select(type == "string") | printable) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
 | req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
@@ -421,7 +425,9 @@ def testfile: ascii_downcase | test($test_re);
     routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"],
     known: [(.known_points // [])[] | (.issue | capture("(?:/issues/(?<n>[0-9]+)|/browse/(?<k>[A-Z][A-Z0-9_]*-[0-9]+))$")) as $ref
         | "[\(if $ref.n != null then "#" + $ref.n else $ref.k end)](\(.issue))" as $link
-        | "- **\(.title | cell)**\(if .place == null then "" else " · " + ("`\(.place | gsub("`"; ""))`" | inert) end) — \($link): \(.covers | cell)"]
+        | if .security == true
+          then "- **Security point** — \($link): a linked issue already reports this point."
+          else "- **\(.title | cell)**\(if .place == null then "" else " · " + ("`\(.place | gsub("`"; ""))`" | inert) end) — \($link): \(.covers | cell)" end]
   }
 | req((.tldr | length) >= 1 and (.tldr | length) <= 500; "the walkthrough tldr is \(.tldr | length) characters once normalised; it must hold 1 to 500, so write it shorter")
 JQ
@@ -1165,22 +1171,25 @@ Outside the diff.
     WALK_FILE="$tmp/walk-bad.json" run_post "[$f_in]"
     check "invalid known points are refused: ${kbad:0:60}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'known_points\|walkthrough' "$tmp/stderr" && echo yes || echo no)"
   done
-  # A security finding is never a known point: a row in the security shape of an earlier version, or with a security
-  # flag, is refused and nothing is posted.
+  # A security known point shows only its link and the wrapper's own neutral sentence; a row that carries anything else
+  # is refused and nothing is posted.
+  jq -c '.known_points += [{issue: "https://github.com/o/r/issues/13", security: true}]' "$tmp/walk-known.json" >"$tmp/walk-known-sec.json"
+  WALK_FILE="$tmp/walk-known-sec.json" run_post '[]'
+  check 'a security known point shows only its link and a neutral sentence' \
+    "$([[ $rc -eq 0 ]] && yes_if review_has '.body | split("\n\n<!-- cr-review-meta\n")[0] | contains("<strong>Known points (3)</strong>") and contains("- **Security point** — [#13](https://github.com/o/r/issues/13): a linked issue already reports this point.")' || echo no)"
   for kbad in \
-    '{"issue":"https://github.com/o/r/issues/13","security":true}' \
-    '{"issue":"https://github.com/o/r/issues/13","security":true,"owner":"a b"}' \
-    '{"issue":"https://github.com/o/r/issues/13","security":true,"owner":"maintainer","title":"SQL injection"}' \
-    '{"issue":"https://github.com/o/r/issues/13","security":true,"owner":"maintainer","place":"src/A.php:11"}' \
-    '{"issue":"https://github.com/o/r/issues/13","security":true,"owner":"maintainer","covers":"The query concatenates input."}' \
-    '{"issue":"https://acme.atlassian.net/browse/ACME-7","security":true,"owner":"maintainer"}' \
+    '{"issue":"https://github.com/o/r/issues/13","security":true,"title":"SQL injection"}' \
+    '{"issue":"https://github.com/o/r/issues/13","security":true,"place":"src/A.php:11"}' \
+    '{"issue":"https://github.com/o/r/issues/13","security":true,"covers":"The query concatenates input."}' \
+    '{"issue":"https://github.com/o/r/issues/13","security":true,"owner":"maintainer"}' \
+    '{"issue":"https://evil.example/o/r/issues/13","security":true}' \
     '{"title":"t","issue":"https://github.com/o/r/issues/13","covers":"c","owner":"maintainer"}' \
     '{"title":"t","issue":"https://github.com/o/r/issues/13","covers":"c","security":"yes"}' \
     '{"title":"t","issue":"https://github.com/o/r/issues/13","covers":"c","security":true}' \
     '{"title":"t","issue":"https://github.com/o/r/issues/13","covers":"c","security":false}'; do
     jq -c --argjson k "$kbad" '.known_points = [$k]' "$tmp/walk.json" >"$tmp/walk-bad.json"
     WALK_FILE="$tmp/walk-bad.json" run_post "[$f_in]"
-    check "a security known point is refused: ${kbad:0:70}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'known_points' "$tmp/stderr" && echo yes || echo no)"
+    check "an invalid security known point is refused: ${kbad:0:70}" "$([[ $rc -eq 1 && ! -s "$tmp/review.calls" ]] && grep -q 'known_points' "$tmp/stderr" && echo yes || echo no)"
   done
   jq -c '.known_points[0].covers = "The review-state.sh script marks it as known."' "$tmp/walk-known.json" >"$tmp/walk-known-tool.json"
   WALK_FILE="$tmp/walk-known-tool.json" run_post '[]'

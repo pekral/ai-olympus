@@ -18,7 +18,7 @@ h3. Already reported in an earlier review
 
 h3. Already reported in a linked issue
 
-* [Only when the review marked a finding as a known point. One bullet per point: what it is in plain language, what the linked issue covers, and a link to that issue. It is no point to resolve, so the group carries no count and no severity. The group sits inside Review findings, after every new finding.]
+* [Only when the review marked a finding as a known point. One bullet per point: what it is in plain language, what the linked issue covers, and a link to that issue. It is no point to resolve, so the group carries no count and no severity. A security known point is only the link and one neutral sentence that a linked issue already reports it. The group sits inside Review findings, after every new finding.]
 {expand}
 
 {expand:What changed and what it affects}

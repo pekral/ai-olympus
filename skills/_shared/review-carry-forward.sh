@@ -1156,10 +1156,12 @@ EOF
     '{ print } /^## TL;DR/ { print "Mode: HOTFIX, coverage waived" }'
   shape_case 'body: a Critical finding heading while Counts says Critical 0 runs the round' "$HI" \
     '{ print } /^## TL;DR/ { print "## Findings"; print "### \360\237\224\264 Critical 1. Unchecked input" }'
-  # A security finding is never a known point, so a record that lists one in the shape of an earlier version is
-  # never carried forward: check-cr-header.sh refuses it and the round runs.
-  shape_case 'body: a security known point of an earlier version runs the round' "$(round_with 'security assessment missing')" \
-    '{ print } /^## TL;DR/ { print "## Known points"; print "1. **Security point** \342\200\224 **Linked issue:** https://github.com/o/r/issues/12" }'
+  # A security known point carries only its link: in that shape it changes nothing, and a record that describes it is
+  # never carried forward, because check-cr-header.sh refuses it and the round runs.
+  shape_case 'body: a security known point that carries only its link changes nothing' "$CF" \
+    '{ print } /^## TL;DR/ { print "## Known points"; print "1. **Security point** \342\200\224 **Linked issue:** https://github.com/o/r/issues/12"; print "" }'
+  shape_case 'body: a security known point with a description runs the round' "$(round_with 'security assessment missing')" \
+    '{ print } /^## TL;DR/ { print "## Known points"; print "1. **Security point** \342\200\224 **Linked issue:** https://github.com/o/r/issues/12 \342\200\224 the sort parameter reaches the query" }'
   shape_case 'header: an Overview line, a Changed areas table, and a closing fix-all prompt change nothing' "$CF" \
     '/^\*\*Status:\*\*/ { print "**Overview:** Adds a quick overview to the review comment." } { print } /^## TL;DR/ { print "- Reviewed."; print "## Changed areas"; print "| Layer | Files | Summary |"; print "|---|---|---|"; print "| rules | 1 | text |" } END { print "## Prompt to fix all issues"; print "````text"; print "1. [Moderate] a.php:1 \342\200\224 problem. Fix: change it"; print "````" }'
   shape_case 'body: a Critical finding heading inside a fence changes nothing' "$CF" \
