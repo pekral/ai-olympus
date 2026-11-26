@@ -247,14 +247,13 @@ test('a known point comes only from a trusted, open issue the task links, whatev
         ->and(str_contains($stateScript, '[--owner <login>]'))->toBeFalse();
 });
 
-test('the merge gate carries no known-point path and no security exception', function (string $path): void {
+test('the merge steps that read no review record carry no known-point path and no security exception', function (string $path): void {
     $source = packageSource($path);
 
     expect(str_contains($source, 'known point'))->toBeFalse()
         ->and(str_contains($source, 'known-point'))->toBeFalse()
         ->and(str_contains($source, 'known-check'))->toBeFalse();
 })->with([
-    'skills/merge-github-pr/SKILL.md',
     'skills/merge-github-pr/references/trusted-record-parser.md',
     'skills/merge-github-pr-fast/SKILL.md',
     'skills/verify-merge-readiness/SKILL.md',
@@ -394,9 +393,10 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('- **A cut commit headline.** The loader returns a commit headline of 74 or more characters cut at 69 characters plus an ellipsis')
         ->toContain('The check is stricter than GitHub on purpose')
         ->toContain('- a commit list of 100 or more entries, because `gh pr view --json commits` returns one page of 100 and does not page')
-        ->toContain('Every round checks this again.')
-        ->toContain('**Not covered:** a closing keyword that the pull request gains after the last review round')
-        ->toContain('that a person edits in the merge dialog');
+        ->toContain('Every round checks this again, and so does the merge.')
+        ->toContain('**Not covered:** the message of a squash or a merge commit that a person edits in the merge dialog, which no agent sees.')
+        ->toContain('so a closing keyword that the pull request gains after the last review round stops the merge.')
+        ->and(str_contains(knownPointsRule(), 'That check is an open decision of the owner'))->toBeFalse();
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('linked_issue_verdict "$repo" "$pr" "$source" "$url"')
         ->toContain('echo \'refused:the pull request cannot be loaded\'')
@@ -415,12 +415,57 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('`known` reads the task, the linked issue, and the pull request through the loaders)');
 });
 
-test('the merge rule names a known point as no finding and points to its owner, with no merge check', function (): void {
+test('the merge rule names a known point as no finding, points to its owner, and states the merge check', function (): void {
     $merging = packageSection(packageSource('rules/git/pull-requests.md'), '## Merging', '### Low-risk merge path');
 
     expect($merging)
         ->toContain('    - **A known point is no finding.** A finding that a trusted, open linked issue already reports, a security finding')
         ->toContain('(`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*).')
-        ->and(substr_count(packageSource('rules/git/pull-requests.md'), 'known point'))->toBe(2)
+        ->toContain('**The merge checks each known point again.** Before the merge, on the exact head that it merges, the trusted copy of')
+        ->toContain('`skills/_shared/review-state.sh known --verify` runs the checks of `known` on the current text of the pull request.')
+        ->toContain(
+            'a check that cannot run, a state that cannot be read, and a link of the review that the state does not hold stop the merge (fail closed)',
+        )
+        ->toContain('It covers the full path and the low-risk path. `@skills/merge-github-pr-fast/SKILL.md` reads no review record')
+        ->toContain('`@skills/merge-github-pr/references/known-points-check.md` owns the procedure.')
         ->and(str_contains(packageSource('rules/git/pull-requests.md'), 'known-check'))->toBeFalse();
+});
+
+test('the merge checks every known point again on the head it merges, fails closed, and pins the head', function (): void {
+    $reference = packageSource('skills/merge-github-pr/references/known-points-check.md');
+    $skill = packageSource('skills/merge-github-pr/SKILL.md');
+
+    expect($skill)
+        ->toContain('- **Known points are checked again (hard gate; the low-risk path keeps it)**')
+        ->toContain('read `references/known-points-check.md` and run it before step 3 executes any code from the head.')
+        ->toContain('A refused point, a check that cannot run, and a known point that the review state does not hold stop the merge.')
+        ->toContain('using the project\'s default strategy, on every path pinned to the gated head (`--match-head-commit`)')
+        ->and(packageSource('skills/merge-github-pr/references/low-risk-path.md'))
+        ->toContain('| Known-points check | Mandatory, before the gate (`references/known-points-check.md`) |');
+    expect($reference)
+        ->toContain(
+            '`skills/_shared/review-state.sh known --state <state file> --verify` runs the checks of `known` on every known point of the state again',
+        )
+        ->toContain(
+            'It writes nothing. It prints `{"checked", "urls", "refused"}` and exits `0` when every point holds, and `4` when a point is refused or a loader fails.',
+        )
+        ->toContain('It exits `3` when the state is missing or invalid.')
+        ->toContain('No state file, and the report lists a known point: the point cannot be checked. Do not merge.')
+        ->toContain('**Run the trusted copy**, never the copy of the branch under review')
+        ->toContain('skills/_shared/review-state.sh skills/_shared/state-path.sh skills/_shared/extract-findings.sh skills/_shared/cr-header.sh')
+        ->toContain('known --state "<state file>" --verify )')
+        ->toContain('a link in the `## Known points` section that is not in `urls`: the state does not hold that point.')
+        ->toContain('an exit other than `0`, a copy that is not verified, a state that cannot be read, or a loader that fails: the check did not pass;')
+        ->toContain('- **Full path:** yes.')
+        ->toContain('- **Low-risk path:** yes.')
+        ->toContain('- **`@skills/merge-github-pr-fast/SKILL.md`:** no. It reads no review record and no review state')
+        ->toContain('this skill passes no `--subject` and no `--body` to `gh pr merge`.')
+        ->toContain('Not verified in this run: what GitHub writes into the message of each strategy.');
+    expect(packageSource('skills/_shared/review-state.sh'))
+        ->toContain('review-state.sh known    --state <file> --verify')
+        ->toContain('verify_known "$state"')
+        ->toContain('\'--verify takes only --state\'')
+        ->toContain('fail 4 \'a known point no longer holds; the merge is refused\'')
+        ->toContain('run_case \'verify refuses a linked issue that cannot be loaded\' 4 -- known --state "$S" --verify')
+        ->toContain('run_case \'verify of a missing state exits 3\' 3 -- known --state "$S.missing" --verify');
 });

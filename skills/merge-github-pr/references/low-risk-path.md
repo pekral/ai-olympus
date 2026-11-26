@@ -68,6 +68,7 @@ Run `@skills/merge-github-pr-fast/SKILL.md` step 2 (*Security check — one pass
 | CI | Not waited for and not required. A check that already failed for a real reason blocks, and the *GitHub Actions billing exception* applies unchanged. A pending check is not waited for |
 | Pre-merge quality gate | Mandatory, on the gated head |
 | Security check | Mandatory, before the gate |
+| Known-points check | Mandatory, before the gate (`references/known-points-check.md`) |
 | Not a Draft, no conflicts, branch up to date, open merge decisions | Apply unchanged |
 | Approval check | Met by a GitHub approval or, on a same-repository pull request, by the confirmed low-risk evidence (`@rules/git/pull-requests.md` *Merging* Source 3). `CHANGES_REQUESTED` blocks |
 

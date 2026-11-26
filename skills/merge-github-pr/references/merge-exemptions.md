@@ -84,3 +84,9 @@ Qualify the mode from the review comment this step already trusts, never from th
 3. **Nothing else moves.** Converged code review, verified security coverage, non-Draft, no conflicts, CI green, the approval check, up-to-date branch, and the rest of the *Pre-merge quality gate* all apply unchanged. An explicit "merge anytime" request does not widen this, and this does not widen that.
 
 When a merge proceeds under it, record in the merge report that the run was a HOTFIX, the declaring account quoted from the `Mode:` line, and the coverage figure that was waived.
+
+## A dying security pass — the delegated coverage gate
+
+Loaded by `@skills/merge-github-pr/SKILL.md` step 2 (*Delegated security coverage is verified, never assumed*).
+
+This is not hypothetical — a security pass that dies mid-run (API error, session limit, cancelled agent) leaves exactly this state: the code review published its delegation token and nothing ever arrived to honour it. Report the gap and require the security review to be re-run. The gate reads the code-review comment, so it is vacuous on a PR merged under the *`FAST`-tier PR exemption* or the *Dependency-only PR exemption* below (no review ran, therefore no delegation was ever claimed) — but on **every** PR that does carry a code-review comment it applies without exception.
