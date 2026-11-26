@@ -130,6 +130,14 @@ test('the worktree script runs no program of the branch through any mechanism of
         ->and(packageSource('composer.json'))->toContain('skills/_shared/branch-worktree.sh');
 });
 
+test('the worktree script sets every environment switch of its table before its first git command', function (): void {
+    $script = packageSource('skills/_shared/branch-worktree.sh');
+
+    expect($script)->toContain('export GIT_PAGER=cat GIT_NO_LAZY_FETCH=1 GIT_ATTR_NOSYSTEM=1')
+        ->and($script)->toContain('GIT_ATTR_NOSYSTEM=1 for the system file')
+        ->and($script)->toContain('export GIT_ATTR_SOURCE="$empty"');
+});
+
 test('no agent reads the diff of a branch under review with a plain git command', function (string $path, string $plain): void {
     expect(normalizedPackageSource($path))->not->toContain($plain);
 })->with([
