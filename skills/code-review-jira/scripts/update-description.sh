@@ -26,7 +26,7 @@
 # What `write` checks before it writes anything:
 #   - The new text is one opening paragraph and then only collapsed sections whose titles come from the
 #     fixed list of the language, in its order, each once and each with content. It holds no heading,
-#     code, mention, link, smart link, media, task list, decision list, layout, or
+#     code, mention, link, smart link, URL written as text, media, task list, decision list, layout, or
 #     nested section, and at least one collapsed section.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
@@ -186,6 +186,8 @@ cmd_write() {
             "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
          | unique[] | "a node the new text never carries: \(.)"),
         ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
+        (if ([.. | objects | select((.type // "") == "text") | (.text // "") | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.)"; "i"))] | length) > 0
+         then "a link written as text" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
          | "a collapsed section inside a collapsed section")
       ] | unique | .[]')" || die 3 "failed to read the converted text"
@@ -434,7 +436,7 @@ STUB
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty nosection; do
+  for bad in mention link heading code title order empty url nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -442,6 +444,7 @@ STUB
       code) reason='never carries: code'; printf '%s\n' 'Opening with {{items_count}}.' >"$tmp/bad.txt" ;;
       title) reason='outside the fixed list'; printf '%s\n' 'Opening.' '{expand:Dependencies}' '* ACME-2' '{expand}' >"$tmp/bad.txt" ;;
       order) reason='not in the fixed order'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '# One' '{expand}' '{expand:Requirements for the application}' '* Two' '{expand}' >"$tmp/bad.txt" ;;
+      url) reason='a link written as text'; printf '%s\n' 'The seller does not see the error, see https://evil.example/login for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
