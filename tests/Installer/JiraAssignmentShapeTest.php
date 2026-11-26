@@ -135,6 +135,16 @@ test('a JIRA rewrite is an L2 write of the top-level session through the one aud
         ->and(implode("\n", $agents))->not->toContain('update-description.sh');
 });
 
+test('both wrapper inventories of the orchestration rule name the JIRA description rewrite', function (): void {
+    $rule = normalizedPackageSource('rules/compound-engineering/orchestration.md');
+
+    expect($rule)->toContain('the JIRA transition and assign helpers, the JIRA `update-description.sh`, `create-issue`)')
+        ->and($rule)->toContain(
+            '`update-description.sh` (JIRA, the rewrite and the write-back, each with its own line), and `file-deferred-moderate.sh` append',
+        )
+        ->and($rule)->toContain('the previous description written back when the read-back fails and the description is still the document the script wrote.');
+});
+
 test('the writer and the loader share one definition of the original block, which needs the shape the writer produces', function (): void {
     $shape = packageSource('skills/code-review-jira/scripts/description-shape.jq');
 
