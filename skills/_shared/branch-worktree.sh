@@ -401,6 +401,7 @@ self_test_system_attributes() {
   real="$(command -v git)"
   log="$tmp/nosystem.log"
   mkdir -p "$tmp/shim"
+  # shellcheck disable=SC2016 # the shim script expands its own variables
   printf '#!/bin/sh\nprintf "%%s\\n" "${GIT_ATTR_NOSYSTEM-unset}" >>"%s"\nexec "%s" "$@"\n' "$log" "$real" >"$tmp/shim/git"
   chmod +x "$tmp/shim/git"
   system() { (cd "$repo" && GIT_ATTR_NOSYSTEM=0 PATH="$tmp/shim:$PATH" "$SELF" "$@") >/dev/null 2>&1; }
@@ -627,6 +628,7 @@ self_test_programs() {
 # only with --ext-diff. Through the script none of them runs it, and no read, open, or remove is refused for the key.
 self_test_external_diff() {
   local prog="$1" wt="$2" head_main="$3" head_signed="$4" proof="$5" failed=0 command rc
+  local -a words
   check() {
     if [[ "$2" != "yes" ]]; then
       echo "FAIL $1" >&2
@@ -642,17 +644,20 @@ self_test_external_diff() {
   rc=$?
   check 'diff through the script runs no external diff program of the configuration' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
   for command in 'show -p' 'log -p -1' 'diff-tree -p'; do
-    run git --path "$wt" -- $command "$head_signed" >/dev/null 2>&1
+    read -ra words <<<"$command"
+    run git --path "$wt" -- "${words[@]}" "$head_signed" >/dev/null 2>&1
     rc=$?
     check "$command through the script runs no external diff program of the configuration" "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
   done
   for command in 'diff' 'show' 'log -p -1' 'diff-tree -p'; do
-    run git --path "$wt" -- $command --ext-diff "$head_signed" >/dev/null 2>&1
+    read -ra words <<<"$command"
+    run git --path "$wt" -- "${words[@]}" --ext-diff "$head_signed" >/dev/null 2>&1
     rc=$?
     check "the script refuses --ext-diff for $command" "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
   done
   run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
-  check 'open is not refused for the external diff key and runs no program of the branch' "$([[ $? -eq 0 ]] && quiet && echo yes || echo no)"
+  rc=$?
+  check 'open is not refused for the external diff key and runs no program of the branch' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
 
   git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
   check 'the fixture is sound: a plain git diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
@@ -721,11 +726,14 @@ self_test_worktree_only_config() {
 
   printf '[diff]\n\texternal = difft\n' >"$tmp/global.cfg"
   GIT_CONFIG_GLOBAL="$tmp/global.cfg" run open --path "$other" --head "$head_signed" >/dev/null 2>&1
-  check 'open is not refused for a global diff.external' "$([[ $? -eq 0 && -d "$prog/$other" ]] && echo yes || echo no)"
+  rc=$?
+  check 'open is not refused for a global diff.external' "$([[ $rc -eq 0 && -d "$prog/$other" ]] && echo yes || echo no)"
   GIT_CONFIG_GLOBAL="$tmp/global.cfg" run git --path "$other" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
-  check 'diff through the script is not refused for a global diff.external' "$([[ $? -eq 0 ]] && echo yes || echo no)"
+  rc=$?
+  check 'diff through the script is not refused for a global diff.external' "$([[ $rc -eq 0 ]] && echo yes || echo no)"
   GIT_CONFIG_GLOBAL="$tmp/global.cfg" run remove --path "$other" >/dev/null 2>&1
-  check 'remove is not refused for a global diff.external' "$([[ $? -eq 0 && ! -e "$prog/$other" ]] && echo yes || echo no)"
+  rc=$?
+  check 'remove is not refused for a global diff.external' "$([[ $rc -eq 0 && ! -e "$prog/$other" ]] && echo yes || echo no)"
   rm -f "$tmp/global.cfg"
   return "$failed"
 }
