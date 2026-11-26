@@ -23,7 +23,7 @@
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
 #   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>
 #   review-state.sh known    --state <file> --finding <id> --reopen
-#   review-state.sh known    --state <file> --verify
+#   review-state.sh known    --state <file> --verify --pr <url>
 #   review-state.sh --self-test
 #
 #   --state          the state file. Every command that writes it refuses a path outside the `.claude/run/` or
@@ -93,8 +93,11 @@
 #                    the same checks on every known point of the state again, through the loaders, and writes nothing.
 #                    It prints {"checked": <n>, "urls": [<each checked link>], "refused": [{"finding_id", "url",
 #                    "reason"}]} and exits 4 when any point is refused, a loader that fails included. A state without a
-#                    known point passes with checked 0. A state that is missing or invalid exits 3, so a caller that
-#                    cannot read it does not pass either.
+#                    known point passes with checked 0. --pr is required: the https URL of the pull request that the
+#                    merge loaded from the trusted loader. A state that is missing or invalid, a state path that
+#                    every writing command refuses (tracked, a symbolic link, outside the run directory), and a state
+#                    of another repository or pull request all exit 3, so a caller that cannot read the right state
+#                    does not pass either.
 #
 #   The round cap and the blocking threshold come only from the default-branch manifest, through
 #   read-manifest.sh: `review.max-iterations` (an integer from 1 to 10, default 3) and
@@ -157,7 +160,7 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
        review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>
        review-state.sh known    --state <file> --finding <id> --reopen
-       review-state.sh known    --state <file> --verify
+       review-state.sh known    --state <file> --verify --pr <url>
        review-state.sh --self-test
 EOF
 }
@@ -275,6 +278,11 @@ def state_errors:
                 and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")))
          then empty else "a known point is malformed or names an unknown finding" end),
+        # A finding with the status `known` has exactly one known point, which `known --verify` and every evaluation
+        # check again. A `known` finding with none would pass both without a check.
+        (if ($s.findings | type) == "array" and ($s.known_points // [] | type) == "array" and all($s.findings[];
+              . as $f | .status != "known" or ([($s.known_points // [])[] | select(type == "object" and .finding_id == $f.finding_id)] | length) == 1)
+         then empty else "a known finding has no known point, or more than one" end),
         (if ($s.transitions | type) == "array" and all($s.transitions[];
               type == "object" and keys == ["actor", "finding_id", "from", "iteration", "to"]
               and (.finding_id as $id | $ids | index([$id])) != null and isint(.iteration; 1) and .iteration <= $s.iteration
@@ -990,6 +998,7 @@ cmd_defer() {
 
 # The shapes of a task and of a linked issue. A GitHub URL captures the repository, a JIRA key its project, and a
 # JIRA URL its site and key.
+GH_PR_RE='^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]{0,8})$'
 GH_ISSUE_RE='^https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/issues/[1-9][0-9]{0,8}$'
 JIRA_KEY_RE='^([A-Z][A-Z0-9_]*)-[1-9][0-9]{0,8}$'
 JIRA_URL_RE='^https://([A-Za-z0-9.-]+)/browse/(([A-Z][A-Z0-9_]*)-[1-9][0-9]{0,8})$'
@@ -1163,16 +1172,23 @@ reverify_known() {
   mv -f "$file.reverified" "$file"
 }
 
-# verify_known <state-file> — the merge-time check: run the checks of `known` on every known point of the state again, as
+# verify_known <state-file> <pr-url> — the merge-time check: run the checks of `known` on every known point of the state again, as
 # `reverify_known` does, but write nothing. Prints {"checked": n, "urls": [...], "refused": [{finding_id, url, reason}]} and exits 4 when
 # any point is refused, a loader that fails included. A state with no known point passes. A state that is missing or
-# invalid exits 3, so a caller that cannot read the state does not pass either.
+# invalid, a state path that `check_writable` refuses, and a state whose repository or pull request is not <pr-url> exit
+# 3, so a caller that cannot read the right state does not pass either.
 verify_known() {
-  local repo pr id source url verdict refused='[]' urls='[]' checked=0
+  local repo pr id source url verdict refused='[]' urls='[]' checked=0 want_repo want_pr
+  [[ "$2" =~ $GH_PR_RE ]] || die_usage '--verify needs --pr, the https URL of the pull request that the merge loaded'
+  want_repo="${BASH_REMATCH[1]}"
+  want_pr="${BASH_REMATCH[2]}"
+  check_writable "$1"
   new_tmp
   load_state "$1" "$TMP/state.json"
   repo="$(jq -r '.repo' "$TMP/state.json")"
   pr="$(jq -r '.pr' "$TMP/state.json")"
+  [[ "$(lower "$repo")" == "$(lower "$want_repo")" && "$pr" == "$want_pr" ]] \
+    || fail 3 'the review state belongs to another pull request than the one being merged'
   while IFS=$'\t' read -r id source url; do
     checked=$((checked + 1))
     urls="$(jq -c --arg url "$url" '. + [$url]' <<<"$urls")"
@@ -1185,7 +1201,7 @@ verify_known() {
 }
 
 cmd_known() {
-  local state='' id='' source='' issue='' covers='' reopen=0 verify=0
+  local state='' id='' source='' issue='' covers='' pr_url='' reopen=0 verify=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
@@ -1195,13 +1211,15 @@ cmd_known() {
     --covers) [[ $# -ge 2 ]] || die_usage '--covers needs a value'; covers="$2"; shift 2 ;;
     --reopen) reopen=1; shift ;;
     --verify) verify=1; shift ;;
+    --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr_url="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
+  [[ "$verify" -eq 1 || -z "$pr_url" ]] || die_usage '--pr belongs to --verify'
   if [[ "$verify" -eq 1 ]]; then
-    [[ -z "$id$source$issue$covers" && "$reopen" -eq 0 ]] || die_usage '--verify takes only --state'
-    verify_known "$state"
+    [[ -z "$id$source$issue$covers" && "$reopen" -eq 0 ]] || die_usage '--verify takes only --state and --pr'
+    verify_known "$state" "$pr_url"
     return
   fi
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
@@ -1852,32 +1870,53 @@ EOF
   check 'at the cap round the known Critical does not escalate and the loop converges' "$(q '.iteration == 3 and .verdict == "converged" and .status == "converged" and .escalation_reason == null and .counts.known == 1')"
 
   # The merge-time check: `known --verify` runs the checks of `known` on every known point again and writes nothing.
+  local pr7=https://github.com/acme/shop/pull/7
   pr_closes "$closes_task" "$task"
   cp "$repo/$S" "$tmp/verify-before"
-  run_case 'verify passes when every known point still holds' 0 -- known --state "$S" --verify
+  run_case 'verify passes when every known point still holds' 0 -- known --state "$S" --verify --pr "$pr7"
   check 'verify reports the one point it checked, its link, and refuses none' "$(q '.checked == 1 and .urls == ["https://github.com/acme/shop/issues/12"] and .refused == []')"
   check 'verify leaves the state unchanged' "$(cmp -s "$repo/$S" "$tmp/verify-before" && echo 0 || echo 1)"
   PR_TITLE='fix(orders): the total, fixes #12' pr_closes "$closes_task" "$task"
-  run_case 'verify refuses a pull request whose title now closes the linked issue' 4 -- known --state "$S" --verify
+  run_case 'verify refuses a pull request whose title now closes the linked issue' 4 -- known --state "$S" --verify --pr "$pr7"
   check 'verify names the point, its link, and the reason' "$(q --arg id "$crit_id" '.checked == 1 and .refused[0].finding_id == $id and .refused[0].url == "https://github.com/acme/shop/issues/12" and (.refused[0].reason | test("title"))')"
   check 'a refused verify leaves the state unchanged' "$(cmp -s "$repo/$S" "$tmp/verify-before" && echo 0 || echo 1)"
   PR_BODY=$'Closes the total,\n#12' pr_closes "$closes_task" "$task"
-  run_case 'verify refuses a pull request whose body now closes the linked issue on the next line' 4 -- known --state "$S" --verify
+  run_case 'verify refuses a pull request whose body now closes the linked issue on the next line' 4 -- known --state "$S" --verify --pr "$pr7"
   pr_closes "$closes_task" "$task"
   mv "$tmp/gh-issue-acme-shop-12.json" "$tmp/gh-issue-12.hold"
-  run_case 'verify refuses a linked issue that cannot be loaded' 4 -- known --state "$S" --verify
+  run_case 'verify refuses a linked issue that cannot be loaded' 4 -- known --state "$S" --verify --pr "$pr7"
   check 'a loader that fails is a refusal with its reason' "$(q '.refused[0].reason | test("cannot be loaded")')"
   mv "$tmp/gh-issue-12.hold" "$tmp/gh-issue-acme-shop-12.json"
   mv "$tmp/pr.json" "$tmp/pr.hold"
-  run_case 'verify refuses a pull request that cannot be loaded' 4 -- known --state "$S" --verify
+  run_case 'verify refuses a pull request that cannot be loaded' 4 -- known --state "$S" --verify --pr "$pr7"
   mv "$tmp/pr.hold" "$tmp/pr.json"
-  run_case 'verify passes again once the checks hold' 0 -- known --state "$S" --verify
-  run_case 'verify with --finding is a usage error' 1 -- known --state "$S" --verify --finding "$crit_id"
-  run_case 'verify with --reopen is a usage error' 1 -- known --state "$S" --verify --reopen
-  run_case 'verify of a missing state exits 3' 3 -- known --state "$S.missing" --verify
+  run_case 'verify passes again once the checks hold' 0 -- known --state "$S" --verify --pr "$pr7"
+  run_case 'verify with --finding is a usage error' 1 -- known --state "$S" --verify --pr "$pr7" --finding "$crit_id"
+  run_case 'verify with --reopen is a usage error' 1 -- known --state "$S" --verify --pr "$pr7" --reopen
+  run_case 'verify of a missing state exits 3' 3 -- known --state "$S.missing" --verify --pr "$pr7"
+  # The state must be the one the loop wrote for the pull request being merged, never a file the branch supplies.
+  run_case 'verify without --pr is a usage error' 1 -- known --state "$S" --verify
+  run_case 'verify with a --pr that is not a pull request URL is a usage error' 1 -- known --state "$S" --verify --pr 'https://github.com/acme/shop/issues/7'
+  run_case 'verify refuses a state of another pull request than the one being merged' 3 -- known --state "$S" --verify --pr https://github.com/acme/shop/pull/8
+  run_case 'verify refuses a state of another repository than the one being merged' 3 -- known --state "$S" --verify --pr https://github.com/acme/other/pull/7
+  jq -c '.pr = 8 | .findings |= map(.pr = 8)' "$repo/$S" >"$repo/.claude/run/verify-other.json"
+  run_case 'verify refuses the state of another pull request that closes only the task' 3 -- known --state .claude/run/verify-other.json --verify --pr "$pr7"
+  ln -s "$repo/$S" "$repo/.claude/run/verify-link.json"
+  run_case 'verify refuses a state that is a symbolic link' 3 -- known --state .claude/run/verify-link.json --verify --pr "$pr7"
+  cp "$repo/$S" "$repo/.claude/run/verify-tracked.json"
+  git -C "$repo" add -f .claude/run/verify-tracked.json
+  run_case 'verify refuses a state that git tracks' 3 -- known --state .claude/run/verify-tracked.json --verify --pr "$pr7"
+  git -C "$repo" rm -q --cached -f .claude/run/verify-tracked.json
+  cp "$repo/$S" "$tmp/outside-state.json"
+  run_case 'verify refuses a state outside the run directory' 3 -- known --state "$tmp/outside-state.json" --verify --pr "$pr7"
+  jq -c 'del(.known_points)' "$repo/$S" >"$repo/.claude/run/verify-bare.json"
+  run_case 'verify refuses a known finding with no known point' 3 -- known --state .claude/run/verify-bare.json --verify --pr "$pr7"
+  run_case 'evaluate refuses a known finding with no known point' 3 -- evaluate --state .claude/run/verify-bare.json
+  rm -f "$repo/.claude/run/verify-other.json" "$repo/.claude/run/verify-link.json" "$repo/.claude/run/verify-tracked.json" "$repo/.claude/run/verify-bare.json"
+  run_case 'verify of the state of the pull request passes after the refusals' 0 -- known --state "$S" --verify --pr "$pr7"
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
-  run_case 'verify of a state with no known point passes' 0 -- known --state "$S" --verify
+  run_case 'verify of a state with no known point passes' 0 -- known --state "$S" --verify --pr "$pr7" --pr "$pr7"
   check 'verify of a state with no known point checks none' "$(q '.checked == 0 and .urls == [] and .refused == []')"
 
   # A finding that a round first reports at the cap round is compared too, before the cap verdict takes effect.

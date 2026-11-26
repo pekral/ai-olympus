@@ -422,9 +422,9 @@ test('the merge rule names a known point as no finding, points to its owner, and
         ->toContain('    - **A known point is no finding.** A finding that a trusted, open linked issue already reports, a security finding')
         ->toContain('(`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*).')
         ->toContain('**The merge checks each known point again.** Before the merge, on the exact head that it merges, the trusted copy of')
-        ->toContain('`skills/_shared/review-state.sh known --verify` runs the checks of `known` on the current text of the pull request.')
+        ->toContain('`skills/_shared/review-state.sh known --verify --pr <PR URL>` runs the checks of `known` on the current text of the pull request,')
         ->toContain(
-            'a check that cannot run, a state that cannot be read, and a link of the review that the state does not hold stop the merge (fail closed)',
+            'a check that cannot run, a state that cannot be read or that belongs to another pull request, and a link of the review that the state does not hold stop the merge (fail closed)',
         )
         ->toContain('It covers the full path and the low-risk path. `@skills/merge-github-pr-fast/SKILL.md` reads no review record')
         ->toContain('`@skills/merge-github-pr/references/known-points-check.md` owns the procedure.')
@@ -444,27 +444,38 @@ test('the merge checks every known point again on the head it merges, fails clos
         ->toContain('| Known-points check | Mandatory, before the gate (`references/known-points-check.md`) |');
     expect($reference)
         ->toContain(
-            '`skills/_shared/review-state.sh known --state <state file> --verify` runs the checks of `known` on every known point of the state again',
+            '`skills/_shared/review-state.sh known --state <state file> --verify --pr <PR URL>` runs the checks of `known` on every known point of the state again',
         )
         ->toContain('It writes nothing. It prints `{"checked", "urls", "refused"}` and exits `0` when every point holds, and `4` when')
         ->toContain('a point is refused or a loader fails.')
-        ->toContain('It exits `3` when the state is missing or invalid.')
+        ->toContain('It exits `3` when the state is missing or invalid, when its path is one that every writing command refuses')
+        ->toContain('when its repository or pull request is not `<PR URL>`, and when a finding has the status `known` without exactly one known point.')
+        ->toContain('Never look for it in the checked-out head, which the branch controls')
         ->toContain('No state file, and the report lists a known point: the point cannot be checked. Do not merge.')
         ->toContain('**Run the trusted copy**, never the copy of the branch under review')
         ->toContain('skills/_shared/review-state.sh skills/_shared/state-path.sh skills/_shared/extract-findings.sh skills/_shared/cr-header.sh')
-        ->toContain('known --state "<state file>" --verify )')
+        ->toContain('( cd "<state root>" && "<clone>/skills/_shared/review-state.sh" known --state "<state file>" --verify --pr "<PR URL>" )')
+        ->toContain('Never run it with `cd` into the checked-out head.')
+        ->not->toContain('cd "<checkout>"')
         ->toContain('a link in the `## Known points` section that is not in `urls`: the state does not hold that point.')
-        ->toContain('an exit other than `0`, a copy that is not verified, a state that cannot be read, or a loader that fails: the check did not pass;')
+        ->toContain(
+            'an exit other than `0`, a copy that is not verified, a state that cannot be read or that belongs to another pull request, or a loader that fails: the check did not pass;',
+        )
         ->toContain('- **Full path:** yes.')
         ->toContain('- **Low-risk path:** yes.')
         ->toContain('- **`@skills/merge-github-pr-fast/SKILL.md`:** no. It reads no review record and no review state')
         ->toContain('this skill passes no `--subject` and no `--body` to `gh pr merge`.')
         ->toContain('Not verified in this run: what GitHub writes into the message of each strategy.');
     expect(packageSource('skills/_shared/review-state.sh'))
-        ->toContain('review-state.sh known    --state <file> --verify')
-        ->toContain('verify_known "$state"')
-        ->toContain('\'--verify takes only --state\'')
+        ->toContain('review-state.sh known    --state <file> --verify --pr <url>')
+        ->toContain('verify_known "$state" "$pr_url"')
+        ->toContain('fail 3 \'the review state belongs to another pull request than the one being merged\'')
+        ->toContain('\'--verify takes only --state and --pr\'')
         ->toContain('fail 4 \'a known point no longer holds; the merge is refused\'')
-        ->toContain('run_case \'verify refuses a linked issue that cannot be loaded\' 4 -- known --state "$S" --verify')
-        ->toContain('run_case \'verify of a missing state exits 3\' 3 -- known --state "$S.missing" --verify');
+        ->toContain('run_case \'verify refuses a linked issue that cannot be loaded\' 4 -- known --state "$S" --verify --pr "$pr7"')
+        ->toContain('run_case \'verify of a missing state exits 3\' 3 -- known --state "$S.missing" --verify --pr "$pr7"')
+        ->toContain('run_case \'verify refuses a state that git tracks\' 3')
+        ->toContain('run_case \'verify refuses a state that is a symbolic link\' 3')
+        ->toContain('run_case \'verify refuses a state of another pull request than the one being merged\' 3')
+        ->toContain('run_case \'verify refuses a known finding with no known point\' 3');
 });
