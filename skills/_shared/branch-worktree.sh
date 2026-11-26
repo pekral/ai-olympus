@@ -436,6 +436,13 @@ self_test_programs() {
   head_signed="$(git -C "$prog" rev-parse signed)"
   run() { (cd "$prog" && "$SELF" "$@"); }
   dirty() { touch -t 203001010000 "$prog/$wt/z.txt" "$prog/$wt/z.prc"; }
+  process_filter() {
+    if [[ "$1" == on ]]; then
+      git -C "$prog" config filter.p.process './tool.sh process'
+    else
+      git -C "$prog" config --unset filter.p.process
+    fi
+  }
 
   run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
   rc=$?
@@ -458,6 +465,9 @@ self_test_programs() {
   GIT_EXTERNAL_DIFF=./tool.sh run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
   check 'diff through the script runs no external diff program that the environment names' "$(quiet && echo yes || echo no)"
 
+  # A process filter that speaks no protocol aborts a plain git (fatal on git 2.54, an error on git 2.56) before the
+  # next filter or hook runs, so the control checks of the other rows run without it, and its own check runs last.
+  process_filter off
   git -C "$prog/$wt" status --porcelain >/dev/null 2>&1
   check 'the fixture is sound: a plain git status runs the clean filter of the branch' "$(ran clean && echo yes || echo no)"
   rm -f "$proof"
@@ -483,12 +493,20 @@ self_test_programs() {
   git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_main" >/dev/null 2>&1
   git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
   check 'the fixture is sound: a plain git checkout runs the smudge filter of the branch' "$(ran smudge && echo yes || echo no)"
-  check 'the fixture is sound: a plain git checkout runs the process filter of the branch' "$(ran process && echo yes || echo no)"
   if [[ "$hooks" == yes ]]; then
     check 'the fixture is sound: a plain git checkout runs a hook the configuration names, whatever core.hooksPath says' \
       "$(ran hook && echo yes || echo no)"
   fi
   rm -f "$proof"
+  process_filter on
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_main" >/dev/null 2>&1
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git checkout starts the process filter of the branch' "$(ran process && echo yes || echo no)"
+  rm -f "$proof"
+  process_filter off
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
+  rm -f "$proof"
+  process_filter on
 
   git -C "$prog" config diff.external './tool.sh external'
   run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
@@ -512,8 +530,10 @@ self_test_programs() {
   run remove --path "$wt" >/dev/null 2>&1
   check 'remove refuses an info/attributes file that assigns an attribute and keeps the worktree' \
     "$([[ $? -eq 3 && -d "$prog/$wt" ]] && quiet && echo yes || echo no)"
+  process_filter off
   git -C "$prog/$wt" status --porcelain >/dev/null 2>&1
   check 'the fixture is sound: info/attributes selects the clean filter of the branch' "$(ran clean && echo yes || echo no)"
+  process_filter on
   rm -f "$proof" "$prog/.git/info/attributes"
 
   git -C "$prog" config alias.st '!./tool.sh alias'
