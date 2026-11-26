@@ -193,9 +193,12 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--jql')
         ->and($script)->not->toContain('--from-json')
         ->and($script)->not->toContain('--filter')
+        ->and($script)->toContain('gsub("\\\\p{Cf}"; "")')
         ->and($script)->toContain(
-            '([a-z][a-z0-9+.-]*://|mailto:|www\\\\.|\\\\b[\\\\p{L}\\\\p{N}-]+(\\\\.[\\\\p{L}\\\\p{N}-]+)*\\\\.\\\\p{L}{2,}'
-                . '|[\\\\p{L}\\\\p{N}._%+-]@[\\\\p{L}\\\\p{N}]|[0-9]{1,3}(\\\\.[0-9]{1,3}){3})',
+            '([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002\uff0e\uff61\u2024]'
+                . '|[^\\\\s.\u3002\uff0e\uff61\u2024][.\u3002\uff0e\uff61\u2024]\\\\p{L}[\\\\p{L}\\\\p{M}]'
+                . '|[\\\\p{L}\\\\p{M}\\\\p{N}._%+-][@\uff20][\\\\p{L}\\\\p{N}]'
+                . '|\\\\p{Nd}{1,3}([.\u3002\uff0e\uff61\u2024]\\\\p{Nd}{1,3}){3})',
         )
         ->and($script)->toContain('select((.content? // null) | type == "array")')
         ->and($script)->not->toContain('select((.type // "") == "text") | (.text // "") | select(test(')
@@ -221,13 +224,19 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'bare IPv4 address' => 'url_ip_bare) reason=\'a link written as text\'',
     'change before the write' => 'a change just before the write writes nothing and exits 6',
     'e-mail address' => 'url_mail) reason=\'a link written as text\'',
+    'e-mail address with a full-width at sign' => 'url_fwat) reason=\'a link written as text\'',
     'edit after the write kept' => 'an edit by another account after the write is not overwritten, and the run exits 4',
     'failed read-back' => 'the failed read-back writes the previous description back once',
     'fixed title' => 'the original block is the last node and carries the fixed Czech title',
     'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
     'foreign host' => 'a URL outside the acli site is refused with exit 1',
     'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
+    'host after an underscore' => 'url_under) reason=\'a link written as text\'',
+    'host after a symbol or an accent mark' => 'url_sym) reason=\'a link written as text\'',
     'host with a fragment' => 'url_hash) reason=\'a link written as text\'',
+    'host with a full-width full stop' => 'url_fwdot) reason=\'a link written as text\'',
+    'host with an invisible format character' => 'url_zwsp) reason=\'a link written as text\'',
+    'host with a non-Latin top-level domain' => 'url_indic) reason=\'a link written as text\'',
     'host with a path, non-ASCII and punycode' => 'url_idn) reason=\'a link written as text\'',
     'host with a path and no scheme' => 'url_host) reason=\'a link written as text\'',
     'host with a port' => 'url_port) reason=\'a link written as text\'',
@@ -235,6 +244,7 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
     'IPv4 address with a path' => 'url_ip) reason=\'a link written as text\'',
     'IPv4 address with a port' => 'url_ip_port) reason=\'a link written as text\'',
+    'IPv4 address with full-width digits' => 'url_fwdigit) reason=\'a link written as text\'',
     'key list' => 'a list of keys is refused with exit 1',
     'name with a dot' => 'url_node) reason=\'a link written as text\'',
     'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
@@ -243,6 +253,7 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
     'previous description on stdout, late' => 'the previous description is on stdout as canonical ADF when nothing is written back (late)',
     'previous description on stdout, lossy' => 'the previous description is on stdout as canonical ADF when nothing is written back (lossy)',
+    'sentence end, date, ellipsis, and leading dot' => 'a sentence end, a date, an ellipsis, and a leading dot are written',
     'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
     'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
     'store that differs kept' => 'a store that differs from the written document is not overwritten either',
