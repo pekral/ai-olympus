@@ -697,7 +697,7 @@ self_test_external_diff() {
 # main tree does not see it. The script reads the configuration in the worktree too, and a global `diff.external`,
 # which a diff tool documents, refuses nothing.
 self_test_worktree_only_config() {
-  local tmp="$1" prog="$2" wt="$3" head_main="$4" head_signed="$5" hooks="$6" failed=0 rc other=.claude/worktrees/agent-cr-gh-5-leonardo
+  local tmp="$1" prog="$2" wt="$3" head_main="$4" head_signed="$5" hooks="$6" failed=0 rc listed other=.claude/worktrees/agent-cr-gh-5-leonardo
   local created=.claude/worktrees/agent-cr-gh-6-leonardo control=.claude/worktrees/agent-cr-gh-7-leonardo
   local proof="$tmp/proof" include="$tmp/worktree.cfg"
   check() {
@@ -757,8 +757,10 @@ self_test_worktree_only_config() {
     check 'remove refuses such a hook and keeps the worktree' "$([[ $? -eq 3 && -d "$prog/$wt" ]] && quiet && echo yes || echo no)"
     run open --path "$created" --head "$head_signed" >/dev/null 2>&1
     rc=$?
+    listed=no
+    git -C "$prog" -c core.hooksPath=/dev/null worktree list --porcelain | grep -qF -- "$created" && listed=yes
     check 'open refuses such a hook for a new worktree and leaves no worktree behind' \
-      "$([[ $rc -eq 3 && ! -e "$prog/$created" && -z "$(git -C "$prog" -c core.hooksPath=/dev/null worktree list --porcelain | grep -F -- "$created")" ]] && quiet && echo yes || echo no)"
+      "$([[ $rc -eq 3 && $listed == no && ! -e "$prog/$created" ]] && quiet && echo yes || echo no)"
   fi
   git -C "$prog" config --unset 'includeIf.gitdir:**/worktrees/**.path'
   rm -f "$include" "$proof"
