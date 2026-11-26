@@ -274,7 +274,11 @@ test('a security known point shows only its link in every output', function (): 
         ->toContain('a security row holds only the issue URL and security true")')
         ->and(str_contains($wrapper, 'owns it there'))->toBeFalse()
         ->and(packageSource('skills/_shared/check-cr-header.sh'))
-        ->toContain('SECURITY_POINT_LINE=\'^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* https://[^[:space:]]+$\'')
+        ->toContain(
+            'Linked issue:\\*\\* https://(github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}'
+            . '|[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$\'',
+        )
+        ->toContain('"a security known point with text after its link is refused: $tail_case" 3')
         ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point carries only its link.**')
         ->and(packageSource('skills/code-review-github/templates/review-body.md'))
         ->toContain('A security known point is the row `{issue, security: true}`')

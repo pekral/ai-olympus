@@ -27,7 +27,8 @@
 #                        `automatic rule:`. The regression test answer is `not required`, `present — <test>`, or
 #                        `required — <unpinned guarantees>`.
 #   Security point:      every entry `<n>. **Security point** …` outside a fence is exactly
-#                        `<n>. **Security point** — **Linked issue:** <https URL>`, and no indented line continues it. A
+#                        `<n>. **Security point** — **Linked issue:** <issue URL>`, where the URL is exactly a GitHub
+#                        issue URL or a JIRA /browse/ URL, and no indented line continues it. A
 #                        security known point carries only the link of the issue that already reports it, so the
 #                        review describes nothing of it (rules/code-review/review-process.md *Known points*).
 #   A line may be written with or without the Markdown bold around its label. A line inside a fenced code block
@@ -74,7 +75,8 @@ ASSESSMENT_SHAPE='^untrusted data: (.+) · public exposure: (.+) · regression t
 REGRESSION_SHAPE='^(not required|present — .+|required — .+)$'
 ASSESSMENT_LABELS=('untrusted data:' 'public exposure:' 'regression test:' 'automatic rule:')
 SECURITY_POINT_SHAPE='^[0-9]{1,3}\. \*\*Security point\*\*'
-SECURITY_POINT_LINE='^[0-9]{1,3}\. \*\*Security point\*\* — \*\*Linked issue:\*\* https://[^[:space:]]+$'
+# The link is the exact issue URL that post-inline-review.sh accepts in the walkthrough row, and nothing follows it.
+SECURITY_POINT_LINE='^[0-9]{1,3}\. \*\*Security point\*\* — \*\*Linked issue:\*\* https://(github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Za-z0-9.-]+/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$'
 
 emit() {
   local first=1 problem
@@ -326,6 +328,16 @@ self_test() {
     "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"$'\n\n## Input consistency\n' '"valid": true'
   scenario 'a security known point with a description is refused' 3 \
     "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"' — the query concatenates the sort parameter' 'carries only its link'
+  # The link is the exact URL of a GitHub issue or a JIRA issue: nothing may follow it, not even a fragment or a comment.
+  local tail_case
+  for tail_case in '#sort-param-reaches-the-query' '<!--the sort parameter-->' '?q=sort' ' the sort parameter' '/' '/comments'; do
+    scenario "a security known point with text after its link is refused: $tail_case" 3 \
+      "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point$tail_case" 'carries only its link'
+  done
+  scenario 'a security known point that links a JIRA issue is valid' 0 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n2. **Security point** — **Linked issue:** https://acme.atlassian.net/browse/ACME-12\n' '"valid": true'
+  scenario 'a security known point that links a pull request is refused' 3 \
+    "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n2. **Security point** — **Linked issue:** https://github.com/o/r/pull/12\n' 'carries only its link'
   scenario 'a security known point continued on the next line is refused' 3 \
     "$(render "$verdict_ok" "$assessment_ok")"$'\n## Known points\n\n'"$security_point"$'\n   **Covers:** the sort parameter' 'carries only its link'
   scenario 'a security known point continued after a blank line is refused' 3 \
