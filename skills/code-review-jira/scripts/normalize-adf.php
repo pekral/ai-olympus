@@ -17,7 +17,7 @@ function normalizeJiraText(string $text, int $form): string
 {
     $normalized = Normalizer::normalize($text, $form);
 
-    if ($normalized === false) {
+    if (!is_string($normalized)) {
         throw new RuntimeException('normalisation failed');
     }
 
