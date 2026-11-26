@@ -192,7 +192,13 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--jql')
         ->and($script)->not->toContain('--from-json')
         ->and($script)->not->toContain('--filter')
-        ->and($script)->toContain('([a-z][a-z0-9+.-]*://|mailto:|www\\\\.)')
+        ->and($script)->toContain(
+            '([a-z][a-z0-9+.-]*://|mailto:|www\\\\.|\\\\b[\\\\p{L}\\\\p{N}-]+(\\\\.[\\\\p{L}\\\\p{N}-]+)*\\\\.\\\\p{L}{2,}/)',
+        )
+        ->and($script)->toContain('select((.content? // null) | type == "array")')
+        ->and($script)->not->toContain('select((.type // "") == "text") | (.text // "") | select(test(')
+        ->and($script)->toContain('previous_adf "$prev"')
+        ->and($script)->toContain('The previous description is on stdout as canonical ADF; restore it by hand.')
         ->and($script)->toContain('"a link written as text"')
         ->and($script)->toContain('the description is no longer the document this script wrote')
         ->and($script)->toContain('^[A-Z][A-Z0-9_]+-[0-9]+$')
@@ -225,5 +231,12 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
     'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
     'store that differs kept' => 'a store that differs from the written document is not overwritten either',
+    'url split by a mark' => "url_em) reason='a link written as text'",
+    'url with www in a mark' => "url_www) reason='a link written as text'",
+    'host with a path and no scheme' => "url_host) reason='a link written as text'",
+    'host with a path, non-ASCII and punycode' => "url_idn) reason='a link written as text'",
+    'text that only looks like a URL' => 'a text with a version, an abbreviation, a ratio, and a slash between words is written',
+    'previous description on stdout, late' => 'the previous description is on stdout as canonical ADF when nothing is written back (late)',
+    'previous description on stdout, lossy' => 'the previous description is on stdout as canonical ADF when nothing is written back (lossy)',
     'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
 ]);
