@@ -12,7 +12,9 @@ test('no review or walkthrough text switches the main tree to the head of a pull
         ->and($text)->not->toContain('git checkout "$HEAD_REF"')
         ->and($text)->not->toContain('git switch <')
         ->and($text)->not->toContain('git pull --ff-only')
-        ->and($text)->not->toContain('owns the main working tree');
+        ->and($text)->not->toContain('owns the main working tree')
+        ->and($text)->not->toContain('Switching to the relevant branch')
+        ->and($text)->not->toContain('Checking out the relevant branch');
 })->with([
     'agents/casey.md',
     'agents/krang.md',
@@ -21,12 +23,26 @@ test('no review or walkthrough text switches the main tree to the head of a pull
     'agents/splinter.md',
     'skills/_shared/orchestration/batch-preparation.md',
     'skills/_shared/orchestration/review-only-mode.md',
+    'skills/api-review/SKILL.md',
     'skills/code-review/SKILL.md',
     'skills/code-review/references/branch-checkout-gate.md',
     'skills/code-review-github/references/cr-wrapper-contract.md',
     'skills/interactive-testing/SKILL.md',
     'skills/mysql-problem-solver/references/tinker-explain.md',
+    'skills/security-review/SKILL.md',
     'skills/test-assignment/SKILL.md',
+]);
+
+test('every read-only review skill reads the branch only in the worktree of the checkout gate', function (string $path): void {
+    expect(normalizedPackageSource($path))->toContain(
+        'Read the branch only in the detached worktree that `@skills/code-review/references/branch-checkout-gate.md` opens; '
+        . 'never switch or pull the main tree.',
+    );
+})->with([
+    'skills/api-review/SKILL.md',
+    'skills/code-review/SKILL.md',
+    'skills/code-review-github/references/cr-wrapper-contract.md',
+    'skills/security-review/SKILL.md',
 ]);
 
 test('the checkout gate reads the branch in a detached worktree and leaves the main tree on its branch', function (string $text): void {
