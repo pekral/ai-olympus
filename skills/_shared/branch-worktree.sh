@@ -4,9 +4,12 @@
 # The main working tree is never checked out on a branch under review
 # (skills/code-review/references/branch-checkout-gate.md). A review and a walkthrough read the branch in a detached
 # worktree below `.claude/worktrees/` instead. This script is the one owner of the git options that keep the branch
-# from running a program while the worktree is written, read, or removed: the table below lists every git mechanism
-# that runs an external program or a shell during the operations of this script. Every caller runs these git
-# commands only through this script.
+# from running a program while the worktree is written, read, or removed: the table below lists each git mechanism
+# that runs an external program or a shell during the operations of this script, and what the script does with it.
+# Every caller runs these git commands only through this script.
+#
+# Requires git 2.41 or later, which has the --attr-source option; a git without it is refused (exit 2). A partial
+# clone needs git 2.45 or later, which can switch off the lazy fetch; an older git is refused for it (exit 3).
 #
 # Usage (run in the main working tree, at its root)
 #   branch-worktree.sh open --path <path> --head <sha>
@@ -67,7 +70,8 @@
 # The --self-test command has one fixture for each row that this script switches off or refuses: a plain git command
 # runs the program of the branch, and the same command through this script does not. Two rows have none: the
 # submodule row, because this script never initialises a submodule, and the git version refusals, which need an
-# older git than the one that runs the self-test.
+# older git than the one that runs the self-test. The system attribute file lies outside the repository and no
+# fixture writes it, so its fixture records the GIT_ATTR_NOSYSTEM value that a shim in front of git receives.
 #
 # Exit codes
 #   0  done
