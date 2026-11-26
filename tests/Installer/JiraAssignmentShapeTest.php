@@ -1,0 +1,161 @@
+<?php
+
+declare(strict_types = 1);
+
+// A JIRA assignment is a visible opening paragraph and collapsed sections, and a rewrite keeps the
+// previous description word for word (issue #713). The write talks to JIRA through acli, and a Pest
+// test cannot run a real .sh against a tracker, so the behaviour is proven by the `--self-test` of
+// `update-description.sh` and `load-issue.sh` against a stand-in acli. These tests pin the rule, the
+// template, the readers, the consent row, and the scenarios each self-test must cover.
+
+function jiraShapeSection(): string
+{
+    $rule = packageSource('rules/compound-engineering/assignment.md');
+
+    return (string) preg_replace(
+        '/\s+/',
+        ' ',
+        installerDocsSection($rule, '### The shape in a JIRA description — a visible opening and collapsed sections'),
+    );
+}
+
+test('the rule owns the JIRA shape once: a visible opening paragraph, then collapsed sections in a fixed order', function (): void {
+    $rule = packageSource('rules/compound-engineering/assignment.md');
+    $section = jiraShapeSection();
+
+    expect(substr_count($rule, '### The shape in a JIRA description'))->toBe(1)
+        ->and($section)->toContain('**The opening paragraph is always visible and has no heading.**')
+        ->and($section)->toContain('In two to four plain sentences it says what the task is about, who has the problem, and why it is solved.')
+        ->and($section)->toContain('**An open question ends the opening paragraph.**')
+        ->and($section)->toContain('with what holds until the owner decides')
+        ->and($section)->toContain('1. *Requirements for the application* (`Požadavky na aplikaci`)')
+        ->and($section)->toContain('2. *Acceptance criteria* (`Akceptační kritéria`): a numbered list.')
+        ->and($section)->toContain('the code review checks the change against exactly these')
+        ->and($section)->toContain('3. *What we are not doing now* (`Co teď neděláme`)')
+        ->and($section)->toContain('4. *Original assignment* (`Původní zadání`): only when an existing task is rewritten.')
+        ->and($section)->toContain('**No other section.** The description has no rules, dependencies, or open-questions section.')
+        ->and($section)->toContain('**A section with nothing to say is left out.** Every fact appears once.')
+        ->and($section)->toContain('**No technical detail outside the original.**')
+        ->and($section)->toContain('"items_count matches" becomes "the number of items matches the feed"')
+        ->and($section)->toContain('**A section title carries no status icon.** An assignment is not a review result.')
+        ->and($section)->toContain('**A new task that an agent writes takes the same shape.**')
+        ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))
+        ->toContain('**A tracker that renders no HTML takes plain headings.** The block form is for a GitHub issue body only. A JIRA description takes the shape of the next section.');
+});
+
+test('a rewrite takes its points only from the description and the trusted comments', function (): void {
+    expect(jiraShapeSection())->toContain(
+        'come only from the current description and from the comments that pass the trust test of `@rules/compound-engineering/tracker.md` *Analyze every comment before you act on a tracker assignment* and are not addressed to another account',
+    )
+        ->and(jiraShapeSection())->toContain('A point from any other comment goes into the report of the run as an open point for the operator, never into the description.')
+        ->and(normalizedPackageSource('skills/prepare-issue-context/SKILL.md'))->toContain(
+            'its points come only from the description and the trusted comments, and a point of another comment stays an open point of the report',
+        )
+        ->and(normalizedPackageSource('skills/prepare-issue-context/SKILL.md'))->toContain('the report quotes the written text in a fenced `text` block');
+});
+
+test('every reader of a JIRA assignment leaves the original out and takes the criteria from their own section', function (string $reader): void {
+    expect(normalizedPackageSource($reader))->toContain(
+        'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText`, and the criteria come only from the *Acceptance criteria* section when the description has one',
+    );
+})->with([
+    'prepare-issue-context' => 'skills/prepare-issue-context/SKILL.md',
+    'assignment-compliance-check' => 'skills/assignment-compliance-check/SKILL.md',
+    'code-review issue context analysis' => 'skills/code-review/SKILL.md',
+]);
+
+test('the conformance gate and the context brief keep the original apart from the requirements', function (): void {
+    expect(normalizedPackageSource('skills/code-review/references/assignment-conformance-gate.md'))
+        ->toContain('A JIRA assignment gives no requirement from its preserved original')
+        ->and(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
+        ->toContain('"### Description\n\n" + (.descriptionAssignmentText // .descriptionText)')
+        ->and(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
+        ->toContain('### Original assignment — preserved text, not a source of requirements');
+});
+
+test('the loader returns the original apart from the sections, and its self-test proves it', function (): void {
+    $loader = packageSource('skills/code-review-jira/scripts/load-issue.sh');
+
+    expect($loader)->toContain('"descriptionAssignmentText": "<descriptionText without the Original assignment block>"')
+        ->and($loader)->toContain('"descriptionOriginalText": "<the text of the Original assignment block>" | null')
+        ->and($loader)->toContain('"descriptionSections": [ { "title", "text" } ]')
+        ->and($loader)->toContain('IN("Original assignment", "Původní zadání")')
+        ->and($loader)->toContain("check 'the last Original assignment block is the original text'")
+        ->and($loader)->toContain("check 'the assignment text leaves the original block out'")
+        ->and($loader)->toContain("check 'the sections list the collapsed sections without the original'");
+});
+
+test('the JIRA template renders the shape in Wiki Markup with no original block', function (): void {
+    $template = packageSource('skills/create-issues-from-text/templates/issue-structure-jira.md');
+
+    expect($template)->toStartWith('[Opening paragraph, always visible, with no heading:')
+        ->and(substr_count($template, '{expand:'))->toBe(3)
+        ->and(strpos($template, '{expand:Requirements for the application}'))->toBeLessThan((int) strpos($template, '{expand:Acceptance criteria}'))
+        ->and(strpos($template, '{expand:Acceptance criteria}'))->toBeLessThan((int) strpos($template, '{expand:What we are not doing now}'))
+        ->and($template)->not->toContain('Original assignment')
+        ->and($template)->not->toContain('h2.')
+        ->and(normalizedPackageSource('skills/create-issues-from-text/SKILL.md'))->toContain('A JIRA issue uses `templates/issue-structure-jira.md` instead')
+        ->and(normalizedPackageSource('skills/create-issue/SKILL.md'))->toContain('`@skills/create-issues-from-text/templates/issue-structure-jira.md`');
+});
+
+test('a JIRA rewrite is an L2 write of the top-level session through the one audited helper', function (): void {
+    $consent = normalizedPackageSource('rules/compound-engineering/orchestration.md');
+    $rule = normalizedPackageSource('rules/compound-engineering/assignment.md');
+
+    expect($consent)->toContain('| top-level session | Rewrite the description of an existing JIRA issue into the shape of')
+        ->and($consent)->toContain('The only write is `skills/code-review-jira/scripts/update-description.sh`: one key per call, its own audit line')
+        ->and($consent)->toContain("No agent's Bash boundary grants it: a subagent hands the rewritten text to its caller")
+        ->and($rule)->toContain('For a JIRA issue the only allowed write is `skills/code-review-jira/scripts/update-description.sh`, and only the top-level session runs it.')
+        ->and($rule)->toContain('**A JIRA rewrite is written into the task and read back.**')
+        ->and(normalizedPackageSource('rules/jira/general.md'))->toContain('Never edit a description with a raw `acli jira workitem edit`.');
+
+    foreach (glob(dirname(__DIR__, 2) . '/agents/*.md') ?: [] as $agent) {
+        expect((string) file_get_contents($agent))->not->toContain('update-description.sh');
+    }
+});
+
+test('the rewrite helper is shipped, executable, and runs its self-test in the build', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $script = $packageDir . '/skills/code-review-jira/scripts/update-description.sh';
+    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
+    assert(is_array($composer) && is_array($composer['scripts']) && is_array($composer['scripts']['shell-self-tests']));
+
+    expect(is_executable($script))->toBeTrue()
+        ->and(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toStartWith('#!/usr/bin/env bash')
+        ->and(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/code-review-jira/scripts/update-description.sh ');
+});
+
+test('the rewrite helper writes one key with one edit command and checks the shape before it writes', function (): void {
+    $script = packageSource('skills/code-review-jira/scripts/update-description.sh');
+
+    expect($script)->toContain('acli jira workitem edit --key "$1" --description-file "$2" --yes')
+        ->and($script)->not->toContain('--jql')
+        ->and($script)->not->toContain('--from-json')
+        ->and($script)->not->toContain('--filter')
+        ->and($script)->toContain('^[A-Z][A-Z0-9_]+-[0-9]+$')
+        ->and($script)->toContain('refused — the URL host is not the JIRA site of the acli account')
+        ->and($script)->toContain('"bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",')
+        ->and($script)->toContain('"panel", "paragraph", "rule", "table", "multiBodiedExtension", "extensionFrame", "nestedExpand"')
+        ->and($script)->toContain('def originalTitles: ["Original assignment", "Původní zadání"];')
+        ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "acli jira workitem edit --key $1 --description-file"');
+});
+
+test('the rewrite self-test covers every refusal, the verbatim original, the fingerprint, and the write-back', function (string $label): void {
+    expect(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toContain($label);
+})->with([
+    'one edit of one key' => 'the write is the one edit of one key with a description file and --yes',
+    'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
+    'fixed title' => 'the original block is the last node and carries the fixed Czech title',
+    'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
+    'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
+    'node type named' => 'the refusal of a task list names taskList',
+    'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
+    'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
+    'key list' => 'a list of keys is refused with exit 1',
+    'foreign host' => 'a URL outside the acli site is refused with exit 1',
+    'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
+    'change before the write' => 'a change just before the write writes nothing and exits 6',
+    'failed read-back' => 'the failed read-back writes the previous description back once',
+    'audit line' => 'the rewrite records an external-write audit line',
+    'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
+]);
