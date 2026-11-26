@@ -18,7 +18,7 @@ metadata:
 - Apply @rules/reports/general.md. When the audit findings are folded into the **GitHub PR comment** by a CR wrapper, they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR* — or in the language the project manifest sets in `language.github` (*Project override — `language.github` in the manifest*). When a non-technical summary is published on a linked issue / JIRA ticket via `@skills/pr-summary/SKILL.md`, it follows the language of the source assignment. CVE / CWE / OWASP identifiers and code identifiers stay verbatim regardless of the surrounding prose language.
 - Focus on realistic, exploitable issues
 - Never reveal secrets
-- **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing to the remote is not. Output is the audit report only.
+- **Read-only skill** — never modify code, never stage / commit / push changes, and never run any git write operation (`git add`, `git commit`, `git push`, `git reset`, `git checkout -- …`, etc.). Read the branch only in the detached worktree that `@skills/code-review/references/branch-checkout-gate.md` opens; never switch or pull the main tree. Mutating a working tree or pushing to the remote is not allowed. Output is the audit report only.
 
 ## Scope
 Perform a focused security review with emphasis on:

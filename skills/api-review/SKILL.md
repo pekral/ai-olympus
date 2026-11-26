@@ -13,7 +13,7 @@ metadata:
 - If the current project uses Laravel, also apply `@rules/laravel/architecture.md` and `@rules/laravel/laravel.md` — validation belongs in FormRequest / Data Validator, controllers stay slim.
 - Apply `@rules/reports/general.md` — when the findings are folded into the **GitHub PR comment** by a CR wrapper they stay in canonical English per the rule's *Exception — technical CR findings on the GitHub PR*; a non-technical mirror on a linked issue / JIRA ticket follows the language of the source assignment. A manifest `language.github` overrides both on GitHub (the rule's *Project override — `language.github` in the manifest*). HTTP verbs, status codes, header names, and code identifiers stay verbatim regardless of the surrounding prose language.
 - Output findings only — no praise, no summary of what was checked.
-- **Read-only skill** — never modify code, never stage / commit / push, and never run any git write operation. Switching to the relevant branch and `git pull` to read the latest diff are allowed; mutating the working tree or pushing is not.
+- **Read-only skill** — never modify code, never stage / commit / push, and never run any git write operation. Read the branch only in the detached worktree that `@skills/code-review/references/branch-checkout-gate.md` opens; never switch or pull the main tree. Mutating a working tree or pushing is not allowed.
 
 ## Use when
 - A PR or change set adds or modifies HTTP endpoints, routes, controllers, API Resources, request/response payloads, or status-code handling.
