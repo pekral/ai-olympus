@@ -589,7 +589,10 @@ self_test_programs() {
   check 'the fixture is sound: a plain git checkout starts the process filter of the branch' "$(ran process && echo yes || echo no)"
   rm -f "$proof"
   process_filter off
-  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
+  # The two checkouts above can end half way, so the repair is forced and its result is checked.
+  git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q -f --detach "$head_signed" >/dev/null 2>&1
+  check 'the fixture is restored: the worktree is at the signed head with a clean tree' \
+    "$([[ "$(git -C "$prog/$wt" rev-parse HEAD)" == "$head_signed" && -z "$(git -C "$prog/$wt" status --porcelain 2>/dev/null)" ]] && echo yes || echo no)"
   rm -f "$proof"
   process_filter on
 
