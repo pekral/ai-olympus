@@ -446,9 +446,8 @@ test('the merge checks every known point again on the head it merges, fails clos
         ->toContain(
             '`skills/_shared/review-state.sh known --state <state file> --verify` runs the checks of `known` on every known point of the state again',
         )
-        ->toContain(
-            'It writes nothing. It prints `{"checked", "urls", "refused"}` and exits `0` when every point holds, and `4` when a point is refused or a loader fails.',
-        )
+        ->toContain('It writes nothing. It prints `{"checked", "urls", "refused"}` and exits `0` when every point holds, and `4` when')
+        ->toContain('a point is refused or a loader fails.')
         ->toContain('It exits `3` when the state is missing or invalid.')
         ->toContain('No state file, and the report lists a known point: the point cannot be checked. Do not merge.')
         ->toContain('**Run the trusted copy**, never the copy of the branch under review')
