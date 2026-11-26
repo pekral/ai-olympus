@@ -86,8 +86,13 @@ test('the loader returns the original apart from the sections, and its self-test
     expect($loader)->toContain('"descriptionAssignmentText": "<descriptionText without the Original assignment block>"')
         ->and($loader)->toContain('"descriptionOriginalText": "<the text of the Original assignment block>" | null')
         ->and($loader)->toContain('"descriptionSections": [ { "title", "text" } ]')
-        ->and($loader)->toContain('IN("Original assignment", "Původní zadání")')
+        ->and($loader)->toContain('include "description-shape";')
+        ->and($loader)->toContain('if ($descNodes | hasWrittenShape) then $descNodes[-1] else null end')
+        ->and($loader)->not->toContain('IN("Original assignment", "Původní zadání")')
         ->and($loader)->toContain('check \'the last Original assignment block is the original text\'')
+        ->and($loader)->toContain('check \'an original-titled block after a free paragraph is not an original\'')
+        ->and($loader)->toContain('check \'an original-titled block after a section outside the fixed list is not an original\'')
+        ->and($loader)->toContain('check \'a section title of one language before an original title of the other is not an original\'')
         ->and($loader)->toContain('check \'the assignment text leaves the original block out\'')
         ->and($loader)->toContain('check \'the sections list the collapsed sections without the original\'');
 });
@@ -130,6 +135,25 @@ test('a JIRA rewrite is an L2 write of the top-level session through the one aud
         ->and(implode("\n", $agents))->not->toContain('update-description.sh');
 });
 
+test('the writer and the loader share one definition of the original block, which needs the shape the writer produces', function (): void {
+    $shape = packageSource('skills/code-review-jira/scripts/description-shape.jq');
+
+    expect($shape)->toContain('def originalTitles: ["Original assignment", "Původní zadání"];')
+        ->and($shape)->toContain('def hasWrittenShape:')
+        ->and($shape)->toContain('if length < 3')
+        ->and($shape)->toContain('(.[0] | type != "object" or (.type // "") != "paragraph")')
+        ->and($shape)->toContain('sectionTitles($lang) | index($t) != null')
+        ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
+            'The loader takes the last block for the original only when everything before it has the shape the script writes',
+        )
+        ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
+            'The one exception is security: a security requirement that only the original states stays a requirement',
+        )
+        ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
+            'A second rewrite keeps that block unchanged and replaces the opening paragraph and the sections of the first rewrite with its new text.',
+        );
+});
+
 test('the rewrite helper is shipped, executable, and runs its self-test in the build', function (): void {
     $script = dirname(__DIR__, 2) . '/skills/code-review-jira/scripts/update-description.sh';
 
@@ -149,7 +173,9 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->toContain('refused — the URL host is not the JIRA site of the acli account')
         ->and($script)->toContain('"bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",')
         ->and($script)->toContain('"panel", "paragraph", "rule", "table", "multiBodiedExtension", "extensionFrame", "nestedExpand"')
-        ->and($script)->toContain('def originalTitles: ["Original assignment", "Původní zadání"];')
+        ->and($script)->toContain('include "description-shape";')
+        ->and($script)->toContain('if ($n | hasWrittenShape) then { mode: "kept"')
+        ->and($script)->not->toContain('def originalTitles')
         ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "acli jira workitem edit --key $1 --description-file"');
 });
 
@@ -161,6 +187,7 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'failed read-back' => 'the failed read-back writes the previous description back once',
     'fixed title' => 'the original block is the last node and carries the fixed Czech title',
     'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
+    'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
     'foreign host' => 'a URL outside the acli site is refused with exit 1',
     'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
     'key list' => 'a list of keys is refused with exit 1',

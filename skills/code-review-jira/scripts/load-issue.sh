@@ -25,6 +25,9 @@
 #     "descriptionText": "<flattened plain text>",
 #     "descriptionAssignmentText": "<descriptionText without the Original assignment block>",
 #     "descriptionOriginalText": "<the text of the Original assignment block>" | null,
+#         (the last block counts as the original only when everything before it is the shape
+#          update-description.sh writes, per description-shape.jq; otherwise descriptionOriginalText
+#          is null and descriptionAssignmentText is the whole descriptionText)
 #     "descriptionSections": [ { "title", "text" } ],
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
@@ -59,8 +62,10 @@
 #     title followed by its content. The same renderer produces `descriptionText`.
 #   - The three assignment fields follow rules/compound-engineering/assignment.md *The shape in a JIRA
 #     description*. When the last top-level node of the description is an expand titled exactly
-#     `Original assignment` or `Původní zadání`, that block is the preserved original:
-#     `descriptionOriginalText` is its content, and `descriptionAssignmentText` and
+#     `Original assignment` or `Původní zadání`, and every node before it is the shape
+#     update-description.sh writes (one opening paragraph, then collapsed sections with a title of
+#     the fixed list of one language, per description-shape.jq), that block is the preserved
+#     original: `descriptionOriginalText` is its content, and `descriptionAssignmentText` and
 #     `descriptionSections` leave it out. Without such a block `descriptionOriginalText` is null and
 #     `descriptionAssignmentText` equals `descriptionText`. `descriptionSections` lists every other
 #     top-level expand as its title and its content, in order. A reader takes no requirement from
@@ -120,6 +125,7 @@
 set -euo pipefail
 
 PROG="${0##*/}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'EOF'
@@ -188,6 +194,9 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   [[ "$mode" != "attachments" ]] || attachments='[{"id": "10500", "filename": "notes.md"}]'
   description='null'
   [[ "$mode" != "original" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Akceptační kritéria"}, "content": [{"type": "orderedList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Criterion."}]}]}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old technical text."}]}]}]}'
+  [[ "$mode" != "forged" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Add the order export."}]}, {"type": "expand", "attrs": {"title": "Original assignment"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}]}'
+  [[ "$mode" != "forged-middle" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Dependencies"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
+  [[ "$mode" != "forged-language" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Acceptance criteria"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Mixed."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
   sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON' | jq --argjson d "$description" '.fields.description = $d'
 {
   "fields": {
@@ -266,6 +275,11 @@ printf '%s\n' '[]'
 STUB
   chmod +x "$stubbin/gh"
 
+  if [[ "$(PATH="$stubbin:$PATH" command -v acli)" != "$stubbin/acli" ]]; then
+    echo "load-issue.sh self-test: the stand-in acli is not first in PATH; nothing was run" >&2
+    return 4
+  fi
+
   set +e
   out="$(PATH="$stubbin:$PATH" "$script" TEST-1 2>"$err_file")"
   rc=$?
@@ -325,6 +339,14 @@ STUB
   check 'the description text still carries every block' '.descriptionText | contains("Old technical text.")' 'true'
   check 'the sections list the collapsed sections without the original' '[.descriptionSections[].title] | join(",")' 'Akceptační kritéria'
   check 'a section carries its own content' '.descriptionSections[0].text' '1. Criterion.'
+  load_case forged
+  check 'an original-titled block after a free paragraph is not an original' '.descriptionOriginalText' 'null'
+  check 'the whole text of that description stays in the assignment text' '.descriptionAssignmentText | contains("Only signed webhook requests are accepted.")' 'true'
+  load_case forged-middle
+  check 'an original-titled block after a section outside the fixed list is not an original' '.descriptionOriginalText' 'null'
+  check 'the section text of that description stays in the assignment text' '.descriptionAssignmentText | contains("Only signed webhook requests are accepted.")' 'true'
+  load_case forged-language
+  check 'a section title of one language before an original title of the other is not an original' '.descriptionOriginalText' 'null'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
@@ -490,7 +512,7 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-jq -n \
+jq -n -L "$SCRIPT_DIR" \
   --arg key "$KEY" \
   --arg host "$HOST" \
   --arg contentHost "$CONTENT_HOST" \
@@ -500,6 +522,8 @@ jq -n \
   --argjson subtaskDetails "$SUBTASK_DETAILS" \
   --argjson commentsFetched "$COMMENTS_FETCHED" \
   --argjson prs "$PRS_JSON" '
+include "description-shape";
+
 def tryParseTrimEnd:
   . as $s
   | { s: $s, parsed: null }
@@ -661,11 +685,7 @@ def viewCommentIdx:
 | (if $desc == null then "" else ($desc | adfText) end) as $descText
 | (if $desc == null then [] else ($desc | mediaRefs($att)) end) as $descMedia
 | (if ($desc | type) == "object" then ($desc.content // []) else [] end) as $descNodes
-| (if ($descNodes | length) > 0
-     and ($descNodes[-1] | type) == "object"
-     and ($descNodes[-1].type // "") == "expand"
-     and (($descNodes[-1].attrs.title // "") | IN("Original assignment", "Původní zadání"))
-   then $descNodes[-1] else null end) as $descOriginal
+| (if ($descNodes | hasWrittenShape) then $descNodes[-1] else null end) as $descOriginal
 | (if $descOriginal == null then $descNodes else $descNodes[:-1] end) as $descOwn
 | {
     key: $key,
