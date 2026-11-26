@@ -142,7 +142,9 @@ test('both wrapper inventories of the orchestration rule name the JIRA descripti
         ->and($rule)->toContain(
             '`update-description.sh` (JIRA, the rewrite and the write-back, each with its own line), and `file-deferred-moderate.sh` append',
         )
-        ->and($rule)->toContain('the previous description written back when the read-back fails and the description is still the document the script wrote.');
+        ->and($rule)->toContain(
+            'the previous description written back when the read-back fails and the description is still the document the script wrote.',
+        );
 });
 
 test('the writer and the loader share one definition of the original block, which needs the shape the writer produces', function (): void {
@@ -197,13 +199,12 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
 })->with([
     'audit line' => 'the rewrite records an external-write audit line',
     'change before the write' => 'a change just before the write writes nothing and exits 6',
-    'failed read-back' => 'the failed read-back writes the previous description back once',
     'edit after the write kept' => 'an edit by another account after the write is not overwritten, and the run exits 4',
-    'store that differs kept' => 'a store that differs from the written document is not overwritten either',
+    'failed read-back' => 'the failed read-back writes the previous description back once',
     'fixed title' => 'the original block is the last node and carries the fixed Czech title',
     'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
-    'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
     'foreign host' => 'a URL outside the acli site is refused with exit 1',
+    'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
     'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
     'key list' => 'a list of keys is refused with exit 1',
     'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
@@ -212,5 +213,6 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
     'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
     'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
+    'store that differs kept' => 'a store that differs from the written document is not overwritten either',
     'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
 ]);
