@@ -43,7 +43,10 @@
 # The write is `acli jira workitem edit --key <KEY> --description-file <file> --yes`, and nothing else.
 # The read-back goes through load-issue.sh: the rendered original must equal the rendered previous
 # description, and the assignment text must open with the new opening paragraph. On a mismatch the
-# script writes the saved previous description once, reads it back, and exits 4.
+# script reads the description once more. Only when that is still the document the script wrote does it
+# write the saved previous description once, read it back, and exit 4. Otherwise it writes nothing more
+# and exits 4. The edit of acli has no conditional update, so a change made between that last read and
+# the write-back is not detected.
 #
 # Audit trail:
 #   Each write (the rewrite and a rollback) appends its own line through
@@ -54,7 +57,8 @@
 #   1  usage error, or a refused key or URL
 #   2  missing required tool (acli, jq, php)
 #   3  an acli read or write failed, or the converter failed
-#   4  the read-back did not match; the previous description was written back
+#   4  the read-back did not match; the previous description was written back, or nothing was written
+#      back because the description is no longer the document this script wrote
 #   5  the shape was refused (the new text or the previous description); nothing was written
 #   6  the description changed since the fingerprint was taken; nothing was written
 set -euo pipefail
@@ -250,6 +254,14 @@ cmd_write() {
     return 0
   fi
 
+  # The write-back only undoes this script's own write. A description that is no longer the document
+  # this script wrote (another account edited it, or the store changed it) is never overwritten.
+  local current
+  current="$(read_description "$key")" || die 4 "the read-back of $key did not show the rewrite, and the description could not be read again; nothing was written back. Check the issue by hand."
+  if [[ "$(fingerprint_of "$current")" != "$(fingerprint_of "$(jq -S -c . "$doc_file")")" ]]; then
+    die 4 "the read-back of $key did not show the rewrite, and the description is no longer the document this script wrote (another change, or a store that differs from the written document); nothing was written back. Check the issue by hand."
+  fi
+
   local restore="$tmp/previous.json" restored=""
   printf '%s' "$prev" | jq -c 'if . == null then { version: 1, type: "doc", content: [] } else . end' >"$restore"
   if write_description "$key" "$restore" "previous description restored after a failed read-back"; then
@@ -263,8 +275,10 @@ cmd_write() {
 
 # --- self-test ----------------------------------------------------------------------------------
 # Every case runs against a stand-in acli first in PATH. The stand-in keeps the description in a file,
-# logs every call, and plays one mode: ok, drift (the description changes before the write), or lossy
-# (the first edit loses the last node). The real acli is never started.
+# logs every call, and plays one mode: ok, drift (the description changes before the write), lossy (the
+# first edit stores the document without its last node), late (another account edits the description
+# right after the first edit), or viewlossy (the first loader read after the first edit misses the last
+# node, while the stored document is the one written). The real acli is never started.
 # The checks run through eval, so their \$ references expand there, and the helpers they call
 # (edits) and the values they read (first_original) are used only inside eval.
 # shellcheck disable=SC2016,SC2034,SC2329
@@ -295,6 +309,9 @@ if [[ "$1 $2 $3" == "jira workitem view" ]]; then
     if [[ "$mode" == "drift" && "$n" -ge 2 ]]; then
       desc='{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited meanwhile."}]}]}'
     fi
+  elif [[ "$mode" == "viewlossy" && -f "$d/arm" ]]; then
+    rm -f "$d/arm"
+    desc="$(printf '%s' "$desc" | jq -c '.content |= .[:-1]')"
   fi
   jq -n --argjson desc "$desc" '{ key: "ACME-1", fields: { summary: "Fixture", description: $desc, attachment: [], subtasks: [], comment: { total: 0, comments: [] } } }'
   exit 0
@@ -305,6 +322,14 @@ if [[ "$1 $2 $3" == "jira workitem edit" ]]; then
     jq -c '.content |= .[:-1]' "$7" >"$d/desc.json"
   else
     jq -c . "$7" >"$d/desc.json"
+    if [[ "$mode" == "late" && ! -f "$d/lossy-done" ]]; then
+      : >"$d/lossy-done"
+      printf '%s' '{"version":1,"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited by another account."}]}]}' >"$d/desc.json"
+    fi
+    if [[ "$mode" == "viewlossy" && ! -f "$d/armed-once" ]]; then
+      : >"$d/armed-once"
+      : >"$d/arm"
+    fi
   fi
   exit 0
 fi
@@ -350,7 +375,7 @@ STUB
     printf '%s' "$2" >"$stubbin/desc.json"
     printf '0' >"$stubbin/views"
     : >"$stubbin/calls"
-    rm -f "$stubbin/lossy-done"
+    rm -f "$stubbin/lossy-done" "$stubbin/arm" "$stubbin/armed-once"
   }
   # run_script <args...> — run the script against the stand-in; sets $out and $rc.
   run_script() {
@@ -465,13 +490,26 @@ STUB
   run_script write ACME-1 cs "$fp" "$good_cs"
   expect 'a change just before the write writes nothing and exits 6' '[[ $rc -eq 6 && "$(edits)" == 0 && "$out" == *"while the rewrite was prepared"* ]]'
 
-  setup lossy "$p_legacy"
+  setup viewlossy "$p_legacy"
   take_fingerprint
   run_script write ACME-1 cs "$fp" "$good_cs"
   expect 'a read-back that misses the original exits 4' '[[ $rc -eq 4 && "$out" == *"written back and read back"* ]]'
   expect 'the failed read-back writes the previous description back once' \
     '[[ "$(edits)" == 2 && "$(jq -S -c . "$stubbin/desc.json")" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
   expect 'the write-back records its own audit line' 'grep -q "previous description restored" "$tmp/run.audit"'
+
+  setup late "$p_legacy"
+  take_fingerprint
+  run_script write ACME-1 cs "$fp" "$good_cs"
+  expect 'an edit by another account after the write is not overwritten, and the run exits 4' \
+    '[[ $rc -eq 4 && "$(edits)" == 1 && "$out" == *"no longer the document this script wrote"* && "$out" == *"nothing was written back"* ]]'
+  expect 'the other account edit is still on the ticket' '[[ "$(jq -r ".content[0].content[0].text" "$stubbin/desc.json")" == "Edited by another account." ]]'
+
+  setup lossy "$p_legacy"
+  take_fingerprint
+  run_script write ACME-1 cs "$fp" "$good_cs"
+  expect 'a store that differs from the written document is not overwritten either' \
+    '[[ $rc -eq 4 && "$(edits)" == 1 && "$out" == *"nothing was written back"* ]]'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "$PROG self-test: $failures failure(s)" >&2

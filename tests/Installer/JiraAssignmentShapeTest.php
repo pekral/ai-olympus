@@ -171,6 +171,7 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--filter')
         ->and($script)->toContain('([a-z][a-z0-9+.-]*://|mailto:|www\\\\.)')
         ->and($script)->toContain('"a link written as text"')
+        ->and($script)->toContain('the description is no longer the document this script wrote')
         ->and($script)->toContain('^[A-Z][A-Z0-9_]+-[0-9]+$')
         ->and($script)->toContain('refused — the URL host is not the JIRA site of the acli account')
         ->and($script)->toContain('"bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",')
@@ -187,6 +188,8 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'audit line' => 'the rewrite records an external-write audit line',
     'change before the write' => 'a change just before the write writes nothing and exits 6',
     'failed read-back' => 'the failed read-back writes the previous description back once',
+    'edit after the write kept' => 'an edit by another account after the write is not overwritten, and the run exits 4',
+    'store that differs kept' => 'a store that differs from the written document is not overwritten either',
     'fixed title' => 'the original block is the last node and carries the fixed Czech title',
     'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
     'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
