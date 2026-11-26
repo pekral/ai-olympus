@@ -62,43 +62,9 @@ if [[ -z "$REF" ]]; then usage; exit 1; fi
 att_require_tools
 
 # --- resolve auth token + email without ever exposing them in argv/logs ---
-resolve_token() {
-  if [[ -n "$TOKEN_FILE" ]]; then
-    [[ -r "$TOKEN_FILE" ]] || { echo "${PROG}: --token-file not readable: $TOKEN_FILE" >&2; exit 2; }
-    head -n1 "$TOKEN_FILE"
-    return 0
-  fi
-  if [[ -n "${JIRA_API_TOKEN:-}" ]]; then
-    printf '%s' "$JIRA_API_TOKEN"
-    return 0
-  fi
-  local default="${HOME}/.config/acli/jira_api_token"
-  if [[ -r "$default" ]]; then
-    head -n1 "$default"
-    return 0
-  fi
-  return 1
-}
-
-RAW_TOKEN="$(resolve_token || true)"
-if [[ -z "$RAW_TOKEN" ]]; then
-  echo "${PROG}: no JIRA API token found." >&2
-  echo "  Provide one via --token-file FILE, JIRA_API_TOKEN, or ~/.config/acli/jira_api_token (chmod 600)." >&2
-  echo "  Create a token at https://id.atlassian.com/manage-profile/security/api-tokens" >&2
-  exit 2
-fi
-
-EMAIL="${JIRA_API_EMAIL:-}"
-TOKEN="$RAW_TOKEN"
-# Accept the `email:token` convenience form from the token source.
-if [[ -z "$EMAIL" && "$RAW_TOKEN" == *:* ]]; then
-  EMAIL="${RAW_TOKEN%%:*}"
-  TOKEN="${RAW_TOKEN#*:}"
-fi
-if [[ -z "$EMAIL" ]]; then
-  echo "${PROG}: account email not set. Export JIRA_API_EMAIL or use an 'email:token' token file." >&2
-  exit 2
-fi
+# shellcheck source=jira-rest.sh
+. "${SCRIPT_DIR}/jira-rest.sh"
+jira_rest_resolve_auth "$TOKEN_FILE" || exit 2
 
 # --- load the attachment inventory via the deterministic loader (issue + subtasks) ---
 # stderr suppressed: the loader's own diagnostics are noise; its result is validated on the next line.
@@ -140,9 +106,7 @@ fi
 
 # --- write the 0600 curl auth config (token stays out of argv) ---
 CFG="$(mktemp)"
-chmod 600 "$CFG"
 trap 'rm -f "$CFG"' EXIT
-BASIC="$(printf '%s:%s' "$EMAIL" "$TOKEN" | base64 | tr -d '\n')"
-printf 'header = "Authorization: Basic %s"\n' "$BASIC" > "$CFG"
+jira_rest_write_config "$CFG"
 
 att_run "$INVENTORY" "$CFG" "$DEST" "jira" "$REF"
