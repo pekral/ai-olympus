@@ -97,7 +97,9 @@ function jiraShotFixture(): array
     (new Process(['git', 'init', '-q'], $dir . '/repo'))->mustRun();
 
     $chunk = static fn (string $type, string $data): string => pack('N', strlen($data)) . $type . $data . pack('N', crc32($type . $data));
-    $png = "\x89PNG\r\n\x1a\n" . $chunk('IHDR', pack('NNCCCCC', 1, 1, 8, 2, 0, 0, 0)) . $chunk('IDAT', (string) gzcompress("\x00\xff\x00\x00")) . $chunk('IEND', '');
+    $png = "\x89PNG\r\n\x1a\n" . $chunk('IHDR', pack('NNCCCCC', 1, 1, 8, 2, 0, 0, 0)) . $chunk('IDAT', (string) gzcompress(
+        "\x00\xff\x00\x00",
+    )) . $chunk('IEND', '');
     $realRepo = (string) realpath($dir . '/repo');
 
     foreach (['head', 'base'] as $state) {
@@ -114,18 +116,19 @@ function jiraShotFixture(): array
 function jiraShotEntry(string $repo, string $state, string $findingId = 'f-0123456789abcdef', array $override = []): array
 {
     return [...[
+        'crop' => 'element',
+        'default_branch' => $state === 'base' ? 'master' : null,
+        'do_not_file_publicly' => false,
+        'file' => $repo . '/.claude/run/demo.artifacts/step-' . $state . '.png',
         'finding_id' => $findingId,
         'finding_type' => 'bug',
-        'do_not_file_publicly' => false,
-        'state' => $state,
-        'default_branch' => $state === 'base' ? 'master' : null,
-        'file' => $repo . '/.claude/run/demo.artifacts/step-' . $state . '.png',
-        'masking' => 'verified',
-        'crop' => 'element',
-        'own_data_only' => true,
-        'not_error_page' => true,
         'masked_in_capture_session' => true,
-    ], ...$override];
+        'masking' => 'verified',
+        'not_error_page' => true,
+        'own_data_only' => true,
+        'state' => $state,
+    ], ...$override,
+    ];
 }
 
 function jiraShotBody(): string
@@ -141,7 +144,7 @@ function jiraShotBody(): string
  * @param callable(string): list<array<string, mixed>> $entries builds the manifest entries from the repository path of the fixture
  * @param list<string> $arguments
  * @param array<string, string> $env
- * @return array{process: Process, dir: string, log: callable(string): string}
+ * @return array{process: \Symfony\Component\Process\Process, dir: string, log: callable(string): string}
  */
 function jiraShotRun(callable $entries, array $arguments = ['--create'], array $env = []): array
 {
@@ -151,18 +154,29 @@ function jiraShotRun(callable $entries, array $arguments = ['--create'], array $
     $process = new Process(
         [$package . '/skills/code-review-jira/scripts/upsert-comment.sh', ...$arguments, '--screenshots', $fixture['manifest'], '--slug', 'demo', 'ECO-7', '-'],
         $fixture['repo'],
-        [...$env, 'STUB_DIR' => $fixture['dir'], 'HOME' => $fixture['dir'] . '/home', 'JIRA_API_EMAIL' => 'tester@example.test', 'JIRA_API_TOKEN' => 'tok-never-printed-123',
-            'AUDIT_TRAIL_FILE' => $fixture['dir'] . '/run.audit', 'AUDIT_TRAIL_ROLE' => 'leonardo',
-            'PATH' => $fixture['dir'] . '/bin' . PATH_SEPARATOR . '/usr/bin' . PATH_SEPARATOR . '/bin' . PATH_SEPARATOR . '/opt/homebrew/bin' . PATH_SEPARATOR . (string) getenv('PATH')],
+        [...$env,
+            'AUDIT_TRAIL_FILE' => $fixture['dir'] . '/run.audit',
+            'AUDIT_TRAIL_ROLE' => 'leonardo',
+            'HOME' => $fixture['dir'] . '/home',
+            'JIRA_API_EMAIL' => 'tester@example.test',
+            'JIRA_API_TOKEN' => 'tok-never-printed-123',
+            'PATH' => $fixture['dir'] . '/bin' . PATH_SEPARATOR . '/usr/bin' . PATH_SEPARATOR . '/bin' . PATH_SEPARATOR . '/opt/homebrew/bin' . PATH_SEPARATOR . (string) getenv(
+    'PATH',
+    ),
+            'STUB_DIR' => $fixture['dir'],
+
+        ],
         jiraShotBody(),
     );
     file_put_contents($fixture['dir'] . '/run.audit', '');
     $process->run();
 
     return [
-        'process' => $process,
         'dir' => $fixture['dir'],
-        'log' => static fn (string $name): string => is_file($fixture['dir'] . '/' . $name) ? (string) file_get_contents($fixture['dir'] . '/' . $name) : '',
+        'log' => static fn (string $name): string => is_file($fixture['dir'] . '/' . $name) ? (string) file_get_contents(
+            $fixture['dir'] . '/' . $name,
+        ) : '',
+        'process' => $process,
     ];
 }
 
@@ -181,7 +195,9 @@ test('an accepted screenshot is attached to the item and shown inside its findin
         ->and($run['log']('curl.log'))->toContain('https://example.atlassian.net/rest/api/2/issue/ECO-7/comment')
         ->and($run['log']('curl.log'))->toContain('--max-redirs 0')
         ->and($run['log']('curl.log'))->not->toContain('tok-never-printed-123')
-        ->and($wiki)->toMatch('/^\* \*\(bug\):\* Save fails with \\\\!evil\|thumbnail! text\. \[View in code →\|[^\]]+\] \\\\\\\\ \*Default branch \(master\):\* \\\\\\\\ !step-base-[0-9]{8}t[0-9]{6}z\.png\|thumbnail! \\\\\\\\ \*This change:\* \\\\\\\\ !step-head-[0-9]{8}t[0-9]{6}z\.png\|thumbnail!$/m')
+        ->and($wiki)->toMatch(
+            '/^\* \*\(bug\):\* Save fails with \\\\!evil\|thumbnail! text\. \[View in code →\|[^\]]+\] \\\\\\\\ \*Default branch \(master\):\* \\\\\\\\ !step-base-[0-9]{8}t[0-9]{6}z\.png\|thumbnail! \\\\\\\\ \*This change:\* \\\\\\\\ !step-head-[0-9]{8}t[0-9]{6}z\.png\|thumbnail!$/m',
+        )
         ->and($wiki)->not->toContain('{screenshot:')
         ->and($run['log']('acli.log'))->not->toContain('comment create')
         ->and($run['log']('run.audit'))->toContain('REST v2, 2 screenshots');
@@ -217,7 +233,9 @@ test('a slot line is removed from a comment that is published without screenshot
     $package = dirname(__DIR__, 3);
     $process = new Process([$package . '/skills/code-review-jira/scripts/upsert-comment.sh', '--create', 'ECO-7', '-'], $fixture['repo'], [
         'STUB_DIR' => $fixture['dir'], 'HOME' => $fixture['dir'] . '/home', 'AUDIT_TRAIL_FILE' => $fixture['dir'] . '/run.audit', 'AUDIT_TRAIL_ROLE' => 'leonardo',
-        'PATH' => $fixture['dir'] . '/bin' . PATH_SEPARATOR . '/usr/bin' . PATH_SEPARATOR . '/bin' . PATH_SEPARATOR . '/opt/homebrew/bin' . PATH_SEPARATOR . (string) getenv('PATH'),
+        'PATH' => $fixture['dir'] . '/bin' . PATH_SEPARATOR . '/usr/bin' . PATH_SEPARATOR . '/bin' . PATH_SEPARATOR . '/opt/homebrew/bin' . PATH_SEPARATOR . (string) getenv(
+            'PATH',
+        ),
     ], jiraShotBody());
     file_put_contents($fixture['dir'] . '/run.audit', '');
     $process->run();
@@ -262,9 +280,13 @@ test('the screenshot options need --create and each other', function (): void {
 
 test('the converter keeps an image form in finding text as plain text', function (): void {
     $package = dirname(__DIR__, 3);
-    $process = new Process(['php', $package . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'], $package, null, "* A point !x.png|thumbnail! here\n");
+    $process = new Process(
+        ['php', $package . '/skills/code-review-jira/scripts/wiki-markup-to-adf.php'],
+        $package,
+        input: "* A point !x.png|thumbnail! here\n",
+    );
     $process->run();
-    $types = json_encode(json_decode($process->getOutput(), true), JSON_THROW_ON_ERROR);
+    $types = json_encode(json_decode($process->getOutput(), associative: true), JSON_THROW_ON_ERROR);
 
     expect($process->getExitCode())->toBe(0)
         ->and($types)->toContain('!x.png|thumbnail!')

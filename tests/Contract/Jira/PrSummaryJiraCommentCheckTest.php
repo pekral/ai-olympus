@@ -220,7 +220,12 @@ test('a JIRA summary in the shape of the template passes the check', function (s
 
 test('a screenshot slot line under a finding bullet does not change the verdict of the check', function (): void {
     $source = jiraSummaryWithoutCriteria();
-    $withSlots = (string) preg_replace('/^(\* \*\(bug\):\*.*)$/m', "$1\n{screenshot:f-0123456789abcdef:base}\n{screenshot:f-0123456789abcdef:head}", $source, 1);
+    $withSlots = (string) preg_replace(
+        '/^(\* \*\(bug\):\*.*)$/m',
+        "$1\n{screenshot:f-0123456789abcdef:base}\n{screenshot:f-0123456789abcdef:head}",
+        $source,
+        1,
+    );
     $process = runJiraSummaryCheck($withSlots, 'none');
 
     expect($withSlots)->not->toBe($source)

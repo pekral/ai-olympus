@@ -19,7 +19,9 @@ test('the reference shows errors only, one screenshot per state, and two for a r
 test('the reference never lets a security or a withheld finding carry a screenshot', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
-    expect($reference)->toContain('**A security finding never gets a screenshot.** Neither does a finding marked `do_not_file_publicly`, on GitHub and in JIRA alike.');
+    expect($reference)->toContain(
+        '**A security finding never gets a screenshot.** Neither does a finding marked `do_not_file_publicly`, on GitHub and in JIRA alike.',
+    );
 });
 
 test('the publication gate is an allow-list with five conditions and a text-only fallback', function (): void {
@@ -28,13 +30,17 @@ test('the publication gate is an allow-list with five conditions and a text-only
     expect($reference)->toContain('an allow-list, never a deny-list')
         ->and($reference)->toContain('A condition that is unmet or cannot be verified leaves the finding text-only, and the handoff names the condition.')
         ->and($reference)->toContain('**The cropped area holds only data this run created.**')
-        ->and($reference)->toContain('a name, an address, an order number, or any other value of a record this run did not create counts as personal data');
+        ->and($reference)->toContain(
+            'a name, an address, an order number, or any other value of a record this run did not create counts as personal data',
+        );
 });
 
 test('an error or debug page is never captured, and the detection list is pinned', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
-    expect($reference)->toContain('A framework error page (Ignition, Whoops, a Symfony or Django or Rails exception page) and a page with a debug toolbar (`phpdebugbar`, `sf-toolbar`, `sf-wdt`, a debug panel) are never captured and never published.')
+    expect($reference)->toContain(
+        'A framework error page (Ignition, Whoops, a Symfony or Django or Rails exception page) and a page with a debug toolbar (`phpdebugbar`, `sf-toolbar`, `sf-wdt`, a debug panel) are never captured and never published.',
+    )
         ->and($reference)->toContain('`Whoops`, `Ignition`, `Stack trace`, `Request headers`, `Environment`');
 });
 
@@ -58,10 +64,14 @@ test('masking runs in the capturing session and covers values, split text, shado
 test('the baseline of a regression runs before the head migrations or in its own database', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
-    expect($reference)->toContain('**Before the migrations of the head.** Take the base screenshot before the pending migrations of the head run against the local database.')
+    expect($reference)->toContain(
+        '**Before the migrations of the head.** Take the base screenshot before the pending migrations of the head run against the local database.',
+    )
         ->and($reference)->toContain('create a database for the base walk with the project\'s documented setup and drop it when the walk ends')
         ->and($reference)->toContain('A rollback and `migrate:fresh` stay forbidden.')
-        ->and($reference)->toContain('`Default branch (<default>)` takes the name of the resolved default branch, and it matches `^[A-Za-z0-9._/-]{1,100}$`.');
+        ->and($reference)->toContain(
+            '`Default branch (<default>)` takes the name of the resolved default branch, and it matches `^[A-Za-z0-9._/-]{1,100}$`.',
+        );
 });
 
 test('the upload happens only inside the publishing step', function (): void {
@@ -92,18 +102,21 @@ test('raphael, april, and the interactive-testing skill point to the reference a
         ->and($april)->not->toContain('GitHub has no supported API for attaching an image');
 });
 
-test('the Bash boundaries of the publishing agents name the upload scripts as narrow exceptions, on both platforms', function (string $agent, array $scripts): void {
-    $definition = defectShotRead('agents/' . $agent . '.md');
-    $codex = defectShotRead('codex/agents/' . $agent . '.toml');
-    $boundary = substr($definition, (int) strpos($definition, 'Bash is granted for one purpose'));
-
-    foreach ($scripts as $script) {
-        expect($boundary)->toContain($script)
-            ->and($codex)->toContain($script);
-    }
-})->with([
-    'leonardo' => ['leonardo', ['upload-review-asset.sh', 'upload-attachment.sh']],
+test(
+    'the Bash boundaries of the publishing agents name the upload scripts as narrow exceptions, on both platforms',
+    function (string $agent, array $scripts): void {
+        $definition = defectShotRead('agents/' . $agent . '.md');
+        $codex = defectShotRead('codex/agents/' . $agent . '.toml');
+        $boundary = substr($definition, (int) strpos($definition, 'Bash is granted for one purpose'));
+    
+        foreach ($scripts as $script) {
+            expect($boundary)->toContain($script)
+                ->and($codex)->toContain($script);
+        }
+    },
+)->with([
     'april' => ['april', ['upload-review-asset.sh', 'upload-attachment.sh']],
+    'leonardo' => ['leonardo', ['upload-review-asset.sh', 'upload-attachment.sh']],
     'raphael' => ['raphael', ['redact-url-params.sh', 'screenshot-guard.sh']],
 ]);
 
@@ -125,15 +138,23 @@ test('the consent table lists the two screenshot writes as L1 rows with their li
 });
 
 test('the JIRA rule, template, and shape reference describe the slot line and the upload script', function (): void {
-    expect(defectShotRead('rules/jira/general.md'))->toContain('Upload a defect screenshot only through `skills/code-review-jira/scripts/upload-attachment.sh`.')
+    expect(defectShotRead('rules/jira/general.md'))->toContain(
+        'Upload a defect screenshot only through `skills/code-review-jira/scripts/upload-attachment.sh`.',
+    )
         ->and(defectShotRead('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('{screenshot:<finding id>:head}')
-        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain('14. **A reproduced defect shows its screenshot inside its finding.**')
+        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain(
+            '14. **A reproduced defect shows its screenshot inside its finding.**',
+        )
         ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain('a `security` finding, or a finding marked do not file publicly');
 });
 
 test('the GitHub review template and the wrapper contract describe the one allowed image', function (): void {
-    expect(defectShotRead('skills/code-review-github/templates/review-body.md'))->toContain('The one image is the screenshot that the wrapper writes itself')
-        ->and(defectShotRead('skills/code-review-github/references/cr-wrapper-contract.md'))->toContain('A quiet round and a round that does not publish pass no `--screenshots`.');
+    expect(defectShotRead('skills/code-review-github/templates/review-body.md'))->toContain(
+        'The one image is the screenshot that the wrapper writes itself',
+    )
+        ->and(defectShotRead('skills/code-review-github/references/cr-wrapper-contract.md'))->toContain(
+            'A quiet round and a round that does not publish pass no `--screenshots`.',
+        );
 });
 
 test('the self-tests of the new scripts run in the shell self-test command', function (): void {
