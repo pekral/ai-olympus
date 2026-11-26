@@ -195,11 +195,13 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--filter')
         ->and($script)->toContain('gsub("\\\\p{Cf}"; "")')
         ->and($script)->toContain(
-            '([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002\uff0e\uff61\u2024]'
-                . '|[^\\\\s.\u3002\uff0e\uff61\u2024][.\u3002\uff0e\uff61\u2024]\\\\p{L}[\\\\p{L}\\\\p{M}]'
-                . '|[\\\\p{L}\\\\p{M}\\\\p{N}._%+-][@\uff20][\\\\p{L}\\\\p{N}]'
-                . '|\\\\p{Nd}{1,3}([.\u3002\uff0e\uff61\u2024]\\\\p{Nd}{1,3}){3})',
+            '([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002]'
+                . '|[^\\\\s.\u3002][.\u3002][\\\\p{L}\\\\p{M}][\\\\p{L}\\\\p{M}]'
+                . '|[\\\\p{L}\\\\p{M}\\\\p{N}._%+-]@[\\\\p{L}\\\\p{N}]'
+                . '|[\\\\p{Nd}\\\\p{No}]{1,3}([.\u3002][\\\\p{Nd}\\\\p{No}]{1,3}){3})',
         )
+        ->and($script)->toContain('norm="$(printf \'%s\' "$new" | php "$NORMALIZER")"')
+        ->and($script)->toContain('printf \'%s\' "$norm" | jq -r')
         ->and($script)->toContain('select((.content? // null) | type == "array")')
         ->and($script)->not->toContain('select((.type // "") == "text") | (.text // "") | select(test(')
         ->and($script)->toContain('previous_adf "$prev"')
@@ -241,6 +243,19 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'host with a path and no scheme' => 'url_host) reason=\'a link written as text\'',
     'host with a port' => 'url_port) reason=\'a link written as text\'',
     'host with a query' => 'url_query) reason=\'a link written as text\'',
+    'host with circled letters' => 'url_circled) reason=\'a link written as text\'',
+    'host with a small full stop' => 'url_smalldot) reason=\'a link written as text\'',
+    'host with a digit full stop' => 'url_digitdot) reason=\'a link written as text\'',
+    'e-mail address with a small at sign' => 'url_smallat) reason=\'a link written as text\'',
+    'IPv4 address with circled digits' => 'url_circip) reason=\'a link written as text\'',
+    'host with a mark after the full stop' => 'url_mark_dot) reason=\'a link written as text\'',
+    'host with a variation selector after the full stop' => 'url_fe0f) reason=\'a link written as text\'',
+    'host with a joiner after the full stop' => 'url_cgj) reason=\'a link written as text\'',
+    'full-width scheme' => 'url_fwscheme) reason=\'a link written as text\'',
+    'benign compatibility signs' => 'squared and degree units, circled step numbers, a currency sign, a dash, and a check mark are written',
+    'text of 20 KB' => 'a text of about 20 KB is written',
+    'text over the byte limit' => 'a text over the byte limit is refused with exit 1 and nothing is written',
+    'missing Normalizer class' => 'a missing Normalizer class exits 3 and nothing is written',
     'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
     'IPv4 address with a path' => 'url_ip) reason=\'a link written as text\'',
     'IPv4 address with a port' => 'url_ip_port) reason=\'a link written as text\'',

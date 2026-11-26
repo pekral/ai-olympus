@@ -29,21 +29,26 @@
 #     code, mention, link, smart link, URL written as text, media, task list, decision list, layout, or
 #     nested section, and at least one collapsed section. The URL test runs on the joined text of each
 #     block (every text node is a direct child of a block), so a mark inside a URL does not hide it. It
-#     first removes every invisible format character (Unicode class Cf, such as U+200B, U+00AD, and
-#     U+2060). It fails closed, because whether the site renders a scheme-less form as a link is not
-#     settled. It refuses a scheme (`https://`), `mailto:`, `www` followed by a dot, any host-like token
-#     (a character that is no space and no dot, a dot, then two letters or a letter and a mark: `☃.com`,
-#     `x_evil.com`, `evil.भारत`), whatever follows it (nothing, `/path`, `:8080`, `?x=1`, `#x`), an e-mail
-#     address (a letter, mark, digit, or one of `._%+-`, then `@`, then a letter or digit), and an IPv4
-#     address (four dotted groups of one to three digits, with or without a path or port). A dot is any
-#     of `.`, U+3002, U+FF0E, U+FF61, and U+2024, `@` is `@` or U+FF20, and a digit is any Unicode
-#     decimal digit. Three false refusals are accepted: a name with a dot such as `Node.js` or
-#     `readme.md`, a sentence that ends in a period with no space after it (`Done.Next`), and a four-part
-#     version such as `1.2.3.4`. A business-only text carries none of them
-#     (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`, `4.5/5`,
-#     `e.g.`, `i.e.`, `a/nebo`, `24.11.2026`, `wait...and then`, `the .NET export`, and a single-label
-#     host such as `localhost`. An IPv6 address is not tested, and neither is a full-width colon or
-#     slash after a scheme.
+#     runs on a copy of the converted document in which every string is in Unicode form NFKC with case
+#     folding (normalize-adf.php), so a compatibility form reads like its plain form: circled letters
+#     or digits, a small full stop or at sign, a full-width scheme, colon, or slash, and the invisible
+#     default-ignorable characters. The original document is the one that is written. Without the PHP
+#     `Normalizer` class (the intl extension) nothing is written and the exit code is 3. The test also
+#     removes every remaining format character (Unicode class Cf). It fails closed, because whether the
+#     site renders a scheme-less form as a link is not settled. It refuses a scheme (`https://`),
+#     `mailto:`, `www` followed by a dot, any host-like token (a character that is no space and no dot,
+#     a dot, then two letters or marks that start with a letter or a mark: `☃.com`, `x_evil.com`,
+#     `evil.भारत`, `evil.` and a mark and `com`), whatever follows it (nothing, `/path`, `:8080`, `?x=1`,
+#     `#x`), an e-mail address (a letter, mark, digit, or one of `._%+-`, then `@`, then a letter or
+#     digit), and an IPv4 address (four dotted groups of one to three digits, with or without a path or
+#     port). A dot is `.` or U+3002 after the normalisation, and a digit is any Unicode decimal digit or
+#     other number. A new text over 65536 bytes is refused with exit 1 before it is converted, and the
+#     empty-text check is one linear pattern match. Three false refusals are accepted: a name with a dot
+#     such as `Node.js` or `readme.md`, a sentence that ends in a period with no space after it
+#     (`Done.Next`), and a four-part version such as `1.2.3.4`. A business-only text carries none of
+#     them (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`, `4.5/5`,
+#     `e.g.`, `i.e.`, `a/nebo`, `24.11.2026`, `wait...and then`, `the .NET export`, `20 m²`, `20 °C`,
+#     `krok ① a ②`, and a single-label host such as `localhost`. An IPv6 address is not tested.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
 #   - The previous description holds no top-level *Original assignment* block: all its top-level nodes
@@ -71,9 +76,9 @@
 #
 # Exit codes:
 #   0  the description was rewritten and read back
-#   1  usage error, or a refused key or URL
+#   1  usage error, a refused key or URL, an empty new text, or a new text over 65536 bytes
 #   2  missing required tool (acli, jq, php)
-#   3  an acli read or write failed, or the converter failed
+#   3  an acli read or write failed, or the converter or the normaliser failed (a missing Normalizer class)
 #   4  the read-back did not match; the previous description was written back, or nothing was written
 #      back (the description is no longer the document this script wrote, or it could not be read
 #      again) and the previous description is on stdout as canonical ADF
@@ -86,6 +91,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 LOADER="$SCRIPT_DIR/load-issue.sh"
 CONVERTER="$SCRIPT_DIR/wiki-markup-to-adf.php"
+NORMALIZER="$SCRIPT_DIR/normalize-adf.php"
+MAX_TEXT_BYTES=65536
 
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
@@ -180,7 +187,7 @@ cmd_write() {
   need jq
   need php
 
-  local key text tmp new problems prev plan mode pre post opening expected_original title doc_file
+  local key text tmp new norm problems prev plan mode pre post opening expected_original title doc_file
   key="$(resolve_key "$input")"
   if [[ "$source" == "-" ]]; then
     text="$(cat)"
@@ -189,13 +196,20 @@ cmd_write() {
   else
     die 1 "the text file was not found: $source"
   fi
-  [[ -n "${text//[[:space:]]/}" ]] || die 1 "refused — the new text is empty"
+  # The size check comes first and the empty check is one linear pattern match: a substitution over a
+  # long text is quadratic in the bash 3.2 of macOS.
+  (($(printf '%s' "$text" | wc -c) <= MAX_TEXT_BYTES)) || die 1 "refused — the new text is longer than $MAX_TEXT_BYTES bytes"
+  [[ "$text" =~ [^[:space:]] ]] || die 1 "refused — the new text is empty"
 
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
 
   new="$(printf '%s' "$text" | php "$CONVERTER")" || die 3 "failed to convert the new text to ADF; nothing was written"
+  # The URL test runs on a copy of the document with every string in NFKC with case folding, so a host,
+  # an at sign, a digit, or a scheme written in a compatibility form reads like its plain form. The
+  # original document is the one that is written. Without the Normalizer class nothing is written.
+  norm="$(printf '%s' "$new" | php "$NORMALIZER")" || die 3 "failed to normalise the converted text (the intl extension of php is required); nothing was written"
 
   problems="$(printf '%s' "$new" | jq -r -L "$SCRIPT_DIR" --arg lang "$lang" "$SHAPE_JQ"'
     (.content // []) as $c
@@ -213,14 +227,19 @@ cmd_write() {
             "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
          | unique[] | "a node the new text never carries: \(.)"),
         ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
-        (if ([.. | objects | select((.content? // null) | type == "array")
-              | [.content[] | select(type == "object") | if (.type // "") == "text" then (.text // "") elif (.type // "") == "hardBreak" then "\n" else empty end] | join("")
-              | gsub("\\p{Cf}"; "")
-              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002\uff0e\uff61\u2024]|[^\\s.\u3002\uff0e\uff61\u2024][.\u3002\uff0e\uff61\u2024]\\p{L}[\\p{L}\\p{M}]|[\\p{L}\\p{M}\\p{N}._%+-][@\uff20][\\p{L}\\p{N}]|\\p{Nd}{1,3}([.\u3002\uff0e\uff61\u2024]\\p{Nd}{1,3}){3})"; "i"))] | length) > 0
-         then "a link written as text" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
          | "a collapsed section inside a collapsed section")
       ] | unique | .[]')" || die 3 "failed to read the converted text"
+  # shellcheck disable=SC2016  # a jq program
+  link_problem="$(printf '%s' "$norm" | jq -r '
+    if ([.. | objects | select((.content? // null) | type == "array")
+         | [.content[] | select(type == "object") | if (.type // "") == "text" then (.text // "") elif (.type // "") == "hardBreak" then "\n" else empty end] | join("")
+         | gsub("\\p{Cf}"; "")
+         | select(test("([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002]|[^\\s.\u3002][.\u3002][\\p{L}\\p{M}][\\p{L}\\p{M}]|[\\p{L}\\p{M}\\p{N}._%+-]@[\\p{L}\\p{N}]|[\\p{Nd}\\p{No}]{1,3}([.\u3002][\\p{Nd}\\p{No}]{1,3}){3})"; "i"))] | length) > 0
+    then "a link written as text" else empty end')" || die 3 "failed to read the normalised text"
+  if [[ -n "$link_problem" ]]; then
+    problems="${problems:+$problems$'\n'}$link_problem"
+  fi
   if [[ -n "$problems" ]]; then
     printf '%s\n' "$problems" | sed "s#^#$PROG: refused — #" >&2
     exit 5
@@ -313,7 +332,7 @@ cmd_write() {
 # (edits) and the values they read (first_original) are used only inside eval.
 # shellcheck disable=SC2016,SC2034,SC2329
 self_test() {
-  local tmp stubbin failures=0 script out sout rc fp
+  local tmp stubbin failures=0 script out sout rc fp extra_bin=""
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
@@ -410,7 +429,7 @@ STUB
   # run_script <args...> — run the script against the stand-in; sets $out (stdout, then stderr), $sout (stdout only), and $rc.
   run_script() {
     set +e
-    sout="$(PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net AUDIT_TRAIL_FILE="$tmp/run.audit" AUDIT_TRAIL_ROLE=self-test \
+    sout="$(PATH="${extra_bin:+$extra_bin:}$stubbin:$PATH" JIRA_SITE=example.atlassian.net AUDIT_TRAIL_FILE="$tmp/run.audit" AUDIT_TRAIL_ROLE=self-test \
       bash "$script" "$@" 2>"$tmp/stderr")"
     rc=$?
     out="$sout$(cat "$tmp/stderr")"
@@ -492,7 +511,7 @@ STUB
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty url url_em url_www url_host url_idn url_port url_query url_hash url_bare url_mail url_ip url_ip_bare url_ip_port url_node url_sym url_mark url_heart url_indic url_under url_zwsp url_shy url_wj url_fwdot url_ideo url_dot2024 url_fwat url_fwdigit nosection; do
+  for bad in mention link heading code title order empty url url_em url_www url_host url_idn url_port url_query url_hash url_bare url_mail url_ip url_ip_bare url_ip_port url_node url_sym url_mark url_heart url_indic url_under url_zwsp url_shy url_wj url_fwdot url_ideo url_dot2024 url_fwat url_fwdigit url_circled url_smalldot url_digitdot url_smallat url_circip url_mark_dot url_fe0f url_cgj url_fwscheme nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -527,6 +546,15 @@ STUB
       url_dot2024) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x80\xa4com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_fwat) reason='a link written as text'; printf '%s\n' 'Mail admin＠evil for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_fwdigit) reason='a link written as text'; printf '%s\n' 'See １９２.０.２.１ for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_circled) reason='a link written as text'; printf '%s\n' 'Open evil.ⓒⓞⓜ for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_smalldot) reason='a link written as text'; printf '%s\n' 'Open evil﹒com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_digitdot) reason='a link written as text'; printf '%s\n' 'Open evil⒈com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_smallat) reason='a link written as text'; printf '%s\n' 'Mail admin﹫evil for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_circip) reason='a link written as text'; printf '%s\n' 'See ①⑨②.0.2.1 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_mark_dot) reason='a link written as text'; printf '%s\n' $'Open evil.\xcc\x81com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_fe0f) reason='a link written as text'; printf '%s\n' $'Open evil.\xef\xb8\x8fcom for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_cgj) reason='a link written as text'; printf '%s\n' $'Open evil.\xcd\x8fcom for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_fwscheme) reason='a link written as text'; printf '%s\n' 'Open ｈｔｔｐｓ：／／x for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
@@ -550,6 +578,45 @@ STUB
   printf '%s\n' 'Done. Next the 24.11.2026 release, wait...and then the .NET export, 3 a.m. or 50 % off.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign3.txt"
   run_script write ACME-1 en "$fp" "$tmp/benign3.txt"
   expect 'a sentence end, a date, an ellipsis, and a leading dot are written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
+  # Compatibility forms of the benign signs of a business text must pass: squared and degree units, circled step numbers, a currency sign, a dash, and a check mark.
+  setup ok "$p_legacy"
+  take_fingerprint
+  printf '%s\n' 'Plocha 20 m², teplota 20 °C, krok ① a ②, cena 5 € — hotovo ✓.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign4.txt"
+  run_script write ACME-1 en "$fp" "$tmp/benign4.txt"
+  expect 'squared and degree units, circled step numbers, a currency sign, a dash, and a check mark are written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
+
+  # A text of 20 KB is written, and a text over the byte limit is refused with exit 1 before anything is converted.
+  setup ok "$p_legacy"
+  take_fingerprint
+  { printf 'Opening. '; for _ in {1..400}; do printf 'The seller sees the export error in the overview and can act on it. '; done; printf '\n'; printf '%s\n' '{expand:Acceptance criteria}' '# One' '{expand}'; } >"$tmp/big-ok.txt"
+  run_script write ACME-1 en "$fp" "$tmp/big-ok.txt"
+  expect 'a text of about 20 KB is written' '[[ $rc -eq 0 && "$(edits)" == 1 && "$(wc -c <"$tmp/big-ok.txt")" -gt 20000 ]]'
+  setup ok "$p_legacy"
+  take_fingerprint
+  { printf 'Opening. '; head -c 70000 /dev/zero | tr '\0' 'a'; printf '\n'; printf '%s\n' '{expand:Acceptance criteria}' '# One' '{expand}'; } >"$tmp/big-bad.txt"
+  run_script write ACME-1 en "$fp" "$tmp/big-bad.txt"
+  expect 'a text over the byte limit is refused with exit 1 and nothing is written' '[[ $rc -eq 1 && "$(edits)" == 0 && "$out" == *"longer than"* ]]'
+
+  # Without the Normalizer class the URL test cannot run on the normalised copy: exit 3 and nothing is written.
+  # The stand-in php runs the normaliser with the class check pointed at a class that does not exist.
+  local real_php
+  real_php="$(command -v php)"
+  mkdir -p "$tmp/nonorm"
+  cat >"$tmp/nonorm/php" <<STUB
+#!/usr/bin/env bash
+if [[ "\${1:-}" == */normalize-adf.php ]]; then
+  sed "s/class_exists('Normalizer')/class_exists('NoSuchNormalizer')/" "\$1" >"$tmp/nonorm/normalize-adf.php"
+  exec "$real_php" "$tmp/nonorm/normalize-adf.php"
+fi
+exec "$real_php" "\$@"
+STUB
+  chmod +x "$tmp/nonorm/php"
+  setup ok "$p_legacy"
+  take_fingerprint
+  extra_bin="$tmp/nonorm"
+  run_script write ACME-1 en "$fp" "$good_en"
+  extra_bin=""
+  expect 'a missing Normalizer class exits 3 and nothing is written' '[[ $rc -eq 3 && "$(edits)" == 0 && "$out" == *"normalise"* ]]'
   setup ok "$p_legacy"
   take_fingerprint
 
