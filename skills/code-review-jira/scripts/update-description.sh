@@ -29,16 +29,21 @@
 #     code, mention, link, smart link, URL written as text, media, task list, decision list, layout, or
 #     nested section, and at least one collapsed section. The URL test runs on the joined text of each
 #     block (every text node is a direct child of a block), so a mark inside a URL does not hide it. It
-#     fails closed, because whether the site renders a scheme-less form as a link is not settled. It
-#     refuses a scheme (`https://`), `mailto:`, `www.`, any host-like token (`label.tld`, a letter TLD
-#     of two or more letters) whatever follows it (nothing, `/path`, `:8080`, `?x=1`, `#x`), an e-mail
-#     address (a character, `@`, a letter or digit), and an IPv4 address (four dotted groups of one to
-#     three digits, with or without a path or port). Three false refusals are accepted: a name with a
-#     dot such as `Node.js` or `readme.md`, a sentence that ends in a period with no space after it
-#     (`Done.Next`), and a four-part version such as `1.2.3.4`. A business-only text carries none of
-#     them (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`,
-#     `4.5/5`, `e.g.`, `i.e.`, `a/nebo`, and a single-label host such as `localhost`. An IPv6
-#     address is not tested.
+#     first removes every invisible format character (Unicode class Cf, such as U+200B, U+00AD, and
+#     U+2060). It fails closed, because whether the site renders a scheme-less form as a link is not
+#     settled. It refuses a scheme (`https://`), `mailto:`, `www` followed by a dot, any host-like token
+#     (a character that is no space and no dot, a dot, then two letters or a letter and a mark: `☃.com`,
+#     `x_evil.com`, `evil.भारत`), whatever follows it (nothing, `/path`, `:8080`, `?x=1`, `#x`), an e-mail
+#     address (a letter, mark, digit, or one of `._%+-`, then `@`, then a letter or digit), and an IPv4
+#     address (four dotted groups of one to three digits, with or without a path or port). A dot is any
+#     of `.`, U+3002, U+FF0E, U+FF61, and U+2024, `@` is `@` or U+FF20, and a digit is any Unicode
+#     decimal digit. Three false refusals are accepted: a name with a dot such as `Node.js` or
+#     `readme.md`, a sentence that ends in a period with no space after it (`Done.Next`), and a four-part
+#     version such as `1.2.3.4`. A business-only text carries none of them
+#     (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`, `4.5/5`,
+#     `e.g.`, `i.e.`, `a/nebo`, `24.11.2026`, `wait...and then`, `the .NET export`, and a single-label
+#     host such as `localhost`. An IPv6 address is not tested, and neither is a full-width colon or
+#     slash after a scheme.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
 #   - The previous description holds no top-level *Original assignment* block: all its top-level nodes
@@ -210,7 +215,8 @@ cmd_write() {
         ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
         (if ([.. | objects | select((.content? // null) | type == "array")
               | [.content[] | select(type == "object") | if (.type // "") == "text" then (.text // "") elif (.type // "") == "hardBreak" then "\n" else empty end] | join("")
-              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.|\\b[\\p{L}\\p{N}-]+(\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}|[\\p{L}\\p{N}._%+-]@[\\p{L}\\p{N}]|[0-9]{1,3}(\\.[0-9]{1,3}){3})"; "i"))] | length) > 0
+              | gsub("\\p{Cf}"; "")
+              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002\uff0e\uff61\u2024]|[^\\s.\u3002\uff0e\uff61\u2024][.\u3002\uff0e\uff61\u2024]\\p{L}[\\p{L}\\p{M}]|[\\p{L}\\p{M}\\p{N}._%+-][@\uff20][\\p{L}\\p{N}]|\\p{Nd}{1,3}([.\u3002\uff0e\uff61\u2024]\\p{Nd}{1,3}){3})"; "i"))] | length) > 0
          then "a link written as text" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
          | "a collapsed section inside a collapsed section")
@@ -486,7 +492,7 @@ STUB
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty url url_em url_www url_host url_idn url_port url_query url_hash url_bare url_mail url_ip url_ip_bare url_ip_port url_node nosection; do
+  for bad in mention link heading code title order empty url url_em url_www url_host url_idn url_port url_query url_hash url_bare url_mail url_ip url_ip_bare url_ip_port url_node url_sym url_mark url_heart url_indic url_under url_zwsp url_shy url_wj url_fwdot url_ideo url_dot2024 url_fwat url_fwdigit nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -508,6 +514,19 @@ STUB
       url_ip_bare) reason='a link written as text'; printf '%s\n' 'See 192.0.2.1 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_ip_port) reason='a link written as text'; printf '%s\n' 'See 192.0.2.1:8080 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_node) reason='a link written as text'; printf '%s\n' 'The seller uses Node.js for the export.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_sym) reason='a link written as text'; printf '%s\n' 'Log in at ☃.com/login now.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_mark) reason='a link written as text'; printf '%s\n' $'Open caf\x65\xcc\x81.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_heart) reason='a link written as text'; printf '%s\n' 'Open i❤.ws for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_indic) reason='a link written as text'; printf '%s\n' 'Open evil.भारत for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_under) reason='a link written as text'; printf '%s\n' 'Open x_evil.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_zwsp) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x80\x8b.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_shy) reason='a link written as text'; printf '%s\n' $'Open evil.\xc2\xadcom for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_wj) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x81\xa0.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_fwdot) reason='a link written as text'; printf '%s\n' 'Open evil．com:8080 now.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_ideo) reason='a link written as text'; printf '%s\n' 'Open evil。com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_dot2024) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x80\xa4com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_fwat) reason='a link written as text'; printf '%s\n' 'Mail admin＠evil for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_fwdigit) reason='a link written as text'; printf '%s\n' 'See １９２.０.２.１ for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
@@ -526,6 +545,11 @@ STUB
   printf '%s\n' 'Version 1.2.3 of the U.S. plan, i.e. the 3.5 kg limit, the 12.30 hours, a.s. and s.r.o. at localhost, no.12.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign2.txt"
   run_script write ACME-1 en "$fp" "$tmp/benign2.txt"
   expect 'a three-part version, dotted abbreviations, decimal numbers, and a single-label host are written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
+  setup ok "$p_legacy"
+  take_fingerprint
+  printf '%s\n' 'Done. Next the 24.11.2026 release, wait...and then the .NET export, 3 a.m. or 50 % off.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign3.txt"
+  run_script write ACME-1 en "$fp" "$tmp/benign3.txt"
+  expect 'a sentence end, a date, an ellipsis, and a leading dot are written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
   setup ok "$p_legacy"
   take_fingerprint
 
