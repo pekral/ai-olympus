@@ -499,7 +499,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a review that the session wrote itself because the project forbids helper agents says so in its header (issue #667).
         // Re-baselined: a known point is shown and never counted in the merge verdict, and the visible review lists it in its own block (issue #682).
         // Re-baselined: the strictest security gate names a security known point as the one case that is no finding (issue #682).
-        'rules/code-review/general.md' => 'fde9f746b9ced062baeb651e5ac000549ddd1f0c0ccd97adc250be657309ebfd',
+        // Re-baselined: the rebase onto master keeps the known-point sentences beside the changes of issue #709.
+        'rules/code-review/general.md' => '646a4126926217d1ec8e7c4e12571b395e49aa5b719ef7497fbfb2d63b502824',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
