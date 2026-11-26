@@ -69,9 +69,9 @@
 #                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a description that the operator's account wrote and
 #                    that no other account changed (`descriptionTrusted`). On GitHub the pull request of the state
 #                    must close the task (`closingIssues[]`) and must not close the linked issue: neither through
-#                    `closingIssues[]` nor through a closing keyword in the headline or the body of one of its
-#                    commits, in its title, or in its body, and the commit list is shorter than the 100 entries
-#                    that the loader returns at most. A pull request that cannot be loaded is a refusal.
+#                    `closingIssues[]` nor through a closing keyword that reaches a reference to it in the
+#                    full message of one of its commits, in its title, in its body, or in its branch name, and the
+#                    commit list is shorter than the 100 entries that the loader returns at most. A pull request that cannot be loaded is a refusal.
 #                    A security finding a linked issue already
 #                    reports is a known point too (owner decision of 2026-11-25): the trust of the link decides, never
 #                    the kind of the finding. The state stores the task and the issue. Every refusal exits 4 and
@@ -998,10 +998,18 @@ lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 #   issue, so the task and the linked issue are issues of the repository of the pull request. A JIRA issue is trusted
 #   only on the site and in the project of the task, whose permission scheme decides who edits its description.
 #   The merge of the pull request closes every issue in its `closingIssues[]` and every issue that a closing keyword
-#   names in the headline or the body of one of its commits, in its title (a merge commit and a squash commit carry
-#   it), or in its body (a squash commit can carry it), so such an issue makes no known point. The pull request must
-#   close the task. A commit list of COMMIT_PAGE or more entries is a refusal: `gh pr view --json commits` returns no
-#   more than one page of 100 and does not page, so such a list may lack the commits after the first 100.
+#   names in one of its commit messages, in its title or its body (a merge commit and a squash commit carry them), or
+#   in its branch name (the default merge commit message carries it), so such an issue makes no known point. The check
+#   is stricter than GitHub on purpose: in a text GitHub may read as a closing one it refuses when a reference to the
+#   linked issue (`#n`, `gh-n`, `owner/repo#n`, the issue URL, any case, leading zeros) stands on the same line as a
+#   closing keyword (close, fix, resolve, with or without -s and -d) or on the next line, whatever stands between the
+#   two (markup, brackets, a semicolon, the word issue). It names no reference form, so a new form of markup opens
+#   no gap. The branch name is refused when it holds a keyword and the number. The pull request must close the task.
+#   The loader cuts a commit headline of 74 or more characters at 69 and puts the rest at the start of the message
+#   body, behind an ellipsis, so the check joins the headline and the body the ways that the cut can have split them
+#   (with nothing, a space, or a line break between), and tests every join. A commit list of COMMIT_PAGE or more
+#   entries is a refusal: `gh pr view --json commits` returns no more than one page of 100 and does not page.
+#   A missing title, body, branch name, or commit message is a refusal.
 #   Not covered: a closing keyword that reaches the pull request after the last review round, and a title or message
 #   that a person edits in the merge dialog.
 linked_issue_verdict() {
@@ -1025,14 +1033,34 @@ linked_issue_verdict() {
     verdict="$(jq -r -n -L "$HERE" --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
       --slurpfile prq "$TMP/closing.json" --arg source "$source" --arg issue "$issue" --arg repo "$repo" \
       --argjson pr "$pr" --argjson page "$COMMIT_PAGE" --arg n "${issue##*/}" 'include "review-trust";
-      # A closing keyword (close, fix, resolve, with or without -s and -d, any case), an optional colon, and a list of
-      # references (separated by white space, commas, `&`, or `and`), the last of which names issue $n of $repo: #n,
-      # gh-n, owner/name#n, or the issue URL (http or https, with or without www). Leading zeros of the number count.
+      # A closing keyword (close, fix, resolve, with or without -s and -d, any case) opens a reach: the rest of its
+      # line and the whole next line (the next line with text, when nothing but marks follows the keyword). A reference to issue $n of $repo in the reach closes it, whatever stands
+      # between the keyword and the reference: #n, gh-n, owner/name#n, or the issue URL (http or https, with or
+      # without www). Leading zeros of the number count. Another repository, another number, and a reference
+      # that no keyword reaches do not.
       ($repo | ascii_downcase | gsub("\\."; "\\.")) as $r
-      | ("(?i)(?<![a-z0-9_])(close[sd]?|fix(e[sd])?|resolve[sd]?)\\s*:?\\s*"
-          + "((https?://(www\\.)?github\\.com/[^\\s/]+/[^\\s/]+/issues/|[a-z0-9_.-]+/[a-z0-9_.-]+#|gh-|#)[0-9]+(\\s|,|&|\\band\\b)*)*"
-          + "(https?://(www\\.)?github\\.com/\($r)/issues/|\($r)#|gh-|#)0*\($n)(?![0-9])") as $closes
-      | ($src[0] // null) as $t | ($lnk[0] // null) as $l | ($prq[0] // null) as $q
+      | "(?<![a-z0-9])(close[sd]?|fix(e[sd])?|resolve[sd]?)(?![a-z])" as $kw
+      | ("(?<![a-z0-9_./-])(#|gh-)0*\($n)(?![0-9])"
+          + "|(?<![a-z0-9_.-])\($r)#0*\($n)(?![0-9])"
+          + "|https?://(www\\.)?github\\.com/\($r)/issues/0*\($n)(?![0-9])") as $ref
+      | def lines: split("\r\n|[\r\n\u000b\u000c\u0085\u2028\u2029]"; null);
+        def closing: lines as $ls
+          | any(range(0; $ls | length); . as $i
+              | ([$ls[$i] | match($kw; "gi")] | .[0]) as $m
+              | if $m == null then false
+                else ($ls[$i][($m.offset + $m.length):]) as $tail
+                  | (if ($tail | test("[a-z0-9]"; "i")) then ($ls[$i + 1] // "")
+                     else ([$ls[($i + 1):][] | select(test("\\S"))] | .[0] // "") end) as $next
+                  | ($tail | test($ref; "i")) or ($next | test($ref; "i")) end);
+        # The messages a commit can have had before the loader cut its headline: the plain one, and, behind a cut
+        # headline, the headline and the body joined with nothing, a space, or a line break between.
+        def messages: .messageHeadline as $h | .messageBody as $b
+          | [$h + "\n\n" + $b]
+            + (if ($h | endswith("\u2026"))
+               then ($h | rtrimstr("\u2026")) as $x | ($b | ltrimstr("\u2026")) as $y | [$x + $y, $x + " " + $y, $x + "\n" + $y]
+               else [] end);
+        def branch_closes: test($kw; "i") and test("(?<![0-9])0*\($n)(?![0-9])");
+      ($src[0] // null) as $t | ($lnk[0] // null) as $l | ($prq[0] // null) as $q
       | if ($t | type) != "object" or $t.kind != "issue" or $t.url != $source then "refused:the loader returned another item than the task"
         elif ([($t.linkedIssues // [])[] | .url] | index([$issue])) == null then "refused:the issue is not in the link list of the task"
         elif ($l | type) != "object" or $l.kind != "issue" or $l.url != $issue then "refused:the loader returned another item than the linked issue"
@@ -1052,12 +1080,16 @@ linked_issue_verdict() {
         then "refused:the loader returned a commit without its message headline and body"
         elif ($q.title | type) != "string" or ($q.body | type) != "string"
         then "refused:the loader returned a pull request without its title and body"
-        elif ($q.commits | any(.[]; (.messageHeadline | test($closes)) or (.messageBody | test($closes))))
+        elif ($q.headRefName | type) != "string"
+        then "refused:the loader returned a pull request without its branch name"
+        elif ($q.commits | any(.[]; messages | any(.[]; closing)))
         then "refused:a commit of the pull request closes the linked issue"
-        elif ($q.title | test($closes))
+        elif ($q.title | closing)
         then "refused:the title of the pull request closes the linked issue"
-        elif ($q.body | test($closes))
+        elif ($q.body | closing)
         then "refused:the body of the pull request closes the linked issue"
+        elif ($q.headRefName | branch_closes)
+        then "refused:the branch name of the pull request names a closing keyword and the linked issue"
         else "ok" end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   elif [[ "$source" =~ $JIRA_KEY_RE ]]; then
     local project="${BASH_REMATCH[1]}" host key
@@ -1245,9 +1277,10 @@ EOF
     local commits="$1"
     shift
     jq -n -c --argjson commits "$commits" --arg title "${PR_TITLE-feat(orders): add the export (#10)}" --arg body "${PR_BODY-Adds the export.}" \
+      --arg branch "${PR_BRANCH-feat/orders-export}" \
       '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
       repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
-      title: $title, body: $body,
+      title: $title, body: $body, headRefName: $branch,
       closingIssues: [$ARGS.positional[] | {url: .}], commits: $commits}' --args "$@" >"$tmp/pr.json"
   }
   # pr_page <count> <issue-url> — the loader payload of pull request acme/shop#7 with <count> commits that close nothing.
@@ -1627,16 +1660,16 @@ EOF
   done
   # A closing keyword for another number, a word that only ends in a keyword, and a reference without a keyword close
   # nothing, so the link is a known point.
-  pr_closes '[{"oid":"c8","messageHeadline":"fix: the total (#10)","messageBody":"Closes #123. Prefix #12. See #12."}]' "$task"
+  pr_closes '[{"oid":"c8","messageHeadline":"fix: the total (#10)","messageBody":"Closes #123.\n\nPrefix #12.\n\nSee #12."}]' "$task"
   run_case 'a known point is marked when no commit closes the linked issue' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
   (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
-  # known_row <accept|refuse> <label> <pr title> <commit headline> <commit body> <pr body> — the pull request closes the
-  # task and carries this title, one commit with this headline and body, and this body; `known` for the linked issue
+  # known_row <accept|refuse> <label> <pr title> <commit headline> <commit body> <pr body> [branch] — the pull request
+  # closes the task and carries this title, one commit with this headline and body, this body, and this branch name; `known` for the linked issue
   # (#12) must refuse it (exit 4, state unchanged) or mark it (exit 0).
   known_row() {
     local want="$1" label="$2" ptitle="$3" head="$4" cbody="$5" pbody="$6" rc=4
     [[ "$want" == accept ]] && rc=0
-    PR_TITLE="$ptitle" PR_BODY="$pbody" pr_closes "$(jq -n -c --arg h "$head" --arg b "$cbody" \
+    PR_BRANCH="${7-feat/orders-export}" PR_TITLE="$ptitle" PR_BODY="$pbody" pr_closes "$(jq -n -c --arg h "$head" --arg b "$cbody" \
       '[{oid: "k1", messageHeadline: $h, messageBody: $b}]')" "$task"
     cp "$repo/$S" "$tmp/row-before"
     run_case "a known point is $([[ "$want" == accept ]] && echo marked || echo refused) for $label" "$rc" -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
@@ -1669,6 +1702,39 @@ EOF
     known_row refuse "the keyword $kwu with a colon" 'feat: x' 'fix: z' "$kwu: #12" ''
     known_row refuse "the keyword $kw in the title of the pull request" "feat: x, $kw #12" 'fix: z' '' ''
   done
+  # The loader cuts a commit headline of 74 or more characters at 69 characters plus an ellipsis and starts the body
+  # with an ellipsis and the rest. The closing keyword can stand across the cut, inside a word or between the words.
+  local ell=$'\xe2\x80\xa6'
+  known_row refuse 'a commit whose closing keyword stands across the headline cut inside the word' 'feat: x' "feat(orders): export every order of the shop into one archive file fi$ell" "${ell}xes #12 for the big shops" ''
+  known_row refuse 'a commit whose closing keyword stands across the headline cut before its reference' 'feat: x' "feat(orders): export every order of the shop into one archive file fixes $ell" "$ell#12 for the big shops" ''
+  known_row refuse 'a commit whose closing keyword ends the cut headline and whose reference starts the body' 'feat: x' "feat(orders): export every order of the shop into one archive file fixes$ell" "$ell #12" ''
+  known_row accept 'a cut headline that closes another number' 'feat: x' "feat(orders): export every order of the shop into one archive file fi$ell" "${ell}xes #13 for the big shops" ''
+  known_row accept 'a headline that ends in an ellipsis with no keyword' 'feat: x' "feat(orders): export every order of the shop into one archive file$ell" "${ell}for #12 and the big shops" ''
+  # A reference of the linked issue on the same line as a closing keyword, or on the next line, closes it whatever
+  # stands between the two: markup, brackets, a semicolon, the word issue, or text.
+  known_row refuse 'a Markdown link after the keyword' 'feat: x' 'fix: z' 'Fixes [#12](https://github.com/acme/shop/issues/12)' ''
+  known_row refuse 'a bold keyword' 'feat: x' 'fix: z' '**Fixes** #12' ''
+  known_row refuse 'a bold reference' 'feat: x' 'fix: z' 'Fixes **#12**' ''
+  known_row refuse 'an italic keyword' 'feat: x' 'fix: z' '_Fixes_ #12' ''
+  known_row refuse 'a reference in brackets' 'feat: x' 'fix: z' 'Fixes (#12)' ''
+  known_row refuse 'a reference after a semicolon' 'feat: x' 'fix: z' 'Closes #10; #12' ''
+  known_row refuse 'the word issue between keyword and reference' 'feat: x' 'fix: z' 'Closes issue #12' ''
+  known_row refuse 'a URL in angle brackets' 'feat: x' 'fix: z' 'Fixes <https://github.com/acme/shop/issues/12>' ''
+  known_row refuse 'a reference in brackets in the title' 'Closes (#12)' 'fix: z' '' ''
+  known_row refuse 'a bold keyword in the pull request body' 'feat: x' 'fix: z' '' '**Closes** #12'
+  known_row refuse 'a Markdown link in the pull request body' 'feat: x' 'fix: z' '' 'Fixes [#12](https://github.com/acme/shop/issues/12)'
+  known_row refuse 'a keyword and a reference with text between them' 'feat: x' 'fix: z' 'Resolves the shipping total in the export, see #12' ''
+  known_row refuse 'a reference on the line after the keyword' 'feat: x' 'fix: z' $'Fixes:\n\n#12' ''
+  known_row refuse 'a reference on the line after a keyword in a list' 'feat: x' 'fix: z' $'- Closes\n- #12' ''
+  # The default merge commit message names the branch.
+  known_row refuse 'a branch named after a keyword and the number' 'feat: x' 'fix: z' '' '' 'acme/fixes#12'
+  known_row refuse 'a branch with a keyword and the number with leading zeros' 'feat: x' 'fix: z' '' '' 'fix/gh-0012-export'
+  known_row accept 'a branch with a keyword and another number' 'feat: x' 'fix: z' '' '' 'acme/fixes#13'
+  known_row accept 'a branch with the number and no keyword' 'feat: x' 'fix: z' '' '' 'feat/gh-12-export'
+  known_row accept 'a branch whose word only contains a keyword' 'feat: x' 'fix: z' '' '' 'bugfix/prefix-12-fixture'
+  known_row accept 'a keyword and the number on lines apart' 'feat: x' 'fix: z' $'Fixes the export total.\n\nSee the discussion in #12.' ''
+  known_row accept 'a cross-repository reference after a keyword' 'feat: x' 'fix: z' 'Fixes other/repo#12' ''
+  known_row accept 'a cross-repository URL after a keyword in the title' 'Fixes https://github.com/other/repo/issues/12' 'fix: z' '' ''
   # What closes nothing: another number, another repository, a word that only ends in a keyword, a keyword with no
   # reference, and a reference with no keyword.
   known_row accept 'a closing keyword for another number' 'feat: x' 'fix: z' 'Closes #123. Closes gh-1.' ''
@@ -1685,6 +1751,10 @@ EOF
   pr_page 99 "$task"
   run_case 'a known point is marked for a commit list of 99 entries' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
   (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+  # A payload without a branch name is not the pull request of the state.
+  pr_closes "$closes_task" "$task"
+  jq -c 'del(.headRefName)' "$tmp/pr.json" >"$tmp/pr-cut" && mv "$tmp/pr-cut" "$tmp/pr.json"
+  run_case 'a known point is refused for a pull request without its branch name' 4 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
   # A payload without a title or a body is not the pull request of the state.
   for kw in title body; do
     pr_closes "$closes_task" "$task"
@@ -1789,6 +1859,9 @@ EOF
     "the pull request now closes the linked issue|pr_closes '$closes_task' '$task' '$known_issue'|confirmed confirmed" \
     "a new commit closes the linked issue|pr_closes '[{\"oid\":\"b2\",\"messageHeadline\":\"fix: y\",\"messageBody\":\"Fixes #12\"}]' '$task'|confirmed confirmed" \
     "a new commit closes the linked issue by gh-N|pr_closes '[{\"oid\":\"b3\",\"messageHeadline\":\"fix: y\",\"messageBody\":\"Closes gh-12\"}]' '$task'|confirmed confirmed" \
+    "a new commit closes the linked issue across the cut of its headline|pr_closes '[{\"oid\":\"b4\",\"messageHeadline\":\"feat(orders): export every order of the shop into one archive file fi\u2026\",\"messageBody\":\"\u2026xes #12 for the big shops\"}]' '$task'|confirmed confirmed" \
+    "a new commit closes the linked issue with markup around the keyword|pr_closes '[{\"oid\":\"b5\",\"messageHeadline\":\"fix: y\",\"messageBody\":\"**Fixes** #12\"}]' '$task'|confirmed confirmed" \
+    "the branch of the pull request is renamed after a keyword and the number|PR_BRANCH='acme/fixes#12' pr_closes '$closes_task' '$task'|confirmed confirmed" \
     "the title of the pull request now closes the linked issue|PR_TITLE='feat: x, fixes #12' pr_closes '$closes_task' '$task'|confirmed confirmed" \
     "the commit list reaches the page size of the loader|pr_page 100 '$task'|confirmed confirmed" \
     "the pull request cannot be loaded|rm -f '$tmp/pr.json'|confirmed confirmed" \
