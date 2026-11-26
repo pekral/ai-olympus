@@ -459,7 +459,7 @@ if [[ "$VIEW_COMMENT_GAP" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 # `|| printf` would append the fallback to whatever jq had already written, leaving two JSON
-# documents in one variable and failing `--argjson` below with exit 2 — the load died where it was
+# documents in one variable and breaking the later JSON projection — the load died where it was
 # documented to degrade. Take whatever the pipeline produced, then validate it.
 # The acli exit status is read on its own: piped into `jq -s`, a failed fetch would come out as a valid empty list.
 # A failed or unparseable fetch degrades to an empty list, and COMMENTS_FETCHED records that it did.
@@ -495,13 +495,10 @@ if [[ -n "$SUBTASK_KEYS" ]]; then
       SUBTASK_COMMENTS="$SUBTASK_PARSED"
       SUBTASK_FETCHED=true
     fi
-    SUBTASK_DETAILS="$(jq -c -n \
-      --arg key "$SUBTASK_KEY" \
-      --argjson acc "$SUBTASK_DETAILS" \
-      --argjson view "$SUBTASK_VIEW" \
-      --argjson commentsResp "$SUBTASK_COMMENTS" \
-      --argjson fetched "$SUBTASK_FETCHED" \
-      '$acc + { ($key): { view: $view, comments: ($commentsResp.comments // []), fetched: $fetched } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
+    SUBTASK_DETAILS="$(printf '%s\n' "$SUBTASK_DETAILS" "$SUBTASK_VIEW" "$SUBTASK_COMMENTS" | jq -cn \
+      --arg key "$SUBTASK_KEY" --argjson fetched "$SUBTASK_FETCHED" \
+      'input as $acc | input as $view | input as $commentsResp
+       | $acc + { ($key): { view: $view, comments: ($commentsResp.comments // []), fetched: $fetched } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
   done <<< "$SUBTASK_KEYS"
 fi
 
@@ -515,16 +512,12 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-jq -n -L "$SCRIPT_DIR" \
+printf '%s\n' "$VIEW_JSON" "$COMMENTS_JSON" "$SUBTASK_DETAILS" "$PRS_JSON" | jq -n -L "$SCRIPT_DIR" \
   --arg key "$KEY" \
   --arg host "$HOST" \
   --arg contentHost "$CONTENT_HOST" \
   --arg devField "$DEV_FIELD" \
-  --argjson view "$VIEW_JSON" \
-  --argjson commentsResp "$COMMENTS_JSON" \
-  --argjson subtaskDetails "$SUBTASK_DETAILS" \
-  --argjson commentsFetched "$COMMENTS_FETCHED" \
-  --argjson prs "$PRS_JSON" '
+  --argjson commentsFetched "$COMMENTS_FETCHED" '
 include "description-shape";
 
 def tryParseTrimEnd:
@@ -682,7 +675,8 @@ def description($attachments):
       descriptionSections: [$own[] | select(type == "object" and .type == "expand")
         | {title: (.attrs.title // ""), text: ({type:"doc", content:(.content // [])} | adfPlain)}] };
 
-($view.fields // {}) as $f
+input as $view | input as $commentsResp | input as $subtaskDetails | input as $prs
+| ($view.fields // {}) as $f
 | ($f.attachment // []) as $att
 | ($f.subtasks // []) as $sub
 | ($f.issuelinks // []) as $links
