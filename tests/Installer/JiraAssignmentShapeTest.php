@@ -41,13 +41,15 @@ test('the rule owns the JIRA shape once: a visible opening paragraph, then colla
         ->and($section)->toContain('**A new task that an agent writes takes the same shape.**')
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))
         ->toContain(
-            '**A tracker that renders no HTML takes plain headings.** The block form is for a GitHub issue body only. A JIRA description takes the shape of the next section.',
+            '**A tracker that renders no HTML takes plain headings.** The block form is for a GitHub issue body only. '
+            . 'A JIRA description takes the shape of the next section.',
         );
 });
 
 test('a rewrite takes its points only from the description and the trusted comments', function (): void {
     expect(jiraShapeSection())->toContain(
-        'come only from the current description and from the comments that pass the trust test of `@rules/compound-engineering/tracker.md` *Analyze every comment before you act on a tracker assignment* and are not addressed to another account',
+        'come only from the current description and from the comments that pass the trust test of `@rules/compound-engineering/tracker.md` '
+        . '*Analyze every comment before you act on a tracker assignment* and are not addressed to another account',
     )
         ->and(jiraShapeSection())->toContain(
             'A point from any other comment goes into the report of the run as an open point for the operator, never into the description.',
@@ -60,7 +62,8 @@ test('a rewrite takes its points only from the description and the trusted comme
 
 test('every reader of a JIRA assignment leaves the original out and takes the criteria from their own section', function (string $reader): void {
     expect(normalizedPackageSource($reader))->toContain(
-        'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText`, and the criteria come only from the *Acceptance criteria* section when the description has one',
+        'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText`, '
+        . 'and the criteria come only from the *Acceptance criteria* section when the description has one',
     );
 })->with([
     'assignment-compliance-check' => 'skills/assignment-compliance-check/SKILL.md',
@@ -117,20 +120,22 @@ test('a JIRA rewrite is an L2 write of the top-level session through the one aud
         ->and($rule)->toContain('**A JIRA rewrite is written into the task and read back.**')
         ->and(normalizedPackageSource('rules/jira/general.md'))->toContain('Never edit a description with a raw `acli jira workitem edit`.');
 
-    foreach (glob(dirname(__DIR__, 2) . '/agents/*.md') ?: [] as $agent) {
-        expect((string) file_get_contents($agent))->not->toContain('update-description.sh');
-    }
+    $agents = array_filter(
+        packageTextFiles(),
+        static fn (string $path): bool => str_starts_with($path, 'agents/'),
+        ARRAY_FILTER_USE_KEY,
+    );
+
+    expect($agents)->not->toBeEmpty()
+        ->and(implode("\n", $agents))->not->toContain('update-description.sh');
 });
 
 test('the rewrite helper is shipped, executable, and runs its self-test in the build', function (): void {
-    $packageDir = dirname(__DIR__, 2);
-    $script = $packageDir . '/skills/code-review-jira/scripts/update-description.sh';
-    $composer = json_decode((string) file_get_contents($packageDir . '/composer.json'), associative: true, flags: JSON_THROW_ON_ERROR);
-    assert(is_array($composer) && is_array($composer['scripts']) && is_array($composer['scripts']['shell-self-tests']));
+    $script = dirname(__DIR__, 2) . '/skills/code-review-jira/scripts/update-description.sh';
 
     expect(is_executable($script))->toBeTrue()
         ->and(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toStartWith('#!/usr/bin/env bash')
-        ->and(implode(' ', $composer['scripts']['shell-self-tests']))->toContain(' skills/code-review-jira/scripts/update-description.sh ');
+        ->and(packageSource('composer.json'))->toContain(' skills/code-review-jira/scripts/update-description.sh ');
 });
 
 test('the rewrite helper writes one key with one edit command and checks the shape before it writes', function (): void {
