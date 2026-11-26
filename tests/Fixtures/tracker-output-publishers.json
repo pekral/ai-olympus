@@ -67,10 +67,12 @@
         "skills/composer-update-pr/templates/pull-request-body.md"
     ],
     "skills/create-issue/SKILL.md": [
-        "skills/create-issue/templates/issue-body.md"
+        "skills/create-issue/templates/issue-body.md",
+        "skills/create-issues-from-text/templates/issue-structure-jira.md"
     ],
     "skills/create-issues-from-text/SKILL.md": [
-        "skills/create-issues-from-text/templates/issue-structure.md"
+        "skills/create-issues-from-text/templates/issue-structure.md",
+        "skills/create-issues-from-text/templates/issue-structure-jira.md"
     ],
     "skills/github-issue-triage/SKILL.md": [
         "skills/github-issue-triage/templates/needs-info-comment.md"
