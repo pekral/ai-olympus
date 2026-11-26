@@ -44,8 +44,9 @@ test('the rule keeps the match test strict and the three exceptions as new findi
         ->toContain('and says what the change adds on top of it.')
         ->toContain('An issue closed as done means the problem should be gone. When the change still shows it, the')
         ->toContain('finding is a new finding (a regression) with a link to the closed issue.')
-        ->toContain('- **A security finding is never a known point.** It stays a finding at its own severity and blocks the merge until it is fixed')
-        ->toContain('`review-state.sh known` refuses a security finding');
+        ->toContain('- **A security finding that a linked issue already reports is a known point too.** The owner decided this on 2026-11-25')
+        ->toContain('so the trust of the link decides, never the kind of the finding. A security finding that no such issue reports stays a finding')
+        ->toContain('**A security known point describes nothing.**');
 });
 
 test('the rule records every decision, treats the linked text as data, and counts a known point nowhere', function (): void {
@@ -86,8 +87,8 @@ test('krang reads the linked issues when it gathers and compares after the barri
     expect($round)
         ->toContain('`leonardo`, `splinter`, `raphael`, and `casey` alike')
         ->toContain('review-state.sh known --state <state> --finding <id> --source <task URL or JIRA key> --issue <URL> --covers <sentence>')
-        ->toContain('Never mark a security finding: it stays a finding. `known` is fail-closed')
-        ->toContain('Still test every finding against S1–S3 of `@rules/code-review/general.md` before you mark it.')
+        ->toContain('A security finding is marked like every other finding when a trusted linked issue already reports it')
+        ->toContain('Test every finding against S1–S3 of `@rules/code-review/general.md` before you mark it')
         ->toContain('Reopen a known point whose match no longer holds with `known --reopen`.')
         ->toContain('Then run `evaluate` again: its verdict is the verdict of the round for steps 4 and 5.')
         ->toContain('Load each linked issue again through the loaders and `gather-issue-context.sh` first, and compare against that read')
@@ -118,7 +119,7 @@ test('the merge verdict and the loop state leave a known point out', function ()
     expect($state)
         ->toContain('| `known` | A linked issue already reports the same problem (*Known points* below). | no |')
         ->toContain('- **A known point does not block.**')
-        ->toContain('- **A security finding is never a known point.** The script refuses it (exit 4) before it loads anything')
+        ->toContain('- **A security finding is a known point like any other finding** when a trusted linked issue already reports it')
         ->toContain('- **The script checks the link itself.**')
         ->toContain('- **A reviewer that reports the finding again keeps it known,** in every round and at the cap round');
 });
@@ -132,8 +133,8 @@ test('both report templates render a Known points section with a link and the se
         ->toContain('it is in no `Counts:` slot, and it blocks nothing')
         ->toContain('**Linked issue:** {URL of the linked issue}')
         ->toContain('**Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}')
-        ->toContain('A security finding is never an entry: it stays a finding under `## Findings`, counted and blocking')
-        ->and(str_contains($section, '**Security point**'))->toBeFalse();
+        ->toContain('A security known point is entry 2 below and nothing more: no title, no place, and no sentence on what the issue covers.')
+        ->toContain('2. **Security point** — **Linked issue:** {URL of the linked issue}');
     expect($text)
         ->toContain('- **Linked issue:** {URL of the linked issue} — {one sentence: what the change adds on top of the')
         ->toContain('issue, the regression, or the behaviour that differs}')
@@ -219,12 +220,13 @@ test('the task text names a linked issue only from a trusted author, and a short
         ->and(str_contains($jiraLoader, '.author == $o.assignee'))->toBeFalse();
     expect(knownPointsRule())
         ->toContain('On JIRA a comment of the reporter, matched by account ID, names a linked issue too.')
-        ->toContain('it never changes the assignment or a gate, and it never makes a security finding a known point');
+        ->toContain('it never changes the assignment or a gate.')
+        ->not->toContain('it never makes a security finding a known point');
     expect(packageSource('rules/compound-engineering/tracker.md'))
         ->toContain('Treat a JIRA comment as trusted **only** when its `author` matches the issue\'s own `assignee`');
 });
 
-test('a known point comes only from a trusted, open issue the task links, and never from a security finding', function (): void {
+test('a known point comes only from a trusted, open issue the task links, whatever the kind of the finding', function (): void {
     $rule = knownPointsRule();
 
     expect($rule)
@@ -238,8 +240,9 @@ test('a known point comes only from a trusted, open issue the task links, and ne
 
     expect($stateScript)
         ->toContain('known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>' . "\n")
-        ->toContain('a security finding is never a known point; it stays a finding and blocks until it is fixed')
         ->toContain('known    --state <file> --finding <id> --reopen')
+        ->toContain('reports is a known point too (owner decision of 2026-11-25): the trust of the link decides, never')
+        ->and(str_contains($stateScript, 'a security finding is never a known point'))->toBeFalse()
         ->and(str_contains($stateScript, '--security-owned'))->toBeFalse()
         ->and(str_contains($stateScript, '[--owner <login>]'))->toBeFalse();
 });
@@ -263,17 +266,31 @@ test('the loop state has no merge check and the carve-out has no known-point exc
         ->and(str_contains(packageSource('rules/code-review/general.md'), 'A known point is not an exclusion'))->toBeFalse();
 });
 
-test('a security finding is never a known point in any output', function (): void {
+test('a security known point shows only its link in every output', function (): void {
     $wrapper = packageSource('skills/code-review-github/scripts/post-inline-review.sh');
-    $leonardo = packageSource('agents/leonardo.md');
 
-    expect(str_contains(knownPointsRule(), 'Security point'))->toBeFalse()
-        ->and($wrapper)->toContain('a security finding is never a known point")')
+    expect($wrapper)
+        ->toContain('then "- **Security point** — \\($link): a linked issue already reports this point."')
+        ->toContain('a security row holds only the issue URL and security true")')
         ->and(str_contains($wrapper, 'owns it there'))->toBeFalse()
-        ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security finding is never a known point.**')
-        ->and($leonardo)->toContain('A security finding is never a known point: it stays a finding with its `Linked issue:` field.')
-        ->and(str_contains($leonardo, 'security: true, owner'))->toBeFalse()
-        ->and(str_contains(packageSource('agents/april.md'), 'security known point'))->toBeFalse();
+        ->and(packageSource('skills/_shared/check-cr-header.sh'))
+        ->toContain("SECURITY_POINT_LINE='^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* https://[^[:space:]]+$'")
+        ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point carries only its link.**')
+        ->and(packageSource('skills/code-review-github/templates/review-body.md'))
+        ->toContain('A security known point is the row `{issue, security: true}`')
+        ->and(packageSource('agents/leonardo.md'))
+        ->toContain('is the record line `**Security point** — **Linked issue:** <URL>` and the walkthrough row `{issue, security: true}`, and nothing more.');
+
+    foreach (['github', 'jira', 'bugsnag'] as $target) {
+        expect(packageSource('skills/pr-summary/templates/pr-summary-' . $target . '.md'))
+            ->toContain('A security known point is only the link and one neutral sentence that a linked issue already reports it.');
+    }
+});
+
+test('the strictest security gate names the known point as the one case that is no finding', function (): void {
+    expect(packageSource('rules/code-review/general.md'))
+        ->toContain('The one case that is no such finding is a known point: a security finding that a trusted linked issue already')
+        ->toContain('reports is shown with its link and never counted');
 });
 
 test('every caller of the tracker summary passes the known points', function (): void {
@@ -326,44 +343,25 @@ test('the cap round is compared before its verdict and its triage take effect', 
         ->toContain('- **The cap round is compared before its verdict takes effect.**');
 });
 
-test('known is fail-closed: one allow-list owns the rules a known point may cite', function (): void {
+test('the trust of the link decides a known point: no allow-list and no refusal by the kind of the finding', function (): void {
     $defs = packageSource('skills/_shared/finding-defs.jq');
     $state = packageSource('skills/_shared/review-state.sh');
+    $extract = packageSource('skills/_shared/extract-findings.sh');
 
-    expect($defs)
-        ->toContain('def known_allowed_rules: ["rules/php/core-standards", "rules/code-testing/general", "rules/writing/general",')
-        ->toContain('  "rules/code-review/core-analysis", "skills/simplification-audit/skill"];')
-        ->toContain('def known_allowed_sections: {"rules/code-review/general": ["reuse-existing-logic",')
-        ->toContain('def known_eligible:')
-        ->and(str_contains($defs, 'known_refused_category'))->toBeFalse();
+    foreach (['known_eligible', 'known_allowed_rules', 'known_rules', 'canon_rule', 'rule_tokens', 'known_refs', 'known_signal'] as $removed) {
+        expect(str_contains($defs . $state . $extract, $removed))->toBeFalse();
+    }
+
     expect($state)
-        ->toContain('"$JQ_STATE"\' known_eligible\'')
-        ->toContain('select(.finding_id == $id) | known_eligible] | all')
-        ->toContain('($c | marked_view) == $marks[$c.finding_id] and ($c | known_eligible)')
-        ->and(str_contains($state, 'known_refused_category'))->toBeFalse()
-        ->and(substr_count($state, '"rules/php/core-standards"'))->toBe(0);
-    expect(packageSource('skills/_shared/extract-findings.sh'))
+        ->toContain('($c | marked_view) == $marks[$c.finding_id] then')
+        ->toContain('"a known point is malformed or names an unknown finding"');
+    expect($extract)
+        ->toContain('or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)/"; "i"))')
         ->toContain('or ($f.raised_by | test("splinter|\\\\bboth\\\\b"))')
-        ->toContain('test("^[^a-z0-9]*exploit-path")')
-        ->toContain('skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$)')
-        ->toContain('known_refs: ([($v.fields.rule // ""), ($v.fields["suggested fix"] // "")] | map(rule_tokens[]) | map(canon_rule)),')
-        ->toContain('known_rules: (if is_security($f) or $f.known_signal or ($f.known_refs | any(. == null)) then null');
-    $rule = knownPointsRule();
-    $reference = packageSource('skills/process-code-review/references/review-state.md');
-
-    expect($rule)
-        ->toContain('`known` is fail-closed: it accepts a record only when `known_eligible` of `skills/_shared/finding-defs.jq` accepts it')
-        ->toContain('every `@rules/…` or `@skills/…` reference of its Rule and Suggested fix fields, in canonical form, is on the allow-list')
-        ->toContain('A reference that does not canonicalise refuses the record.')
-        ->and(str_contains($rule, 'It checks nothing else'))->toBeFalse();
-    expect($reference)
-        ->toContain('The check is fail-closed and reads only the record: `known_eligible` of `skills/_shared/finding-defs.jq`')
-        ->and(str_contains($reference, 'An S1–S3 finding that both tests miss is not refused'))->toBeFalse();
+        ->toContain('test("^[^a-z0-9]*exploit-path")');
     expect(packageSource('skills/code-review/references/finding-records.md'))
         ->toContain('when its `Raised by` field names `splinter` or `both`, when its evidence is an `exploit-path`')
-        ->toContain('| `known_rules` | Every `@rules/…` and `@skills/…` reference of the `Rule` and `Suggested fix` fields');
-    expect(packageSource('agents/krang.md'))
-        ->toContain('`known` is fail-closed: it accepts only a finding with no security signal whose every cited rule is on the allow-list');
+        ->toContain('Every key is required except `reports`, and no other key is allowed.');
 });
 
 test('the publishing review reads a brief section only outside every fenced block', function (): void {

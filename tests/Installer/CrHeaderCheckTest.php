@@ -95,9 +95,10 @@ test('the check reads both header lines against the values the rule and the temp
 test('the self-test covers every scenario of the assignment', function (): void {
     $script = crHeaderCheckSource('skills/_shared/check-cr-header.sh');
 
-    expect(substr_count($script, '  scenario \''))->toBe(30)
-        ->and($script)->toContain('scenario \'a security known point of an earlier version is refused\' 3')
-        ->and($script)->toContain('scenario \'a security known point outside the Known points section is refused\' 3')
+    expect(substr_count($script, '  scenario \''))->toBe(32)
+        ->and($script)->toContain('scenario \'a security known point that carries only its link is valid\' 0')
+        ->and($script)->toContain('scenario \'a security known point with a description is refused\' 3')
+        ->and($script)->toContain('scenario \'a security known point continued on the next line is refused\' 3')
         ->and($script)->toContain('scenario \'a body without the Merge verdict line is refused\' 3')
         ->and($script)->toContain('scenario \'a body without the Security assessment line is refused\' 3')
         ->and($script)->toContain('scenario \'a security line with the answers out of order is refused\' 3')
