@@ -45,6 +45,31 @@ test('every read-only review skill reads the branch only in the worktree of the 
     'skills/security-review/SKILL.md',
 ]);
 
+test('every review or test worktree is checked and removed only through the worktree script', function (string $path, string $text): void {
+    $source = normalizedPackageSource($path);
+
+    expect($source)->toContain($text)
+        ->and($source)->not->toContain('git worktree remove <path>')
+        ->and($source)->not->toContain('unlock|remove|prune')
+        ->and($source)->not->toContain('`git worktree unlock`, `git worktree remove`')
+        ->and($source)->not->toContain('git -C <path> status');
+})->with([
+    'krang cleanup' => ['agents/krang.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>'],
+    'leonardo standalone' => ['agents/leonardo.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID'],
+    'raphael grant' => ['agents/raphael.md', '`skills/_shared/branch-worktree.sh remove` on `.claude/worktrees/agent-test-<slug>-raphael` only'],
+    'splinter grant' => ['agents/splinter.md', '`skills/_shared/branch-worktree.sh remove` on your own review worktree only'],
+    'stale sweep' => ['skills/_shared/orchestration/stale-run-recovery.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>'],
+    'walkthrough' => ['skills/interactive-testing/SKILL.md', 'skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID'],
+]);
+
+test('no agent reads its review or test worktree with a plain git status', function (string $path, string $grant): void {
+    expect(normalizedPackageSource($path))->toContain($grant);
+})->with([
+    'leonardo' => ['agents/leonardo.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
+    'raphael' => ['agents/raphael.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
+    'splinter' => ['agents/splinter.md', 'only as `skills/_shared/branch-worktree.sh git --path <path> -- <command>`'],
+]);
+
 test('the checkout gate reads the branch in a detached worktree and leaves the main tree on its branch', function (string $text): void {
     expect(normalizedPackageSource('skills/code-review/references/branch-checkout-gate.md'))->toContain($text);
 })->with([

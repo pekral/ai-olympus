@@ -10,10 +10,12 @@
 # Usage (run in the main working tree, at its root)
 #   branch-worktree.sh open --path <path> --head <sha>
 #   branch-worktree.sh git --path <path> -- <git subcommand> [<argument>...]
+#   branch-worktree.sh remove --path <path> [--lock-pid <pid>]
 #   branch-worktree.sh --self-test
 #
 #   --path   the worktree: `.claude/worktrees/agent-<name>`, where <name> holds only letters, digits, `.`, `_`, `-`
 #   --head   the full SHA of the commit to read, as the loaded context gives it (40 or 64 hex digits)
+#   --lock-pid  the `pid <N>` token of the lock reason that the caller may release (1 to 7 digits)
 #
 # open creates the worktree detached at <sha> when the path does not exist. When the path is a worktree of this
 # repository, it moves that worktree to <sha>, detached, and refuses a worktree with a change to a tracked file.
@@ -23,6 +25,12 @@
 #
 # git runs one git command in a worktree of this repository with the same options. The subcommand comes first, so no
 # argument can set a git option of its own.
+#
+# remove removes a worktree of this repository with the same options, never with `--force`. It refuses a worktree
+# whose `git status --porcelain` prints anything, and a locked worktree whose lock reason does not name
+# `pid <--lock-pid>`. It unlocks only that lock, removes the worktree, prunes the metadata, and prints one line:
+#   worktree=<path> removed=yes      (or removed=absent when the path is already gone; it then only prunes)
+# The caller probes the liveness of the lock holder first; this script never decides that a holder is dead.
 #
 # The options, on every git command of this script:
 #   -c core.hooksPath=/dev/null   no hook runs, whatever directory the configuration names
@@ -34,7 +42,8 @@
 #   1  usage error
 #   2  git is missing
 #   3  refused: a symbolic link in the path, a path that exists and is not a worktree of this repository, a change to
-#      a tracked file in the worktree, or a head that is not a commit of this repository
+#      a tracked file in the worktree (any change for remove), a head that is not a commit of this repository, or a
+#      lock that does not name the pid of --lock-pid
 #   4  a git command failed, or `HEAD` of the worktree is not <sha> afterwards
 set -uo pipefail
 
@@ -43,7 +52,7 @@ SELF="$HERE/$(basename "${BASH_SOURCE[0]}")"
 SAFE=(-c core.hooksPath=/dev/null -c core.fsmonitor=false -c submodule.recurse=false)
 
 usage() {
-  echo "Usage: branch-worktree.sh open --path <path> --head <sha> | git --path <path> -- <subcommand> [<argument>...] | --self-test" >&2
+  echo "Usage: branch-worktree.sh open --path <path> --head <sha> | git --path <path> -- <subcommand> [<argument>...] | remove --path <path> [--lock-pid <pid>] | --self-test" >&2
   exit 1
 }
 
@@ -80,6 +89,42 @@ registered_worktree() {
     [[ "$entry" == "worktree $real" ]] && return 0
   done < <(git "${SAFE[@]}" worktree list --porcelain 2>/dev/null)
   return 1
+}
+
+# Prints the lock reason of the worktree with a leading space. Returns 1 when the worktree is not locked.
+lock_reason() {
+  local real entry mine=0
+  real="$(cd -- "$1" 2>/dev/null && pwd -P)" || return 1
+  while IFS= read -r entry; do
+    if [[ "$entry" == "worktree "* ]]; then
+      mine=0
+      [[ "$entry" == "worktree $real" ]] && mine=1
+    elif [[ "$mine" -eq 1 && ( "$entry" == locked || "$entry" == "locked "* ) ]]; then
+      printf '%s\n' "${entry#locked}"
+      return 0
+    fi
+  done < <(git "${SAFE[@]}" worktree list --porcelain 2>/dev/null)
+  return 1
+}
+
+remove_worktree() {
+  local path="$1" pid="$2" changes reason
+  no_link_in_path "$path" || refuse "the path has a symbolic link in it"
+  if [[ ! -e "$path" ]]; then
+    git "${SAFE[@]}" worktree prune >&2 || fails "the worktree metadata cannot be pruned"
+    printf 'worktree=%s removed=absent\n' "$path"
+    return 0
+  fi
+  registered_worktree "$path" || refuse "the path is not a worktree of this repository"
+  changes="$(git -C "$path" "${SAFE[@]}" status --porcelain 2>/dev/null)" || fails "the status of the worktree cannot be read"
+  [[ -z "$changes" ]] || refuse "the worktree has a change"
+  if reason="$(lock_reason "$path")"; then
+    [[ -n "$pid" && "$reason " == *" pid $pid "* ]] || refuse "the lock of the worktree does not name the pid of --lock-pid"
+    git "${SAFE[@]}" worktree unlock "$path" >&2 || fails "the worktree cannot be unlocked"
+  fi
+  git "${SAFE[@]}" worktree remove "$path" >&2 || fails "the worktree cannot be removed"
+  git "${SAFE[@]}" worktree prune >&2 || fails "the worktree metadata cannot be pruned"
+  printf 'worktree=%s removed=yes\n' "$path"
 }
 
 open_worktree() {
@@ -198,6 +243,51 @@ self_test() {
   run git --path .claude/worktrees/agent-cr-gh-1-leonardo -- -c core.hooksPath=.githooks status >/dev/null 2>&1
   check 'git refuses an option in place of the subcommand' "$([[ $? -eq 1 ]] && echo yes || echo no)"
 
+  local wt=.claude/worktrees/agent-test-gh-1-raphael
+  rm -f "$proof"
+  run open --path "$wt" --head "$head_branch" >/dev/null 2>&1
+  git -C "$repo" worktree lock --reason "pid 4242 agent raphael slug gh-1" "$wt" >/dev/null 2>&1
+  run remove --path "$wt" --lock-pid 1 >/dev/null 2>&1
+  rc=$?
+  check 'remove refuses a lock that names another pid and keeps the worktree' "$([[ $rc -eq 3 && -d "$repo/$wt" ]] && echo yes || echo no)"
+  run remove --path "$wt" >/dev/null 2>&1
+  rc=$?
+  check 'remove refuses a locked worktree without the pid of its lock' "$([[ $rc -eq 3 && -d "$repo/$wt" ]] && echo yes || echo no)"
+  printf 'changed\n' >"$repo/$wt/file.txt"
+  run remove --path "$wt" --lock-pid 4242 >/dev/null 2>&1
+  rc=$?
+  check 'remove refuses a worktree with a change and keeps the change' \
+    "$([[ $rc -eq 3 && "$(cat "$repo/$wt/file.txt")" == changed ]] && echo yes || echo no)"
+  printf 'branch\n' >"$repo/$wt/file.txt"
+  out="$(run remove --path "$wt" --lock-pid 4242 2>/dev/null)"
+  rc=$?
+  check 'remove unlocks the lock of the named pid and removes the worktree' \
+    "$([[ $rc -eq 0 && "$out" == "worktree=$wt removed=yes" && ! -e "$repo/$wt" ]] && ! git -C "$repo" worktree list | grep -q agent-test && echo yes || echo no)"
+  check 'remove runs no hook and no file-system monitor of the branch' "$([[ ! -e "$proof" ]] && echo yes || echo no)"
+  out="$(run remove --path "$wt" 2>/dev/null)"
+  check 'remove of a path that is gone is done' "$([[ $? -eq 0 && "$out" == "worktree=$wt removed=absent" ]] && echo yes || echo no)"
+  run open --path "$wt" --head "$head_branch" >/dev/null 2>&1
+  out="$(run remove --path "$wt" 2>/dev/null)"
+  check 'remove removes an unlocked worktree' "$([[ $? -eq 0 && ! -e "$repo/$wt" && ! -e "$proof" ]] && echo yes || echo no)"
+  run remove --path .claude/worktrees/agent-plain >/dev/null 2>&1
+  check 'remove refuses a directory that is not a worktree of this repository' \
+    "$([[ $? -eq 3 && -d "$repo/.claude/worktrees/agent-plain" ]] && echo yes || echo no)"
+  run remove --path .claude/worktrees/agent-link >/dev/null 2>&1
+  check 'remove refuses a path with a symbolic link in it' "$([[ $? -eq 3 ]] && echo yes || echo no)"
+  run remove --path . >/dev/null 2>&1
+  check 'remove refuses the main tree as a usage error' "$([[ $? -eq 1 ]] && echo yes || echo no)"
+  run remove --path "$wt" --lock-pid 'x 1' >/dev/null 2>&1
+  check 'remove refuses a lock pid that is not a number' "$([[ $? -eq 1 ]] && echo yes || echo no)"
+
+  run open --path "$wt" --head "$head_branch" >/dev/null 2>&1
+  git -C "$repo/$wt" status --porcelain >/dev/null 2>&1
+  check 'the fixture is sound: a plain git status in the worktree runs the file-system monitor of the branch' \
+    "$([[ -e "$proof" ]] && grep -q monitor "$proof" && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$repo" worktree remove "$wt" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git worktree remove runs the file-system monitor of the branch' \
+    "$([[ -e "$proof" ]] && grep -q monitor "$proof" && echo yes || echo no)"
+
   [[ "$failed" -eq 0 ]] && echo "branch-worktree.sh self-test passed"
   return "$failed"
 }
@@ -237,6 +327,22 @@ git)
     usage
   fi
   run_git "$path" "$@"
+  ;;
+remove)
+  path="" pid=""
+  while [[ $# -gt 0 ]]; do
+    [[ $# -ge 2 ]] || usage
+    case "$1" in
+    --path) path="$2" ;;
+    --lock-pid) pid="$2" ;;
+    *) usage ;;
+    esac
+    shift 2
+  done
+  if ! valid_path "$path" || [[ -n "$pid" && ! "$pid" =~ ^[0-9]{1,7}$ ]]; then
+    usage
+  fi
+  remove_worktree "$path" "$pid"
   ;;
 *) usage ;;
 esac
