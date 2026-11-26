@@ -40,6 +40,8 @@
 #   hooks: hook.<name>.command of the configuration  -c hook.<name>.enabled=false for each configured name, and the
 #                                                    event switch off for post-checkout, reference-transaction, and
 #                                                    post-index-change; a name it cannot pass is refused (exit 3)
+#   a setting that a conditional include loads       the hook names and the partial-clone refusal are read again
+#   only in the worktree (includeIf gitdir:)         in the worktree (git -C), so they hold there too
 #   core.fsmonitor                                   -c core.fsmonitor=false
 #   filter.<driver>.clean, .smudge, .process;        the empty tree as the attribute source (--attr-source and
 #   diff.<driver>.textconv, .command;                GIT_ATTR_SOURCE, which a nested git inherits), so no file of
@@ -48,7 +50,9 @@
 #                                                    GIT_ATTR_SYSTEM`); a git without an attribute source is
 #                                                    refused (exit 2), and an info/attributes file with a rule is
 #                                                    refused (exit 3)
-#   diff.external                                    refused (exit 3); GIT_EXTERNAL_DIFF is unset
+#   diff.external, GIT_EXTERNAL_DIFF                 --no-ext-diff after diff, show, log, and diff-tree; an
+#                                                    --ext-diff argument is refused (exit 3); GIT_EXTERNAL_DIFF
+#                                                    is unset
 #   core.pager, pager.<command>                      --no-pager and GIT_PAGER=cat
 #   gpg.program, gpg.<format>.program                -c log.showSignature=false and each program set to its default
 #   submodule.recurse, submodule.<name>.update       -c submodule.recurse=false and checkout --no-recurse-submodules
@@ -71,7 +75,8 @@
 #   2  git is missing, or it cannot use the empty tree as the attribute source
 #   3  refused: a symbolic link in the path, a path that exists and is not a worktree of this repository, a change to
 #      a tracked file in the worktree (any change for remove), a head that is not a commit of this repository, a
-#      lock that does not name the pid of --lock-pid, or a configuration of the table above that it cannot switch off
+#      lock that does not name the pid of --lock-pid, an --ext-diff argument, or a configuration of the table above
+#      that it cannot switch off
 #   4  a git command failed, or `HEAD` of the worktree is not <sha> afterwards
 set -uo pipefail
 
@@ -107,7 +112,7 @@ git_at_least() {
 # Sets up the git environment of the table in the header, and refuses a configuration it cannot switch off. Runs in
 # the main tree before any other git command of this script.
 prepare_git() {
-  local empty common record name rc
+  local empty common rc
   unset GIT_EXTERNAL_DIFF
   export GIT_PAGER=cat GIT_NO_LAZY_FETCH=1 GIT_ATTR_NOSYSTEM=1
   git rev-parse --git-dir >/dev/null 2>&1 || fails "this is not a git repository"
@@ -116,8 +121,6 @@ prepare_git() {
     || { echo "branch-worktree.sh: git must accept the empty tree as the attribute source (--attr-source)" >&2; exit 2; }
   export GIT_ATTR_SOURCE="$empty"
   SAFE=("--attr-source=$empty" "${SAFE[@]}")
-  [[ -z "$(git "${SAFE[@]}" config --get diff.external 2>/dev/null)" ]] \
-    || refuse "the git configuration names an external diff program (diff.external)"
   common="$(git "${SAFE[@]}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" \
     || fails "the git directory cannot be read"
   if [[ -e "$common/info/attributes" || -L "$common/info/attributes" ]]; then
@@ -125,7 +128,15 @@ prepare_git() {
     rc=$?
     [[ "$rc" -eq 1 ]] || refuse "the info/attributes file of the repository assigns attributes"
   fi
-  if [[ -n "$(git "${SAFE[@]}" config --get extensions.partialClone 2>/dev/null)" ]] && ! git_at_least 2 45; then
+  harden_context .
+}
+
+# Switches off each hook that the configuration of <dir> names, and refuses a configuration that it cannot switch
+# off. <dir> is the main tree or a worktree: a conditional include (`includeIf gitdir:`) can load a setting only in
+# the worktree, so the commands that run in a worktree read it there too.
+harden_context() {
+  local dir="$1" record name
+  if [[ -n "$(git -C "$dir" "${SAFE[@]}" config --get extensions.partialClone 2>/dev/null)" ]] && ! git_at_least 2 45; then
     refuse "a partial clone needs git 2.45 or later, which can switch off the lazy fetch"
   fi
   while IFS= read -r -d '' record; do
@@ -134,7 +145,7 @@ prepare_git() {
     name="${name%.command}"
     [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || refuse "the git configuration names a hook that cannot be switched off"
     SAFE+=(-c "hook.$name.enabled=false")
-  done < <(git "${SAFE[@]}" config --null --get-regexp '^hook\..*\.command$' 2>/dev/null)
+  done < <(git -C "$dir" "${SAFE[@]}" config --null --get-regexp '^hook\..*\.command$' 2>/dev/null)
 }
 
 valid_path() { [[ "$1" =~ ^\.claude/worktrees/agent-[A-Za-z0-9._-]{1,120}$ && "$1" != *..* ]]; }
@@ -187,6 +198,7 @@ remove_worktree() {
     return 0
   fi
   registered_worktree "$path" || refuse "the path is not a worktree of this repository"
+  harden_context "$path"
   changes="$(git -C "$path" "${SAFE[@]}" status --porcelain 2>/dev/null)" || fails "the status of the worktree cannot be read"
   [[ -z "$changes" ]] || refuse "the worktree has a change"
   if reason="$(lock_reason "$path")"; then
@@ -204,6 +216,7 @@ open_worktree() {
   git "${SAFE[@]}" cat-file -e "$head^{commit}" 2>/dev/null || refuse "the head is not a commit of this repository"
   if [[ -e "$path" || -L "$path" ]]; then
     registered_worktree "$path" || refuse "the path exists and is not a worktree of this repository"
+    harden_context "$path"
     [[ -z "$(git -C "$path" "${SAFE[@]}" status --porcelain --untracked-files=no 2>/dev/null)" ]] \
       || refuse "the worktree has a change to a tracked file"
     git -C "$path" "${SAFE[@]}" checkout -q --detach --no-recurse-submodules "$head" >&2 \
@@ -217,10 +230,19 @@ open_worktree() {
 }
 
 run_git() {
-  local path="$1"
+  local path="$1" argument
   shift
   no_link_in_path "$path" || refuse "the path has a symbolic link in it"
   registered_worktree "$path" || refuse "the path is not a worktree of this repository"
+  harden_context "$path"
+  case "$1" in
+  diff | show | log | diff-tree)
+    for argument in "$@"; do
+      [[ "$argument" != --ext-diff ]] || refuse "--ext-diff runs the external diff program of the configuration"
+    done
+    set -- "$1" --no-ext-diff "${@:2}"
+    ;;
+  esac
   exec git -C "$path" "${SAFE[@]}" "$@"
 }
 
@@ -412,6 +434,16 @@ while True:
 os.waitpid(pid, 0)' "$@"
 }
 
+# Switches the process filter of the fixture on or off. A process filter that speaks no protocol aborts a plain git,
+# so the plain-git control checks of the other rows run with it off.
+set_process_filter() {
+  if [[ "$2" == on ]]; then
+    git -C "$1" config filter.p.process './tool.sh process'
+  else
+    git -C "$1" config --unset filter.p.process
+  fi
+}
+
 # One fixture per mechanism of the header table: a plain git command runs the program of the branch (the check that
 # the fixture is sound), and the same command through this script does not.
 self_test_programs() {
@@ -468,13 +500,7 @@ self_test_programs() {
   head_signed="$(git -C "$prog" rev-parse signed)"
   run() { (cd "$prog" && "$SELF" "$@"); }
   dirty() { touch -t 203001010000 "$prog/$wt/z.txt" "$prog/$wt/z.prc"; }
-  process_filter() {
-    if [[ "$1" == on ]]; then
-      git -C "$prog" config filter.p.process './tool.sh process'
-    else
-      git -C "$prog" config --unset filter.p.process
-    fi
-  }
+  process_filter() { set_process_filter "$prog" "$1"; }
 
   run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
   rc=$?
@@ -498,7 +524,7 @@ self_test_programs() {
   check 'diff through the script runs no external diff program that the environment names' "$(quiet && echo yes || echo no)"
 
   # A process filter that speaks no protocol aborts a plain git (fatal on git 2.54, an error on git 2.56) before the
-  # next filter or hook runs, so the control checks of the other rows run without it, and its own check runs last.
+  # next filter or hook runs, so the control checks of the other rows run without it, and its own check runs apart.
   process_filter off
   git -C "$prog/$wt" status --porcelain >/dev/null 2>&1
   check 'the fixture is sound: a plain git status runs the clean filter of the branch' "$(ran clean && echo yes || echo no)"
@@ -541,13 +567,10 @@ self_test_programs() {
   process_filter on
 
   git -C "$prog" config diff.external './tool.sh external'
-  run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
-  rc=$?
-  check 'the script refuses a configuration that names an external diff program' "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
-  git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
-  check 'the fixture is sound: a plain git diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
-  rm -f "$proof"
+  self_test_external_diff "$prog" "$wt" "$head_main" "$head_signed" "$proof" || failed=1
   git -C "$prog" config --unset diff.external
+
+  self_test_worktree_only_config "$tmp" "$prog" "$wt" "$head_main" "$head_signed" "$hooks" || failed=1
 
   mkdir -p "$prog/.git/info"
   printf '# a comment\n\n' >"$prog/.git/info/attributes"
@@ -593,6 +616,113 @@ self_test_programs() {
 
   self_test_lazy_fetch "$tmp" || failed=1
   rm -rf "$tmp"
+  return "$failed"
+}
+
+# `diff.external` makes a plain `git diff` run a program, and a plain `git log -p`, `git show`, and `git diff-tree` run it
+# only with --ext-diff. Through the script none of them runs it, and no read, open, or remove is refused for the key.
+self_test_external_diff() {
+  local prog="$1" wt="$2" head_main="$3" head_signed="$4" proof="$5" failed=0 command rc
+  check() {
+    if [[ "$2" != "yes" ]]; then
+      echo "FAIL $1" >&2
+      failed=1
+    fi
+  }
+  ran() { [[ -e "$proof" ]] && grep -qx -- "$1" "$proof"; }
+  quiet() { [[ ! -e "$proof" ]]; }
+  run() { (cd "$prog" && "$SELF" "$@"); }
+
+  rm -f "$proof"
+  run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'diff through the script runs no external diff program of the configuration' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  for command in 'show -p' 'log -p -1' 'diff-tree -p'; do
+    run git --path "$wt" -- $command "$head_signed" >/dev/null 2>&1
+    rc=$?
+    check "$command through the script runs no external diff program of the configuration" "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  done
+  for command in 'diff' 'show' 'log -p -1' 'diff-tree -p'; do
+    run git --path "$wt" -- $command --ext-diff "$head_signed" >/dev/null 2>&1
+    rc=$?
+    check "the script refuses --ext-diff for $command" "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
+  done
+  run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
+  check 'open is not refused for the external diff key and runs no program of the branch' "$([[ $? -eq 0 ]] && quiet && echo yes || echo no)"
+
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" log -p -1 --ext-diff "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git log -p --ext-diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
+  rm -f "$proof"
+  git -C "$prog/$wt" show --ext-diff "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git show --ext-diff runs the external diff program of the branch' "$(ran external && echo yes || echo no)"
+  rm -f "$proof"
+  return "$failed"
+}
+
+# A conditional include (`includeIf gitdir:`) loads a setting only in the git directory of a linked worktree, so the
+# main tree does not see it. The script reads the configuration in the worktree too, and a global `diff.external`,
+# which a diff tool documents, refuses nothing.
+self_test_worktree_only_config() {
+  local tmp="$1" prog="$2" wt="$3" head_main="$4" head_signed="$5" hooks="$6" failed=0 rc other=.claude/worktrees/agent-cr-gh-5-leonardo
+  local proof="$tmp/proof" include="$tmp/worktree.cfg"
+  check() {
+    if [[ "$2" != "yes" ]]; then
+      echo "FAIL $1" >&2
+      failed=1
+    fi
+  }
+  ran() { [[ -e "$proof" ]] && grep -qx -- "$1" "$proof"; }
+  quiet() { [[ ! -e "$proof" ]]; }
+  run() { (cd "$prog" && "$SELF" "$@"); }
+
+  rm -f "$proof"
+  printf '[diff]\n\texternal = ./tool.sh external\n' >"$include"
+  [[ "$hooks" != yes ]] || printf '[hook "late"]\n\tcommand = ./tool.sh hooklate\n\tevent = post-checkout\n' >>"$include"
+  git -C "$prog" config 'includeIf.gitdir:**/worktrees/**.path' "$include"
+  check 'the fixture is sound: the conditional include sets diff.external in the worktree and not in the main tree' \
+    "$([[ -z "$(git -C "$prog" config --get diff.external)" && -n "$(git -C "$prog/$wt" config --get diff.external)" ]] && echo yes || echo no)"
+
+  run git --path "$wt" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'diff through the script runs no external diff program that only the worktree configuration names' "$([[ $rc -eq 0 ]] && quiet && echo yes || echo no)"
+  run git --path "$wt" -- diff --ext-diff "$head_main" "$head_signed" >/dev/null 2>&1
+  rc=$?
+  check 'the script refuses --ext-diff when only the worktree configuration names an external diff program' "$([[ $rc -eq 3 ]] && quiet && echo yes || echo no)"
+  run open --path "$wt" --head "$head_main" >/dev/null 2>&1
+  run open --path "$wt" --head "$head_signed" >/dev/null 2>&1
+  check 'moving the worktree runs no program that only the worktree configuration names' "$(quiet && echo yes || echo no)"
+  git -C "$prog/$wt" diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'the fixture is sound: a plain git diff runs the external diff program that only the worktree configuration names' \
+    "$(ran external && echo yes || echo no)"
+  rm -f "$proof"
+  if [[ "$hooks" == yes ]]; then
+    set_process_filter "$prog" off
+    git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_main" >/dev/null 2>&1
+    rm -f "$proof"
+    git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
+    check 'the fixture is sound: a plain git checkout runs a hook that only the worktree configuration names' "$(ran hooklate && echo yes || echo no)"
+    set_process_filter "$prog" on
+    rm -f "$proof"
+    printf '[hook "a b"]\n\tcommand = ./tool.sh hook\n\tevent = post-checkout\n' >"$include"
+    run git --path "$wt" -- status --porcelain >/dev/null 2>&1
+    check 'the script refuses a hook, named only in the worktree configuration, whose name it cannot switch off' "$([[ $? -eq 3 ]] && quiet && echo yes || echo no)"
+    run remove --path "$wt" >/dev/null 2>&1
+    check 'remove refuses such a hook and keeps the worktree' "$([[ $? -eq 3 && -d "$prog/$wt" ]] && quiet && echo yes || echo no)"
+  fi
+  git -C "$prog" config --unset 'includeIf.gitdir:**/worktrees/**.path'
+  rm -f "$include" "$proof"
+
+  printf '[diff]\n\texternal = difft\n' >"$tmp/global.cfg"
+  GIT_CONFIG_GLOBAL="$tmp/global.cfg" run open --path "$other" --head "$head_signed" >/dev/null 2>&1
+  check 'open is not refused for a global diff.external' "$([[ $? -eq 0 && -d "$prog/$other" ]] && echo yes || echo no)"
+  GIT_CONFIG_GLOBAL="$tmp/global.cfg" run git --path "$other" -- diff "$head_main" "$head_signed" >/dev/null 2>&1
+  check 'diff through the script is not refused for a global diff.external' "$([[ $? -eq 0 ]] && echo yes || echo no)"
+  GIT_CONFIG_GLOBAL="$tmp/global.cfg" run remove --path "$other" >/dev/null 2>&1
+  check 'remove is not refused for a global diff.external' "$([[ $? -eq 0 && ! -e "$prog/$other" ]] && echo yes || echo no)"
+  rm -f "$tmp/global.cfg"
   return "$failed"
 }
 
