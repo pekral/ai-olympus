@@ -40,11 +40,16 @@
 # The operations are: worktree list, add, unlock, remove, and prune; checkout; status; cat-file; and the reads above.
 # Each mechanism of git that runs a program during them, and what this script does with it:
 #   hooks: the hooks directory, core.hooksPath       -c core.hooksPath=/dev/null
-#   hooks: hook.<name>.command of the configuration  -c hook.<name>.enabled=false for each configured name, and the
-#                                                    event switch off for post-checkout, reference-transaction, and
-#                                                    post-index-change; a name it cannot pass is refused (exit 3)
+#   hooks: hook.<name>.command of the configuration  -c hook.<name>.enabled=false for each configured name; a name
+#                                                    it cannot pass is refused (exit 3). The event switches
+#                                                    (-c hook.<event>.enabled=false for post-checkout,
+#                                                    reference-transaction, and post-index-change) take effect
+#                                                    only on git 2.56 or later; an older git ignores them for a
+#                                                    hook of another name, so the name switch is the guard there
 #   a setting that a conditional include loads       the hook names and the partial-clone refusal are read again
-#   only in the worktree (includeIf gitdir:)         in the worktree (git -C), so they hold there too
+#   only in the worktree (includeIf gitdir:)         in the worktree (git -C), so they hold there too. A new
+#                                                    worktree is created with --no-checkout, read, and only then
+#                                                    checked out, so no hook runs before its name is switched off
 #   core.fsmonitor                                   -c core.fsmonitor=false
 #   filter.<driver>.clean, .smudge, .process;        the empty tree as the attribute source (--attr-source and
 #   diff.<driver>.textconv, .command;                GIT_ATTR_SOURCE, which a nested git inherits), so no file of
@@ -215,7 +220,7 @@ remove_worktree() {
 }
 
 open_worktree() {
-  local path="$1" head="$2" now
+  local path="$1" head="$2" now rc
   no_link_in_path "$path" || refuse "the path has a symbolic link in it"
   git "${SAFE[@]}" cat-file -e "$head^{commit}" 2>/dev/null || refuse "the head is not a commit of this repository"
   if [[ -e "$path" || -L "$path" ]]; then
@@ -226,7 +231,22 @@ open_worktree() {
     git -C "$path" "${SAFE[@]}" checkout -q --detach --no-recurse-submodules "$head" >&2 \
       || fails "the worktree cannot be moved to the head"
   else
-    git "${SAFE[@]}" worktree add -q --detach "$path" "$head" >&2 || fails "the worktree cannot be created"
+    # No checkout yet: git before 2.56 has no event switch, and a hook of the configuration that only the git directory of
+    # the new worktree loads cannot be named before that directory exists. The checkout waits until harden_context has
+    # switched it off by name.
+    git "${SAFE[@]}" worktree add -q --no-checkout --detach "$path" "$head" >&2 || fails "the worktree cannot be created"
+    (harden_context "$path")
+    rc=$?
+    if [[ "$rc" -ne 0 ]]; then
+      # The worktree is this call's own and holds no file yet, so --force discards nothing; without it git sees every
+      # file of the head as a staged deletion and refuses.
+      git "${SAFE[@]}" worktree remove --force "$path" >&2
+      git "${SAFE[@]}" worktree prune >&2
+      exit "$rc"
+    fi
+    harden_context "$path"
+    git -C "$path" "${SAFE[@]}" checkout -q --detach --no-recurse-submodules "$head" >&2 \
+      || fails "the worktree cannot be checked out at the head"
   fi
   now="$(git -C "$path" "${SAFE[@]}" rev-parse HEAD 2>/dev/null)" || fails "the head of the worktree cannot be read"
   [[ "$now" == "$head" ]] || fails "the head of the worktree is not the requested commit"
@@ -293,6 +313,8 @@ self_test() {
   rc=$?
   check 'open creates the worktree detached at the head' \
     "$([[ $rc -eq 0 && "$out" == "worktree=.claude/worktrees/agent-cr-gh-1-leonardo head=$head_branch" && "$(git -C "$repo/.claude/worktrees/agent-cr-gh-1-leonardo" rev-parse HEAD)" == "$head_branch" ]] && echo yes || echo no)"
+  check 'open fills the new worktree with the files of the head and leaves it clean' \
+    "$([[ "$(cat "$repo/.claude/worktrees/agent-cr-gh-1-leonardo/file.txt")" == branch && -z "$(run git --path .claude/worktrees/agent-cr-gh-1-leonardo -- status --porcelain 2>/dev/null)" ]] && echo yes || echo no)"
   check 'open leaves the main tree on its branch and its files unchanged' \
     "$([[ "$(git -C "$repo" -c core.hooksPath=/dev/null symbolic-ref --short HEAD)" == main && "$(cat "$repo/file.txt")" == main && ! -e "$repo/monitor.sh" ]] && echo yes || echo no)"
   check 'creating the worktree runs no hook and no file-system monitor of the branch' \
@@ -676,6 +698,7 @@ self_test_external_diff() {
 # which a diff tool documents, refuses nothing.
 self_test_worktree_only_config() {
   local tmp="$1" prog="$2" wt="$3" head_main="$4" head_signed="$5" hooks="$6" failed=0 rc other=.claude/worktrees/agent-cr-gh-5-leonardo
+  local created=.claude/worktrees/agent-cr-gh-6-leonardo control=.claude/worktrees/agent-cr-gh-7-leonardo
   local proof="$tmp/proof" include="$tmp/worktree.cfg"
   check() {
     if [[ "$2" != "yes" ]]; then
@@ -690,6 +713,7 @@ self_test_worktree_only_config() {
   rm -f "$proof"
   printf '[diff]\n\texternal = ./tool.sh external\n' >"$include"
   [[ "$hooks" != yes ]] || printf '[hook "late"]\n\tcommand = ./tool.sh hooklate\n\tevent = post-checkout\n' >>"$include"
+  [[ "$hooks" != yes ]] || printf '[hook "txn"]\n\tcommand = ./tool.sh hooktxn || :\n\tevent = reference-transaction\n\tevent = post-index-change\n' >>"$include"
   git -C "$prog" config 'includeIf.gitdir:**/worktrees/**.path' "$include"
   check 'the fixture is sound: the conditional include sets diff.external in the worktree and not in the main tree' \
     "$([[ -z "$(git -C "$prog" config --get diff.external)" && -n "$(git -C "$prog/$wt" config --get diff.external)" ]] && echo yes || echo no)"
@@ -713,6 +737,17 @@ self_test_worktree_only_config() {
     rm -f "$proof"
     git -C "$prog/$wt" -c core.hooksPath=/dev/null checkout -q --detach "$head_signed" >/dev/null 2>&1
     check 'the fixture is sound: a plain git checkout runs a hook that only the worktree configuration names' "$(ran hooklate && echo yes || echo no)"
+    rm -f "$proof"
+    run open --path "$created" --head "$head_signed" >/dev/null 2>&1
+    rc=$?
+    check 'open creates a worktree and runs no hook that only the worktree configuration names, for a reference-transaction or post-index-change event' \
+      "$([[ $rc -eq 0 && -d "$prog/$created" ]] && quiet && echo yes || echo no)"
+    run remove --path "$created" >/dev/null 2>&1
+    rm -f "$proof"
+    git -C "$prog" -c core.hooksPath=/dev/null worktree add -q --detach "$control" "$head_signed" >/dev/null 2>&1
+    check 'the fixture is sound: a plain git worktree add runs a hook that only the worktree configuration names, for a reference-transaction event' \
+      "$(ran hooktxn && echo yes || echo no)"
+    git -C "$prog" -c core.hooksPath=/dev/null worktree remove --force "$control" >/dev/null 2>&1
     set_process_filter "$prog" on
     rm -f "$proof"
     printf '[hook "a b"]\n\tcommand = ./tool.sh hook\n\tevent = post-checkout\n' >"$include"
@@ -720,6 +755,10 @@ self_test_worktree_only_config() {
     check 'the script refuses a hook, named only in the worktree configuration, whose name it cannot switch off' "$([[ $? -eq 3 ]] && quiet && echo yes || echo no)"
     run remove --path "$wt" >/dev/null 2>&1
     check 'remove refuses such a hook and keeps the worktree' "$([[ $? -eq 3 && -d "$prog/$wt" ]] && quiet && echo yes || echo no)"
+    run open --path "$created" --head "$head_signed" >/dev/null 2>&1
+    rc=$?
+    check 'open refuses such a hook for a new worktree and leaves no worktree behind' \
+      "$([[ $rc -eq 3 && ! -e "$prog/$created" && -z "$(git -C "$prog" -c core.hooksPath=/dev/null worktree list --porcelain | grep -F -- "$created")" ]] && quiet && echo yes || echo no)"
   fi
   git -C "$prog" config --unset 'includeIf.gitdir:**/worktrees/**.path'
   rm -f "$include" "$proof"
