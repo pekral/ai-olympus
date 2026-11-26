@@ -27,7 +27,10 @@
 #   - The new text is one opening paragraph and then only collapsed sections whose titles come from the
 #     fixed list of the language, in its order, each once and each with content. It holds no heading,
 #     code, mention, link, smart link, URL written as text, media, task list, decision list, layout, or
-#     nested section, and at least one collapsed section.
+#     nested section, and at least one collapsed section. The URL test runs on the joined text of each
+#     block (every text node is a direct child of a block), so a mark inside a URL does not hide it. It
+#     refuses a scheme (`https://`), `mailto:`, `www.`, and a host with a path and no scheme
+#     (`host.tld/path`), because the scheme-less form may render as a link on the site.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
 #   - The previous description holds no top-level *Original assignment* block: all its top-level nodes
@@ -44,9 +47,10 @@
 # The read-back goes through load-issue.sh: the rendered original must equal the rendered previous
 # description, and the assignment text must open with the new opening paragraph. On a mismatch the
 # script reads the description once more. Only when that is still the document the script wrote does it
-# write the saved previous description once, read it back, and exit 4. Otherwise it writes nothing more
-# and exits 4. The edit of acli has no conditional update, so a change made between that last read and
-# the write-back is not detected.
+# write the saved previous description once, read it back, and exit 4. Otherwise it writes nothing more,
+# prints the saved previous description to stdout as canonical ADF (`jq -S -c`) so the operator can
+# restore it by hand, and exits 4. The edit of acli has no conditional update, so a change made between
+# that last read and the write-back is not detected.
 #
 # Audit trail:
 #   Each write (the rewrite and a rollback) appends its own line through
@@ -58,7 +62,8 @@
 #   2  missing required tool (acli, jq, php)
 #   3  an acli read or write failed, or the converter failed
 #   4  the read-back did not match; the previous description was written back, or nothing was written
-#      back because the description is no longer the document this script wrote
+#      back (the description is no longer the document this script wrote, or it could not be read
+#      again) and the previous description is on stdout as canonical ADF
 #   5  the shape was refused (the new text or the previous description); nothing was written
 #   6  the description changed since the fingerprint was taken; nothing was written
 set -euo pipefail
@@ -129,6 +134,11 @@ fingerprint_of() {
   printf '%s' "$1" | php -r 'echo hash("sha256", (string) stream_get_contents(STDIN));'
 }
 
+# previous_adf <canonical-description-JSON> — print the description as canonical ADF (an empty document for none).
+previous_adf() {
+  printf '%s' "$1" | jq -S -c 'if . == null then { version: 1, type: "doc", content: [] } else . end'
+}
+
 # write_description <KEY> <ADF-file> <what> — run the one sanctioned edit and record its audit line.
 write_description() {
   local rc=0
@@ -190,7 +200,9 @@ cmd_write() {
             "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
          | unique[] | "a node the new text never carries: \(.)"),
         ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
-        (if ([.. | objects | select((.type // "") == "text") | (.text // "") | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.)"; "i"))] | length) > 0
+        (if ([.. | objects | select((.content? // null) | type == "array")
+              | [.content[] | select(type == "object") | if (.type // "") == "text" then (.text // "") elif (.type // "") == "hardBreak" then "\n" else empty end] | join("")
+              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.|\\b[\\p{L}\\p{N}-]+(\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}/)"; "i"))] | length) > 0
          then "a link written as text" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
          | "a collapsed section inside a collapsed section")
@@ -257,13 +269,17 @@ cmd_write() {
   # The write-back only undoes this script's own write. A description that is no longer the document
   # this script wrote (another account edited it, or the store changed it) is never overwritten.
   local current
-  current="$(read_description "$key")" || die 4 "the read-back of $key did not show the rewrite, and the description could not be read again; nothing was written back. Check the issue by hand."
+  if ! current="$(read_description "$key")"; then
+    previous_adf "$prev"
+    die 4 "the read-back of $key did not show the rewrite, and the description could not be read again; nothing was written back. The previous description is on stdout as canonical ADF; restore it by hand."
+  fi
   if [[ "$(fingerprint_of "$current")" != "$(fingerprint_of "$(jq -S -c . "$doc_file")")" ]]; then
-    die 4 "the read-back of $key did not show the rewrite, and the description is no longer the document this script wrote (another change, or a store that differs from the written document); nothing was written back. Check the issue by hand."
+    previous_adf "$prev"
+    die 4 "the read-back of $key did not show the rewrite, and the description is no longer the document this script wrote (another change, or a store that differs from the written document); nothing was written back. The previous description is on stdout as canonical ADF; restore it by hand."
   fi
 
   local restore="$tmp/previous.json" restored=""
-  printf '%s' "$prev" | jq -c 'if . == null then { version: 1, type: "doc", content: [] } else . end' >"$restore"
+  previous_adf "$prev" >"$restore"
   if write_description "$key" "$restore" "previous description restored after a failed read-back"; then
     restored="$("$LOADER" "$key" 2>/dev/null || true)"
   fi
@@ -283,7 +299,7 @@ cmd_write() {
 # (edits) and the values they read (first_original) are used only inside eval.
 # shellcheck disable=SC2016,SC2034,SC2329
 self_test() {
-  local tmp stubbin failures=0 script out rc fp
+  local tmp stubbin failures=0 script out sout rc fp
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
@@ -377,12 +393,13 @@ STUB
     : >"$stubbin/calls"
     rm -f "$stubbin/lossy-done" "$stubbin/arm" "$stubbin/armed-once"
   }
-  # run_script <args...> — run the script against the stand-in; sets $out and $rc.
+  # run_script <args...> — run the script against the stand-in; sets $out (stdout, then stderr), $sout (stdout only), and $rc.
   run_script() {
     set +e
-    out="$(PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net AUDIT_TRAIL_FILE="$tmp/run.audit" AUDIT_TRAIL_ROLE=self-test \
-      bash "$script" "$@" 2>&1)"
+    sout="$(PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net AUDIT_TRAIL_FILE="$tmp/run.audit" AUDIT_TRAIL_ROLE=self-test \
+      bash "$script" "$@" 2>"$tmp/stderr")"
     rc=$?
+    out="$sout$(cat "$tmp/stderr")"
     set -e
   }
   take_fingerprint() {
@@ -461,7 +478,7 @@ STUB
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty url nosection; do
+  for bad in mention link heading code title order empty url url_em url_www url_host url_idn nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -470,12 +487,23 @@ STUB
       title) reason='outside the fixed list'; printf '%s\n' 'Opening.' '{expand:Dependencies}' '* ACME-2' '{expand}' >"$tmp/bad.txt" ;;
       order) reason='not in the fixed order'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '# One' '{expand}' '{expand:Requirements for the application}' '* Two' '{expand}' >"$tmp/bad.txt" ;;
       url) reason='a link written as text'; printf '%s\n' 'The seller does not see the error, see https://evil.example/login for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_em) reason='a link written as text'; printf '%s\n' 'See _https_://evil.example/login for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_www) reason='a link written as text'; printf '%s\n' 'See *www*.evil.example for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_host) reason='a link written as text'; printf '%s\n' 'See evil.example/login for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_idn) reason='a link written as text'; printf '%s\n' 'See příklad.cz/cesta and xn--80ak6aa92e.com/login.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
     run_script write ACME-1 en "$fp" "$tmp/bad.txt"
     expect "a new text with a $bad problem is refused with exit 5 and nothing is written" '[[ $rc -eq 5 && "$(edits)" == 0 && "$out" == *"$reason"* ]]'
   done
+
+  # Text that only looks like a URL must pass: a version, an abbreviation, a ratio, and a slash between words.
+  printf '%s\n' 'Release *v2.0* is e.g. the 4.5/5 rating, the 10.5 limit, and/or tj. a/nebo _the_ old limit.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign.txt"
+  run_script write ACME-1 en "$fp" "$tmp/benign.txt"
+  expect 'a text with a version, an abbreviation, a ratio, and a slash between words is written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
+  setup ok "$p_legacy"
+  take_fingerprint
 
   run_script write 'ACME-1,ACME-2' en "$fp" "$good_cs2"
   expect 'a list of keys is refused with exit 1' '[[ $rc -eq 1 && "$(edits)" == 0 ]]'
@@ -503,6 +531,8 @@ STUB
   run_script write ACME-1 cs "$fp" "$good_cs"
   expect 'an edit by another account after the write is not overwritten, and the run exits 4' \
     '[[ $rc -eq 4 && "$(edits)" == 1 && "$out" == *"no longer the document this script wrote"* && "$out" == *"nothing was written back"* ]]'
+  expect 'the previous description is on stdout as canonical ADF when nothing is written back (late)' \
+    '[[ "$sout" == "$(printf "%s" "$p_legacy" | jq -S -c .)" ]]'
   expect 'the other account edit is still on the ticket' '[[ "$(jq -r ".content[0].content[0].text" "$stubbin/desc.json")" == "Edited by another account." ]]'
 
   setup lossy "$p_legacy"
@@ -510,6 +540,8 @@ STUB
   run_script write ACME-1 cs "$fp" "$good_cs"
   expect 'a store that differs from the written document is not overwritten either' \
     '[[ $rc -eq 4 && "$(edits)" == 1 && "$out" == *"nothing was written back"* ]]'
+  expect 'the previous description is on stdout as canonical ADF when nothing is written back (lossy)' \
+    '[[ "$sout" == "$(printf "%s" "$p_legacy" | jq -S -c .)" && "$out" == *"previous description is on stdout"* ]]'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "$PROG self-test: $failures failure(s)" >&2
