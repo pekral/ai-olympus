@@ -579,7 +579,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a third sanctioned transition, to the ready-to-deploy status on the operator's own word,
         // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
         // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
-        'rules/jira/general.md' => '0c88d4e5c34f5e62702cbfce59b1506aa2898cd985bc8053b0af59ef5e9a0f56',
+        // Re-baselined: *Attachments* names the one upload script of a defect screenshot (issue #712).
+        'rules/jira/general.md' => 'f502b41a8a53831a32120af1f429fcc5c50640961cd1bd02508c31c999ac3790',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

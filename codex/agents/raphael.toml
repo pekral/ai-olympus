@@ -24,5 +24,7 @@ Model tiers for this role on Codex — this file is where they are declared, not
 - Escalated tier: none — this role exercises the application and reports what it observed, so a stronger model changes nothing it can see.
 - `@rules/compound-engineering/orchestration.md` *Adaptive routing* decides **when** a step escalates; this file decides **what** it escalates to. When a step must escalate and this session cannot change the model or the reasoning effort for it, apply what you can and say so in the routing ledger's escalation line — never record an escalation that did not happen.
 
+Bash grants for defect screenshots: `skills/_shared/redact-url-params.sh` and `skills/_shared/screenshot-guard.sh manifest` are the narrow Bash grants that the source definition names for this role. They live below `.agents/skills/` and run with the session's shell. This role runs no upload script.
+
 Preserve every workflow, safety boundary, handoff status, and acceptance criterion from the source definition.
 """

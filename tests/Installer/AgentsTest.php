@@ -1331,7 +1331,7 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     expect($content)->toContain('A failed UI criterion without a screenshot row is an incomplete report.');
 
     // The upload story is stated honestly rather than promised where it cannot be delivered.
-    expect($content)->toContain('**GitHub has no supported API for attaching an image to an issue or pull-request comment**');
+    expect($content)->toContain('the plain GitHub comment API takes no image, so a comment published another way carries the description only');
     expect($content)->toContain('Never claim an image was uploaded where it was not.');
 
     // A filesystem path is never published: the reader cannot reach that machine, and Run cleanup

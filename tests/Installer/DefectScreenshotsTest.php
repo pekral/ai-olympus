@@ -91,3 +91,56 @@ test('raphael, april, and the interactive-testing skill point to the reference a
         ->and($raphael)->not->toContain('GitHub has no supported API for attaching an image')
         ->and($april)->not->toContain('GitHub has no supported API for attaching an image');
 });
+
+test('the Bash boundaries of the publishing agents name the upload scripts as narrow exceptions, on both platforms', function (string $agent, array $scripts): void {
+    $definition = defectShotRead('agents/' . $agent . '.md');
+    $codex = defectShotRead('codex/agents/' . $agent . '.toml');
+    $boundary = substr($definition, (int) strpos($definition, 'Bash is granted for one purpose'));
+
+    foreach ($scripts as $script) {
+        expect($boundary)->toContain($script)
+            ->and($codex)->toContain($script);
+    }
+})->with([
+    'leonardo' => ['leonardo', ['upload-review-asset.sh', 'upload-attachment.sh']],
+    'april' => ['april', ['upload-review-asset.sh', 'upload-attachment.sh']],
+    'raphael' => ['raphael', ['redact-url-params.sh', 'screenshot-guard.sh']],
+]);
+
+test('the boundaries never let an agent run an upload script directly or for a security finding', function (): void {
+    $leonardo = defectShotRead('agents/leonardo.md');
+    $raphael = defectShotRead('agents/raphael.md');
+
+    expect($leonardo)->toContain('you never run either directly')
+        ->and($leonardo)->toContain('neither runs for a security finding, a finding marked `do_not_file_publicly`, or a quiet review round')
+        ->and($raphael)->toContain('You never run an upload script: the publisher does.');
+});
+
+test('the consent table lists the two screenshot writes as L1 rows with their limits', function (): void {
+    $orchestration = defectShotRead('rules/compound-engineering/orchestration.md');
+
+    expect($orchestration)->toContain('GitHub Contents API only: no `git push`, no hook, no force')
+        ->and($orchestration)->toContain('sends the token to the configured site only')
+        ->and($orchestration)->toContain('and the two screenshot upload scripts of `@skills/interactive-testing/references/defect-screenshots.md`');
+});
+
+test('the JIRA rule, template, and shape reference describe the slot line and the upload script', function (): void {
+    expect(defectShotRead('rules/jira/general.md'))->toContain('Upload a defect screenshot only through `skills/code-review-jira/scripts/upload-attachment.sh`.')
+        ->and(defectShotRead('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('{screenshot:<finding id>:head}')
+        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain('14. **A reproduced defect shows its screenshot inside its finding.**')
+        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain('a `security` finding, or a finding marked do not file publicly');
+});
+
+test('the GitHub review template and the wrapper contract describe the one allowed image', function (): void {
+    expect(defectShotRead('skills/code-review-github/templates/review-body.md'))->toContain('The one image is the screenshot that the wrapper writes itself')
+        ->and(defectShotRead('skills/code-review-github/references/cr-wrapper-contract.md'))->toContain('A quiet round and a round that does not publish pass no `--screenshots`.');
+});
+
+test('the self-tests of the new scripts run in the shell self-test command', function (): void {
+    $composer = defectShotRead('composer.json');
+
+    expect($composer)->toContain('skills/_shared/screenshot-guard.sh')
+        ->and($composer)->toContain('skills/_shared/redact-url-params.sh')
+        ->and($composer)->toContain('skills/code-review-github/scripts/upload-review-asset.sh')
+        ->and($composer)->toContain('skills/code-review-jira/scripts/upload-attachment.sh');
+});
