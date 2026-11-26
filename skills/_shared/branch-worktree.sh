@@ -44,8 +44,10 @@
 #   filter.<driver>.clean, .smudge, .process;        the empty tree as the attribute source (--attr-source and
 #   diff.<driver>.textconv, .command;                GIT_ATTR_SOURCE, which a nested git inherits), so no file of
 #   merge.<driver>.driver: the attributes select     the branch selects a driver; -c core.attributesFile=/dev/null;
-#   them                                             a git without an attribute source is refused (exit 2), and an
-#                                                    info/attributes file with a rule is refused (exit 3)
+#   them                                             GIT_ATTR_NOSYSTEM=1 for the system file (`git var
+#                                                    GIT_ATTR_SYSTEM`); a git without an attribute source is
+#                                                    refused (exit 2), and an info/attributes file with a rule is
+#                                                    refused (exit 3)
 #   diff.external                                    refused (exit 3); GIT_EXTERNAL_DIFF is unset
 #   core.pager, pager.<command>                      --no-pager and GIT_PAGER=cat
 #   gpg.program, gpg.<format>.program                -c log.showSignature=false and each program set to its default
@@ -107,7 +109,7 @@ git_at_least() {
 prepare_git() {
   local empty common record name rc
   unset GIT_EXTERNAL_DIFF
-  export GIT_PAGER=cat GIT_NO_LAZY_FETCH=1
+  export GIT_PAGER=cat GIT_NO_LAZY_FETCH=1 GIT_ATTR_NOSYSTEM=1
   git rev-parse --git-dir >/dev/null 2>&1 || fails "this is not a git repository"
   empty="$(git hash-object -t tree /dev/null 2>/dev/null)" || fails "the empty tree cannot be computed here"
   git "--attr-source=$empty" rev-parse --git-dir >/dev/null 2>&1 \
@@ -358,10 +360,40 @@ self_test() {
   check 'the fixture is sound: a plain git worktree remove runs the file-system monitor of the branch' \
     "$([[ -e "$proof" ]] && grep -q monitor "$proof" && echo yes || echo no)"
 
+  self_test_system_attributes "$tmp" "$repo" "$head_main" "$head_branch" || failed=1
   self_test_programs || failed=1
 
   [[ "$failed" -eq 0 ]] && echo "branch-worktree.sh self-test passed"
   return "$failed"
+}
+
+# The system attribute file (`git var GIT_ATTR_SYSTEM`) lies outside the repository, so no fixture writes it. A git
+# that reads it selects a driver from it for every command, and only GIT_ATTR_NOSYSTEM stops that. A shim in front of
+# git records the value that each git command of the script gets, with a caller that asks for the system file.
+self_test_system_attributes() {
+  local tmp="$1" repo="$2" head_main="$3" head_branch="$4" real log wt=.claude/worktrees/agent-cr-gh-4-leonardo
+  real="$(command -v git)"
+  log="$tmp/nosystem.log"
+  mkdir -p "$tmp/shim"
+  printf '#!/bin/sh\nprintf "%%s\\n" "${GIT_ATTR_NOSYSTEM-unset}" >>"%s"\nexec "%s" "$@"\n' "$log" "$real" >"$tmp/shim/git"
+  chmod +x "$tmp/shim/git"
+  system() { (cd "$repo" && GIT_ATTR_NOSYSTEM=0 PATH="$tmp/shim:$PATH" "$SELF" "$@") >/dev/null 2>&1; }
+
+  GIT_ATTR_NOSYSTEM=0 PATH="$tmp/shim:$PATH" git -C "$repo" status --porcelain >/dev/null 2>&1
+  if ! grep -qx 0 "$log"; then
+    echo "FAIL the fixture is sound: a plain git command gets the value of GIT_ATTR_NOSYSTEM that the caller sets" >&2
+    return 1
+  fi
+  rm -f "$log"
+  system open --path "$wt" --head "$head_branch"
+  system open --path "$wt" --head "$head_main"
+  system git --path "$wt" -- status --porcelain
+  system git --path "$wt" -- diff "$head_main" "$head_branch"
+  system remove --path "$wt"
+  if [[ ! -s "$log" || -d "$repo/$wt" ]] || grep -qvx 1 "$log"; then
+    echo "FAIL every git command of the script switches the system attribute file off, whatever the caller sets" >&2
+    return 1
+  fi
 }
 
 # Runs a command with a terminal as its standard output, so git starts its pager.
