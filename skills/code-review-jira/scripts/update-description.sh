@@ -33,7 +33,7 @@
 #     folding (normalize-adf.php), so a compatibility form reads like its plain form: circled letters
 #     or digits, a small full stop or at sign, a full-width scheme, colon, or slash, and the invisible
 #     default-ignorable characters. The original document is the one that is written. Without the PHP
-#     `Normalizer` class (the intl extension) nothing is written and the exit code is 3. The test also
+#     `Normalizer` form for case-folded NFKC nothing is written and the exit code is 3. The test also
 #     removes every remaining format character (Unicode class Cf). It fails closed, because whether the
 #     site renders a scheme-less form as a link is not settled. It refuses a scheme (`https://`),
 #     `mailto:`, `www` followed by a dot, any host-like token (a character that is no space and no dot,
@@ -78,7 +78,7 @@
 #   0  the description was rewritten and read back
 #   1  usage error, a refused key or URL, an empty new text, or a new text over 65536 bytes
 #   2  missing required tool (acli, jq, php)
-#   3  an acli read or write failed, or the converter or the normaliser failed (a missing Normalizer class)
+#   3  an acli read or write failed, or the converter or normaliser failed (including unavailable case-folded NFKC)
 #   4  the read-back did not match; the previous description was written back, or nothing was written
 #      back (the description is no longer the document this script wrote, or it could not be read
 #      again) and the previous description is on stdout as canonical ADF
@@ -208,7 +208,7 @@ cmd_write() {
   new="$(printf '%s' "$text" | php "$CONVERTER")" || die 3 "failed to convert the new text to ADF; nothing was written"
   # The URL test runs on a copy of the document with every string in NFKC with case folding, so a host,
   # an at sign, a digit, or a scheme written in a compatibility form reads like its plain form. The
-  # original document is the one that is written. Without the Normalizer class nothing is written.
+  # original document is the one that is written. Without case-folded NFKC nothing is written.
   norm="$(printf '%s' "$new" | php "$NORMALIZER")" || die 3 "failed to normalise the converted text (the intl extension of php is required); nothing was written"
 
   problems="$(printf '%s' "$new" | jq -r -L "$SCRIPT_DIR" --arg lang "$lang" "$SHAPE_JQ"'
@@ -600,16 +600,16 @@ STUB
   run_script write ACME-1 en "$fp" "$tmp/big-bad.txt"
   expect 'a text over the byte limit is refused with exit 1 and nothing is written' '[[ $rc -eq 1 && "$(edits)" == 0 && "$out" == *"longer than"* ]]'
 
-  # Without the Normalizer class the URL test cannot run on the normalised copy: exit 3 and nothing is written.
-  # The stand-in php runs the normaliser with the class check pointed at a class that does not exist.
+  # Substitute a fixture class name so both unavailable configurations can run even with intl built into PHP.
   local real_php
   real_php="$(command -v php)"
   mkdir -p "$tmp/nonorm"
+  printf '%s\n' '<?php' >"$tmp/nonorm/provider.php"
   cat >"$tmp/nonorm/php" <<STUB
 #!/usr/bin/env bash
 if [[ "\${1:-}" == */normalize-adf.php ]]; then
-  sed "s/class_exists('Normalizer')/class_exists('NoSuchNormalizer')/" "\$1" >"$tmp/nonorm/normalize-adf.php"
-  exec "$real_php" "$tmp/nonorm/normalize-adf.php"
+  sed 's/Normalizer/FixtureNormalizer/g' "\$1" >"$tmp/nonorm/normalize-adf.php"
+  exec "$real_php" -d "auto_prepend_file=$tmp/nonorm/provider.php" "$tmp/nonorm/normalize-adf.php"
 fi
 exec "$real_php" "\$@"
 STUB
@@ -618,8 +618,17 @@ STUB
   take_fingerprint
   extra_bin="$tmp/nonorm"
   run_script write ACME-1 en "$fp" "$good_en"
-  extra_bin=""
   expect 'a missing Normalizer class exits 3 and nothing is written' '[[ $rc -eq 3 && "$(edits)" == 0 && "$out" == *"normalise"* ]]'
+  cat >>"$tmp/nonorm/provider.php" <<'PHP'
+class FixtureNormalizer {
+    public const FORM_KC = 32;
+    public static function normalize(string $value, int $form): string { return $value; }
+}
+PHP
+  run_script write ACME-1 en "$fp" "$good_en"
+  expect 'a provider without case-folded NFKC reports the missing capability and leaves JIRA untouched' \
+    '[[ $rc -eq 3 && "$(edits)" == 0 && -z "$sout" && "$out" == *"case-folded NFKC is unavailable"* ]]'
+  extra_bin=""
   setup ok "$p_legacy"
   take_fingerprint
 
