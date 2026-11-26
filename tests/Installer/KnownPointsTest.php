@@ -274,12 +274,14 @@ test('a security known point shows only its link in every output', function (): 
         ->toContain('a security row holds only the issue URL and security true")')
         ->and(str_contains($wrapper, 'owns it there'))->toBeFalse()
         ->and(packageSource('skills/_shared/check-cr-header.sh'))
-        ->toContain("SECURITY_POINT_LINE='^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* https://[^[:space:]]+$'")
+        ->toContain('SECURITY_POINT_LINE=\'^[0-9]{1,3}\\. \\*\\*Security point\\*\\* — \\*\\*Linked issue:\\*\\* https://[^[:space:]]+$\'')
         ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point carries only its link.**')
         ->and(packageSource('skills/code-review-github/templates/review-body.md'))
         ->toContain('A security known point is the row `{issue, security: true}`')
         ->and(packageSource('agents/leonardo.md'))
-        ->toContain('is the record line `**Security point** — **Linked issue:** <URL>` and the walkthrough row `{issue, security: true}`, and nothing more.');
+        ->toContain(
+            'is the record line `**Security point** — **Linked issue:** <URL>` and the walkthrough row `{issue, security: true}`, and nothing more.',
+        );
 
     foreach (['github', 'jira', 'bugsnag'] as $target) {
         expect(packageSource('skills/pr-summary/templates/pr-summary-' . $target . '.md'))
@@ -356,7 +358,9 @@ test('the trust of the link decides a known point: no allow-list and no refusal 
         ->toContain('($c | marked_view) == $marks[$c.finding_id] then')
         ->toContain('"a known point is malformed or names an unknown finding"');
     expect($extract)
-        ->toContain('or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)/"; "i"))')
+        ->toContain(
+            'or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)/"; "i"))',
+        )
         ->toContain('or ($f.raised_by | test("splinter|\\\\bboth\\\\b"))')
         ->toContain('test("^[^a-z0-9]*exploit-path")');
     expect(packageSource('skills/code-review/references/finding-records.md'))
