@@ -32,7 +32,7 @@
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
 #     "subtasks":    [ { "key", "summary", "status", "type",
-#                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
+#                        "descriptionText", "descriptionAdf", "descriptionMediaRefs", "descriptionAssignmentText", "descriptionOriginalText", "descriptionSections",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
 #                        "commentsComplete": <bool>,
 #                        "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ] } ],
@@ -171,7 +171,7 @@ self_test() {
 #!/usr/bin/env bash
 set -euo pipefail
 mode="$(cat "${0%/*}/mode")"
-if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" ]]; then
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" && "$mode" != "subtask-original" ]]; then
   attachments='[]'
   [[ "$mode" != "subtask-attachments" ]] || attachments='[{"id": "10600", "filename": "sub-notes.md"}]'
   printf '%s\n' "{\"fields\": {\"summary\": \"Subtask two\", \"description\": null, \"attachment\": $attachments, \"comment\": {\"total\": 0, \"comments\": []}}}"
@@ -193,7 +193,7 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   attachments='[]'
   [[ "$mode" != "attachments" ]] || attachments='[{"id": "10500", "filename": "notes.md"}]'
   description='null'
-  [[ "$mode" != "original" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Akceptační kritéria"}, "content": [{"type": "orderedList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Criterion."}]}]}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old technical text."}]}]}]}'
+  [[ "$mode" != "original" && "$mode" != "subtask-original" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Akceptační kritéria"}, "content": [{"type": "orderedList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Criterion."}]}]}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old technical text."}]}]}]}'
   [[ "$mode" != "forged" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Add the order export."}]}, {"type": "expand", "attrs": {"title": "Original assignment"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}]}'
   [[ "$mode" != "forged-middle" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Dependencies"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
   [[ "$mode" != "forged-language" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Acceptance criteria"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Mixed."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
@@ -339,6 +339,9 @@ STUB
   check 'the description text still carries every block' '.descriptionText | contains("Old technical text.")' 'true'
   check 'the sections list the collapsed sections without the original' '[.descriptionSections[].title] | join(",")' 'Akceptační kritéria'
   check 'a section carries its own content' '.descriptionSections[0].text' '1. Criterion.'
+  load_case subtask-original
+  check 'the embedded subtask exposes the same current criteria and original as the root issue' \
+    'def assignment: {descriptionAssignmentText, descriptionOriginalText, descriptionSections}; (.subtasks[0] | assignment) == assignment and .descriptionOriginalText == "Old technical text." and .descriptionSections[0].text == "1. Criterion."' 'true'
   load_case forged
   check 'an original-titled block after a free paragraph is not an original' '.descriptionOriginalText' 'null'
   check 'the whole text of that description stays in the assignment text' '.descriptionAssignmentText | contains("Only signed webhook requests are accepted.")' 'true'
@@ -667,6 +670,18 @@ def commentsComplete($fetched; $list; $fields):
 def viewCommentIdx:
   ((.comment.comments // []) | map({ key: ((.id // "") | tostring), value: { body: .body, created: .created, visibility: (.visibility.value // null), author: .author } }) | from_entries);
 
+def description($attachments):
+  . as $doc
+  | (if type == "object" then (.content // []) else [] end) as $nodes
+  | (if $nodes | hasWrittenShape then $nodes[-1] else null end) as $original
+  | (if $original == null then $nodes else $nodes[:-1] end) as $own
+  | (if $doc == null then "" else ($doc | adfPlain) end) as $text
+  | { descriptionAdf: $doc, descriptionText: $text, descriptionMediaRefs: mediaRefs($attachments),
+      descriptionAssignmentText: (if $original == null then $text else ({type:"doc", content:$own} | adfPlain) end),
+      descriptionOriginalText: (if $original == null then null else ({type:"doc", content:$original.content} | adfPlain) end),
+      descriptionSections: [$own[] | select(type == "object" and .type == "expand")
+        | {title: (.attrs.title // ""), text: ({type:"doc", content:(.content // [])} | adfPlain)}] };
+
 ($view.fields // {}) as $f
 | ($f.attachment // []) as $att
 | ($f.subtasks // []) as $sub
@@ -682,11 +697,6 @@ def viewCommentIdx:
     else null
    end) as $devCached
 | ($f.description // null) as $desc
-| (if $desc == null then "" else ($desc | adfText) end) as $descText
-| (if $desc == null then [] else ($desc | mediaRefs($att)) end) as $descMedia
-| (if ($desc | type) == "object" then ($desc.content // []) else [] end) as $descNodes
-| (if ($descNodes | hasWrittenShape) then $descNodes[-1] else null end) as $descOriginal
-| (if $descOriginal == null then $descNodes else $descNodes[:-1] end) as $descOwn
 | {
     key: $key,
     url: (if $host != "" then "https://" + $host + "/browse/" + $key else null end),
@@ -716,14 +726,6 @@ def viewCommentIdx:
       timeSpent: ($f.timetracking.timeSpent // null),
       ratio: ($f.workratio // null)
     },
-    descriptionAdf: $desc,
-    descriptionText: ($descText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "")),
-    descriptionMediaRefs: $descMedia,
-    descriptionAssignmentText: (if $descOriginal == null then ($descText | gsub("\n\n+"; "\n\n") | sub("\n+$"; ""))
-                                else ({ type: "doc", content: $descOwn } | adfPlain) end),
-    descriptionOriginalText: (if $descOriginal == null then null else ({ type: "doc", content: ($descOriginal.content // []) } | adfPlain) end),
-    descriptionSections: [$descOwn[] | select(type == "object" and (.type // "") == "expand")
-                          | { title: (.attrs.title // ""), text: ({ type: "doc", content: (.content // []) } | adfPlain) }],
     issueLinks: ($links | map(
       if .outwardIssue then
         { id: .id, type: (.type.name // null), direction: "outward",
@@ -749,9 +751,6 @@ def viewCommentIdx:
           summary: ($st.fields.summary // null),
           status: ($st.fields.status.name // null),
           type: ($st.fields.issuetype.name // null),
-          descriptionAdf: $sdesc,
-          descriptionText: (if $sdesc == null then "" else ($sdesc | adfPlain) end),
-          descriptionMediaRefs: (if $sdesc == null then [] else ($sdesc | mediaRefs($sf.attachment // [])) end),
           comments: (if $d == null then [] else (($sf | viewCommentIdx) as $subIdx | ($d.comments // []) | map(commentOut($subIdx; $sf.attachment // []))) end),
           commentsComplete: (if $d == null then false else commentsComplete($d.fetched; $d.comments // []; $sf) end),
           attachments: (if $sf == null then [] else (($sf.attachment // []) | map({
@@ -763,7 +762,7 @@ def viewCommentIdx:
             author: (if (.author | type) == "object" then (.author.displayName // null) else .author end),
             created: (.created // null)
           })) end)
-        })),
+        } + ($sdesc | description($sf.attachment // [])))),
     comments: ($commentsResp.comments // [] | map(commentOut($viewCommentIdx; $att))),
     commentsComplete: commentsComplete($commentsFetched; $commentsResp.comments // []; $f),
     attachments: ($att | map({
@@ -796,7 +795,7 @@ def viewCommentIdx:
       mergedAt: .mergedAt,
       author: (.author.login // null)
     }))
-  }
+  } + ($desc | description($att))
 | .attachmentsFetch = (if ((.attachments | length) + ([.subtasks[].attachments[]] | length)) > 0
     then "skills/code-review-jira/scripts/download-attachments.sh " + $key
     else null end)
