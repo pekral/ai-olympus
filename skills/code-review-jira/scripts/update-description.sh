@@ -508,6 +508,18 @@ STUB
     expect "a previous description of kind $case_name stays on the ticket" '[[ "$(jq -S -c . "$stubbin/desc.json")" == "$(printf "%s" "$desc" | jq -S -c .)" ]]'
   done
 
+  local lang criteria item
+  for lang in en cs; do
+    if [[ "$lang" == cs ]]; then criteria='Akceptační kritéria'; else criteria='Acceptance criteria'; fi
+    for item in 'Criterion.' '* Criterion.'; do
+      printf '%s\n' 'Opening.' "{expand:$criteria}" "$item" '{expand}' >"$tmp/bad.txt"
+      setup ok "$p_legacy"
+      take_fingerprint
+      run_script write ACME-1 "$lang" "$fp" "$tmp/bad.txt"
+      expect "unnumbered criteria in $lang are refused ($item)" '[[ $rc -eq 5 && "$(edits)" == 0 ]]'
+    done
+  done
+
   local bad
   setup ok "$p_legacy"
   take_fingerprint

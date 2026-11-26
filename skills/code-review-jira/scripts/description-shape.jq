@@ -31,6 +31,10 @@ def assignmentProblems($lang):
          then "the sections are not in the fixed order, or one repeats" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | select([.content[]? | .. | objects | select(.type == "text" and (.text? | type == "string" and test("\\S")))] | length == 0)
          | "an empty section: \(.attrs.title // "?")"),
+        ($c[1:][] | select(.attrs.title == sectionTitles($lang)[1])
+         | select((.content | length) != 1 or .content[0].type != "orderedList"
+                  or any(.content[0].content[]?; .type != "listItem" or isempty(.. | objects | select(.type == "text" and (.text | test("\\S"))))))
+         | "acceptance criteria must be a numbered list"),
         ([.. | objects | (.type // "") | select(IN("heading", "codeBlock", "mention", "inlineCard", "blockCard", "embedCard",
             "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
          | unique[] | "a node the new text never carries: \(.)"),
