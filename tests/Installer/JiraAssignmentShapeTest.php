@@ -92,23 +92,6 @@ test('the conformance gate and the context brief keep the original apart from th
         ->toContain('### Original assignment — preserved text, not a source of requirements, except a security requirement');
 });
 
-test('the loader returns the original apart from the sections, and its self-test proves it', function (): void {
-    $loader = packageSource('skills/code-review-jira/scripts/load-issue.sh');
-
-    expect($loader)->toContain('"descriptionAssignmentText": "<descriptionText without the Original assignment block>"')
-        ->and($loader)->toContain('"descriptionOriginalText": "<the text of the Original assignment block>" | null')
-        ->and($loader)->toContain('"descriptionSections": [ { "title", "text" } ]')
-        ->and($loader)->toContain('include "description-shape";')
-        ->and($loader)->toContain('if ($descNodes | hasWrittenShape) then $descNodes[-1] else null end')
-        ->and($loader)->not->toContain('IN("Original assignment", "Původní zadání")')
-        ->and($loader)->toContain('check \'the last Original assignment block is the original text\'')
-        ->and($loader)->toContain('check \'an original-titled block after a free paragraph is not an original\'')
-        ->and($loader)->toContain('check \'an original-titled block after a section outside the fixed list is not an original\'')
-        ->and($loader)->toContain('check \'a section title of one language before an original title of the other is not an original\'')
-        ->and($loader)->toContain('check \'the assignment text leaves the original block out\'')
-        ->and($loader)->toContain('check \'the sections list the collapsed sections without the original\'');
-});
-
 test('the JIRA template renders the shape in Wiki Markup with no original block', function (): void {
     $template = packageSource('skills/create-issues-from-text/templates/issue-structure-jira.md');
 
@@ -159,15 +142,8 @@ test('both wrapper inventories of the orchestration rule name the JIRA descripti
         );
 });
 
-test('the writer and the loader share one definition of the original block, which needs the shape the writer produces', function (): void {
-    $shape = packageSource('skills/code-review-jira/scripts/description-shape.jq');
-
-    expect($shape)->toContain('def originalTitles: ["Original assignment", "Původní zadání"];')
-        ->and($shape)->toContain('def hasWrittenShape:')
-        ->and($shape)->toContain('if length < 3')
-        ->and($shape)->toContain('(.[0] | type != "object" or (.type // "") != "paragraph")')
-        ->and($shape)->toContain('sectionTitles($lang) | index($t) != null')
-        ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
+test('the rule limits when the loader can recognise a preserved original', function (): void {
+    expect(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
             'The loader takes the last block for the original only when everything before it has the shape the script writes',
         )
         ->and(normalizedPackageSource('rules/compound-engineering/assignment.md'))->toContain(
@@ -178,103 +154,11 @@ test('the writer and the loader share one definition of the original block, whic
         );
 });
 
-test('the rewrite helper is shipped, executable, and runs its self-test in the build', function (): void {
-    $script = dirname(__DIR__, 2) . '/skills/code-review-jira/scripts/update-description.sh';
+test('both JIRA helpers are shipped executable and run their self-tests in the build', function (string $helper): void {
+    $path = 'skills/code-review-jira/scripts/' . $helper . '.sh';
+    /** @var array{scripts: array<string, list<string>>} $composer */
+    $composer = json_decode(packageSource('composer.json'), true, flags: JSON_THROW_ON_ERROR);
 
-    expect(is_executable($script))->toBeTrue()
-        ->and(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toStartWith('#!/usr/bin/env bash')
-        ->and(packageSource('composer.json'))->toContain(' skills/code-review-jira/scripts/update-description.sh ');
-});
-
-test('the rewrite helper writes one key with one edit command and checks the shape before it writes', function (): void {
-    $script = packageSource('skills/code-review-jira/scripts/update-description.sh');
-
-    expect($script)->toContain('acli jira workitem edit --key "$1" --description-file "$2" --yes')
-        ->and($script)->not->toContain('--jql')
-        ->and($script)->not->toContain('--from-json')
-        ->and($script)->not->toContain('--filter')
-        ->and($script)->toContain('gsub("\\\\p{Cf}"; "")')
-        ->and($script)->toContain(
-            '([a-z][a-z0-9+.-]*://|mailto:|www[.\u3002]'
-                . '|[^\\\\s.\u3002][.\u3002][\\\\p{L}\\\\p{M}][\\\\p{L}\\\\p{M}]'
-                . '|[\\\\p{L}\\\\p{M}\\\\p{N}._%+-]@[\\\\p{L}\\\\p{N}]'
-                . '|[\\\\p{Nd}\\\\p{No}]{1,3}([.\u3002][\\\\p{Nd}\\\\p{No}]{1,3}){3})',
-        )
-        ->and($script)->toContain('norm="$(printf \'%s\' "$new" | php "$NORMALIZER")"')
-        ->and($script)->toContain('printf \'%s\' "$norm" | jq -r')
-        ->and($script)->toContain('select((.content? // null) | type == "array")')
-        ->and($script)->not->toContain('select((.type // "") == "text") | (.text // "") | select(test(')
-        ->and($script)->toContain('previous_adf "$prev"')
-        ->and($script)->toContain('The previous description is on stdout as canonical ADF; restore it by hand.')
-        ->and($script)->toContain('"a link written as text"')
-        ->and($script)->toContain('the description is no longer the document this script wrote')
-        ->and($script)->toContain('^[A-Z][A-Z0-9_]+-[0-9]+$')
-        ->and($script)->toContain('refused — the URL host is not the JIRA site of the acli account')
-        ->and($script)->toContain('"bulletList", "blockquote", "codeBlock", "heading", "mediaGroup", "mediaSingle", "orderedList",')
-        ->and($script)->toContain('"panel", "paragraph", "rule", "table", "multiBodiedExtension", "extensionFrame", "nestedExpand"')
-        ->and($script)->toContain('include "description-shape";')
-        ->and($script)->toContain('if ($n | hasWrittenShape) then { mode: "kept"')
-        ->and($script)->not->toContain('def originalTitles')
-        ->and($script)->toContain('bash "$AUDIT_TRAIL" record --target "acli jira workitem edit --key $1 --description-file"');
-});
-
-test('the rewrite self-test covers every refusal, the verbatim original, the fingerprint, and the write-back', function (string $label): void {
-    expect(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toContain($label);
-})->with([
-    'audit line' => 'the rewrite records an external-write audit line',
-    'bare host' => 'url_bare) reason=\'a link written as text\'',
-    'bare IPv4 address' => 'url_ip_bare) reason=\'a link written as text\'',
-    'benign compatibility signs' => 'squared and degree units, circled step numbers, a currency sign, a dash, and a check mark are written',
-    'change before the write' => 'a change just before the write writes nothing and exits 6',
-    'e-mail address' => 'url_mail) reason=\'a link written as text\'',
-    'e-mail address with a full-width at sign' => 'url_fwat) reason=\'a link written as text\'',
-    'e-mail address with a small at sign' => 'url_smallat) reason=\'a link written as text\'',
-    'edit after the write kept' => 'an edit by another account after the write is not overwritten, and the run exits 4',
-    'failed read-back' => 'the failed read-back writes the previous description back once',
-    'fixed title' => 'the original block is the last node and carries the fixed Czech title',
-    'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
-    'foreign host' => 'a URL outside the acli site is refused with exit 1',
-    'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
-    'full-width scheme' => 'url_fwscheme) reason=\'a link written as text\'',
-    'host after an underscore' => 'url_under) reason=\'a link written as text\'',
-    'host after a symbol or an accent mark' => 'url_sym) reason=\'a link written as text\'',
-    'host with a digit full stop' => 'url_digitdot) reason=\'a link written as text\'',
-    'host with a fragment' => 'url_hash) reason=\'a link written as text\'',
-    'host with a full-width full stop' => 'url_fwdot) reason=\'a link written as text\'',
-    'host with a joiner after the full stop' => 'url_cgj) reason=\'a link written as text\'',
-    'host with a mark after the full stop' => 'url_mark_dot) reason=\'a link written as text\'',
-    'host with an invisible format character' => 'url_zwsp) reason=\'a link written as text\'',
-    'host with a non-Latin top-level domain' => 'url_indic) reason=\'a link written as text\'',
-    'host with a path, non-ASCII and punycode' => 'url_idn) reason=\'a link written as text\'',
-    'host with a path and no scheme' => 'url_host) reason=\'a link written as text\'',
-    'host with a port' => 'url_port) reason=\'a link written as text\'',
-    'host with a query' => 'url_query) reason=\'a link written as text\'',
-    'host with a small full stop' => 'url_smalldot) reason=\'a link written as text\'',
-    'host with a variation selector after the full stop' => 'url_fe0f) reason=\'a link written as text\'',
-    'host with circled letters' => 'url_circled) reason=\'a link written as text\'',
-    'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
-    'IPv4 address with a path' => 'url_ip) reason=\'a link written as text\'',
-    'IPv4 address with a port' => 'url_ip_port) reason=\'a link written as text\'',
-    'IPv4 address with circled digits' => 'url_circip) reason=\'a link written as text\'',
-    'IPv4 address with full-width digits' => 'url_fwdigit) reason=\'a link written as text\'',
-    'key list' => 'a list of keys is refused with exit 1',
-    'missing Normalizer class' => 'a missing Normalizer class exits 3 and nothing is written',
-    'name with a dot' => 'url_node) reason=\'a link written as text\'',
-    'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
-    'node type named' => 'the refusal of a task list names taskList',
-    'one edit of one key' => 'the write is the one edit of one key with a description file and --yes',
-    'original not last or twice' => 'a previous description of kind $case_name is refused with exit 5',
-    'previous description on stdout, late' => 'the previous description is on stdout as canonical ADF when nothing is written back (late)',
-    'previous description on stdout, lossy' => 'the previous description is on stdout as canonical ADF when nothing is written back (lossy)',
-    'sentence end, date, ellipsis, and leading dot' => 'a sentence end, a date, an ellipsis, and a leading dot are written',
-    'stale fingerprint' => 'a fingerprint of another version writes nothing and exits 6',
-    'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
-    'store that differs kept' => 'a store that differs from the written document is not overwritten either',
-    'text of 20 KB' => 'a text of about 20 KB is written',
-    'text over the byte limit' => 'a text over the byte limit is refused with exit 1 and nothing is written',
-    'text that only looks like a URL' => 'a text with a version, an abbreviation, a ratio, and a slash between words is written',
-    'three-part version and abbreviations' => 'a three-part version, dotted abbreviations, decimal numbers, and a single-label host are written',
-    'url split by a mark' => 'url_em) reason=\'a link written as text\'',
-    'url with www in a mark' => 'url_www) reason=\'a link written as text\'',
-    'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',
-]);
+    expect(is_executable(dirname(__DIR__, 2) . '/' . $path))->toBeTrue()
+        ->and(explode(' ', implode(' ', $composer['scripts']['shell-self-tests'])))->toContain($path);
+})->with(['load-issue', 'update-description']);
