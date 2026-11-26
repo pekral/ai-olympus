@@ -989,8 +989,9 @@ test('krang keeps the default writing path on the shared tree, allows a worktree
     expect($concurrency)->toContain('`.claude/worktrees/agent-impl-<source-slug>-donatello`');
     // The read-only CR agent reviews in its own worktree, because the main tree is never checked out on a branch under review.
     expect($concurrency)->toContain('read-only code-review agent (`leonardo`) reviews in its own git worktree**');
-    // Krang owns worktree cleanup so the repo stays clean after the run / merge.
-    expect($content)->toContain('git worktree remove');
+    // Krang owns worktree cleanup so the repo stays clean after the run / merge. Issue #667 re-baselined the removal:
+    // a review or test worktree holds the branch under review, so it is removed only through the worktree script.
+    expect($content)->toContain('skills/_shared/branch-worktree.sh remove --path <path> --lock-pid <N>');
     expect($content)->toContain('git worktree prune');
 });
 
@@ -1000,11 +1001,11 @@ test('the read-only CR agent documents an optional review worktree it hands back
 
     // The CR agent may isolate its review in a read-only worktree when needed.
     expect($content)->toContain('Review worktree');
-    expect($content)->toContain('git worktree add');
+    expect($content)->toContain('skills/_shared/branch-worktree.sh open --path .claude/worktrees/agent-cr-<slug>-leonardo');
     // It hands the path back so krang removes it during cleanup.
     expect($content)->toContain('Record the worktree path in your handoff');
-    // Standalone runs clean up after themselves.
-    expect($content)->toContain('git worktree remove');
+    // Standalone runs clean up after themselves, through the worktree script (issue #667).
+    expect($content)->toContain('skills/_shared/branch-worktree.sh remove --path <path> --lock-pid $PPID');
 });
 
 test('the retired apollon subagent is gone from the roster and its work is documented as donatello\'s', function (): void {
