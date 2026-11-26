@@ -212,24 +212,7 @@ cmd_write() {
   norm="$(printf '%s' "$new" | php "$NORMALIZER")" || die 3 "failed to normalise the converted text (the intl extension of php is required); nothing was written"
 
   problems="$(printf '%s' "$new" | jq -r -L "$SCRIPT_DIR" --arg lang "$lang" "$SHAPE_JQ"'
-    (.content // []) as $c
-    | ($c[1:] | map(select((.type // "") == "expand") | (.attrs.title // ""))) as $titles
-    | ($titles | map(. as $t | sectionTitles($lang) | index($t))) as $ix
-    | [ (if ($c | length) == 0 or ($c[0].type // "") != "paragraph" then "the new text does not open with one paragraph" else empty end),
-        (if ($c | length) < 2 then "the new text has no collapsed section" else empty end),
-        ($c[1:][] | select((.type // "") != "expand") | "a node outside a collapsed section after the opening paragraph: \(.type // "?")"),
-        ($titles[] | select(. as $t | sectionTitles($lang) | index($t) == null) | "a section title outside the fixed list: \(.)"),
-        (if ([range(1; $ix | length) | select($ix[.] != null and $ix[. - 1] != null and $ix[.] <= $ix[. - 1])] | length) > 0
-         then "the sections are not in the fixed order, or one repeats" else empty end),
-        ($c[1:][] | select((.type // "") == "expand") | select([.content[]? | .. | objects | select(.type == "text")] | length == 0)
-         | "an empty section: \(.attrs.title // "?")"),
-        ([.. | objects | (.type // "") | select(IN("heading", "codeBlock", "mention", "inlineCard", "blockCard", "embedCard",
-            "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
-         | unique[] | "a node the new text never carries: \(.)"),
-        ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
-        ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
-         | "a collapsed section inside a collapsed section")
-      ] | unique | .[]')" || die 3 "failed to read the converted text"
+    .content | assignmentProblems($lang)')" || die 3 "failed to read the converted text"
   # shellcheck disable=SC2016  # a jq program
   link_problem="$(printf '%s' "$norm" | jq -r '
     if ([.. | objects | select((.content? // null) | type == "array")
@@ -468,7 +451,8 @@ STUB
     '[[ "$(jq -r "[.content[] | .type] | join(\",\")" "$stubbin/desc.json")" == "paragraph,expand,expand,expand" ]]'
   expect 'the rewrite records an external-write audit line' 'grep -q "^self-test|.*|external-write|acli jira workitem edit --key ACME-1" "$tmp/run.audit"'
 
-  local first_original
+  local first_original first_written
+  first_written="$(cat "$stubbin/desc.json")"
   first_original="$(jq -S -c '.content[-1].content' "$stubbin/desc.json")"
   setup ok "$(cat "$stubbin/desc.json")"
   take_fingerprint
@@ -476,6 +460,19 @@ STUB
   expect 'a second rewrite exits 0' '[[ $rc -eq 0 ]]'
   expect 'a second rewrite keeps the first original and never wraps it again' \
     '[[ "$(jq -S -c ".content[-1].content" "$stubbin/desc.json")" == "$first_original" && "$(jq "[.content[] | select(.type == \"expand\" and .attrs.title == \"Původní zadání\")] | length" "$stubbin/desc.json")" == 1 ]]'
+
+  local change changed projected
+  for change in '.[1:2] |= (. + .)' '.[1:3] |= reverse' '.[1].content = [{"type":"paragraph","content":[{"type":"text","text":" "}]}]'; do
+    changed="$(printf '%s' "$first_written" | jq -c ".content |= ($change)")"
+    setup ok "$changed"
+    projected="$(PATH="$stubbin:$PATH" "$LOADER" ACME-1)"
+    expect "a manual section edit stays in the assignment ($change)" \
+      'printf "%s" "$projected" | jq -e ".descriptionOriginalText == null and .descriptionAssignmentText == .descriptionText" >/dev/null'
+    take_fingerprint
+    run_script write ACME-1 cs "$fp" "$good_cs2"
+    expect "a rewrite preserves all manually changed sections ($change)" \
+      '[[ $rc -eq 5 && "$(edits)" == 0 && "$(cat "$stubbin/desc.json")" == "$changed" ]]'
+  done
 
   local case_name desc
   for case_name in task layout nested; do

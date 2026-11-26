@@ -18,17 +18,30 @@ def isOriginal: type == "object" and (.type // "") == "expand" and ((.attrs.titl
 # The language of an original block, read from its title.
 def originalLang: if (.attrs.title // "") == "Původní zadání" then "cs" else "en" end;
 
-# The input is the array of the top-level nodes of a description. It is true only when the last node is
-# the original block and every node before it has the shape update-description.sh writes: one opening
-# paragraph, then one or more collapsed sections whose titles come from the fixed list of the language
-# of the original title. A description that only borrows the title of the original is never this shape.
-# The shape cannot tell a hand-made description of the same shape from the script's own output.
+# Validate the opening and new sections, without the preserved original.
+def assignmentProblems($lang):
+  . as $c
+    | ($c[1:] | map(select((.type // "") == "expand") | (.attrs.title // ""))) as $titles
+    | ($titles | map(. as $t | sectionTitles($lang) | index($t))) as $ix
+    | [ (if ($c | length) == 0 or ($c[0].type // "") != "paragraph" then "the new text does not open with one paragraph" else empty end),
+        (if ($c | length) < 2 then "the new text has no collapsed section" else empty end),
+        ($c[1:][] | select((.type // "") != "expand") | "a node outside a collapsed section after the opening paragraph: \(.type // "?")"),
+        ($titles[] | select(. as $t | sectionTitles($lang) | index($t) == null) | "a section title outside the fixed list: \(.)"),
+        (if ([range(1; $ix | length) | select($ix[.] != null and $ix[. - 1] != null and $ix[.] <= $ix[. - 1])] | length) > 0
+         then "the sections are not in the fixed order, or one repeats" else empty end),
+        ($c[1:][] | select((.type // "") == "expand") | select([.content[]? | .. | objects | select(.type == "text" and (.text? | type == "string" and test("\\S")))] | length == 0)
+         | "an empty section: \(.attrs.title // "?")"),
+        ([.. | objects | (.type // "") | select(IN("heading", "codeBlock", "mention", "inlineCard", "blockCard", "embedCard",
+            "media", "mediaSingle", "mediaGroup", "mediaInline", "taskList", "decisionList", "layoutSection", "nestedExpand"))]
+         | unique[] | "a node the new text never carries: \(.)"),
+        ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
+        ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
+         | "a collapsed section inside a collapsed section")
+      ] | unique | .[];
+
+# Only a document with this exact prefix and one final original can be rewritten without loss.
 def hasWrittenShape:
-  if length < 3
-     or (.[-1] | isOriginal | not)
-     or (.[0] | type != "object" or (.type // "") != "paragraph")
+  if type != "array" or length < 3 or (.[-1] | isOriginal | not) or any(.[]; type != "object")
   then false
-  else (.[-1] | originalLang) as $lang
-    | [.[1:-1][] | type == "object" and (.type // "") == "expand" and ((.attrs.title // "") as $t | sectionTitles($lang) | index($t) != null)]
-    | all
+  else (.[-1] | originalLang) as $lang | .[:-1] | isempty(assignmentProblems($lang))
   end;
