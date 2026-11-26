@@ -254,7 +254,6 @@ test('the merge gate carries no known-point path and no security exception', fun
         ->and(str_contains($source, 'known-point'))->toBeFalse()
         ->and(str_contains($source, 'known-check'))->toBeFalse();
 })->with([
-    'rules/git/pull-requests.md',
     'skills/merge-github-pr/SKILL.md',
     'skills/merge-github-pr/references/trusted-record-parser.md',
     'skills/merge-github-pr-fast/SKILL.md',
@@ -394,4 +393,14 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('      messageBody: (.messageBody // null),');
     expect(packageSource('agents/krang.md'))
         ->toContain('`known` reads the task, the linked issue, and the pull request through the loaders)');
+});
+
+test('the merge rule names a known point as no finding and points to its owner, with no merge check', function (): void {
+    $merging = packageSection(packageSource('rules/git/pull-requests.md'), '## Merging', '### Low-risk merge path');
+
+    expect($merging)
+        ->toContain('    - **A known point is no finding.** A finding that a trusted, open linked issue already reports, a security finding')
+        ->toContain('(`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*).')
+        ->and(substr_count(packageSource('rules/git/pull-requests.md'), 'known point'))->toBe(2)
+        ->and(str_contains(packageSource('rules/git/pull-requests.md'), 'known-check'))->toBeFalse();
 });
