@@ -194,7 +194,8 @@ test('the rewrite helper writes one key with one edit command and checks the sha
         ->and($script)->not->toContain('--from-json')
         ->and($script)->not->toContain('--filter')
         ->and($script)->toContain(
-            '([a-z][a-z0-9+.-]*://|mailto:|www\\\\.|\\\\b[\\\\p{L}\\\\p{N}-]+(\\\\.[\\\\p{L}\\\\p{N}-]+)*\\\\.\\\\p{L}{2,}/)',
+            '([a-z][a-z0-9+.-]*://|mailto:|www\\\\.|\\\\b[\\\\p{L}\\\\p{N}-]+(\\\\.[\\\\p{L}\\\\p{N}-]+)*\\\\.\\\\p{L}{2,}'
+                . '|[\\\\p{L}\\\\p{N}._%+-]@[\\\\p{L}\\\\p{N}]|[0-9]{1,3}(\\\\.[0-9]{1,3}){3})',
         )
         ->and($script)->toContain('select((.content? // null) | type == "array")')
         ->and($script)->not->toContain('select((.type // "") == "text") | (.text // "") | select(test(')
@@ -216,17 +217,26 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     expect(packageSource('skills/code-review-jira/scripts/update-description.sh'))->toContain($label);
 })->with([
     'audit line' => 'the rewrite records an external-write audit line',
+    'bare host' => 'url_bare) reason=\'a link written as text\'',
+    'bare IPv4 address' => 'url_ip_bare) reason=\'a link written as text\'',
     'change before the write' => 'a change just before the write writes nothing and exits 6',
+    'e-mail address' => 'url_mail) reason=\'a link written as text\'',
     'edit after the write kept' => 'an edit by another account after the write is not overwritten, and the run exits 4',
     'failed read-back' => 'the failed read-back writes the previous description back once',
     'fixed title' => 'the original block is the last node and carries the fixed Czech title',
     'forbidden node or mark' => 'a new text with a $bad problem is refused with exit 5 and nothing is written',
     'foreign host' => 'a URL outside the acli site is refused with exit 1',
     'forged original stays on the ticket' => 'a previous description of kind $case_name stays on the ticket',
+    'host with a fragment' => 'url_hash) reason=\'a link written as text\'',
     'host with a path, non-ASCII and punycode' => 'url_idn) reason=\'a link written as text\'',
     'host with a path and no scheme' => 'url_host) reason=\'a link written as text\'',
+    'host with a port' => 'url_port) reason=\'a link written as text\'',
+    'host with a query' => 'url_query) reason=\'a link written as text\'',
     'idempotent' => 'a second rewrite keeps the first original and never wraps it again',
+    'IPv4 address with a path' => 'url_ip) reason=\'a link written as text\'',
+    'IPv4 address with a port' => 'url_ip_port) reason=\'a link written as text\'',
     'key list' => 'a list of keys is refused with exit 1',
+    'name with a dot' => 'url_node) reason=\'a link written as text\'',
     'node outside the allow-list' => 'an original with a $case_name node is refused with exit 5 and nothing is written',
     'node type named' => 'the refusal of a task list names taskList',
     'one edit of one key' => 'the write is the one edit of one key with a description file and --yes',
@@ -237,6 +247,7 @@ test('the rewrite self-test covers every refusal, the verbatim original, the fin
     'stand-in first in PATH' => 'the stand-in acli is not first in PATH; nothing was run',
     'store that differs kept' => 'a store that differs from the written document is not overwritten either',
     'text that only looks like a URL' => 'a text with a version, an abbreviation, a ratio, and a slash between words is written',
+    'three-part version and abbreviations' => 'a three-part version, dotted abbreviations, decimal numbers, and a single-label host are written',
     'url split by a mark' => 'url_em) reason=\'a link written as text\'',
     'url with www in a mark' => 'url_www) reason=\'a link written as text\'',
     'verbatim original' => 'the original block holds the previous top-level nodes, equal after canonical JSON',

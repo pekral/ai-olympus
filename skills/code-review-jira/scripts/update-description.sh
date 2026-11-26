@@ -29,8 +29,16 @@
 #     code, mention, link, smart link, URL written as text, media, task list, decision list, layout, or
 #     nested section, and at least one collapsed section. The URL test runs on the joined text of each
 #     block (every text node is a direct child of a block), so a mark inside a URL does not hide it. It
-#     refuses a scheme (`https://`), `mailto:`, `www.`, and a host with a path and no scheme
-#     (`host.tld/path`), because the scheme-less form may render as a link on the site.
+#     fails closed, because whether the site renders a scheme-less form as a link is not settled. It
+#     refuses a scheme (`https://`), `mailto:`, `www.`, any host-like token (`label.tld`, a letter TLD
+#     of two or more letters) whatever follows it (nothing, `/path`, `:8080`, `?x=1`, `#x`), an e-mail
+#     address (a character, `@`, a letter or digit), and an IPv4 address (four dotted groups of one to
+#     three digits, with or without a path or port). Three false refusals are accepted: a name with a
+#     dot such as `Node.js` or `readme.md`, a sentence that ends in a period with no space after it
+#     (`Done.Next`), and a four-part version such as `1.2.3.4`. A business-only text carries none of
+#     them (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`,
+#     `4.5/5`, `e.g.`, `i.e.`, `a/nebo`, and a single-label host such as `localhost`. An IPv6
+#     address is not tested.
 #   - The description still has the given fingerprint, read once at the start and once just before the
 #     write. A different fingerprint writes nothing.
 #   - The previous description holds no top-level *Original assignment* block: all its top-level nodes
@@ -202,7 +210,7 @@ cmd_write() {
         ([.. | objects | .marks? // empty | .[] | (.type // "") | select(IN("link", "code"))] | unique[] | "a mark the new text never carries: \(.)"),
         (if ([.. | objects | select((.content? // null) | type == "array")
               | [.content[] | select(type == "object") | if (.type // "") == "text" then (.text // "") elif (.type // "") == "hardBreak" then "\n" else empty end] | join("")
-              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.|\\b[\\p{L}\\p{N}-]+(\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}/)"; "i"))] | length) > 0
+              | select(test("([a-z][a-z0-9+.-]*://|mailto:|www\\.|\\b[\\p{L}\\p{N}-]+(\\.[\\p{L}\\p{N}-]+)*\\.\\p{L}{2,}|[\\p{L}\\p{N}._%+-]@[\\p{L}\\p{N}]|[0-9]{1,3}(\\.[0-9]{1,3}){3})"; "i"))] | length) > 0
          then "a link written as text" else empty end),
         ($c[1:][] | select((.type // "") == "expand") | .content[]? | .. | objects | select((.type // "") == "expand")
          | "a collapsed section inside a collapsed section")
@@ -478,7 +486,7 @@ STUB
   local bad
   setup ok "$p_legacy"
   take_fingerprint
-  for bad in mention link heading code title order empty url url_em url_www url_host url_idn nosection; do
+  for bad in mention link heading code title order empty url url_em url_www url_host url_idn url_port url_query url_hash url_bare url_mail url_ip url_ip_bare url_ip_port url_node nosection; do
     case "$bad" in
       mention) reason='never carries: mention'; printf '%s\n' 'Opening for [~accountid:557058:abc].' >"$tmp/bad.txt" ;;
       link) reason='never carries: link'; printf '%s\n' 'Opening with [a page|https://example.com/x].' >"$tmp/bad.txt" ;;
@@ -491,17 +499,33 @@ STUB
       url_www) reason='a link written as text'; printf '%s\n' 'See *www*.evil.example for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_host) reason='a link written as text'; printf '%s\n' 'See evil.example/login for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_idn) reason='a link written as text'; printf '%s\n' 'See příklad.cz/cesta and xn--80ak6aa92e.com/login.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_port) reason='a link written as text'; printf '%s\n' 'Log in at evil.example:8080/login now.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_query) reason='a link written as text'; printf '%s\n' 'See evil.example?x=1 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_hash) reason='a link written as text'; printf '%s\n' 'See evil.example#x for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_bare) reason='a link written as text'; printf '%s\n' 'See evil.example for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_mail) reason='a link written as text'; printf '%s\n' 'Mail admin@evil.example for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_ip) reason='a link written as text'; printf '%s\n' 'See 192.0.2.1/admin for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_ip_bare) reason='a link written as text'; printf '%s\n' 'See 192.0.2.1 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_ip_port) reason='a link written as text'; printf '%s\n' 'See 192.0.2.1:8080 for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_node) reason='a link written as text'; printf '%s\n' 'The seller uses Node.js for the export.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       nosection) reason='no collapsed section'; printf '%s\n' 'Only an opening paragraph.' >"$tmp/bad.txt" ;;
       *) reason='an empty section'; printf '%s\n' 'Opening.' '{expand:Acceptance criteria}' '{expand}' >"$tmp/bad.txt" ;;
     esac
+    setup ok "$p_legacy"
+    take_fingerprint
     run_script write ACME-1 en "$fp" "$tmp/bad.txt"
     expect "a new text with a $bad problem is refused with exit 5 and nothing is written" '[[ $rc -eq 5 && "$(edits)" == 0 && "$out" == *"$reason"* ]]'
   done
 
-  # Text that only looks like a URL must pass: a version, an abbreviation, a ratio, and a slash between words.
+  # Text that only looks like a URL must pass: a version, an abbreviation, a ratio, a decimal number, and a slash between words.
   printf '%s\n' 'Release *v2.0* is e.g. the 4.5/5 rating, the 10.5 limit, and/or tj. a/nebo _the_ old limit.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign.txt"
   run_script write ACME-1 en "$fp" "$tmp/benign.txt"
   expect 'a text with a version, an abbreviation, a ratio, and a slash between words is written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
+  setup ok "$p_legacy"
+  take_fingerprint
+  printf '%s\n' 'Version 1.2.3 of the U.S. plan, i.e. the 3.5 kg limit, the 12.30 hours, a.s. and s.r.o. at localhost, no.12.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/benign2.txt"
+  run_script write ACME-1 en "$fp" "$tmp/benign2.txt"
+  expect 'a three-part version, dotted abbreviations, decimal numbers, and a single-label host are written' '[[ $rc -eq 0 && "$(edits)" == 1 ]]'
   setup ok "$p_legacy"
   take_fingerprint
 
