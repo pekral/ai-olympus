@@ -47,7 +47,7 @@
 #     "mergedAt", "mergedBy", "mergeCommit",
 #     "additions", "deletions", "changedFiles",
 #     "files":             [ { "path", "additions", "deletions" } ],
-#     "commits":           [ { "oid", "messageHeadline", "authoredDate", "authors" } ],
+#     "commits":           [ { "oid", "messageHeadline", "messageBody", "authoredDate", "authors" } ],
 #     "reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ],
 #     "reviewComments":    [ { "author", "authorAssociation", "body", "createdAt", "url" } ],
 #     "reviewCommentsComplete": <bool>,
@@ -375,6 +375,7 @@ def map_commits:
   [ (. // [])[] | {
       oid: (.oid // null),
       messageHeadline: (.messageHeadline // null),
+      messageBody: (.messageBody // null),
       authoredDate: (.authoredDate // null),
       authors: [ (.authors // [])[] | (.login // .name // null) ]
   } ];

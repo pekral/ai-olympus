@@ -67,7 +67,10 @@
 #                    must live where the task lives: the repository of the pull request on GitHub, the site and the
 #                    project of the task on JIRA. Its author must pass the trust test: a GitHub `authorAssociation` of
 #                    OWNER, MEMBER, or COLLABORATOR, and on JIRA a description that the operator's account wrote and
-#                    that no other account changed (`descriptionTrusted`). A security finding a linked issue already
+#                    that no other account changed (`descriptionTrusted`). On GitHub the pull request of the state
+#                    must close the task (`closingIssues[]`) and must not close the linked issue: neither through
+#                    `closingIssues[]` nor through a closing keyword in the headline or the body of one of its
+#                    commits. A pull request that cannot be loaded is a refusal. A security finding a linked issue already
 #                    reports is a known point too (owner decision of 2026-11-25): the trust of the link decides, never
 #                    the kind of the finding. The state stores the task and the issue. Every refusal exits 4 and
 #                    leaves the state unchanged. A known point is not blocking, so it never counts in a verdict. The state
@@ -983,15 +986,18 @@ JIRA_URL_RE='^https://([A-Za-z0-9.-]+)/browse/(([A-Z][A-Z0-9_]*)-[1-9][0-9]{0,8}
 
 lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 
-# linked_issue_verdict <repo> <source> <issue> — the checks of `known` on the link itself, read from the loaders and
-# never from the caller. <repo> is the repository of the pull request. Prints `ok` or `refused:<reason>` and always
-# returns 0: `known` refuses on `refused:`, and the check of a later round reopens the point. A loader that fails is a
-# refusal, so the check fails closed.
+# linked_issue_verdict <repo> <pr> <source> <issue> — the checks of `known` on the link itself, read from the loaders
+# and never from the caller. <repo> and <pr> name the pull request of the state. Prints `ok` or `refused:<reason>` and
+# always returns 0: `known` refuses on `refused:`, and the check of a later round reopens the point. A loader that
+# fails is a refusal, so the check fails closed.
 #   The trust facts of a GitHub issue (its author association) hold only in the repository of that
 #   issue, so the task and the linked issue are issues of the repository of the pull request. A JIRA issue is trusted
 #   only on the site and in the project of the task, whose permission scheme decides who edits its description.
+#   The merge of the pull request closes every issue in its `closingIssues[]` and every issue that a closing keyword
+#   in the headline or the body of one of its commits names, so such an issue makes no known point. The pull request
+#   must close the task.
 linked_issue_verdict() {
-  local repo="$1" source="$2" issue="$3" rc=0 verdict
+  local repo="$1" pr="$2" source="$3" issue="$4" rc=0 verdict
   if [[ "$source" =~ $GH_ISSUE_RE ]]; then
     [[ "$(lower "${BASH_REMATCH[1]}")" == "$(lower "$repo")" ]] \
       || { echo 'refused:the task is not an issue of the repository of the pull request'; return 0; }
@@ -1003,14 +1009,38 @@ linked_issue_verdict() {
     rc=$?
     set -e
     [[ "$rc" -eq 0 ]] || { echo 'refused:the task or the linked issue cannot be loaded'; return 0; }
+    set +e
+    "$LOADER" "https://github.com/$repo/pull/$pr" </dev/null >"$TMP/closing.json" 2>/dev/null
+    rc=$?
+    set -e
+    [[ "$rc" -eq 0 ]] || { echo 'refused:the pull request cannot be loaded'; return 0; }
     verdict="$(jq -r -n -L "$HERE" --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
-      --arg source "$source" --arg issue "$issue" 'include "review-trust";
-      ($src[0] // null) as $t | ($lnk[0] // null) as $l
+      --slurpfile prq "$TMP/closing.json" --arg source "$source" --arg issue "$issue" --arg repo "$repo" \
+      --argjson pr "$pr" --arg n "${issue##*/}" 'include "review-trust";
+      # A closing keyword (close, fix, resolve, with or without -s and -d, any case), an optional colon, and a list of
+      # references, the last of which names issue $n of $repo: #n, owner/name#n, or the issue URL.
+      ($repo | ascii_downcase | gsub("\\."; "\\.")) as $r
+      | ("(?i)(?<![a-z0-9_])(close[sd]?|fix(e[sd])?|resolve[sd]?)\\s*:?\\s*"
+          + "((https://github\\.com/[^\\s/]+/[^\\s/]+/issues/|[a-z0-9_.-]+/[a-z0-9_.-]+#|#)[0-9]+\\s*(,|\\band\\b)?\\s*)*"
+          + "(https://github\\.com/\($r)/issues/|\($r)#|#)\($n)(?![0-9])") as $closes
+      | ($src[0] // null) as $t | ($lnk[0] // null) as $l | ($prq[0] // null) as $q
       | if ($t | type) != "object" or $t.kind != "issue" or $t.url != $source then "refused:the loader returned another item than the task"
         elif ([($t.linkedIssues // [])[] | .url] | index([$issue])) == null then "refused:the issue is not in the link list of the task"
         elif ($l | type) != "object" or $l.kind != "issue" or $l.url != $issue then "refused:the loader returned another item than the linked issue"
         elif $l.state != "OPEN" then "refused:the linked issue is not open"
         elif ($l.authorAssociation | write_access | not) then "refused:the author association \($l.authorAssociation // "null") of the linked issue is not trusted"
+        elif ($q | type) != "object" or $q.kind != "pr" or $q.number != $pr
+             or ((($q.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase))
+             or ($q.closingIssues | type) != "array" or ($q.commits | type) != "array"
+        then "refused:the loader returned another item than the pull request of the state"
+        elif ([$q.closingIssues[] | (.url // "") | ascii_downcase] | index([$source | ascii_downcase])) == null
+        then "refused:the pull request does not close the task"
+        elif ([$q.closingIssues[] | (.url // "") | ascii_downcase] | index([$issue | ascii_downcase])) != null
+        then "refused:the pull request closes the linked issue"
+        elif ($q.commits | all(.[]; (.messageHeadline | type) == "string" and (.messageBody | type) == "string") | not)
+        then "refused:the loader returned a commit without its message headline and body"
+        elif ($q.commits | any(.[]; (.messageHeadline | test($closes)) or (.messageBody | test($closes))))
+        then "refused:a commit of the pull request closes the linked issue"
         else "ok" end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   elif [[ "$source" =~ $JIRA_KEY_RE ]]; then
     local project="${BASH_REMATCH[1]}" host key
@@ -1048,11 +1078,12 @@ linked_issue_verdict() {
 # one is named on stderr. <current-round> is true when the check belongs to the round of the state's last entry (an
 # evaluation), so that entry shows the new verdict; a new round computes its own. Rewrites <state-file>.
 reverify_known() {
-  local file="$1" cap="$2" threshold="$3" current="$4" repo id source url verdict ids='[]'
+  local file="$1" cap="$2" threshold="$3" current="$4" repo pr id source url verdict ids='[]'
   jq -e '(.known_points // []) | length > 0' "$file" >/dev/null || return 0
   repo="$(jq -r '.repo' "$file")"
+  pr="$(jq -r '.pr' "$file")"
   while IFS=$'\t' read -r id source url; do
-    verdict="$(linked_issue_verdict "$repo" "$source" "$url")"
+    verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$url")"
     if [[ "$verdict" != ok ]]; then
       ids="$(jq -c --arg id "$id" '. + [$id]' <<<"$ids")"
       echo "$PROG: known point $id is open again: $(state_path_display "${verdict#refused:}")" >&2
@@ -1120,7 +1151,7 @@ cmd_known() {
     jq -e '.reports == 1' <<<"$finding" >/dev/null \
       || fail 4 "finding $id merges more than one reported finding, or does not say how many; the state is unchanged"
     local verdict
-    verdict="$(linked_issue_verdict "$(jq -r '.repo' "$TMP/state.json")" "$source" "$issue")"
+    verdict="$(linked_issue_verdict "$(jq -r '.repo' "$TMP/state.json")" "$(jq -r '.pr' "$TMP/state.json")" "$source" "$issue")"
     [[ "$verdict" == ok ]] \
       || fail 4 "the link is not a trusted linked issue: $(state_path_display "${verdict#refused:}"); the state is unchanged"
     jq -c -L "$HERE" --arg id "$id" --arg source "$source" --arg url "$issue" --arg covers "$covers" \
@@ -1190,6 +1221,15 @@ EOF
   pr_comments() {
     jq -n -c '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
       repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: $ARGS.positional}' --jsonargs "$@" >"$tmp/pr.json"
+  }
+  # pr_closes <commits-json> <issue-url>... — the loader payload of pull request acme/shop#7 that closes these issues
+  # and carries these commits.
+  pr_closes() {
+    local commits="$1"
+    shift
+    jq -n -c --argjson commits "$commits" '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
+      repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
+      closingIssues: [$ARGS.positional[] | {url: .}], commits: $commits}' --args "$@" >"$tmp/pr.json"
   }
   # comment <id> <association> <body> — one loader comment object.
   comment() {
@@ -1457,6 +1497,9 @@ EOF
   jq -n -c '{key: "ACME-3", url: "https://acme.atlassian.net/browse/ACME-3", resolution: null, descriptionTrusted: false}' >"$tmp/jira-ACME-3.json"
   jq -n -c '{key: "ACME-9", url: "https://acme.atlassian.net/browse/ACME-9", resolution: null, descriptionTrusted: true}' >"$tmp/jira-ACME-9.json"
   local task=https://github.com/acme/shop/issues/10 known_issue=https://github.com/acme/shop/issues/12
+  # The pull request closes the task, and its one commit names the task with a closing keyword.
+  local closes_task='[{"oid":"a1","messageHeadline":"feat(orders): add the export (#10)","messageBody":"Closes #10"}]'
+  pr_closes "$closes_task" "$task"
   rm -f "$repo/$S"
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
   report "$tmp/n1.md" 1 "$F_STRUCT" "$F_SQL"
@@ -1540,6 +1583,31 @@ EOF
     (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   done
   check 'the refused finding stays open' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
+  # An issue that the pull request closes makes no known point: the merge closes it. The pull request is read from the
+  # state, through the loader, and a pull request that cannot be read, or that does not close the task, is a refusal.
+  local pr_case pr_mut
+  for pr_case in \
+    "a linked issue in the closing issues of the pull request|pr_closes '$closes_task' '$task' '$known_issue'" \
+    "a linked issue that a commit headline closes|pr_closes '[{\"oid\":\"c3\",\"messageHeadline\":\"fix(orders): the total, fixes #12\",\"messageBody\":\"\"}]' '$task'" \
+    "a linked issue that a commit body resolves by its repository and number|pr_closes '[{\"oid\":\"c4\",\"messageHeadline\":\"fix: z\",\"messageBody\":\"Some text.\\n\\nResolved: acme/shop#12\"}]' '$task'" \
+    "a linked issue that a commit body closes by its URL|pr_closes '[{\"oid\":\"c5\",\"messageHeadline\":\"fix: z\",\"messageBody\":\"CLOSES https://github.com/acme/shop/issues/12\"}]' '$task'" \
+    "a linked issue that a commit closes second in a list|pr_closes '[{\"oid\":\"c6\",\"messageHeadline\":\"fix: z\",\"messageBody\":\"Closes #10, #12\"}]' '$task'" \
+    "a commit without its message body|pr_closes '[{\"oid\":\"c7\",\"messageHeadline\":\"fix: z\"}]' '$task'" \
+    "a pull request that does not close the task|pr_closes '$closes_task' 'https://github.com/acme/shop/issues/15'" \
+    "a pull request that cannot be loaded|rm -f '$tmp/pr.json'"; do
+    IFS='|' read -r label pr_mut <<<"$pr_case"
+    eval "$pr_mut"
+    cp "$repo/$S" "$tmp/pr-before"
+    run_case "a known point is refused for $label" 4 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
+    check "the state is unchanged for $label" "$(cmp -s "$repo/$S" "$tmp/pr-before" && echo 0 || echo 1)"
+    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+  done
+  # A closing keyword for another number, a word that only ends in a keyword, and a reference without a keyword close
+  # nothing, so the link is a known point.
+  pr_closes '[{"oid":"c8","messageHeadline":"fix: the total (#10)","messageBody":"Closes #123. Prefix #12. See #12."}]' "$task"
+  run_case 'a known point is marked when no commit closes the linked issue' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
+  (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+  pr_closes "$closes_task" "$task"
   run_case 'an unknown finding is refused' 4 -- known --state "$S" --finding r-0000000000000000 --source "$task" --issue "$known_issue" --covers 'x'
   run_case 'an issue that is not an https URL is a usage error' 1 -- known --state "$S" --finding "$struct_id" --source "$task" --issue 'http://x' --covers 'x'
   run_case 'an empty sentence is a usage error' 1 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers ''
@@ -1616,6 +1684,7 @@ EOF
   known_pair() {
     gh_issue 10 OWNER OPEN maintainer
     gh_issue 12 OWNER OPEN maintainer
+    pr_closes "$closes_task" "$task"
     rm -f "$repo/$S"
     (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
     (cd "$repo" && "$script" record --state "$S" --input "$tmp/p1.md" >/dev/null)
@@ -1633,6 +1702,9 @@ EOF
     "the task no longer links the issue|unlink_task|confirmed confirmed" \
     "the linked issue cannot be loaded|rm -f '$tmp/gh-issue-acme-shop-12.json'|confirmed confirmed" \
     "the task cannot be loaded|rm -f '$tmp/gh-issue-acme-shop-10.json'|confirmed confirmed" \
+    "the pull request now closes the linked issue|pr_closes '$closes_task' '$task' '$known_issue'|confirmed confirmed" \
+    "a new commit closes the linked issue|pr_closes '[{\"oid\":\"b2\",\"messageHeadline\":\"fix: y\",\"messageBody\":\"Fixes #12\"}]' '$task'|confirmed confirmed" \
+    "the pull request cannot be loaded|rm -f '$tmp/pr.json'|confirmed confirmed" \
     "nothing changed|true|known known"; do
     IFS='|' read -r label mut want <<<"$case_args"
     known_pair
