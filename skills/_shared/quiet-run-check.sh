@@ -50,8 +50,8 @@
 #
 # Exit codes (verify)
 #   0  nothing was published and the head did not move
-#   1  a comment was added during the run, by any author, or a review screenshot was written to `cr-assets`; every new
-#      comment is printed as `new-comment: <url>`, and a moved branch tip as `new-asset: …`
+#   1  a comment was added during the run, by any author; every new comment is printed as `new-comment: <url>`
+#      A review screenshot written to `cr-assets` during the run is a publish too, printed as `new-asset: …`
 #   3  nothing was published, but the head moved during the review; `head: moved <before> → <now>`
 #   2  usage error, or a required tool is missing
 #   4  a read failed or the state file is unusable, so the check did not run to its end

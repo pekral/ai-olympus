@@ -107,6 +107,7 @@ fi
 # --- write the 0600 curl auth config (token stays out of argv) ---
 CFG="$(mktemp)"
 trap 'rm -f "$CFG"' EXIT
+chmod 600 "$CFG"
 jira_rest_write_config "$CFG"
 
 att_run "$INVENTORY" "$CFG" "$DEST" "jira" "$REF"

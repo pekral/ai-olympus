@@ -44,6 +44,6 @@ A JIRA ticket is read by the person who asked for the work, so the report lists 
    - **JIRA decides how a link opens.** A JIRA comment cannot ask for a new tab.
 14. **A reproduced defect shows its screenshot inside its finding.** Only a finding that the interactive test reproduced carries one, under the rules of `@skills/interactive-testing/references/defect-screenshots.md`: never for a passed scenario, a code-only finding, a `security` finding, or a finding marked do not file publicly.
    - **The source marks the place with one slot line** directly under the bullet: `{screenshot:<finding id>:head}`, and for a regression `{screenshot:<finding id>:base}` first. The check ignores the slot lines.
-   - **The publish call carries the screenshot manifest** (`upsert-comment.sh --create --screenshots <manifest> --slug <slug>`). It attaches the images to the work item and joins each slot to its bullet. A slot that no accepted screenshot fills is removed, and the finding stays text.
+   - **The publish call carries the screenshot manifest** (`--create --screenshots <manifest> --slug <slug>` of the JIRA comment helper). It attaches the images to the work item and joins each slot to its bullet. A slot that no accepted screenshot fills is removed, and the finding stays text.
 
 `@rules/reports/general.md` *A JIRA comment is written for a non-technical reader* is binding on this comment. It lists the content that never appears in it, its exceptions, and the 3 000-character cap. Do not restate that list here — apply it.
