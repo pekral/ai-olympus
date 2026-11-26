@@ -62,7 +62,8 @@ test('a rewrite takes its points only from the description and the trusted comme
 
 test('every reader of a JIRA assignment leaves the original out and takes the criteria from their own section', function (string $reader): void {
     expect(normalizedPackageSource($reader))->toContain(
-        'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText`, '
+        'On JIRA the requirements come from `descriptionAssignmentText` and `descriptionSections`, never from `descriptionOriginalText` '
+        . '(except a security requirement that only the original states: it stays a requirement, and the report names it), '
         . 'and the criteria come only from the *Acceptance criteria* section when the description has one',
     );
 })->with([
@@ -71,13 +72,23 @@ test('every reader of a JIRA assignment leaves the original out and takes the cr
     'prepare-issue-context' => 'skills/prepare-issue-context/SKILL.md',
 ]);
 
+test('the rule reader line keeps the security exception of the original next to the ban', function (): void {
+    expect(jiraShapeSection())->toContain(
+        'never from `descriptionOriginalText`, except a security requirement that only the original states: it stays a requirement, and the report names it.',
+    )
+        ->and(jiraShapeSection())->toContain('it adds no requirement except that security one');
+});
+
 test('the conformance gate and the context brief keep the original apart from the requirements', function (): void {
     expect(normalizedPackageSource('skills/code-review/references/assignment-conformance-gate.md'))
-        ->toContain('A JIRA assignment gives no requirement from its preserved original')
+        ->toContain(
+            'A JIRA assignment gives no requirement from its preserved original, except a security requirement that only the original states: '
+            . 'it stays a requirement, and the report names it.',
+        )
         ->and(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
         ->toContain('"### Description\n\n" + (.descriptionAssignmentText // .descriptionText)')
         ->and(packageSource('skills/code-review-jira/scripts/gather-issue-context.sh'))
-        ->toContain('### Original assignment — preserved text, not a source of requirements');
+        ->toContain('### Original assignment — preserved text, not a source of requirements, except a security requirement');
 });
 
 test('the loader returns the original apart from the sections, and its self-test proves it', function (): void {
