@@ -279,6 +279,7 @@ test('a security known point shows only its link in every output', function (): 
         )
         ->toContain('"a security known point with text after its link is refused: $tail_case" 3')
         ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **A security known point carries only its link.**')
+        ->and(packageSource('skills/pr-summary/SKILL.md'))->toContain('- **On JIRA the bullet opens with the change type of its finding,**')
         ->and(packageSource('skills/code-review-github/templates/review-body.md'))
         ->toContain('A security known point is the row `{issue, security: true}`')
         ->and(packageSource('agents/leonardo.md'))

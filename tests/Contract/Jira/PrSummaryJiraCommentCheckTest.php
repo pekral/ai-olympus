@@ -826,3 +826,59 @@ test('the skill and the template pass the reviewed commit to the check before ev
         ->and($skill)->toContain('`--revision` with the `Reviewed revision:` of the code-review report')
         ->and($template)->toContain('--jira-issue <issue-url> --revision <commit> <source-file> on the rendered source, with the Reviewed revision');
 });
+
+/**
+ * The bullet opening of the group `Already reported in a linked issue`, as the JIRA template renders it, with a plain sentence in place of the guidance.
+ */
+function jiraSummaryKnownPointOpening(): string
+{
+    $template = packageSource('skills/pr-summary/templates/pr-summary-jira.md');
+
+    return preg_match('/^h3\. Already reported in a linked issue\R\R(?<opening>\* (?:\*\([a-z]+\):\* )?)/m', $template, $match) === 1 ? $match['opening'] : '';
+}
+
+function jiraSummaryWithKnownPoints(string ...$bullets): string
+{
+    return jiraSummaryWithoutCriteria(
+        ['{expand}' . "\n\n" . '{expand:Co se změnilo' => "\nh3. Už nahlášené v propojeném issue\n\n" . implode("\n", $bullets) . "\n{expand}\n\n{expand:Co se změnilo"],
+    );
+}
+
+test('the JIRA template opens the known-point bullet with a change type, and the check accepts a summary built from it', function (): void {
+    $opening = jiraSummaryKnownPointOpening();
+    $process = runJiraSummaryCheck(
+        jiraSummaryWithKnownPoints($opening . 'Propojené issue už hlásí stejný problém. [ACME-12|https://example.atlassian.net/browse/ACME-12]'),
+        'none',
+    );
+
+    expect($opening)->toMatch('/^\* \*\((?:security|bug|tests|refactor|performance|documentation)\):\* $/')
+        ->and($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
+test('a known-point bullet that opens with plain text, the old template shape, fails the check', function (): void {
+    $process = runJiraSummaryCheck(
+        jiraSummaryWithKnownPoints('* Propojené issue už hlásí stejný problém. [ACME-12|https://example.atlassian.net/browse/ACME-12]'),
+        'none',
+    );
+
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('violation: findings: a finding must open with its change type');
+});
+
+test('known points of every change type pass the check in the order of their types', function (): void {
+    $link = ' [ACME-12|https://example.atlassian.net/browse/ACME-12]';
+    $process = runJiraSummaryCheck(
+        jiraSummaryWithKnownPoints(
+            '* *(security):* Propojené issue už hlásí tento bod.' . $link,
+            '* *(bug):* Propojené issue už hlásí stejnou chybu.' . $link,
+            '* *(tests):* [~accountid:' . jiraSummaryAuthor() . '] Propojené issue už hlásí chybějící test.' . $link,
+            '* *(refactor):* [~accountid:' . jiraSummaryAuthor() . '] Propojené issue už hlásí opakovaný kód.' . $link,
+        ),
+        'none',
+        jiraSummaryAuthor(),
+    );
+
+    expect($process->getOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});

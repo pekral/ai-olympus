@@ -18,7 +18,7 @@ h3. Already reported in an earlier review
 
 h3. Already reported in a linked issue
 
-* [Only when the review marked a finding as a known point. One bullet per point: what it is in plain language, what the linked issue covers, and a link to that issue. It is no point to resolve, so the group carries no count and no severity. A security known point is only the link and one neutral sentence that a linked issue already reports it. The group sits inside Review findings, after every new finding.]
+* *(bug):* [Only when the review marked a finding as a known point. One bullet per point, opening with the change type of its finding like every bullet of Review findings (references/jira-shape.md, item 10), then what it is in plain language, what the linked issue covers, and a link to that issue. A known point of the type refactor or tests mentions the author right after its type, as any finding of those types does. Order the bullets by type. It is no point to resolve, so the group carries no count and no severity. A security known point is only the link and one neutral sentence that a linked issue already reports it. Its type is *(security):*. The group sits inside Review findings, after every new finding.]
 {expand}
 
 {expand:What changed and what it affects}
