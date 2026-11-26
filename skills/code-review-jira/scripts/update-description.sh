@@ -43,7 +43,7 @@
 #     digit), and an IPv4 address (four dotted groups of one to three digits, with or without a path or
 #     port). A dot is `.` or U+3002 after the normalisation, and a digit is any Unicode decimal digit or
 #     other number. A new text over 65536 bytes is refused with exit 1 before it is converted, and the
-#     empty-text check is one linear pattern match. Three false refusals are accepted: a name with a dot
+#     new text is NFC-normalised and checked for display controls before conversion. Three false refusals are accepted: a name with a dot
 #     such as `Node.js` or `readme.md`, a sentence that ends in a period with no space after it
 #     (`Done.Next`), and a four-part version such as `1.2.3.4`. A business-only text carries none of
 #     them (`rules/compound-engineering/assignment.md`). Not refused: `v2.0`, `1.2.3`, `10.5`, `4.5/5`,
@@ -91,7 +91,6 @@ AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 LOADER="$SCRIPT_DIR/load-issue.sh"
 CONVERTER="$SCRIPT_DIR/wiki-markup-to-adf.php"
 NORMALIZER="$SCRIPT_DIR/normalize-adf.php"
-MAX_TEXT_BYTES=65536
 
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
@@ -192,25 +191,19 @@ cmd_write() {
   need jq
   need php
 
-  local key text tmp new norm problems prev plan mode title doc_file written
+  local key tmp new norm problems prev plan mode title doc_file written
   key="$(resolve_key "$input")"
-  if [[ "$source" == "-" ]]; then
-    text="$(cat)"
-  elif [[ -f "$source" ]]; then
-    text="$(cat "$source")"
-  else
-    die 1 "the text file was not found: $source"
+  if [[ "$source" != "-" ]]; then
+    [[ -f "$source" ]] || die 1 "the text file was not found: $source"
+    exec <"$source"
   fi
-  # The size check comes first and the empty check is one linear pattern match: a substitution over a
-  # long text is quadratic in the bash 3.2 of macOS.
-  (($(printf '%s' "$text" | wc -c) <= MAX_TEXT_BYTES)) || die 1 "refused — the new text is longer than $MAX_TEXT_BYTES bytes"
-  [[ "$text" =~ [^[:space:]] ]] || die 1 "refused — the new text is empty"
 
   tmp="$(mktemp -d)"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" EXIT
 
-  new="$(printf '%s' "$text" | php "$CONVERTER")" || die 3 "failed to convert the new text to ADF; nothing was written"
+  php "$NORMALIZER" --prepare-wiki >"$tmp/new.wiki" || exit $?
+  new="$(php "$CONVERTER" <"$tmp/new.wiki")" || die 3 "failed to convert the new text to ADF; nothing was written"
   # The URL test runs on a copy of the document with every string in NFKC with case folding, so a host,
   # an at sign, a digit, or a scheme written in a compatibility form reads like its plain form. The
   # original document is the one that is written. Without case-folded NFKC nothing is written.
@@ -573,9 +566,9 @@ STUB
       url_heart) reason='a link written as text'; printf '%s\n' 'Open i❤.ws for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_indic) reason='a link written as text'; printf '%s\n' 'Open evil.भारत for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_under) reason='a link written as text'; printf '%s\n' 'Open x_evil.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
-      url_zwsp) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x80\x8b.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
-      url_shy) reason='a link written as text'; printf '%s\n' $'Open evil.\xc2\xadcom for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
-      url_wj) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x81\xa0.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_zwsp) reason='forbidden control character'; printf '%s\n' $'Open evil\xe2\x80\x8b.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_shy) reason='forbidden control character'; printf '%s\n' $'Open evil.\xc2\xadcom for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
+      url_wj) reason='forbidden control character'; printf '%s\n' $'Open evil\xe2\x81\xa0.com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_fwdot) reason='a link written as text'; printf '%s\n' 'Open evil．com:8080 now.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_ideo) reason='a link written as text'; printf '%s\n' 'Open evil。com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
       url_dot2024) reason='a link written as text'; printf '%s\n' $'Open evil\xe2\x80\xa4com for details.' '{expand:Acceptance criteria}' '# One' '{expand}' >"$tmp/bad.txt" ;;
@@ -632,6 +625,22 @@ STUB
   run_script write ACME-1 en "$fp" "$tmp/big-bad.txt"
   expect 'a text over the byte limit is refused with exit 1 and nothing is written' '[[ $rc -eq 1 && "$(edits)" == 0 && "$out" == *"longer than"* ]]'
 
+  local display_original escaped
+  display_original="$(printf '%s' "$p_legacy" | jq -c '.content[0].content[0].text = "Cafe\u0301\u202e"')"
+  setup ok "$display_original"
+  take_fingerprint
+  printf 'Cafe\314\201.\n{expand:Acceptance criteria}\n# Valid.\n{expand}\n' >"$tmp/display.txt"
+  run_script write ACME-1 en "$fp" "$tmp/display.txt"
+  expect 'only the new text is NFC-normalised and the original retains its exact Unicode' \
+    '[[ $rc -eq 0 && "$(edits)" == 1 ]] && jq -e '\''.content[0].content[0].text == "Café." and .content[-1].content[0].content[0].text == "Cafe\u0301\u202e"'\'' "$stubbin/desc.json" >/dev/null'
+  for escaped in '\342\200\256' '\342\200\213' '\302\205' '\000' '\033'; do
+    setup ok "$p_legacy"
+    take_fingerprint
+    printf 'Visible%btext.\n{expand:Acceptance criteria}\n# Valid.\n{expand}\n' "$escaped" >"$tmp/display.txt"
+    run_script write ACME-1 en "$fp" "$tmp/display.txt"
+    expect "a forbidden display character ($escaped) prevents the edit" '[[ $rc -eq 5 && "$(edits)" == 0 ]]'
+  done
+
   # Substitute a fixture class name so both unavailable configurations can run even with intl built into PHP.
   local real_php
   real_php="$(command -v php)"
@@ -641,7 +650,8 @@ STUB
 #!/usr/bin/env bash
 if [[ "\${1:-}" == */normalize-adf.php ]]; then
   sed 's/Normalizer/FixtureNormalizer/g' "\$1" >"$tmp/nonorm/normalize-adf.php"
-  exec "$real_php" -d "auto_prepend_file=$tmp/nonorm/provider.php" "$tmp/nonorm/normalize-adf.php"
+  shift
+  exec "$real_php" -d "auto_prepend_file=$tmp/nonorm/provider.php" "$tmp/nonorm/normalize-adf.php" "\$@"
 fi
 exec "$real_php" "\$@"
 STUB
@@ -653,6 +663,7 @@ STUB
   expect 'a missing Normalizer class exits 3 and nothing is written' '[[ $rc -eq 3 && "$(edits)" == 0 && "$out" == *"normalise"* ]]'
   cat >>"$tmp/nonorm/provider.php" <<'PHP'
 class FixtureNormalizer {
+    public const FORM_C = 16;
     public const FORM_KC = 32;
     public static function normalize(string $value, int $form): string { return $value; }
 }
