@@ -834,14 +834,16 @@ function jiraSummaryKnownPointOpening(): string
 {
     $template = packageSource('skills/pr-summary/templates/pr-summary-jira.md');
 
-    return preg_match('/^h3\. Already reported in a linked issue\R\R(?<opening>\* (?:\*\([a-z]+\):\* )?)/m', $template, $match) === 1 ? $match['opening'] : '';
+    return preg_match('/^h3\. Already reported in a linked issue\R\R(?<opening>\* (?:\*\([a-z]+\):\* )?)/m', $template, $match) === 1
+        ? $match['opening']
+        : '';
 }
 
 function jiraSummaryWithKnownPoints(string ...$bullets): string
 {
-    return jiraSummaryWithoutCriteria(
-        ['{expand}' . "\n\n" . '{expand:Co se změnilo' => "\nh3. Už nahlášené v propojeném issue\n\n" . implode("\n", $bullets) . "\n{expand}\n\n{expand:Co se změnilo"],
-    );
+    $group = "\nh3. Už nahlášené v propojeném issue\n\n" . implode("\n", $bullets) . "\n{expand}\n\n{expand:Co se změnilo";
+
+    return jiraSummaryWithoutCriteria(['{expand}' . "\n\n" . '{expand:Co se změnilo' => $group]);
 }
 
 test('the JIRA template opens the known-point bullet with a change type, and the check accepts a summary built from it', function (): void {

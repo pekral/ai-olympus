@@ -386,7 +386,9 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('The reference is `#N`, `gh-N`, `owner/repo#N`, or the issue URL with `http` or `https`, with or without `www`')
         ->toContain('- a commit list of 100 or more entries, because `gh pr view --json commits` returns one page of 100 and does not page')
         ->toContain('Every round checks this again.')
-        ->toContain('**Not covered:** a closing keyword that reaches the pull request, or the merge-commit or squash-commit message that a person edits in the merge dialog');
+        ->toContain(
+            '**Not covered:** a closing keyword that reaches the pull request, or the merge-commit or squash-commit message that a person edits in the merge dialog',
+        );
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('linked_issue_verdict "$repo" "$pr" "$source" "$url"')
         ->toContain('echo \'refused:the pull request cannot be loaded\'')
