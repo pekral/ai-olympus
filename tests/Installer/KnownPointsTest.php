@@ -216,7 +216,7 @@ test('the task text names a linked issue only from a trusted author, and a short
     expect($jiraLoader)
         ->toContain('include "review-trust";')
         ->toContain('then trusted_jira_comment($actor; null)')
-        ->toContain('and .authorAccountId == $o.reporterAccountId))')
+        ->toContain('and .authorAccountId == $o.reporterAccountId)')
         ->and(str_contains($jiraLoader, '.author == $o.assignee'))->toBeFalse();
     expect(knownPointsRule())
         ->toContain('On JIRA only a comment by the authenticated operator names a linked issue.')
@@ -322,7 +322,7 @@ test('a linked issue counts only where the task lives, and every round checks ea
         ->toContain('`review-state.sh known` refuses an issue of another repository, project, or site')
         ->toContain('- **`krang` reads the linked issues in the gather phase, and again before the comparison of each round.**')
         ->toContain('- **Every round checks each known point again.** `review-state.sh record` and `evaluate` run the checks of `known` again')
-        ->toContain('and a point whose issue cannot be loaded, is a finding again.');
+        ->toContain('Missing proof keeps the finding open.');
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" false')
         ->toContain('reverify_known "$TMP/state.json" "$cap" "$threshold" true')

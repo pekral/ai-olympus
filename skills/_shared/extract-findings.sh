@@ -236,7 +236,7 @@ def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-") | sub("^-+"; "") | sub("-+$";
 def path_of($text):
   [ $text | match("([A-Za-z0-9_.@+-][A-Za-z0-9_./@+-]*)(?::([0-9]{1,9}))?"; "g")
     | {path: .captures[0].string, line: .captures[1].string}
-    | select(.path | test("/") or test("\\.[A-Za-z0-9]{1,8}$")) ] | first // null;
+    | select(.path == ".gitignore" or (.path | test("/") or test("\\.[A-Za-z0-9]{1,8}$"))) ] | first // null;
 # The subsystem of the first path-like token of a text: its first two directories, lowercase. Null when the text has no path.
 def subsystem_of($text):
   (path_of($text) | if . == null then null else .path end) as $path

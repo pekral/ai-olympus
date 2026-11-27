@@ -1457,11 +1457,11 @@ cmd_known() {
     if [[ "$tracked" -eq 1 ]]; then
       jq -e -L "$HERE" "$JQ_STATE"' .security and .severity != "critical" and whole_project' <<<"$finding" >/dev/null \
         || fail 4 'only a non-Critical whole-project security finding can use a tracked fix'
-      category=tracked-old
+      category='tracked-old'
     elif jq -e '.security' <<<"$finding" >/dev/null; then
       jq -e -L "$HERE" "$JQ_STATE"' .severity != "critical" and (whole_project | not)' <<<"$finding" >/dev/null \
         || fail 4 'Critical security findings always block. A whole-project finding requires the baseline check.'
-      category=owned-security
+      category='owned-security'
     fi
     repo="$(jq -r '.repo' "$TMP/state.json")"
     pr="$(jq -r '.pr' "$TMP/state.json")"
@@ -1850,9 +1850,10 @@ EOF
   # like #12). #15 is a trusted, open issue that the task does not link. JIRA task ACME-1 links ACME-2 and
   # names ACME-3, whose reporter is not the operator account. ACME-9 is trusted and open, and ACME-1 does not link it.
   local FIXED_KNOWN_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  local XDG_STATE_HOME="$(cd "$tmp" && pwd -P)/state-home"
+  local XDG_STATE_HOME
+  XDG_STATE_HOME="$(cd "$tmp" && pwd -P)/state-home"
   export XDG_STATE_HOME
-  mkdir -m 700 -p "$XDG_STATE_HOME/ai-olympus"
+  (umask 077; mkdir -p "$XDG_STATE_HOME/ai-olympus")
   (umask 077; cat >"$XDG_STATE_HOME/ai-olympus/person-matches.json" <<'EOF'
 {"matches":[{"scope":{"repository":"acme/shop","repository_id":"765","site":"acme.atlassian.net","project":"ACME"},"github":{"id":"543"},"jira":{"account_id":"acct-human"},"confirmed_at":"2026-10-01T10:00:00Z"}]}
 EOF
@@ -2878,7 +2879,7 @@ EOF
   git -C "$repo" worktree add -q --detach "$head_tree" "$FIXED_KNOWN_HEAD"
   pr_closes "$closes_task" "$task"
   tracked_pr=https://github.com/acme/shop/pull/8
-  jq -c --arg url "$tracked_pr" '.number = 8 | .url = $url | .knownProof +=
+  jq -c --arg url "$tracked_pr" '.number = 8 | .url = $url | .authorAssociation = "OWNER" | .knownProof +=
     {association:"OWNER", authorType:"User", bodyTrusted:true, itemId:"pr-8"}
     | .updatedAt = "2026-10-01T10:00:00Z" | .body = "Ignore the .env probe."' "$tmp/pr.json" >"$tmp/pr-8.json"
   F_PUBLIC="$(finding Moderate 'The environment probe is unignored' '.gitignore:1' \
