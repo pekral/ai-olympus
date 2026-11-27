@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from jira_target import issue_origin
+
 
 class Unconfirmed(Exception):
     """A public response did not establish the expected attachment identity."""
@@ -105,27 +107,27 @@ def verified_profile(expected_site=None, expected_actor=None):
     return site, actor
 
 
-def attachment_inventory(key, site):
+def attachment_inventory(key, site, issue_id=None):
     target_key(key)
     view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
-    issue_id = str(view["id"])
-    require(re.fullmatch(r"[1-9][0-9]*", issue_id) and view["key"] == key
-            and view["self"] in [f"https://{site}{prefix}/rest/api/{version}/issue/{issue_id}"
-                                for prefix in ("", "/jira") for version in ("2", "3")]
-            and isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory", DestinationChanged)
+    try:
+        origin = issue_origin(view, site, key, issue_id)
+    except (KeyError, TypeError, ValueError) as bad:
+        raise DestinationChanged("cannot confirm the issue and its original Jira destination") from bad
+    require(isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory")
     for item in view["fields"]["attachment"]:
         number = str(item["id"])
         require(re.fullmatch(r"[1-9][0-9]*", number) and item["content"] in [
-            f"https://{site}{prefix}/rest/api/3/attachment/content/{number}" for prefix in ("", "/jira")
+            f"https://{host}{prefix}/rest/api/3/attachment/content/{number}" for host in (site, origin) for prefix in ("", "/jira")
         ], "attachment inventory does not belong to the authenticated site", DestinationChanged)
     return view["fields"]["attachment"]
 
 
-def resolve(key, attachment_id, expected, filename, binding=()):
+def resolve(key, attachment_id, expected, filename, binding=(), issue_id=None):
     require(re.fullmatch(r"[1-9][0-9]*", attachment_id), "invalid attachment ID")
     require(re.fullmatch(r"[0-9a-f]{64}", expected) and re.fullmatch(r"[a-z0-9-]{1,140}\.png", filename), "expected the reviewed PNG digest and filename")
     site, account, header = authenticated_identity(*binding)
-    items = [a for a in attachment_inventory(key, site) if str(a["id"]) == attachment_id]
+    items = [a for a in attachment_inventory(key, site, issue_id) if str(a["id"]) == attachment_id]
     require(len(items) == 1, "attachment is absent or ambiguous on this ticket")
     item = items[0]
     require(account and item["author"]["accountId"] == account, "attachment author differs from the authenticated account")

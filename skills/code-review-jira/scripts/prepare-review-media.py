@@ -136,8 +136,9 @@ def selection(binding, slug, manifest, document, work):
 
 if __name__ == "__main__":
     try:
-        require(len(sys.argv) == 5, "expected target, run slug, capture manifest, private destination binding and ADF on stdin")
-        key, slug, source, binding_file = sys.argv[1:]
+        require(len(sys.argv) == 6, "expected target, run slug, capture manifest, private destination binding, issue ID and ADF on stdin")
+        key, slug, source, binding_file, issue_id = sys.argv[1:]
+        require(re.fullmatch(r"[1-9][0-9]*", issue_id), "missing original issue ID", DestinationChanged)
         binding = json.loads(Path(binding_file).read_bytes())
         require(binding["key"] == key and re.fullmatch(r"[a-z0-9-]+\.atlassian\.net", binding["site"]) and binding["account"], "invalid original target")
         document = json.load(sys.stdin)
@@ -163,7 +164,7 @@ if __name__ == "__main__":
                     continue
                 revalidate()
                 try:
-                    media = confirmed_file(key, slug, f"review-{fid}-{state}-{digest}.png", data, digest, profile)
+                    media = confirmed_file(key, slug, f"review-{fid}-{state}-{digest}.png", data, digest, profile, issue_id)
                 except (DestinationChanged, UncertainWrite):
                     raise
                 except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException):

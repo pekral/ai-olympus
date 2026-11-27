@@ -349,6 +349,7 @@ MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
 SUMMARY=0
 MEDIA_SITE=""
+MEDIA_ISSUE_ID=""
 # The PHP interpreter reads $argv, not the shell.
 # shellcheck disable=SC2016
 if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
@@ -475,7 +476,7 @@ if [[ "$SUMMARY" == 1 ]]; then
     MEDIA_WORK="$(mktemp -d)"
     printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"
     jq -n --arg site "$SITE" --arg key "$KEY" --rawfile account "$SENT_TEXT_TMP" '{site:$site,key:$key,account:$account}' >"$MEDIA_WORK/binding"
-    python3 -B "$SCRIPT_DIR/pin-jira-profile.py" "$MEDIA_WORK/binding" "$MEDIA_WORK/profile" || exit 3
+    MEDIA_ISSUE_ID="$(python3 -B "$SCRIPT_DIR/pin-jira-profile.py" "$MEDIA_WORK/binding" "$MEDIA_WORK/profile")" || exit 3
     export ACLI_CONFIG_DIR="$MEDIA_WORK/profile"
   fi
 fi
@@ -489,7 +490,7 @@ fi
 if [[ -n "$SHOTS_MANIFEST" ]]; then
   if [[ "$SUMMARY" == 1 ]]; then
     media_rc=0
-    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" "$MEDIA_WORK/binding" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
+    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" "$MEDIA_WORK/binding" "$MEDIA_ISSUE_ID" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
     case "$media_rc" in
       0)
         printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"

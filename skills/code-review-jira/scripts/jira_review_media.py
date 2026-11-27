@@ -64,7 +64,7 @@ class UncertainWrite(Unconfirmed):
     """The run must reconcile a possible external write before publishing or retrying."""
 
 
-def confirmed_file(key, slug, name, data, expected, binding):
+def confirmed_file(key, slug, name, data, expected, binding, issue_id):
     target_key(key)
     require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
             and 0 < len(data) <= 2097152, "invalid reviewed PNG")
@@ -81,7 +81,7 @@ def confirmed_file(key, slug, name, data, expected, binding):
     with os.fdopen(fd) as ledger:
         require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_nlink == 1, "invalid run ledger")
         fcntl.flock(fd, fcntl.LOCK_EX)
-        items = [i for i in attachment_inventory(key, site) if i["filename"] == name]
+        items = [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
         require(len(items) <= 1, "duplicate named attachments; inspect the ticket")
         if not items and any(line.split("|")[3:4] == [target] for line in ledger):
             raise UncertainWrite("previous upload attempt requires reconciliation")
@@ -91,7 +91,7 @@ def confirmed_file(key, slug, name, data, expected, binding):
                 created = upload(site, key, header, name, data)
                 checked_item(created, name, len(data), actor)
                 audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
-                items = [i for i in attachment_inventory(key, site) if i["filename"] == name]
+                items = [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
                 require(len(items) == 1 and str(items[0]["id"]) == str(created["id"]), "stored upload is unconfirmed")
                 checked_item(items[0], name, len(data), actor)
                 return {"attachment_id": str(created["id"]), **attachment_identity(site, header, items[0], expected)}

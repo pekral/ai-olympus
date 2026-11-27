@@ -16,10 +16,12 @@ case "$1 $2 $3" in
       printf 'Site: other.atlassian.net\nEmail: qa@example.test\n'; exit
     fi
     printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
-  'jira workitem search') if [[ "${SWITCHED_ACTOR:-0}" == 1 && "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" ]]; then echo '[{"fields":{"assignee":{"accountId":"foreign"}}}]'; exit; fi; if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
+  'jira workitem search')
+    if [[ "$5" == 'key = TEST-1' ]]; then echo '{"issues":[{"id":"123","key":"TEST-1"}]}'; exit; fi
+    if [[ "${SWITCHED_ACTOR:-0}" == 1 && "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" ]]; then echo '[{"fields":{"assignee":{"accountId":"foreign"}}}]'; exit; fi; if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
-      jq -n --slurpfile sent "$FIXTURE/sent" '{key:"TEST-1",id:"123",self:"https://example.atlassian.net/rest/api/3/issue/123",fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
+      jq -n --slurpfile sent "$FIXTURE/sent" '{key:"TEST-1",id:"123",self:"https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/issue/123",fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
     else
       cat "$FIXTURE/before"
     fi
@@ -44,7 +46,7 @@ function jiraSummaryPage(array $comments, ?int $total = null): array
         'fields' => ['comment' => $page],
         'id' => '123',
         'key' => 'TEST-1',
-        'self' => 'https://example.atlassian.net/rest/api/3/issue/123',
+        'self' => 'https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/issue/123',
     ];
 }
 
@@ -154,13 +156,14 @@ test('the screenshot fallback creates only the attributed structured summary and
 test('an incomplete or unknown snapshot and an invalid explicit summary permit no write', function (string $case): void {
     $page = match ($case) {
         'incomplete' => jiraSummaryPage([], 1),
+        'wrong issue ID' => [...jiraSummaryPage([]), 'id' => '456', 'self' => 'https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/issue/456'],
         'unknown' => ['results' => []],
         default => jiraSummaryPage([]),
     };
     [$rc, , $calls] = jiraPreviewPublish($page, malformed: $case === 'invalid byline');
 
     expect($rc)->not->toBe(0)->and($calls)->not->toContain('comment create', 'comment update', 'comment delete');
-})->with(['incomplete', 'unknown', 'invalid byline']);
+})->with(['incomplete', 'wrong issue ID', 'unknown', 'invalid byline']);
 
 test('a refused or uncertain creation never issues a compensating write', function (string $failure): void {
     $environment = $failure === 'refused' ? ['CREATE_RC' => '1'] : ['READBACK' => 'missing'];
@@ -280,6 +283,18 @@ with patch.object(probe, 'run_cli', return_value=probe.json.dumps(view)):
         raise AssertionError('foreign attachment inventory was accepted')
     except probe.Unconfirmed:
         pass
+
+backend = 'jira-prod-eu-33-as-3.prod.atl-paas.net'
+view['self'] = f'https://{backend}/rest/api/3/issue/7'
+view['fields']['attachment'][0]['content'] = f'https://{backend}/rest/api/3/attachment/content/24'
+with patch.object(probe, 'run_cli', return_value=probe.json.dumps(view)):
+    assert probe.attachment_inventory('TEST-1', 'example.atlassian.net', '7') == view['fields']['attachment']
+    for wrong_number in (None, '8'):
+        try:
+            probe.attachment_inventory('TEST-1', 'example.atlassian.net', wrong_number)
+            raise AssertionError('a shared service origin was used as tenant or issue authority')
+        except probe.DestinationChanged:
+            pass
 
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
@@ -413,7 +428,7 @@ with tempfile.TemporaryDirectory() as temp:
          patch.object(media, 'upload', side_effect=TimeoutError) as upload:
         for _ in range(2):
             try:
-                media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'))
+                media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'), '123')
                 raise AssertionError('unconfirmed upload succeeded')
             except media.UncertainWrite:
                 pass

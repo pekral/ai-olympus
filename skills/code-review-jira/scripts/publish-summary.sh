@@ -5,11 +5,10 @@
 read_summary_comments() {
   local raw
   raw="$(acli jira workitem view "$KEY" --fields comment --json 2>"$LIST_STDERR")" || return 1
-  jq -sce --arg site "${MEDIA_SITE:-}" --arg key "$KEY" '
-      select(length == 1)
-      | select($site == "" or (.[0] | .key == $key and (.id|tostring|test("^[1-9][0-9]*$"))
-        and ((.self == ("https://" + $site + "/rest/api/3/issue/" + (.id|tostring)))
-          or (.self == ("https://" + $site + "/rest/api/2/issue/" + (.id|tostring))))))
+  if [[ -n "${MEDIA_SITE:-}" ]]; then
+    raw="$(python3 -B "$SCRIPT_DIR/jira_target.py" "$MEDIA_SITE" "$KEY" "${MEDIA_ISSUE_ID:?}" <<<"$raw")" || return 1
+  fi
+  jq -sce 'select(length == 1)
       | .[0].fields.comment as $page
       | select(($page | type) == "object" and ($page.comments | type) == "array"
           and ($page.total | type) == "number" and $page.startAt == 0

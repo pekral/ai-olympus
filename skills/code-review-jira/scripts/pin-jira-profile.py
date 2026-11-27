@@ -58,10 +58,21 @@ def pin(binding, target):
     if status.returncode or actor.returncode or site != [binding["site"]] or actor.stdout.decode().strip() != binding["account"]:
         raise ValueError
 
+    key = binding["key"]
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]+-[1-9][0-9]*", key):
+        raise ValueError
+    lookup = cli(["acli", "jira", "workitem", "search", "--jql", "key = " + key, "--fields", "key", "--json", "--limit", "2"], target)
+    lookup.check_returncode()
+    page = json.loads(lookup.stdout)
+    rows = page if isinstance(page, list) else page["issues"]
+    if len(rows) != 1 or rows[0]["key"] != key or not re.fullmatch(r"[1-9][0-9]*", str(rows[0]["id"])):
+        raise ValueError
+    return str(rows[0]["id"])
+
 
 if __name__ == "__main__":
     try:
         data = json.loads(Path(sys.argv[1]).read_bytes())
-        pin(data, Path(sys.argv[2]))
+        print(pin(data, Path(sys.argv[2])))
     except (KeyError, IndexError, OSError, TypeError, ValueError, subprocess.SubprocessError):
         sys.exit("Jira profile isolation could not be verified; no media or comment write")
