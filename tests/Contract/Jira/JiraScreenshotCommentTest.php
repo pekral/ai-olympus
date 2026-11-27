@@ -476,3 +476,65 @@ PY;
     expect($process->getErrorOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
 });
+
+test('an explicit Jira API edit verifies the same comment before and after its only write', function (): void {
+    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
+    $fixture = <<<'PY'
+from contextlib import contextmanager, ExitStack
+from io import StringIO
+from unittest.mock import patch
+import jira_comment_api as api
+
+site, key, actor, issue, number = 'example.atlassian.net', 'TEST-1', 'fixture-actor', '123', '17'
+plan = dict(url=f'https://{site}/browse/{key}',mode='operator-edit',actor=actor,issue_id=issue,comment_id=number,heading_pr='7',
+            previous='private-original',previous_sha='a'*64,wiki='summary',wiki_sha='b'*64,slug='fixture')
+old, new = {'private':'before'}, {'private':'after'}
+source = dict(id=number,author={'accountId':actor},jsdPublic=True,body=old)
+stored = dict(source,body=new)
+issue_result = dict(id=issue,key=key,self=f'https://{site}/rest/api/3/issue/{issue}')
+
+for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertain','unconfirmed','prior intent'):
+    calls = []
+    @contextmanager
+    def ledger(slug):
+        previous = f'april|stamp|note|jira operator edit {site}/{key}/{number} '+plan['wiki_sha']+'|unknown\n'
+        yield 'audit', StringIO(previous if scenario=='prior intent' else '')
+    before = dict(source)
+    if scenario=='private': before['visibility']={'type':'role','value':'internal'}
+    if scenario=='changed': before['body']=new
+    def get(host,path,header):
+        assert host==site and header=='fixture-secret'
+        calls.append(('GET',path))
+        if path.endswith('?fields=key'):
+            return dict(issue_result,key='OTHER-1') if scenario=='wrong ticket' else issue_result
+        assert path==f'/rest/api/3/issue/{issue}/comment/{number}'
+        return before if len(calls)==2 or scenario=='unconfirmed' else stored
+    def put(host,path,header,document):
+        assert host==site and path==f'/rest/api/3/issue/{issue}/comment/{number}' and header=='fixture-secret' and document==new
+        calls.append(('PUT',path))
+        if scenario=='uncertain': raise TimeoutError
+        return stored
+    with ExitStack() as stack:
+        def mock(name,**options): return stack.enter_context(patch.object(api,name,**options))
+        mock('read_pinned',side_effect=[api.json.dumps(old).encode(),b'private-wiki'])
+        mock('heading_change',return_value=new)
+        mock('authenticated_identity',return_value=(site,'foreign' if scenario=='wrong actor' else actor,'fixture-secret'))
+        mock('locked_ledger',side_effect=ledger)
+        audit=mock('audit_record')
+        mock('fetch',side_effect=get)
+        mock('put_comment',side_effect=put)
+        try:
+            result=api.edit_summary(plan)
+        except Exception as refused:
+            assert scenario!='ok' and 'fixture-secret' not in str(refused)
+        else:
+            assert scenario=='ok' and result==plan['url']+'?focusedCommentId='+number
+        assert sum(m=='PUT' for m,_ in calls)==int(scenario in ('ok','uncertain','unconfirmed'))
+        assert 'fixture-secret' not in str(audit.call_args_list)
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
+    $process->run();
+
+    expect($process->getErrorOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
