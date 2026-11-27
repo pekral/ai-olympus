@@ -182,7 +182,7 @@ test('a previously stored summary still blocks retry when the attachment proof b
             {type:"paragraph", content:[if $bold then ($text + {marks:[{type:"strong"}]}) else $text end]},
             {type:"mediaSingle", content:[{type:"media", attrs:{alt:$caption, type:"file"}}]}
           ]
-        JQ
+        JQ,
     ], input: $sent);
     $addMedia->mustRun();
     $stored = json_decode($addMedia->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
