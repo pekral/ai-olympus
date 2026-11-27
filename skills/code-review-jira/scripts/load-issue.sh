@@ -13,7 +13,7 @@
 # Emits one JSON document on stdout with the following stable shape:
 #
 #   {
-#     "key", "url", "summary", "status", "issueType", "priority",
+#     "key", "id" (numeric issue ID as a string or null), "url", "summary", "status", "issueType", "priority",
 #     "assignee", "assigneeAccountId", "reporter", "creator", "created", "updated",
 #     "resolution", "resolutionDate", "dueDate", "environment",
 #     "labels", "components", "fixVersions",
@@ -642,6 +642,7 @@ def viewCommentIdx:
 | (if $desc == null then [] else ($desc | mediaRefs($att)) end) as $descMedia
 | {
     key: $key,
+    id: (($view.id // "") | tostring | select(test("^[1-9][0-9]*$")) // null),
     url: (if $host != "" then "https://" + $host + "/browse/" + $key else null end),
     summary: ($f.summary // null),
     status: ($f.status.name // null),

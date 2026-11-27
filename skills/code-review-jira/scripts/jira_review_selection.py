@@ -1,15 +1,13 @@
 """Prepare a Jira summary from verified images of the current published GitHub review."""
 import hashlib
-import http.client
 import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from jira_attachment_media import DestinationChanged, Unconfirmed, require, run_bytes, run_cli
-from jira_review_media import HERE, SHARED, UncertainWrite, attach_media, canonical_png, confirmed_file, find_item, unresolved
+from jira_review_media import HERE, SHARED, canonical_png, find_item
 
 GITHUB = HERE.parent.parent / "code-review-github" / "scripts"
 PULL = r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)"
@@ -36,8 +34,17 @@ def current_review(repo, number, head, work):
     source = work / "pull.json"
     source.write_text(json.dumps({"reviews": reviews, "comments": comments}))
     selected = json.loads(run_cli("jq", "-ec", "-L", str(SHARED), 'include "review-trust"; newest_trusted_report', str(source)))
-    require(selected["home"] == "review" and selected["state"] in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED") and selected["commit"] == head,
-            "the latest trusted review is not active on this head", StaleReview)
+    if selected["home"] == "review":
+        require(selected["state"] in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED") and selected["commit"] == head,
+                "the latest trusted review is not active on this head", StaleReview)
+    else:
+        report = work / "legacy-review.md"
+        report.write_text(selected["body"])
+        try:
+            header = json.loads(run_cli("bash", str(SHARED / "extract-findings.sh"), "--header", "--input", str(report)))
+            require(header["revision"] == head, "the latest trusted review is not on this head", StaleReview)
+        except (KeyError, ValueError, TypeError, OSError, subprocess.SubprocessError) as reason:
+            raise StaleReview("the latest legacy review has no verified revision") from reason
     return selected
 
 
@@ -51,7 +58,8 @@ def revalidate(pr, key, head, repo, number, review, work):
 
 def accepted_records(review, repo, number, work):
     source = work / "accepted.json"
-    source.write_text(json.dumps({"reviews": [review]}))
+    home = "comments" if review.get("home") == "comment" else "reviews"
+    source.write_text(json.dumps({home: [review]}))
     report = work / "review.md"
     report.write_text(run_cli("bash", str(SHARED / "cr-header.sh"), "--report", str(source)))
     lines = run_cli("bash", str(SHARED / "extract-findings.sh"), "--round", "--repo", repo, "--pr", number, "--input", str(report))
@@ -87,22 +95,40 @@ def finding_item(document, pr, head, record, kind):
     return find_item(document, matches)
 
 
-def selection(binding, slug, manifest, document, work):
+def source_review(pr, key, head, work):
+    target = re.fullmatch(PULL, pr)
+    require(target and re.fullmatch(r"[0-9a-f]{40}", head), "invalid review target", StaleReview)
+    repo, number = target.groups()
+    run_cli("bash", str(SHARED / "assert-current-repo.sh"), pr)
+    current_head(pr, key, head)
+    return pr, head, repo, number, current_review(repo, number, head, work)
+
+
+def default_branch(repo):
+    return run_cli("gh", "api", "repos/" + repo, "--jq", ".default_branch").strip()
+
+
+def baseline_revision(repo, branch):
+    return run_cli("gh", "api", f"repos/{repo}/branches/{branch}", "--jq", ".commit.sha").strip()
+
+
+def selection(binding, slug, manifest, document, work, *, source=None):
     key = binding["key"]
     root = run_cli("git", "rev-parse", "--show-toplevel").strip()
     qa_path = str(Path(manifest).with_name(slug + ".screenshot-evidence.json"))
     qa = json.loads(run_cli("python3", "-B", str(SHARED / "read-screenshot-artifact.py"), root, slug, "screenshot-evidence", qa_path))
     require(not run_cli("git", "ls-files", "--", qa_path).strip(), "capture evidence is tracked")
-    require(qa.get("jira_source") == f'https://{binding["site"]}/browse/{key}', "Jira target differs from the original QA assignment")
+    require(qa.get("jira_source") == f'https://{binding["site"]}/browse/{key}',
+            "Jira target differs from the original QA assignment", DestinationChanged)
+    if source is None:
+        source = source_review(qa["target"], key, qa["reviewed_head"], work)
+    pr, head, repo, number, review = source
+    require((qa["target"], qa["reviewed_head"]) == (pr, head), "capture is from a different PR or head", StaleReview)
+    try:
+        records, report = accepted_records(review, repo, number, work)
+    except (KeyError, ValueError, TypeError, OSError, subprocess.SubprocessError) as reason:
+        raise StaleReview("the accepted review could not be parsed") from reason
     entries = json.loads(run_cli("bash", str(SHARED / "screenshot-guard.sh"), "manifest", manifest, slug))["accepted"]
-    pr, head = qa["target"], qa["reviewed_head"]
-    target = re.fullmatch(PULL, pr)
-    require(target and re.fullmatch(r"[0-9a-f]{40}", head), "invalid QA target")
-    repo, number = target.groups()
-    run_cli("bash", str(SHARED / "assert-current-repo.sh"), pr)
-    current_head(pr, key, head)
-    review = current_review(repo, number, head, work)
-    records, report = accepted_records(review, repo, number, work)
     visible = review["body"].split("\n<!-- cr-review-meta\n")[0]
     testing = re.search(r"^## Interactive testing\n((?:(?!^## ).)*)", report, re.M | re.S)
     require(testing, "no interactive testing section in the accepted review")
@@ -112,7 +138,7 @@ def selection(binding, slug, manifest, document, work):
         if len(cells) >= 5 and cells[3] in ("Failed", "Not met"):
             failed.add((cells[1], cells[2]))
     pairs = []
-    default = run_cli("gh", "api", "repos/" + repo, "--jq", ".default_branch").strip()
+    default = default_branch(repo)
 
     def approved(entry):
         fid, state, kind = entry["finding_id"], entry["state"], entry["finding_type"]
@@ -132,11 +158,12 @@ def selection(binding, slug, manifest, document, work):
             require(capture["verdict"] == "failed" and capture["revision"] == head, "head capture is not a reproduced failure")
         else:
             require(entry["default_branch"] == default and capture["verdict"] == "passed" and capture["revision"] != head
-                    and capture["revision"] == run_cli("gh", "api", f"repos/{repo}/branches/{default}", "--jq", ".commit.sha").strip(), "baseline has changed")
+                    and re.fullmatch(r"[0-9a-f]{40}", capture["revision"]) and capture["revision"] == baseline_revision(repo, default),
+                    "baseline has changed")
         item = finding_item(document, pr, head, candidates[0], kind)
         data = canonical_png(slug, entry["file"], capture["sha256"])
         reviewed_asset(visible, pr, repo, number, head, entry, data)
-        return fid, state, step, item, data, capture["sha256"]
+        return fid, state, step, item, data, capture["sha256"], capture["revision"]
 
     for entry in entries:
         try:
@@ -148,53 +175,3 @@ def selection(binding, slug, manifest, document, work):
             "no matching approved HEAD capture for the tested step")
     require(len({p[0] for p in pairs}) == len({id(p[3]) for p in pairs}), "two findings point to the same summary item")
     return pr, head, repo, number, review, default, pairs
-
-
-if __name__ == "__main__":
-    try:
-        require(len(sys.argv) == 6, "expected target, run slug, capture manifest, private destination binding, issue ID and ADF on stdin")
-        key, slug, source, binding_file, issue_id = sys.argv[1:]
-        require(re.fullmatch(r"[1-9][0-9]*", issue_id), "missing original issue ID", DestinationChanged)
-        binding = json.loads(Path(binding_file).read_bytes())
-        require(binding["key"] == key and re.fullmatch(r"[a-z0-9-]+\.atlassian\.net", binding["site"]) and binding["account"], "invalid original target")
-        document = json.load(sys.stdin)
-        require(document["type"] == "doc" and document["version"] == 1, "expected an ADF v1 summary")
-        with tempfile.TemporaryDirectory() as temporary:
-            work = Path(temporary)
-            pr, head, repo, number, review, default, pairs = selection(binding, slug, source, document, work)
-            profile = (binding["site"], binding["account"])
-            prepared = []
-            pending = unresolved(slug, binding["site"], key)
-            def filename(pair):
-                return f"review-{pair[0]}-{pair[1]}-{pair[5]}.png"
-            require(pending.issubset({filename(pair) for pair in pairs}), "an earlier attachment lost its source proof", UncertainWrite)
-            ordered = sorted(pairs, key=lambda pair: (filename(pair) not in pending, pair[1] != "head"))
-            for pair in ordered:
-                fid, state, _, item, data, digest = pair
-                if state == "base" and not any(f == fid and s == "head" for f, s, _, _ in prepared):
-                    continue
-                revalidate(pr, key, head, repo, number, review, work)
-                try:
-                    media = confirmed_file(key, slug, filename(pair), data, digest, profile, issue_id)
-                except (DestinationChanged, UncertainWrite):
-                    raise
-                except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException):
-                    print("Jira media: verification failed before a new upload", file=sys.stderr)
-                    continue
-                prepared.append((fid, state, item, media))
-            revalidate(pr, key, head, repo, number, review, work)
-            czech = any(n.get("attrs", {}).get("title") == "⚠️ Nálezy z kontroly kódu" for n in document["content"])
-            for _, state, item, media in sorted(prepared, key=lambda p: p[1] == "head"):
-                if state == "base":
-                    label = ("Výchozí větev" if czech else "Default branch") + " (" + default + ")"
-                else:
-                    label = "Tato změna" if czech else "This change"
-                attach_media(item, media, label)
-        json.dump({"adf": document, **binding}, sys.stdout)
-    except (DestinationChanged, StaleReview, UncertainWrite) as stop:
-        print("Jira media: " + str(stop), file=sys.stderr)
-        sys.exit(3)
-    except (Unconfirmed, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError, http.client.HTTPException) as error:
-        reason = str(error) if isinstance(error, Unconfirmed) else "could not confirm source or attachment"
-        print("Jira media: " + reason, file=sys.stderr)
-        sys.exit(4)

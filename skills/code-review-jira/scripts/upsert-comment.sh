@@ -31,7 +31,7 @@
 #   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
 #   upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
 #
-# Optional media require an accepted GitHub finding and verified screenshot. The comment itself always uses acli.
+# Optional media require an accepted GitHub finding and verified screenshot. Media and explicit operator edits use the bound public API publication context.
 # CR summaries begin with the AI Olympus byline and are create-only. A one-time migration of a marked
 # comment requires its exact ID plus --previous-adf with the previously verified, unmodified ADF.
 #
@@ -170,12 +170,12 @@ Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> 
 
   --summary   require the attributed CR-summary path
   --operator-edit
-              with --summary, --comment-id and --previous-adf: the operator named this comment in chat
+              with --summary, --comment-id and --previous-adf: requires the operator's direct request and run publication context
   --create    always create a new comment; never update an existing one
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
   --screenshots <MANIFEST> --slug <SLUG>
-              with --summary --create: attach verified images to their matching findings
+              with --summary --create and the run publication context: attach verified images to their matching findings
   --previous-adf <file>
               previously verified stored ADF for an exact-ID migration of a marked summary
   KEY         JIRA issue key (e.g. ACME-1234)
@@ -273,6 +273,15 @@ if [[ -n "$TARGET_COMMENT_ID" && "$MODE" == "agent-note" ]]; then
   exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$OPERATOR_EDIT" == 1 || -n "$SHOTS_MANIFEST" ]]; then
+  [[ "$SUMMARY_REQUIRED" == 1 && "$MODE" == cr-comment ]] || { usage; exit 1; }
+  for bin in acli jq php python3; do
+    command -v "$bin" >/dev/null 2>&1 || { echo "upsert-comment.sh: required tool not found: $bin" >&2; exit 2; }
+  done
+  exec python3 -B "$SCRIPT_DIR/jira_comment_api.py" "$INPUT" "$BODY_SRC" "$TARGET_COMMENT_ID" "$PREVIOUS_ADF" "$SHOTS_MANIFEST" "$SHOTS_SLUG"
+fi
+
 for bin in acli jq php; do
   if ! command -v "$bin" >/dev/null 2>&1; then
     echo "upsert-comment.sh: required tool not found: $bin" >&2
@@ -314,7 +323,6 @@ fi
 #   ✓ Authenticated
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
@@ -348,8 +356,6 @@ fi
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
 SUMMARY=0
-MEDIA_SITE=""
-MEDIA_ISSUE_ID=""
 # The PHP interpreter reads $argv, not the shell.
 # shellcheck disable=SC2016
 if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
@@ -399,7 +405,6 @@ UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
 SENT_TEXT_TMP="$(mktemp)"
-MEDIA_WORK=""
 trap 'if [[ -n "$MEDIA_WORK" ]]; then rm -rf "$MEDIA_WORK"; fi; rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
@@ -470,40 +475,12 @@ JQ
 # note the snapshot exists to protect.
 if [[ "$SUMMARY" == 1 ]]; then
   source "$SCRIPT_DIR/publish-summary.sh"
-  if [[ -n "$SHOTS_MANIFEST" || "$OPERATOR_EDIT" == 1 ]]; then
-    [[ -n "$ACCOUNT_ID" ]] || exit 3
-    MEDIA_SITE="$SITE"
-    MEDIA_WORK="$(mktemp -d)"
-    printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"
-    jq -n --arg site "$SITE" --arg key "$KEY" --rawfile account "$SENT_TEXT_TMP" '{site:$site,key:$key,account:$account}' >"$MEDIA_WORK/binding"
-    MEDIA_ISSUE_ID="$(python3 -B "$SCRIPT_DIR/pin-jira-profile.py" "$MEDIA_WORK/binding" "$MEDIA_WORK/profile")" || exit 3
-    export ACLI_CONFIG_DIR="$MEDIA_WORK/profile"
-  fi
 fi
 EXISTING_ID=""
 if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
   echo "upsert-comment.sh: comment lookup failed on $KEY, nothing was published: $(<"$LIST_STDERR")" >&2
   echo "upsert-comment.sh: a create without the lookup could duplicate a comment this actor already owns; rerun once the issue is readable" >&2
   exit 3
-fi
-
-if [[ -n "$SHOTS_MANIFEST" ]]; then
-  if [[ "$SUMMARY" == 1 ]]; then
-    media_rc=0
-    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" "$MEDIA_WORK/binding" "$MEDIA_ISSUE_ID" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
-    case "$media_rc" in
-      0)
-        printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"
-        jq -e --arg site "$SITE" --arg key "$KEY" --rawfile account "$SENT_TEXT_TMP" '
-          select(.site == $site and .key == $key and .account == $account) | .adf' "$CARRIED_ADF_TMP" >"$ADF_FILE_TMP" || exit 3
-        COMMENTS_JSON="$(read_summary_comments)" || exit 3
-        ;;
-      4) echo "upsert-comment.sh: no eligible verified images; publishing the text finding" >&2 ;;
-      *) echo "upsert-comment.sh: uncertain media write; inspect the ticket before any retry" >&2; exit 3 ;;
-    esac
-  else
-    echo "upsert-comment.sh: screenshots require an attributed summary; the comment shows text only" >&2
-  fi
 fi
 
 if [[ "$SUMMARY" == 1 ]]; then

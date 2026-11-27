@@ -109,7 +109,7 @@ SH);
  * @param array<string,string> $environment
  * @return array{int|null,string,string,string}
  */
-function jiraPreviewPublish(array $page, ?array $prior = null, array $environment = [], bool $malformed = false, bool $edit = false): array
+function jiraPreviewPublish(array $page, ?array $prior = null, array $environment = [], bool $malformed = false): array
 {
     [$dir, $jq] = jiraPreviewCommands();
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
@@ -117,14 +117,13 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
     mkdir($dir . '/.codex/run', 0o700, recursive: true);
     $ledger = $dir . '/.codex/run/preview.audit';
     file_put_contents($ledger, $environment['PREVIOUS_UPLOAD'] ?? '');
-    $arguments = ['--create', '--screenshots', $dir . '/unused', '--slug', 'preview'];
+    $arguments = ['--create'];
 
     if ($prior !== null) {
         file_put_contents($dir . '/prior', json_encode($prior, JSON_THROW_ON_ERROR));
         $arguments = ['--comment-id', '17', '--previous-adf', $dir . '/prior'];
     }
 
-    $arguments = $edit ? ['--operator-edit', ...$arguments] : $arguments;
     $entry = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts/upsert-comment.sh';
     $body = ($malformed ? 'Broken byline' : "\nAI Olympus · Modelový výsledek.") . "\n{expand:✅ Findings from the code review}\n"
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
@@ -150,10 +149,10 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
     }
 }
 
-test('the screenshot fallback creates only the attributed structured summary and no attachment', function (): void {
+test('a plain summary omits unused screenshot slots', function (): void {
     [$rc, $error, $calls, $sent] = jiraPreviewPublish(jiraSummaryPage([]));
 
-    expect($rc)->toBe(0)->and($error)->toContain('action=created id=17', 'no eligible verified images')
+    expect($rc)->toBe(0)->and($error)->toContain('action=created id=17')
         ->and($calls)->not->toContain('comment update', 'comment delete', 'attachment')
         ->and($sent)->toContain('"expand"');
     expect($sent)->not->toContain(':actor=', '{screenshot:', '"media"');
@@ -162,14 +161,13 @@ test('the screenshot fallback creates only the attributed structured summary and
 test('an incomplete or unknown snapshot and an invalid explicit summary permit no write', function (string $case): void {
     $page = match ($case) {
         'incomplete' => jiraSummaryPage([], 1),
-        'wrong issue ID' => [...jiraSummaryPage([]), 'id' => '456', 'self' => 'https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/issue/456'],
         'unknown' => ['results' => []],
         default => jiraSummaryPage([]),
     };
     [$rc, , $calls] = jiraPreviewPublish($page, malformed: $case === 'invalid byline');
 
     expect($rc)->not->toBe(0)->and($calls)->not->toContain('comment create', 'comment update', 'comment delete');
-})->with(['incomplete', 'wrong issue ID', 'unknown', 'invalid byline']);
+})->with(['incomplete', 'unknown', 'invalid byline']);
 
 test('a refused or uncertain creation never issues a compensating write', function (string $failure): void {
     $environment = $failure === 'refused' ? ['CREATE_RC' => '1'] : ['READBACK' => 'missing'];
@@ -185,12 +183,6 @@ test('losing the screenshot source after an uncertain upload blocks even a text-
 
     expect($rc)->toBe(3)->and($calls)->not->toContain('comment create', 'attachment', 'comment update', 'comment delete');
 });
-
-test('a changed isolated Jira site or actor stops before any attachment or comment write', function (string $change): void {
-    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: [$change => '1']);
-
-    expect($rc)->toBe(3)->and($calls)->not->toContain('attachment', 'comment create', 'comment update', 'comment delete');
-})->with(['SWITCHED_SITE', 'SWITCHED_ACTOR']);
 
 test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (bool $bold): void {
     [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
@@ -233,23 +225,19 @@ test('migration requires the original exact marker, account and unchanged body',
         ->and($calls)->not->toContain('comment create', 'comment delete');
 })->with(['owned', 'another account', 'another email', 'missing account', 'missing authenticated account', 'quoted', 'edited']);
 
-test('only an explicit operator edit updates the named unchanged attributed comment of the same account', function (string $case): void {
-    $paragraph = ['content' => [['text' => ($case === 'historical' ? '🤖 ' : '') . 'AI Olympus · Preview.', 'type' => 'text']], 'type' => 'paragraph'];
-    $prior = ['content' => [$paragraph], 'type' => 'doc', 'version' => 1];
-    $body = $prior;
+test('the public Jira publisher requires a bound dispatch and confirms its sole API operation', function (string $scenario): void {
+    $fixture = dirname(__DIR__, 2) . '/Fixtures/jira-publication/contract.py';
+    $process = new Process(['python3', '-B', $fixture, $scenario]);
+    $process->setTimeout(90);
+    $process->run();
 
-    if ($case === 'edited') {
-        $body['content'][0]['content'][0]['text'] .= ' Manual change.';
-    }
-
-    $author = ['accountId' => $case === 'foreign' ? 'another' : 'qa'];
-    $environment = ['PARTIAL_LOOKUP' => $case === 'partial lookup' ? '1' : '0', 'SWITCHED_SITE' => $case === 'changed site' ? '1' : '0'];
-    $page = jiraSummaryPage([['author' => $author, 'body' => $body, 'id' => '17']]);
-    [$rc, , $calls] = jiraPreviewPublish($page, $prior, $environment, edit: $case !== 'implicit');
-    expect($rc)->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 0 : 3)
-        ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 1 : 0)
-        ->and($calls)->not->toContain('comment create', 'comment delete');
-})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign', 'changed site', 'partial lookup']);
+    expect($process->getErrorOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+})->with([
+    'edit', 'historical', 'edit-lost', 'mismatched-readback', 'target', 'actor', 'issue', 'previous', 'foreign-comment', 'visibility',
+    'no-context', 'wiki-change', 'manual', 'media', 'legacy-review', 'text', 'partial', 'head-moved', 'review-moved', 'review-before-comment',
+    'sync', 'create-lost', 'upload-lost', 'concurrent',
+]);
 
 test('the Jira media probe binds the public attachment bytes and accepts only the exact media redirect', function (): void {
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
@@ -333,7 +321,7 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('prepare', 'prepare-review-media.py')
+spec = importlib.util.spec_from_file_location('prepare', 'jira_review_selection.py')
 prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
 pr, head = 'https://github.com/example/project/pull/7', 'a' * 40

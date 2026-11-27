@@ -9,7 +9,7 @@ import secrets
 import stat
 import subprocess
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import tempfile
 from pathlib import Path
 
@@ -77,20 +77,29 @@ def locked_ledger(slug, *, writable=False):
     access = os.O_RDWR if writable else os.O_RDONLY
     fd = os.open(file, access | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as ledger:
-        require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_nlink == 1, "invalid run ledger")
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == os.getuid()
+                and not info.st_mode & 0o022, "invalid run ledger")
         fcntl.flock(fd, fcntl.LOCK_EX)
         yield file, ledger
 
 
 def durable_intent(file, ledger, target, detail):
+    durable_record(file, ledger, target, 3, detail)
+
+
+def durable_record(file, ledger, target, code, detail):
     ledger.seek(0, os.SEEK_END)
-    audit_record(file, target, 3, detail)
-    require(any(line.rstrip("\n").split("|")[2:] == ["note", target, "write failed (exit 3); " + detail + "; the remote state was not verified"] for line in ledger),
+    audit_record(file, target, code, detail)
+    result = (["external-write", target, detail + " (exit 0)"] if code == 0 else
+              ["note", target, "write failed (exit 3); " + detail + "; the remote state was not verified"])
+    require(any(line.rstrip("\n").split("|")[2:] == result for line in ledger),
             "intent did not reach the locked audit file")
     os.fsync(ledger.fileno())
 
 
 def pending_uploads(ledger, site, key):
+    ledger.seek(0)
     prefix = f"jira attachment {site}/{key}/"
     pending = set()
     for line in ledger:
@@ -110,12 +119,17 @@ def unresolved(slug, site, key):
         return pending_uploads(ledger, site, key)
 
 
-def confirmed_file(key, slug, name, data, expected, binding, issue_id, *, session=None):
+def attachment_proof(site, actor, header, item, name, data, expected):
+    checked_item(item, name, len(data), actor)
+    return {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+
+
+def confirmed_file(key, slug, name, data, expected, binding, issue_id, *, session=None, locked=None, before_upload=None):
     target_key(key)
     require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
             and 0 < len(data) <= 2097152, "invalid reviewed PNG")
     target = "jira attachment " + binding[0] + "/" + key + "/" + name
-    with locked_ledger(slug, writable=True) as (file, ledger):
+    with (locked_ledger(slug, writable=True) if locked is None else nullcontext(locked)) as (file, ledger):
         pending = pending_uploads(ledger, binding[0], key)
         ledger.seek(0)
         attempted = any(line.split("|")[3:4] == [target] for line in ledger)
@@ -129,17 +143,22 @@ def confirmed_file(key, slug, name, data, expected, binding, issue_id, *, sessio
             if not items:
                 require(not (attempted or pending), "previous upload attempt requires reconciliation", UncertainWrite)
                 check_api_actor(site, actor, header)
-                durable_intent(file, ledger, target, "upload intent; no automatic retry")
+                if before_upload is not None:
+                    before_upload()
+                try:
+                    durable_intent(file, ledger, target, "upload intent; no automatic retry")
+                except (Unconfirmed, OSError, subprocess.SubprocessError) as error:
+                    raise UncertainWrite("attachment intent could not be made durable") from error
                 attempted = True
                 created = upload(site, issue_id, header, name, data)
+                known = str(created["id"])
+                require(re.fullmatch(r"[1-9][0-9]*", known), "upload response did not identify an attachment")
+                durable_record(file, ledger, target, 0, "upload acknowledged, attachment ID " + known)
                 checked_item(created, name, len(data), actor)
-                audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
                 items = inventory()
-                require(len(items) == 1 and str(items[0]["id"]) == str(created["id"]), "stored upload is unconfirmed")
+                require(len(items) == 1 and str(items[0]["id"]) == known, "stored upload is unconfirmed")
             require(len(items) == 1, "attachment is absent or ambiguous")
-            item = items[0]
-            checked_item(item, name, len(data), actor)
-            proof = {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+            proof = attachment_proof(site, actor, header, items[0], name, data, expected)
             if attempted:
                 audit_record(file, target, 0, "stored attachment bytes and media identity verified")
             return proof

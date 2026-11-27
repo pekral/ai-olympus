@@ -73,9 +73,9 @@ def authorization_for(email):
     return "Basic " + base64.b64encode((token_email + ":" + token).encode()).decode()
 
 
-def run_bytes(*args):
+def run_bytes(*args, data=None):
     env = {k: v for k, v in os.environ.items() if k not in ("JIRA_API_TOKEN", "JIRA_API_EMAIL")}
-    return subprocess.run(args, env=env, capture_output=True, check=True, timeout=45).stdout
+    return subprocess.run(args, input=data, env=env, capture_output=True, check=True, timeout=45).stdout
 
 
 def run_cli(*args):

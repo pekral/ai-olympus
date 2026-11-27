@@ -5,9 +5,6 @@
 read_summary_comments() {
   local raw
   raw="$(acli jira workitem view "$KEY" --fields comment --json 2>"$LIST_STDERR")" || return 1
-  if [[ -n "${MEDIA_SITE:-}" ]]; then
-    raw="$(python3 -B "$SCRIPT_DIR/jira_target.py" "$MEDIA_SITE" "$KEY" "${MEDIA_ISSUE_ID:?}" <<<"$raw")" || return 1
-  fi
   jq -sce 'select(length == 1)
       | .[0].fields.comment as $page
       | select(($page | type) == "object" and ($page.comments | type) == "array"
@@ -20,6 +17,11 @@ read_summary_comments() {
 }
 
 publish_summary() {
+  # A summary dispatched through the API cannot be retried through the legacy text path.
+  if [[ -n "${AUDIT_TRAIL_FILE:-}" ]] && ! python3 -B "$SCRIPT_DIR/jira_comment_api.py" --guard-legacy "$SITE" "$KEY"; then
+    echo "upsert-comment.sh: summary publication requires the original API dispatch or reconciliation" >&2
+    return 3
+  fi
   # acli does not support a conditional update. The migration requires a quiet operator-approved window.
   local action=created id="" result="" rc=0 before="" matches="" attempt
   # These mktemp files are private to this invocation and removed by the entry point's EXIT trap.
@@ -46,14 +48,11 @@ publish_summary() {
   if [[ -n "$TARGET_COMMENT_ID" ]]; then
     action=updated
     id="$TARGET_COMMENT_ID"
-    # Ordinary migration requires the original marker. Only an explicit operator edit can update an
-    # attributed summary and it must match the exact original ADF, ID, and authenticated author.
-    if ! read_summary_comments | jq -e "${identity[@]}" --arg id "$id" --argjson edit "$OPERATOR_EDIT" --slurpfile prior "$PREVIOUS_ADF" "$query"'
+    # Only an exact legacy marker and unchanged ADF establish an ordinary migration.
+    if ! read_summary_comments | jq -e "${identity[@]}" --arg id "$id" --slurpfile prior "$PREVIOUS_ADF" "$query"'
       select(($prior | length) == 1)
-      | [.[] | select((.id | tostring) == $id and summary_author and same_adf($prior[0]))
-          | select(if $edit == 1 then (.body.content[0] | .type == "paragraph"
-                and (.content[0] | .type == "text" and (.text | jira_summary)))
-              else legacy_summary_marker end)] | length == 1
+      | [.[] | select((.id | tostring) == $id and summary_author and same_adf($prior[0]) and legacy_summary_marker)]
+      | length == 1
     ' >/dev/null; then
       echo "upsert-comment.sh: the named comment, its author or its previously verified body could not be confirmed; no update" >&2
       return 3
@@ -65,25 +64,6 @@ publish_summary() {
        ! jq -e -L "$SCRIPT_DIR" --slurpfile sent "$ADF_FILE_TMP" 'include "summary-content"; ($sent[0] | summary_content) as $source | all(.[]; (.body | summary_content) != $source)' <<<"$COMMENTS_JSON" >/dev/null; then
       echo "upsert-comment.sh: an identical or undecidable comment exists; inspect the ticket before retrying" >&2
       return 3
-    fi
-    if [[ -n "${MEDIA_SITE:-}" ]]; then
-      local attempt_key digest ledger="${AUDIT_TRAIL_FILE:-}"
-      [[ -n "$ledger" && -f "$ledger" && ! -L "$ledger" ]] || return 3
-      digest="$(jq -cS -L "$SCRIPT_DIR" 'include "summary-content"; summary_content' "$ADF_FILE_TMP" | shasum -a 256 | cut -d' ' -f1)" || return 3
-      attempt_key="jira media summary $SITE/$KEY $digest"
-      # Reserve a single durable attempt even if two callers observed the same empty snapshot.
-      if ! (
-        mkdir "${ledger}.summary-intent.lock" || exit 1
-        trap 'rmdir "${ledger}.summary-intent.lock"' EXIT
-        python3 -B "$SCRIPT_DIR/jira_review_media.py" "$SHOTS_SLUG" "$SITE" "$KEY" || exit 1
-        local prior_rc=0
-        grep -Fq "|$attempt_key|" "$ledger" || prior_rc=$?
-        [[ "$prior_rc" == 1 ]] || exit 1
-        bash "$AUDIT_TRAIL" record --file "$ledger" --target "$attempt_key" --status 3 --detail "create intent; no automatic retry"
-      ); then
-        echo "upsert-comment.sh: overlapping or previous media summary attempt requires reconciliation" >&2
-        return 3
-      fi
     fi
     result="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")" || rc=$?
     # Restrict the response to documented comment ID envelopes. A nested user or issue ID identifies no comment.
