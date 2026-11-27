@@ -168,7 +168,9 @@ usage() {
 Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
        upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
-  --summary   require the attributed, create-only CR-summary path
+  --summary   require the attributed CR-summary path
+  --operator-edit
+              with --summary, --comment-id and --previous-adf: the operator named this comment in chat
   --create    always create a new comment; never update an existing one
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
@@ -189,6 +191,7 @@ CREATE_ONLY=0
 TARGET_COMMENT_ID=""
 PREVIOUS_ADF=""
 SUMMARY_REQUIRED=0
+OPERATOR_EDIT=0
 SHOTS_MANIFEST=""
 SHOTS_SLUG=""
 while [[ "${1:-}" == --* ]]; do
@@ -210,8 +213,9 @@ while [[ "${1:-}" == --* ]]; do
       shift 2
       ;;
     --summary) SUMMARY_REQUIRED=1; shift ;;
+    --operator-edit) OPERATOR_EDIT=1; shift ;;
     --previous-adf)
-      [[ $# -ge 2 && -f "$2" && -r "$2" ]] || { usage; exit 1; }
+      [[ $# -ge 2 && -z "$PREVIOUS_ADF" && -f "$2" && -r "$2" ]] || { usage; exit 1; }
       PREVIOUS_ADF="$2"
       shift 2
       ;;
@@ -220,7 +224,7 @@ while [[ "${1:-}" == --* ]]; do
       shift
       ;;
     --comment-id)
-      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+      if [[ $# -lt 2 || -n "$TARGET_COMMENT_ID" || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
         usage
         exit 1
       fi
@@ -233,6 +237,10 @@ while [[ "${1:-}" == --* ]]; do
       ;;
   esac
 done
+if [[ "$OPERATOR_EDIT" == 1 && ( "$SUMMARY_REQUIRED" != 1 || "$CREATE_ONLY" == 1 || -z "$TARGET_COMMENT_ID" || -z "$PREVIOUS_ADF" ) ]]; then
+  usage
+  exit 1
+fi
 if [[ "$CREATE_ONLY" -eq 1 && -n "$TARGET_COMMENT_ID" ]]; then
   usage
   exit 1
@@ -340,6 +348,8 @@ fi
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
 SUMMARY=0
+# The PHP interpreter reads $argv, not the shell.
+# shellcheck disable=SC2016
 if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
   SUMMARY=1
   if [[ "$INPUT" != "$KEY" && "$INPUT" != "https://${SITE}/browse/${KEY}" ]]; then

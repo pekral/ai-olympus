@@ -7,8 +7,10 @@ publish_summary() {
   # These mktemp files are private to this invocation and removed by the entry point's EXIT trap.
   printf '%s' "$EMAIL" >"$SENT_TEXT_TMP"
   printf '%s' "$ACCOUNT_ID" >"$CARRIED_ADF_TMP"
-  local -a identity=(--rawfile email "$SENT_TEXT_TMP" --rawfile account "$CARRIED_ADF_TMP" --arg marker "$MARKER_TEXT")
-  local query="$AUTHOR_JQ"'
+  local -a identity=(-L "$SCRIPT_DIR/../../_shared" --rawfile email "$SENT_TEXT_TMP" --rawfile account "$CARRIED_ADF_TMP" --arg marker "$MARKER_TEXT")
+  # jq owns the variables in its program.
+  # shellcheck disable=SC2016
+  local query='include "review-trust";'"$AUTHOR_JQ"'
     def legacy_summary_marker:
       .body.content[-1] as $block | $block.type == "expand" and ($block.content | length) == 1
       and ($block.content[0] | .type == "paragraph" and (.content | length) == 1
@@ -25,12 +27,16 @@ publish_summary() {
   if [[ -n "$TARGET_COMMENT_ID" ]]; then
     action=updated
     id="$TARGET_COMMENT_ID"
-    # A previous read confirming this exact author's marker and body is essential. The caller supplies
-    # the stored ADF from that read. Refuse manual edits and newly attributed, unmarked summaries.
-    if ! read_comments | jq -e "${identity[@]}" --arg id "$id" --slurpfile prior "$PREVIOUS_ADF" "$query"'
-      [.[] | select((.id | tostring) == $id and summary_author and legacy_summary_marker and same_adf($prior[0]))] | length == 1
+    # Ordinary migration requires the original marker. Only an explicit operator edit can update an
+    # attributed summary and it must match the exact original ADF, ID, and authenticated author.
+    if ! read_comments | jq -e "${identity[@]}" --arg id "$id" --argjson edit "$OPERATOR_EDIT" --slurpfile prior "$PREVIOUS_ADF" "$query"'
+      select(($prior | length) == 1)
+      | [.[] | select((.id | tostring) == $id and summary_author and same_adf($prior[0]))
+          | select(if $edit == 1 then (.body.content[0] | .type == "paragraph"
+                and (.content[0] | .type == "text" and (.text | jira_summary)))
+              else legacy_summary_marker end)] | length == 1
     ' >/dev/null; then
-      echo "upsert-comment.sh: the marked comment or its previously verified body changed; no update" >&2
+      echo "upsert-comment.sh: the named comment, its author or its previously verified body could not be confirmed; no update" >&2
       return 3
     fi
     acli jira workitem comment update --key "$KEY" --id "$id" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || rc=$?
