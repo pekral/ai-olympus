@@ -13,7 +13,7 @@ case "$1 $2 $3" in
   'jira workitem search') if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
-      jq -n --slurpfile sent "$FIXTURE/sent" '{fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
+      jq -n --slurpfile sent "$FIXTURE/sent" '{key:"TEST-1",id:"123",self:"https://example.atlassian.net/rest/api/3/issue/123",fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
     else
       cat "$FIXTURE/before"
     fi
@@ -32,7 +32,7 @@ SH;
  */
 function jiraSummaryPage(array $comments, ?int $total = null): array
 {
-    return ['fields' => ['comment' => ['startAt' => 0, 'comments' => $comments, 'total' => $total ?? count($comments)]]];
+    return ['id' => '123', 'key' => 'TEST-1', 'self' => 'https://example.atlassian.net/rest/api/3/issue/123', 'fields' => ['comment' => ['startAt' => 0, 'comments' => $comments, 'total' => $total ?? count($comments)]]];
 }
 
 /**
@@ -124,7 +124,7 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
 test('the screenshot fallback creates only the attributed structured summary and no attachment', function (): void {
     [$rc, $error, $calls, $sent] = jiraPreviewPublish(jiraSummaryPage([]));
 
-    expect($rc)->toBe(0)->and($error)->toContain('action=created id=17', 'text only')
+    expect($rc)->toBe(0)->and($error)->toContain('action=created id=17', 'no eligible verified images')
         ->and($calls)->not->toContain('comment update', 'comment delete', 'attachment')
         ->and($sent)->toContain('"expand"');
     expect($sent)->not->toContain(':actor=', '{screenshot:', '"media"');
@@ -272,6 +272,61 @@ with tempfile.TemporaryDirectory() as temp:
         result = subprocess.run([sys.executable, '-B', 'read-attachment-token.py', str(path)], capture_output=True)
         assert (result.returncode == 0) == allowed and result.stdout == (b'mock-token' if allowed else b'')
         assert b'mock-token' not in result.stderr
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
+    $process->run();
+
+    expect($process->getErrorOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
+test('only the matching actionable finding receives verified media and an uncertain upload is never repeated', function (): void {
+    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
+    $fixture = <<<'PY'
+import hashlib
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+import jira_review_media as media
+from jira_attachment_media import Unconfirmed
+
+def item(name):
+    return {'type': 'listItem', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': name}]}]}
+
+bug, security = item('(bug): Save'), item('(security): Save')
+doc = {'content': [{'type': 'expand', 'attrs': {'title': '⚠️ Findings from the code review'},
+                    'content': [{'type': 'bulletList', 'content': [security, bug]}]}]}
+matched = media.find_item(doc, lambda p: p['content'][0]['text'].endswith('Save'))
+assert matched is bug
+verified = {'id': 'da9acf8d-e3cf-468f-9910-0da5385562ed', 'attachment_id': '17', 'width': 120, 'height': 80}
+media.attach_media(matched, verified, 'This change')
+assert len(security['content']) == 1
+assert matched['content'][2]['content'][0]['attrs']['id'] == verified['id']
+assert 'attachment_id' not in matched['content'][2]['content'][0]['attrs']
+
+with tempfile.TemporaryDirectory() as temp:
+    root = Path(temp).resolve()
+    run = root / '.codex/run'
+    run.mkdir(parents=True)
+    ledger = run / 'example.audit'
+    ledger.touch(mode=0o600)
+    data = b'canonical-crop'
+    digest = hashlib.sha256(data).hexdigest()
+    def audit(file, target, code, detail):
+        with file.open('a') as out:
+            out.write(f'april|time|note|{target}|{code} {detail}\n')
+    with patch.dict(os.environ, {'AUDIT_TRAIL_FILE': str(ledger)}), patch.object(media, 'run_cli', return_value=str(root)), \
+         patch.object(media, 'authenticated_identity', return_value=('example.atlassian.net', 'qa', 'fixture')), \
+         patch.object(media, 'attachment_inventory', return_value=[]), patch.object(media, 'audit_record', side_effect=audit), \
+         patch.object(media, 'upload', side_effect=TimeoutError) as upload:
+        for refusal in (TimeoutError, Unconfirmed):
+            try:
+                media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'))
+                raise AssertionError('unconfirmed upload succeeded')
+            except refusal:
+                pass
+        assert upload.call_count == 1
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();

@@ -1,6 +1,6 @@
 # Defect screenshots
 
-Expanded procedure for `@skills/interactive-testing/SKILL.md` *Report* and `agents/raphael.md` *Capture evidence for every failure*. A reproduced UI defect can show its verified screenshot under its GitHub finding. The JIRA summary carries the text finding through acli. This file owns what may be captured, what may be published, and how. The publishers enforce the same conditions in code (`skills/_shared/screenshot-guard.sh`).
+Expanded procedure for `@skills/interactive-testing/SKILL.md` *Report* and `agents/raphael.md` *Capture evidence for every failure*. A reproduced UI defect can show its verified screenshot under its GitHub finding. The JIRA summary can show the same verified pixels next to its finding. This file owns what may be captured, what may be published, and how. The publishers enforce the same conditions in code (`skills/_shared/screenshot-guard.sh`).
 
 ## Which finding gets a screenshot
 
@@ -40,6 +40,6 @@ Name the user action and viewport in the handoff. Do not include the source URL,
 
 - **Upload happens only inside the publishing step.** The publisher uploads after its record check, its withheld-finding check, and its head check have passed, and never before. A quiet review round uploads nothing. If the reviewed head moves during publication, the publisher stops and reports already confirmed assets.
 - **GitHub.** `skills/code-review-github/scripts/upload-review-asset.sh` writes the file to the branch `cr-assets` of the base repository of the pull request through the GitHub Contents API, outside the diff of every pull request. It runs no `git push`, no hook, and no force. The review links the commit-pinned URL under its finding. Only `post-inline-review.sh` renders it, and every other image form in a finding stays inert.
-- **JIRA.** Publish only the text finding through acli. The installed CLI cannot upload an attachment or obtain the stable identity of an ADF media item.
+- **JIRA.** Pass the same manifest to the attributed JIRA summary with `--summary --create --screenshots <manifest> --slug <source-slug>`. Before any upload, match the current PR and Jira key, its accepted finding and code link, its published immutable GitHub asset and the reviewed crop. Only the attachment transport resolves the existing Jira API credential. It compares the public content response with those bytes and accepts a media UUID only from the expected redirect shape. It never follows that redirect. A missing proof leaves the text finding; a possibly attempted write stops publication for reconciliation. Acli sends and reads back the full ADF including media under the finding.
 - **A refused write is never a failed review.** A missing right, a protected branch, or a conflict leaves the finding text-only, and the handoff names the reason.
 - **Size.** A PNG is at most 2 MiB, a finding has at most two, and a review has at most 20. Every full clone of the repository downloads `cr-assets`, so the screenshots add to its size.

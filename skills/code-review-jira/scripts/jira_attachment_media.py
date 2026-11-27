@@ -67,9 +67,13 @@ def authorization_for(email):
     return "Basic " + base64.b64encode((token_email + ":" + token).encode()).decode()
 
 
-def run_cli(*args):
+def run_bytes(*args):
     env = {k: v for k, v in os.environ.items() if k not in ("JIRA_API_TOKEN", "JIRA_API_EMAIL")}
-    return subprocess.run(args, env=env, capture_output=True, check=True, timeout=45).stdout.decode()
+    return subprocess.run(args, env=env, capture_output=True, check=True, timeout=45).stdout
+
+
+def run_cli(*args):
+    return run_bytes(*args).decode()
 
 
 def target_key(key):
@@ -88,6 +92,11 @@ def authenticated_identity():
     code, locations, payload = public_get(site[0], "/rest/api/3/myself", header, 65536)
     require(code == 200 and not locations and account and json.loads(payload)["accountId"] == account, "mismatch: the attachment credential did not confirm the acli account")
     return site[0], account, header
+
+
+def verified_profile():
+    site, actor, _ = authenticated_identity()
+    return site, actor
 
 
 def attachment_inventory(key, site):

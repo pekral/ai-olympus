@@ -31,7 +31,7 @@
 #   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
 #   upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
 #
-# JIRA screenshots stay text-only: acli cannot upload an attachment or obtain its ADF media ID.
+# Optional media require an accepted GitHub finding and verified screenshot. The comment itself always uses acli.
 # CR summaries begin with the AI Olympus byline and are create-only. A one-time migration of a marked
 # comment requires its exact ID plus --previous-adf with the previously verified, unmodified ADF.
 #
@@ -175,7 +175,7 @@ Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> 
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
   --screenshots <MANIFEST> --slug <SLUG>
-              with --create: report the text-only fallback (acli has no attachment upload)
+              with --summary --create: attach verified images to their matching findings
   --previous-adf <file>
               previously verified stored ADF for an exact-ID migration of a marked summary
   KEY         JIRA issue key (e.g. ACME-1234)
@@ -348,6 +348,7 @@ fi
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
 SUMMARY=0
+MEDIA_SITE=""
 # The PHP interpreter reads $argv, not the shell.
 # shellcheck disable=SC2016
 if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
@@ -414,25 +415,15 @@ fi
 # the envelope differs between acli builds, hence the fallbacks and the `[]`
 # default for a shape none of them matches.
 read_comments() {
+  if [[ "$SUMMARY" == 1 ]]; then
+    read_summary_comments
+    return
+  fi
   local raw=""
   if ! raw="$(acli jira workitem view "$KEY" --fields comment --json 2>"$LIST_STDERR")"; then
     return 1
   fi
 
-  if [[ "$SUMMARY" == 1 ]]; then
-    # The detailed view is the only installed acli read that preserves ADF. Reject a partial
-    # embed or unfamiliar envelope. Treating either as an empty issue can duplicate a prior write.
-    jq -sce '
-      select(length == 1) | .[0].fields.comment as $page
-      | select(($page | type) == "object" and ($page.comments | type) == "array"
-          and ($page.total | type) == "number" and $page.startAt == 0
-          and $page.total == ($page.comments | length)
-          and ($page.comments | all((.id | tostring | test("^[1-9][0-9]*$"))
-              and (.body.type == "doc" and .body.version == 1 and (.body.content | type) == "array")))
-          and ($page.comments | map(.id | tostring) | unique | length) == $page.total)
-      | $page.comments' <<<"$raw"
-    return
-  fi
 
   printf '%s' "$raw" \
     | jq -s 'map(
@@ -475,6 +466,10 @@ JQ
 # to prevent overwriting or deleting. A lookup that cannot be made publishes
 # nothing: it could hide the comment a create would duplicate, or the older
 # note the snapshot exists to protect.
+if [[ "$SUMMARY" == 1 ]]; then
+  source "$SCRIPT_DIR/publish-summary.sh"
+  if [[ -n "$SHOTS_MANIFEST" ]]; then MEDIA_SITE="$SITE"; fi
+fi
 EXISTING_ID=""
 if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
   echo "upsert-comment.sh: comment lookup failed on $KEY, nothing was published: $(<"$LIST_STDERR")" >&2
@@ -483,11 +478,25 @@ if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
 fi
 
 if [[ -n "$SHOTS_MANIFEST" ]]; then
-  echo "upsert-comment.sh: screenshots skipped: acli has no attachment upload or stable media identity; the comment shows text only" >&2
+  if [[ "$SUMMARY" == 1 ]]; then
+    media_rc=0
+    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
+    case "$media_rc" in
+      0)
+        printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"
+        jq -e --arg site "$SITE" --arg key "$KEY" --rawfile account "$SENT_TEXT_TMP" '
+          select(.site == $site and .key == $key and .account == $account) | .adf' "$CARRIED_ADF_TMP" >"$ADF_FILE_TMP" || exit 3
+        COMMENTS_JSON="$(read_summary_comments)" || exit 3
+        ;;
+      4) echo "upsert-comment.sh: no eligible verified images; publishing the text finding" >&2 ;;
+      *) echo "upsert-comment.sh: uncertain media write; inspect the ticket before any retry" >&2; exit 3 ;;
+    esac
+  else
+    echo "upsert-comment.sh: screenshots require an attributed summary; the comment shows text only" >&2
+  fi
 fi
 
 if [[ "$SUMMARY" == 1 ]]; then
-  source "$SCRIPT_DIR/publish-summary.sh"
   publish_summary
   exit $?
 fi

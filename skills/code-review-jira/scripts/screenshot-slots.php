@@ -3,7 +3,7 @@
 
 declare(strict_types = 1);
 
-// Existing sources can contain legacy slots. The acli-only publisher never renders them as media.
+// Existing sources can contain legacy slots. They never authorize or select media.
 if (array_slice($argv ?? [], 1) !== ['strip']) {
     fwrite(STDERR, "usage: screenshot-slots.php strip < body\n");
     exit(2);
