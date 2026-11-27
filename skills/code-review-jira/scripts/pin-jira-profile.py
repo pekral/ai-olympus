@@ -63,9 +63,9 @@ def pin(binding, target):
         raise ValueError
     lookup = cli(["acli", "jira", "workitem", "search", "--jql", "key = " + key, "--fields", "key", "--json", "--limit", "2"], target)
     lookup.check_returncode()
-    page = json.loads(lookup.stdout)
-    rows = page if isinstance(page, list) else page["issues"]
-    if len(rows) != 1 or rows[0]["key"] != key or not re.fullmatch(r"[1-9][0-9]*", str(rows[0]["id"])):
+    # ACLI returns a flat array. A page envelope cannot establish that this is the only row.
+    rows = json.loads(lookup.stdout)
+    if not isinstance(rows, list) or len(rows) != 1 or rows[0]["key"] != key or not re.fullmatch(r"[1-9][0-9]*", str(rows[0]["id"])):
         raise ValueError
     return str(rows[0]["id"])
 

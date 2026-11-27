@@ -17,7 +17,10 @@ case "$1 $2 $3" in
     fi
     printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
   'jira workitem search')
-    if [[ "$5" == 'key = TEST-1' ]]; then echo '{"issues":[{"id":"123","key":"TEST-1"}]}'; exit; fi
+    if [[ "$5" == 'key = TEST-1' ]]; then
+      if [[ "${PARTIAL_LOOKUP:-0}" == 1 ]]; then echo '{"issues":[{"id":"123","key":"TEST-1"}],"isLast":false,"nextPageToken":"more","total":2,"startAt":1}'; exit; fi
+      echo '[{"id":"123","key":"TEST-1"}]'; exit
+    fi
     if [[ "${SWITCHED_ACTOR:-0}" == 1 && "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" ]]; then echo '[{"fields":{"assignee":{"accountId":"foreign"}}}]'; exit; fi; if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
@@ -224,13 +227,13 @@ test('only an explicit operator edit updates the named unchanged attributed comm
     }
 
     $author = ['accountId' => $case === 'foreign' ? 'another' : 'qa'];
-    $environment = ['SWITCHED_SITE' => $case === 'changed site' ? '1' : '0'];
+    $environment = ['PARTIAL_LOOKUP' => $case === 'partial lookup' ? '1' : '0', 'SWITCHED_SITE' => $case === 'changed site' ? '1' : '0'];
     $page = jiraSummaryPage([['author' => $author, 'body' => $body, 'id' => '17']]);
     [$rc, , $calls] = jiraPreviewPublish($page, $prior, $environment, edit: $case !== 'implicit');
     expect($rc)->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 0 : 3)
         ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
-})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign', 'changed site']);
+})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign', 'changed site', 'partial lookup']);
 
 test('the Jira media probe binds the public attachment bytes and accepts only the exact media redirect', function (): void {
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
