@@ -112,6 +112,14 @@
         }
       ],
       "helper-agents": true,
+      "history-exposure": {
+        "allow": [
+          {
+            "path": "skills/code-review-jira/scripts/upload-attachment.sh",
+            "rule": "error-tracker-url"
+          }
+        ]
+      },
       "pr-gate": [
         "composer fix"
       ]

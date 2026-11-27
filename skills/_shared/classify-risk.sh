@@ -1528,7 +1528,8 @@ TEXT
     printf '+%s\n' "$@"
   }
   writediff() {
-    local target="$tmp/diff-$RANDOM$RANDOM.diff"
+    local target
+    target="$(mktemp "$tmp/diff.XXXXXX")" || return 1
     cat >"$target"
     printf '%s' "$target"
   }
