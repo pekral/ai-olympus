@@ -9,13 +9,14 @@ The review can show decisions under `@rules/code-review/review-process.md` *Know
 1. Read the newest trusted review through `references/trusted-record-parser.md`. Its hidden record lists its decisions and their digest. Use the state of that loop from the orchestrator's private run directory. Never use a state or executable from the branch under review. A report with decisions and no matching state stops the merge. When both are absent, no decision check is due.
 2. Use the trusted clone and exact installed-copy verification from `references/trusted-record-parser.md` *The trusted gate-record check* in the same shell call. Verify every dependency:
    - `skills/_shared/review-state.sh skills/_shared/state-path.sh skills/_shared/extract-findings.sh skills/_shared/cr-header.sh skills/_shared/finding-defs.jq skills/_shared/review-trust.jq skills/_shared/read-manifest.sh skills/_shared/classify-risk.sh skills/_shared/domain-vocabulary.sh`
-   - `skills/_shared/known-record.sh skills/_shared/known-tracker.jq skills/_shared/review-owner-proof.sh`
+   - `skills/_shared/known-record.sh skills/_shared/known-tracker.jq skills/_shared/review-owner-proof.sh skills/_shared/whole-project-proof.sh skills/_shared/branch-worktree.sh`
+   - `skills/laravel-public-files-audit/scripts/public-files-scan.sh skills/git-history-exposure-audit/scripts/history-scan.sh`
    - `skills/code-review-github/scripts/load-issue.sh skills/code-review-jira/scripts/load-issue.sh skills/code-review-jira/scripts/jira-actor.sh skills/code-review-jira/scripts/jira-known-proof.sh skills/code-review-jira/scripts/description-shape.jq`
 3. Run the verified copy in the state root after `installed-copy-verdict=verified`:
    ```bash
    "<clone>/skills/_shared/review-state.sh" known --state "<state file>" --verify --pr "<PR URL>" --head "<head SHA>" --record "<trusted record file>"
    ```
-   Pass the PR URL and full head SHA from the trusted loader. Use the unwrapped record from step 1. The verifier checks repository, PR, head, state schema, the complete decision digest and the published rows. It reads the live tracker item and checks the current head, default base, identity, text and owner. It writes nothing. Any refusal, bad record, unreadable state or missing trusted helper stops the merge.
+   Pass the PR URL and full head SHA from the trusted loader. Use the unwrapped record from step 1. The verifier checks repository, PR, head, state schema, the complete decision digest and the published rows. It reads the live tracker item and checks the current head, default base, identity, text, owner and baseline proof. For tracked old gaps, it reruns the scanner checks and the affected-path comparison. It writes nothing. Any refusal, bad record, unreadable state or missing trusted helper stops the merge.
 4. Run this before step 3 runs code from the head, and again after CI. If the full gate added a commit, refresh the review decisions on that exact head before merge. Use `--match-head-commit` with the verified head.
 5. A refused decision restores the finding to the review loop. Only a fresh review can resolve it or record fresh evidence. A release branch cannot use its proposed verifier for its own merge.
 

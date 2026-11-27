@@ -386,7 +386,7 @@ def level_name: ["Trivial", "Simple", "Moderate", "Complex", "Critical"][. - 1];
 def testfile: ascii_downcase | test($test_re);
 ($files[0] | map(.filename, (.previous_filename // empty)) | map({key: ., value: true}) | from_entries) as $changed
 | req(type == "object"; "the walkthrough must be a JSON object")
-| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes", "known_points", "since"]) | length) == 0; "the walkthrough holds an unknown key")
+| req(((keys - ["tldr", "title", "description", "areas", "effort", "change_type", "diagram", "test_routes", "known_points", "tracked_security_gaps", "since"]) | length) == 0; "the walkthrough holds an unknown key")
 | req(.since == null or (.since | type == "string" and test("^[0-9a-f]{40}$")); "walkthrough since must be a full 40-character commit SHA when set")
 | req(.tldr | isstr(1000); "walkthrough tldr must be 1 to 500 characters")
 | req(.tldr | printable | split("\n") | all(test("^\\s*[#>|<]") | not); "the walkthrough tldr is plain sentences: no line starts with #, >, |, or <")
@@ -403,6 +403,12 @@ def testfile: ascii_downcase | test($test_re);
            else ((keys - ["title", "place", "issue", "covers"]) | length) == 0
              and (.title | isstr(200)) and (.place == null or (.place | isstr(200) and test("^[^\\s`<>|]+$")))
              and (.covers | isstr(400)) end)))); "known_points must hold 1 to 30 rows of a title, an optional place, the https URL of a GitHub issue or a JIRA issue, and one sentence on what the issue covers; a security row holds only the issue URL and security true")
+| req(.tracked_security_gaps == null or (
+    (.tracked_security_gaps | type) == "array" and (.tracked_security_gaps | length) > 0 and (.tracked_security_gaps | length) <= 30
+    and all(.tracked_security_gaps[]; type == "object" and keys == ["fix", "severity"]
+      and (.severity | IN("High", "Moderate", "Low"))
+      and (.fix | isstr(300) and test("^https://(github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(issues|pull)/[1-9][0-9]{0,8}|[a-z0-9][a-z0-9-]*\\.atlassian\\.net/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$"))));
+    "tracked_security_gaps takes only original severity and a verified fix URL")
 | req([.tldr, .description, .title, (.areas | if type == "array" then .[] | objects | .layer, .summary, (.files | arrays | .[]) else empty end), (.test_routes // [] | .[] | .path, .try), (.known_points // [] | .[] | .title, .covers)] | map(select(type == "string") | printable) | all(nocode); "the walkthrough carries no code: no fenced block in the tldr, the description, the title, a layer, a summary, a file, or a line to try")
 | req((.areas | type) == "array" and (.areas | length) >= 1 and (.areas | length) <= 20; "walkthrough areas must hold 1 to 20 rows")
 | req(.areas | all(type == "object" and ((keys - ["layer", "files", "summary"]) | length) == 0 and (.layer | isstr(100)) and (.summary | isstr(300))
@@ -423,6 +429,8 @@ def testfile: ascii_downcase | test($test_re);
     change_type,
     diagram: (.diagram | if . == null then null else printable | rtrimstr("\n") end),
     routes: [(.test_routes // [])[] | "| \("`\(.method) \(.path | gsub("`"; ""))`" | inert) | \(.try | cell) |"],
+    tracked: [(.tracked_security_gaps // [])[]
+      | "- **\(.severity)** — Already on the default branch. [Fix tracked here](\(.fix))."],
     known: [(.known_points // [])[] | (.issue | capture("(?:/issues/(?<n>[0-9]+)|/browse/(?<k>[A-Z][A-Z0-9_]*-[0-9]+))$")) as $ref
         | "[\(if $ref.n != null then "#" + $ref.n else $ref.k end)](\(.issue))" as $link
         | if .security == true
@@ -476,14 +484,16 @@ def collapsed($summary; $content): "<details>\n<summary>\($summary)</summary>\n<
 | (if ($entries | length) == 0 then null
    else collapsed("<strong>Actionable comments (\($entries | length))</strong>"; $entries | join("\n\n")) end) as $actionable_block
 | (if ($walk.known | length) == 0 then null else collapsed("<strong>Known points (\($walk.known | length))</strong>"; $walk.known | join("\n")) end) as $known_block
+| (if ($walk.tracked | length) == 0 then null
+   else collapsed("<strong>Tracked security gaps (\($walk.tracked | length))</strong>"; $walk.tracked | join("\n")) end) as $tracked_block
 | {
     listed: ($entries | length),
     code_used: $coded.used,
     code_shown: ([$coded.out[] | select(.show)] | length),
     code_omitted: ([$coded.out[] | select(.show | not) | select(.suggestion != null)] | length),
     blocks: ((if $walk.diagram == null then [] else ["```mermaid\n\($walk.diagram)\n```"] end) + [$coded.out[] | select(.show) | code_block]),
-    body: ([$tldr_block, $risk.independence, $risk_block, $walk_block, $test_block, $actionable_block, $known_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
-    visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries + $walk.known | map(select(. != null)) | join("\n\n"))
+    body: ([$tldr_block, $risk.independence, $risk_block, $walk_block, $test_block, $actionable_block, $known_block, $tracked_block, ($meta | rtrimstr("\n")), "<!-- cr-comment:actor=\($actor) -->"] | map(select(. != null)) | join("\n\n")),
+    visible_text: ([$walk.tldr, $risk.independence, $risk.sentence, $walk_content] + $walk.routes + $entries + $walk.known + $walk.tracked | map(select(. != null)) | join("\n\n"))
   }
 JQ
 
@@ -599,7 +609,7 @@ render_review_body() {
 }
 
 cmd_post() {
-  local commit="" findings_src="" meta_file="" walk_file="" arg
+  local commit="" findings_src="" meta_file="" walk_file="" decision_state="" arg
   while [[ $# -gt 0 ]]; do
     arg="$1"
     case "$arg" in
@@ -611,6 +621,11 @@ cmd_post() {
       --meta-file)
         [[ $# -ge 2 ]] || die 1 "--meta-file needs a value"
         meta_file="$2"
+        shift 2
+        ;;
+      --decision-state)
+        [[ $# -ge 2 ]] || die 1 "--decision-state needs a value"
+        decision_state="$2"
         shift 2
         ;;
       --walkthrough-file)
@@ -706,6 +721,22 @@ cmd_post() {
     || die 1 "the walkthrough was refused, nothing was published: $(sed -E 's/^jq: error \(at [^)]*\): //' "$TMP_ROOT/walk.err" | head -n 1)"
 
   jq --argjson private "$private" "$JQ_CLASSIFY" "$TMP_ROOT/findings.json" >"$TMP_ROOT/classified.json"
+
+  # The decision rows in the hidden record must agree with what this publisher displays.
+  if [[ -n "$decision_state" ]] || jq -e '(.tracked_security_gaps // []) | length > 0' "$walk_file" >/dev/null; then
+    # shellcheck source=../../_shared/known-record.sh
+    . "$HERE/../../_shared/known-record.sh"
+    local actual_decisions expected_decisions
+    [[ -n "$decision_state" ]] || die 1 'tracked security gaps require the private review state'
+    actual_decisions="$(known_record_rows "$TMP_ROOT/meta.md" | LC_ALL=C sort)" || die 1 'invalid review decision rows'
+    expected_decisions="$(jq -r '((.known_points // [])[] | [(if .security then "owned-security" else "linked" end), .issue] | @tsv),
+      ((.tracked_security_gaps // [])[] | ["tracked-old:" + .severity, .fix] | @tsv)' "$walk_file" | LC_ALL=C sort)" \
+      || die 1 'invalid walkthrough decision rows'
+    [[ "$actual_decisions" == "$expected_decisions" ]] || die 1 'the displayed review decisions differ from the hidden record'
+    "$HERE/../../_shared/review-state.sh" known --state "$decision_state" --verify \
+      --pr "https://github.com/$NWO/pull/$NUMBER" --head "$commit" --record "$TMP_ROOT/meta.md" >/dev/null \
+      || die 1 'the review decisions could not be verified against the current pulled head'
+  fi
 
   # Hidden HTML is public, and the walkthrough and the other findings are visible: a record, a walkthrough, or a published
   # finding that names a withheld finding by its id or its title is refused. The check reads the decoded string values

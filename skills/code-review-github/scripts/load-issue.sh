@@ -216,7 +216,7 @@ if [[ -n "$KNOWN_PROOF" ]]; then
   if [[ "$KIND" == issue ]]; then
     PROOF_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){databaseId item:issue(number:$n){id url number state title body updatedAt lastEditedAt authorAssociation author{__typename login} editor{__typename login} assignees(first:100){totalCount nodes{__typename databaseId login}} comments(first:100){totalCount nodes{body authorAssociation author{__typename login} editor{__typename login} lastEditedAt}}}}}'
   else
-    PROOF_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){databaseId item:pullRequest(number:$n){id url number state title body updatedAt lastEditedAt authorAssociation author{__typename login} editor{__typename login} headRefOid baseRefOid commits{totalCount} closingIssuesReferences(first:100){totalCount nodes{url}}}}}'
+    PROOF_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){databaseId defaultBranchRef{name} item:pullRequest(number:$n){id url number state title body updatedAt lastEditedAt authorAssociation author{__typename login} editor{__typename login} headRefOid baseRefOid commits{totalCount} closingIssuesReferences(first:100){totalCount nodes{url}}}}}'
   fi
   RAW_PROOF="$(gh api graphql -f query="$PROOF_QUERY" -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" || exit 3
   PROOF="$(printf '%s\n' "$RAW_PROOF" "$PAYLOAD" | jq -nce '
@@ -229,7 +229,7 @@ if [[ -n "$KNOWN_PROOF" ]]; then
       and ($i.body | type) == "string" and ($i.title | type) == "string" and ($i.updatedAt | type) == "string"
       and all("url", "number", "state", "title", "body", "updatedAt"; . as $field | $p[$field] == $i[$field]))
     | {itemId: $i.id, repositoryId: ($r.databaseId | tostring), bodyTrusted: ($i | same_author_edit),
-       association: $i.authorAssociation, authorType: $i.author.__typename,
+       association: $i.authorAssociation, authorType: $i.author.__typename, defaultBranch: $r.defaultBranchRef.name,
        comments: (if $i.comments.totalCount == ($i.comments.nodes | length)
          then [$i.comments.nodes[]? | select(same_author_edit)] else [] end),
        commentsComplete: ($i.comments.totalCount == ($i.comments.nodes | length)),

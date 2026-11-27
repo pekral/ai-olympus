@@ -884,3 +884,27 @@ test('known points of every change type pass the check in the order of their typ
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0);
 });
+
+
+test('a tracked security gap preserves its severity and accepts only the verified fix PR', function (): void {
+    $fix = 'https://github.com/acme/app/pull/42';
+    $source = jiraSummaryWithKnownPoints(
+        '* *(security):* A related issue already records the point. [ACME-12|https://example.atlassian.net/browse/ACME-12]',
+        'h3. Sledované bezpečnostní mezery',
+        '* *(security):* *Moderate* — Už je na výchozí větvi. [Oprava|' . $fix . ']',
+    );
+    $accepted = ReportCheckRun::over(
+        'skills/pr-summary/scripts/check-jira-comment.php',
+        $source,
+        '--criteria',
+        'none',
+        '--tracked-fix',
+        'Moderate=' . $fix,
+        ...jiraSummaryTaskArguments(),
+    );
+    $refused = runJiraSummaryCheck($source, 'none');
+
+    expect($accepted->getExitCode())->toBe(0)
+        ->and($refused->getExitCode())->toBe(2)
+        ->and($refused->getOutput())->toContain('tracked security gaps: the rows differ from the verified review');
+});

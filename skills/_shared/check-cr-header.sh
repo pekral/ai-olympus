@@ -54,6 +54,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The header block is parsed by the one parser both this script and extract-findings.sh share.
 # shellcheck source=cr-header.sh
 source "$HERE/cr-header.sh"
+# shellcheck source=known-record.sh
+source "$HERE/known-record.sh"
 
 # json_string comes from the one shared definition.
 # shellcheck source=json-string.sh
@@ -202,6 +204,54 @@ check_security_points() {
   done <<<"$1"
 }
 
+check_review_decisions() {
+  local body="$1" line rows digest sections=0 section=0 index=0 counts=0 value total blocking
+  if ! digest="$(known_record_read <(printf '%s\n' "$body"))"; then
+    echo 'Review decisions: the decision digest is malformed or repeated'
+    return
+  fi
+  rows="$(known_record_rows <(printf '%s\n' "$body"))"
+  for line in ${CR_HEADER_LABELS[@]+"${CR_HEADER_LABELS[@]}"}; do
+    if [[ "$line" == 'Security findings' && "${CR_HEADER_BLOCK[index]}" == 1 ]]; then
+      value="${CR_HEADER_VALUES[index]}"
+      counts=$((counts + 1))
+    fi
+    index=$((index + 1))
+  done
+  if [[ "$rows" == *tracked-old:* || ( "$rows" == *owned-security* && -n "$digest" ) ]]; then
+    local counts_shape='^([0-9]{1,6}) total · ([0-9]{1,6}) blocking$'
+    if [[ "$counts" -ne 1 || ! "${value:-}" =~ $counts_shape ]]; then
+      echo 'Security findings: show a total and a blocking count for the review decisions'
+      return
+    fi
+    total="${BASH_REMATCH[1]}" blocking="${BASH_REMATCH[2]}"
+    if [[ "$((10#$blocking))" -gt "$((10#$total))" ]]; then
+      echo 'Security findings: the blocking count exceeds the total'
+      return
+    fi
+  fi
+  cr_header_fence_reset
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    cr_header_fence_step "$line" && continue
+    case "$line" in
+      '## Tracked security gaps') section=1; sections=$((sections + 1)) ;;
+      '## '*|---) section=0 ;;
+      '') ;;
+      *)
+        if [[ "$section" -eq 1 && ! "$line" =~ ^[1-9][0-9]{0,2}\.\ \*\*(High|Moderate|Low)\*\*\ —\ Already\ on\ the\ default\ branch\.\ Fix\ tracked\ in\ https://(github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(issues|pull)/[1-9][0-9]{0,8}|[a-z0-9][a-z0-9-]*\.atlassian\.net/browse/[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$ ]]; then
+          echo 'Tracked security gaps: each row carries the original severity and a fix URL only'
+          return
+        fi
+        ;;
+    esac
+  done <<<"$body"
+  if [[ "$sections" -gt 1 ]] || { [[ "$sections" -eq 1 ]] && [[ "$rows" != *tracked-old:* ]]; }; then
+    echo 'Tracked security gaps: use one section with a verified row for each gap'
+  elif [[ "$sections" -eq 1 && -z "$digest" ]]; then
+    echo 'Review decisions: tracked security gaps require a decision digest'
+  fi
+}
+
 check() {
   local file_arg=""
 
@@ -244,6 +294,7 @@ check() {
     check_line 'Merge verdict' check_merge_verdict
     check_line 'Security assessment' check_security_assessment
     check_security_points "$body"
+    check_review_decisions "$body"
   )"
   status=$?
   set -e

@@ -378,8 +378,8 @@ EOF
 JQ_ROUND=''
 IFS= read -r -d '' JQ_ROUND <<'EOF' || true
 def is_security($f):
-  ($f.category | test("^(rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)(/|$))"))
-  or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-authorization-review)/"; "i"))
+  ($f.category | test("^(rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-public-files-audit|laravel-authorization-review)(/|$))"))
+  or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|git-history-exposure-audit|laravel-public-files-audit|laravel-authorization-review)/"; "i"))
   or ($f.raised_by | test("splinter|\\bboth\\b"))
   or ($f.evidence // "" | ascii_downcase | test("^[^a-z0-9]*exploit-path"))
   or ([$f.category, $f.cause_key, $f.file, $f.title] | join(" ") | ascii_downcase

@@ -150,6 +150,12 @@ A known point is a finding that a linked issue already reports (`@rules/code-rev
 - **A known point is no point to resolve.** It carries no severity label and no count, and it never makes the comment say that the release is blocked. A review with no new finding still renders the sentence that says there is no point to resolve, and then the known points.
 - **Length on JIRA.** A known point is shortened to its link and one clause before any `Review findings` bullet is shortened.
 
+### Tracked security gaps
+
+The caller passes the verified `tracked-old` entries of the current reviewed head. Keep each original severity and approved fix URL. On GitHub render *Tracked security gaps* after known points. On JIRA render the group of the same name inside *Review findings*, after the other groups. Use the audience-appropriate link only. In Czech, title the group *Sledované bezpečnostní mezery* and write *Už je na výchozí větvi.* before the fix link. These are separate from open findings.
+
+The top deploy paragraph takes the number of blockers from the reviewed verdict. When the only security findings are verified tracked gaps, the paragraph says that no security finding blocks the merge. Preserve other blockers and the actual merge and deployment status. Pass `--tracked-fix <Severity>=<verified URL>` to `check-jira-comment.php` for each displayed entry, derived from the verified review state.
+
 ### An issue with several pull requests
 
 When the issue links more than one pull request, render the issue-level verdict once and group everything that retells one pull request under its own heading, per `references/several-pull-requests.md`. A run that reviewed one of them renders only that group; the groups of the others stay in the earlier comments. On JIRA, a stack of pull requests is the exception: one comment carries every part the run reviewed, per `references/several-pull-requests.md` *A stack on JIRA*.

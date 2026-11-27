@@ -22,7 +22,7 @@
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
 #   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> --snapshot <digest>
-       review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --inspect
+#   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --inspect
 #   review-state.sh known    --state <file> --finding <id> --reopen
 #   review-state.sh known    --state <file> --verify --pr <url> [--head <sha>] [--record <file>]
 #   review-state.sh --self-test
@@ -140,6 +140,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/state-path.sh"
 # shellcheck source=review-owner-proof.sh
 . "$HERE/review-owner-proof.sh"
+# shellcheck source=whole-project-proof.sh
+. "$HERE/whole-project-proof.sh"
 LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 JIRA_LOADER="$HERE/../code-review-jira/scripts/load-issue.sh"
 
@@ -163,6 +165,7 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
        review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> --snapshot <digest>
        review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --inspect
+       review-state.sh known    --state <file> --finding <id> --tracked-old --issue <fix-url> --inspect
        review-state.sh known    --state <file> --finding <id> --reopen
        review-state.sh known    --state <file> --verify --pr <url> [--head <sha>] [--record <file>]
        review-state.sh --self-test
@@ -210,8 +213,10 @@ def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index(
 # known: a report that differs in any of them is another finding of the same identity, or the same one changed.
 def oid: isstr(.; "^[0-9a-f]{40}$");
 def proof_digest: isstr(.; "^[0-9a-f]{64}$");
-def marked_view: {severity, security, file, line, description, impact, evidence};
-def marked_ok: type == "object" and keys == ["description", "evidence", "file", "impact", "line", "security", "severity"]
+def whole_project:
+  .category | test("^skills/(git-history-exposure-audit|laravel-public-files-audit)(/|$)");
+def marked_view: {category, cause_key, severity, security, file, line, description, impact, evidence};
+def marked_ok: type == "object" and keys == ["category", "cause_key", "description", "evidence", "file", "impact", "line", "security", "severity"]
   and (.severity | severity_rank) > 0 and (.security | type) == "boolean" and (.file | type) == "string"
   and (.line == null or (.line | type) == "number") and (.description | type) == "string" and (.impact | type) == "string"
   and (.evidence == null or (.evidence | type) == "string");
@@ -277,16 +282,21 @@ def state_errors:
         (if ($s | has("known_points") | not) or (($s.known_points | type) == "array"
               and ($s.known_points | map(.finding_id?) | unique | length) == ($s.known_points | length)
               and all($s.known_points[];
-                . as $p | type == "object" and (keys == ["base", "category", "covers", "digest", "finding_id", "head", "iteration", "marked", "owner", "source", "url"])
-                and (.category | IN("linked", "owned-security"))
+                . as $p | type == "object" and (keys == ["base", "category", "covers", "digest", "finding_id", "head", "iteration", "marked", "owner", "scan", "source", "url"])
+                and (.category | IN("linked", "owned-security", "tracked-old"))
                 and (.marked | marked_ok)
                 and (.digest | proof_digest) and (.head | oid) and (.base | oid)
                 and .head == $s.revision and .iteration == $s.iteration
-                and (if .category == "owned-security" then .marked.security and .marked.severity != "critical"
-                     and isstr(.owner; "^[A-Za-z0-9:_-]{1,100}$") else (.marked.security | not) and .owner == null end)
+                and (if .category == "tracked-old" then .marked.security and (.marked | whole_project)
+                      and .marked.severity != "critical" and .source == "" and .owner == null
+                      and (.scan | type) == "object" and (.scan | keys) == ["base_tree", "head_tree"]
+                      and all(.scan[]; type == "string")
+                     elif .category == "owned-security" then .marked.security and .marked.severity != "critical"
+                      and (.marked | whole_project | not) and isstr(.owner; "^[A-Za-z0-9:_-]{1,100}$") and .scan == null
+                     else (.marked.security | not) and .owner == null and .scan == null end)
                 and any($s.findings[]; .finding_id == $p.finding_id and .status == "known" and (marked_view == $p.marked))
                 and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
-                and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
+                and (.category == "tracked-old" or isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$"))
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")))
          then empty else "a known point is malformed or names an unknown finding" end),
         # A finding with the status `known` has exactly one known point, which `known --verify` and every evaluation
@@ -369,7 +379,10 @@ def output($cap; $threshold; $carried):
         reopened: ($s.rounds | map(.reopened) | add // 0),
         needs_verification: ($s.findings | map(select(.status == "needs-verification")) | length),
         deferred: ($s.deferrals | length),
-        known: ($s.findings | map(select(.status == "known")) | length),
+        known: ([($s.known_points // [])[] | select(.category != "tracked-old")] | length),
+        tracked_old: ([($s.known_points // [])[] | select(.category == "tracked-old")] | length),
+        security_reported: ([$s.findings[] | select(.security and (.status == "known" or is_open))] | length),
+        security_blocking: ($v.security | length),
         remaining_blocking: ($v.open | length)
       },
       rounds: ($s.rounds | map({iteration, new, resolved, reopened, remaining_blocking, verdict})),
@@ -1139,14 +1152,100 @@ linked_issue_verdict() {
   esac
 }
 
+# A whole-project finding uses an independent, open fix. The current PR cannot close it.
+tracked_fix_verdict() {
+  local repo="$1" pr="$2" issue="$3" head="$4" finding="$5" scan="$6" tracker=github host='' key='' kind result baseline proof
+  local pr_url="https://github.com/$repo/pull/$pr"
+  if [[ "$issue" == "$pr_url" ]]; then
+    echo 'refused:the pull request cannot be its own fix'
+    return 0
+  fi
+  if [[ "$issue" =~ $JIRA_URL_RE ]]; then
+    tracker=jira
+    host="${BASH_REMATCH[1]}"
+    key="${BASH_REMATCH[2]}"
+    if ! "$JIRA_LOADER" "$issue" --known-proof </dev/null >"$TMP/linked.json" 2>/dev/null; then
+      echo 'refused:the JIRA fix cannot be loaded'
+      return 0
+    fi
+  elif [[ "$issue" =~ $GH_ISSUE_RE || "$issue" =~ $GH_PR_RE ]]; then
+    if [[ "$(lower "${BASH_REMATCH[1]}")" != "$(lower "$repo")" ]] \
+      || ! "$LOADER" "$issue" --known-proof </dev/null >"$TMP/linked.json" 2>/dev/null; then
+      echo 'refused:the fix cannot be verified in this repository'
+      return 0
+    fi
+    key="${issue##*/}"
+  else
+    echo 'refused:use an exact tracker issue or pull request URL for the fix'
+    return 0
+  fi
+  if ! "$LOADER" "$pr_url" --known-proof </dev/null >"$TMP/closing.json" 2>/dev/null; then
+    echo 'refused:the current pull request cannot be loaded'
+    return 0
+  fi
+  result="$(jq -nr -L "$HERE" --arg tracker "$tracker" --arg url "$issue" --arg pr "$pr_url" \
+    --arg repo "$repo" --arg key "$key" --argjson page "$COMMIT_PAGE" \
+    --slurpfile target "$TMP/linked.json" --slurpfile current "$TMP/closing.json" '
+    include "known-tracker";
+    $target[0] as $t | $current[0] as $c
+    | if $c.url != $pr or $t.url != $url or $t.url == $c.url then "refused:the tracker returned another item"
+      elif $tracker == "jira" then
+        if $t.sessionSite == null or $t.descriptionTrusted != true or $t.resolution != null
+          or ($t.statusCategory | IN("new", "indeterminate") | not) then "refused:the JIRA fix is closed or unverified"
+        else known_pr_closure($c; $repo; $key; $page) end
+      elif $t.state != "OPEN" or ($t | github_trusted_issue | not) then "refused:the fix is closed or untrusted"
+      elif ($t.kind | IN("issue", "pr") | not) or ($t.kind == "pr" and ($t.knownProof.pullComplete != true
+        or ($t.headRefOid | type) != "string")) then "refused:the open fix has incomplete metadata"
+      elif any($c.closingIssues[]?; .url == $url) then "refused:merging this pull request would close the fix"
+      else known_pr_closure($c; $repo; $key; $page) end' 2>/dev/null)" || result=''
+  if [[ "$result" != ok ]]; then
+    printf '%s\n' "${result:-refused:tracker evidence could not be read}"
+    return 0
+  fi
+  result="$(known_snapshot "$tracker" "$host" tracked-old "$head" "$issue")" || {
+    echo 'refused:the baseline, head, or issue snapshot could not be verified'
+    return 0
+  }
+  baseline="$(jq -r .base <<<"$result")"
+  local default_ref
+  default_ref="$(whole_git symbolic-ref --quiet refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [[ -z "$default_ref" || "$(whole_git rev-parse --verify "$default_ref^{commit}" 2>/dev/null || true)" != "$baseline" ]] \
+    || ! jq -e --arg ref "${default_ref#refs/remotes/origin/}" '.baseRefName == $ref and .knownProof.defaultBranch == $ref' "$TMP/closing.json" >/dev/null; then
+    echo 'refused:the current pull request base is not the verified default tip'
+    return 0
+  fi
+  kind="$(jq -r .category <<<"$finding")"
+  case "$kind" in
+    skills/laravel-public-files-audit|skills/laravel-public-files-audit/*)
+      proof="$(whole_public_evidence "$baseline" "$head" "$(jq -r .base_tree <<<"$scan")" \
+        "$(jq -r .head_tree <<<"$scan")" "$finding")" || proof=''
+      ;;
+    skills/git-history-exposure-audit|skills/git-history-exposure-audit/*)
+      proof="$(whole_history_evidence "$baseline" "$head" "$finding")" || proof=''
+      ;;
+    *) proof='' ;;
+  esac
+  if [[ ! "$proof" =~ ^[a-f0-9]{64}$ ]]; then
+    echo 'refused:the scanner could not prove an unchanged finding on the baseline'
+    return 0
+  fi
+  proof="$(printf '%s\n%s\n' "$(jq -r .digest <<<"$result")" "$proof" | known_sha256)" || {
+    echo 'refused:the scanner evidence could not be digested'
+    return 0
+  }
+  jq -c --arg digest "$proof" '.digest = $digest' <<<"$result"
+}
+
 # Bind the exact content compared by the orchestrator to the live PR base and head. The output is private data.
 known_snapshot() {
   local tracker="$1" scope="$2" category="$3" head="$4" issue="$5" target pr_data repo repo_id owners owner=null details digest
   target="$(cat "$TMP/linked.json")" || return 1
-  pr_data="$(jq -ce --arg head "$head" '
+  pr_data="$(jq -ce --arg head "$head" --arg category "$category" --arg tracker "$tracker" '
     select(.kind == "pr" and .state == "OPEN" and .headRefOid == $head and .knownProof.pullComplete == true
       and (.baseRefOid | type == "string" and test("^[0-9a-f]{40}$"))
-      and (.knownProof.repositoryId | type == "string" and test("^[1-9][0-9]*$")))
+      and (.knownProof.repositoryId | type == "string" and test("^[1-9][0-9]*$"))
+      and (.repo.isPrivate == true or .repo.isPrivate == false)
+      and ($category == "linked" or $tracker != "jira" or .repo.isPrivate == true))
     | {repo: .repo.nameWithOwner, repoId: .knownProof.repositoryId, base: .baseRefOid, head: .headRefOid}' "$TMP/closing.json")" || return 1
   repo="$(jq -r '.repo' <<<"$pr_data")"
   repo_id="$(jq -r '.repoId' <<<"$pr_data")"
@@ -1160,7 +1259,8 @@ known_snapshot() {
   else
     details="$(jq -ce --arg rid "$repo_id" 'select(.knownProof.repositoryId == $rid and (.knownProof.itemId | type) == "string"
         and (.updatedAt | type) == "string" and (.body | type) == "string")
-      | {id: .knownProof.itemId, title, text: .body, updated: .updatedAt, state, assigned: .knownProof.assignees}' <<<"$target")" || return 1
+      | {id: .knownProof.itemId, title, text: .body, updated: .updatedAt, state,
+         assigned: .knownProof.assignees, fix_head: .headRefOid, fix_base: .baseRefOid}' <<<"$target")" || return 1
     owners="$(jq -c '[.assigned[]? | select(.__typename == "User" and (.databaseId | type) == "number") | .databaseId | tostring]' <<<"$details")" || return 1
   fi
   if [[ "$category" == owned-security ]]; then
@@ -1184,8 +1284,13 @@ known_sha256() {
 # Verify the target and compare its live evidence with the evidence recorded at the round barrier.
 known_entry_verdict() {
   local repo="$1" pr="$2" head="$3" entry="$4" result
-  result="$(linked_issue_verdict "$repo" "$pr" "$(jq -r .source <<<"$entry")" "$(jq -r .url <<<"$entry")" \
-    "$(jq -r .category <<<"$entry")" "$head")"
+  if [[ "$(jq -r .category <<<"$entry")" == tracked-old ]]; then
+    result="$(tracked_fix_verdict "$repo" "$pr" "$(jq -r .url <<<"$entry")" "$head" \
+      "$(jq -c .marked <<<"$entry")" "$(jq -c .scan <<<"$entry")")"
+  else
+    result="$(linked_issue_verdict "$repo" "$pr" "$(jq -r .source <<<"$entry")" "$(jq -r .url <<<"$entry")" \
+      "$(jq -r .category <<<"$entry")" "$head")"
+  fi
   if [[ "$result" == refused:* ]]; then
     printf '%s\n' "$result"
   elif ! jq -e --argjson entry "$entry" '.digest == $entry.digest and .head == $entry.head and .base == $entry.base and .owner == $entry.owner' <<<"$result" >/dev/null; then
@@ -1267,6 +1372,7 @@ verify_known() {
 
 cmd_known() {
   local state='' id='' source='' issue='' covers='' pr_url='' match_head='' record='' snapshot='' inspect=0 reopen=0 verify=0
+  local tracked=0 base_tree='' head_tree='' scan=null
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
@@ -1276,6 +1382,9 @@ cmd_known() {
     --covers) [[ $# -ge 2 ]] || die_usage '--covers needs a value'; covers="$2"; shift 2 ;;
     --snapshot) [[ $# -ge 2 ]] || die_usage '--snapshot needs a value'; snapshot="$2"; shift 2 ;;
     --inspect) inspect=1; shift ;;
+    --tracked-old) tracked=1; shift ;;
+    --base-tree) [[ $# -ge 2 ]] || die_usage '--base-tree needs a value'; base_tree="$2"; shift 2 ;;
+    --head-tree) [[ $# -ge 2 ]] || die_usage '--head-tree needs a value'; head_tree="$2"; shift 2 ;;
     --reopen) reopen=1; shift ;;
     --verify) verify=1; shift ;;
     --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr_url="$2"; shift 2 ;;
@@ -1285,9 +1394,10 @@ cmd_known() {
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
+  [[ "$tracked" -eq 1 || -z "$base_tree$head_tree" ]] || die_usage 'scan roots belong to --tracked-old'
   [[ "$verify" -eq 1 || -z "$pr_url$match_head$record" ]] || die_usage '--pr, --head, and --record belong to --verify'
   if [[ "$verify" -eq 1 ]]; then
-    [[ -z "$id$source$issue$covers$snapshot" && "$reopen" -eq 0 && "$inspect" -eq 0 ]] || die_usage '--verify takes --state, --pr, --head, and --record'
+    [[ -z "$id$source$issue$covers$snapshot" && "$reopen" -eq 0 && "$inspect" -eq 0 && "$tracked" -eq 0 ]] || die_usage '--verify takes --state, --pr, --head, and --record'
     [[ -z "$record" || -n "$match_head" ]] || die_usage '--record requires --head'
     [[ -z "$match_head" || "$match_head" =~ ^[0-9a-f]{40}$ ]] || die_usage '--head must be a full commit SHA'
     verify_known "$state" "$pr_url" "$match_head" "$record"
@@ -1295,9 +1405,14 @@ cmd_known() {
   fi
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
   if [[ "$reopen" -eq 1 ]]; then
-    [[ -z "$source$issue$covers$snapshot" && "$inspect" -eq 0 ]] || die_usage '--reopen takes only --state and --finding'
+    [[ -z "$source$issue$covers$snapshot" && "$inspect" -eq 0 && "$tracked" -eq 0 ]] || die_usage '--reopen takes only --state and --finding'
   else
-    [[ "$source" =~ $GH_ISSUE_RE || "$source" =~ $JIRA_KEY_RE ]] || die_usage '--source must be the task: a GitHub issue URL or a JIRA key'
+    if [[ "$tracked" -eq 1 ]]; then
+      [[ -z "$source" ]] || die_usage '--tracked-old takes the independent fix, without a linked task'
+      scan="$(jq -cn --arg base "$base_tree" --arg head "$head_tree" '{base_tree: $base, head_tree: $head}')"
+    else
+      [[ "$source" =~ $GH_ISSUE_RE || "$source" =~ $JIRA_KEY_RE ]] || die_usage '--source must be the task: a GitHub issue URL or a JIRA key'
+    fi
     [[ "$issue" =~ ^https://[^[:space:]]+$ && ${#issue} -le 500 ]] || die_usage '--issue must be the https URL of the linked issue'
     if [[ "$inspect" -eq 1 ]]; then
       [[ -z "$covers$snapshot" ]] || die_usage '--inspect does not take a decision'
@@ -1339,15 +1454,24 @@ cmd_known() {
     jq -e '.reports == 1' <<<"$finding" >/dev/null \
       || fail 4 "finding $id merges more than one reported finding, or does not say how many; the state is unchanged"
     local verdict category=linked repo pr head
-    if jq -e '.security' <<<"$finding" >/dev/null; then
-      jq -e '.severity != "critical"' <<<"$finding" >/dev/null || fail 4 'a Critical security finding always blocks'
+    if [[ "$tracked" -eq 1 ]]; then
+      jq -e -L "$HERE" "$JQ_STATE"' .security and .severity != "critical" and whole_project' <<<"$finding" >/dev/null \
+        || fail 4 'only a non-Critical whole-project security finding can use a tracked fix'
+      category=tracked-old
+    elif jq -e '.security' <<<"$finding" >/dev/null; then
+      jq -e -L "$HERE" "$JQ_STATE"' .severity != "critical" and (whole_project | not)' <<<"$finding" >/dev/null \
+        || fail 4 'Critical security findings always block. A whole-project finding requires the baseline check.'
       category=owned-security
     fi
     repo="$(jq -r '.repo' "$TMP/state.json")"
     pr="$(jq -r '.pr' "$TMP/state.json")"
     head="$(jq -r '.revision' "$TMP/state.json")"
     [[ "$head" =~ ^[0-9a-f]{40}$ ]] || fail 4 'the review round needs an exact head SHA'
-    verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$issue" "$category" "$head")"
+    if [[ "$tracked" -eq 1 ]]; then
+      verdict="$(tracked_fix_verdict "$repo" "$pr" "$issue" "$head" "$finding" "$scan")"
+    else
+      verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$issue" "$category" "$head")"
+    fi
     [[ "$verdict" != refused:* ]] \
       || fail 4 "the link is not a trusted linked issue: $(state_path_display "${verdict#refused:}"); the state is unchanged"
     if [[ "$inspect" -eq 1 ]]; then
@@ -1357,14 +1481,15 @@ cmd_known() {
     jq -e --arg snapshot "$snapshot" '.digest == $snapshot' <<<"$verdict" >/dev/null \
       || fail 4 'the tracker evidence changed since inspection; compare the current text again'
     jq -c -L "$HERE" --arg id "$id" --arg source "$source" --arg url "$issue" --arg covers "$covers" \
-      --arg category "$category" --argjson proof "$verdict" \
+      --arg category "$category" --argjson proof "$verdict" --argjson scan "$scan" \
       --argjson cap_round "$cap_round" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
       (.findings[] | select(.finding_id == $id)) as $f
       | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "known", actor: "orchestrator"}]
       | .findings = (.findings | map(if .finding_id == $id then .status = "known" else . end))
       | .known_points = (((.known_points // []) | map(select(.finding_id != $id)))
           + [{finding_id: $id, source: $source, url: $url, covers: $covers, marked: ($f | marked_view),
-               category: $category, iteration: .iteration, digest: $proof.digest, head: $proof.head, base: $proof.base, owner: $proof.owner}])
+               category: $category, iteration: .iteration, digest: $proof.digest, head: $proof.head, base: $proof.base,
+               owner: $proof.owner, scan: $scan}])
       | (if $cap_round then .status = "open" | .escalation_reason = null else . end)
       | settle($cap; $threshold; false) | refresh_round($cap; $threshold)' "$TMP/state.json" >"$TMP/next.json"
   fi
@@ -1381,8 +1506,11 @@ self_test() {
   trap "rm -rf '$tmp'" EXIT
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
-  mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts" "$tmp/pkg/skills/code-review-jira/scripts"
-  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary,review-owner-proof,known-record}.sh \
+  mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts" "$tmp/pkg/skills/code-review-jira/scripts" \
+    "$tmp/pkg/skills/laravel-public-files-audit/scripts" "$tmp/pkg/skills/git-history-exposure-audit/scripts"
+  cp "$HERE/../laravel-public-files-audit/scripts/public-files-scan.sh" "$tmp/pkg/skills/laravel-public-files-audit/scripts/"
+  cp "$HERE/../git-history-exposure-audit/scripts/history-scan.sh" "$tmp/pkg/skills/git-history-exposure-audit/scripts/"
+  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary,review-owner-proof,known-record,whole-project-proof,branch-worktree}.sh \
     "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$HERE/known-tracker.jq" "$tmp/pkg/skills/_shared/"
   script="$tmp/pkg/skills/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
@@ -1392,6 +1520,10 @@ if [[ "\$1" =~ ^https://github\.com/([a-z]+)/([a-z]+)/issues/([0-9]+)\$ ]]; then
   f="$tmp/gh-issue-\${BASH_REMATCH[1]}-\${BASH_REMATCH[2]}-\${BASH_REMATCH[3]}.json"
   [[ -f "\$f" ]] || { echo 'no such issue' >&2; exit 4; }
   cat "\$f"
+  exit 0
+fi
+if [[ "\$1" == 'https://github.com/acme/shop/pull/8' && -f "$tmp/pr-8.json" ]]; then
+  cat "$tmp/pr-8.json"
   exit 0
 fi
 [[ "\$1" == 'https://github.com/acme/shop/pull/7' && -f "$tmp/pr.json" ]] || { echo 'no such pull request' >&2; exit 4; }
@@ -1437,11 +1569,12 @@ EOF
     shift
     jq -n -c --argjson commits "$commits" --arg title "${PR_TITLE-feat(orders): add the export (#10)}" --arg body "${PR_BODY-Adds the export.}" \
       --arg branch "${PR_BRANCH-feat/ACME-1-orders-export}" --arg head "${FIXED_KNOWN_HEAD:-}" \
+      --arg base "${PR_BASE-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb}" \
       '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
-      repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
+      repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop", isPrivate: true}, comments: [],
       title: $title, body: $body, headRefName: $branch, state: "OPEN", headRefOid: $head,
-      baseRefOid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      knownProof: {repositoryId: "765", pullComplete: true},
+      baseRefOid: $base, baseRefName: "master",
+      knownProof: {repositoryId: "765", pullComplete: true, defaultBranch: "master"},
       closingIssues: [$ARGS.positional[] | {url: .}], commits: $commits}' --args "$@" >"$tmp/pr.json"
   }
   # pr_page <count> <issue-url> — the loader payload of pull request acme/shop#7 with <count> commits that close nothing.
@@ -1717,7 +1850,7 @@ EOF
   # like #12). #15 is a trusted, open issue that the task does not link. JIRA task ACME-1 links ACME-2 and
   # names ACME-3, whose reporter is not the operator account. ACME-9 is trusted and open, and ACME-1 does not link it.
   local FIXED_KNOWN_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-  local XDG_STATE_HOME="$tmp/state-home"
+  local XDG_STATE_HOME="$(cd "$tmp" && pwd -P)/state-home"
   export XDG_STATE_HOME
   mkdir -m 700 -p "$XDG_STATE_HOME/ai-olympus"
   (umask 077; cat >"$XDG_STATE_HOME/ai-olympus/person-matches.json" <<'EOF'
@@ -1808,13 +1941,13 @@ EOF
   check 'the state keeps the task, the issue, the sentence, and an orchestrator transition' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "known"
       and (.known_points | map({finding_id, source, url, covers})) == [{finding_id: $id, source: "https://github.com/acme/shop/issues/10", url: "https://github.com/acme/shop/issues/12",
         covers: "The issue describes the copied step."}]
-      and .known_points[0].marked == {severity: "medium", security: false, file: "src/Foo/Bar.php", line: 10, description: "Copied step",
+      and (.known_points[0].marked | del(.category,.cause_key)) == {severity: "medium", security: false, file: "src/Foo/Bar.php", line: 10, description: "Copied step",
         impact: "Copied step impact.", evidence: "rule-violation — the step is copied"}
       and any(.transitions[]; .finding_id == $id and .to == "known" and .actor == "orchestrator")' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   run_case 'the state with a known point is valid' 0 -- evaluate --state "$S"
   run_case 'a known point is not marked twice' 4 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'again'
   cp "$repo/$S" "$tmp/known-good"
-  # A known point entry that an earlier version wrote with an owner key is malformed.
+  # A non-security known point cannot take ownership metadata.
   jq -c '.known_points[0].owner = "maintainer"' "$tmp/known-good" >"$repo/$S"
   run_case 'a known point with the owner key of an earlier version makes the state invalid' 3 -- evaluate --state "$S"
   jq -c '.known_points[0].url = "http://insecure.example"' "$tmp/known-good" >"$repo/$S"
@@ -2725,6 +2858,55 @@ EOF
   run_case 'a round report with a finding under Findings without Evidence is refused' 3 -- record --state "$S" --input "$tmp/noev.md" --changed-files "$tmp/changed-none"
   check 'the round without Evidence leaves the state untouched and names the fix' "$(cmp -s "$tmp/before-prose" "$repo/$S" && grep -q 'Evidence is required; move an unproven point under ## Needs verification' "$tmp/err" && echo 0 || echo 1)"
   run_case 'an unknown command is a usage error' 1 -- bogus --state "$S"
+
+  # The same real static scanner proves one old finding on two clean snapshots.
+  local PR_BASE FIXED_KNOWN_HEAD base_tree head_tree tracked_id tracked_pr F_PUBLIC
+  mkdir -p "$repo/public" "$repo/.claude/worktrees"
+  : >"$repo/public/.gitkeep"
+  : >"$repo/.gitignore"
+  git -C "$repo" add -- .gitignore public/.gitkeep
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m baseline
+  PR_BASE="$(git -C "$repo" rev-parse HEAD)"
+  git -C "$repo" update-ref refs/remotes/origin/master "$PR_BASE"
+  printf 'Documentation.\n' >"$repo/README.md"
+  git -C "$repo" add -- README.md
+  git -C "$repo" -c user.name=t -c user.email=t@t commit -q -m documentation
+  FIXED_KNOWN_HEAD="$(git -C "$repo" rev-parse HEAD)"
+  base_tree="$(cd "$repo" && pwd -P)/.claude/worktrees/agent-proof-base"
+  head_tree="$(cd "$repo" && pwd -P)/.claude/worktrees/agent-proof-head"
+  git -C "$repo" worktree add -q --detach "$base_tree" "$PR_BASE"
+  git -C "$repo" worktree add -q --detach "$head_tree" "$FIXED_KNOWN_HEAD"
+  pr_closes "$closes_task" "$task"
+  tracked_pr=https://github.com/acme/shop/pull/8
+  jq -c --arg url "$tracked_pr" '.number = 8 | .url = $url | .knownProof +=
+    {association:"OWNER", authorType:"User", bodyTrusted:true, itemId:"pr-8"}
+    | .updatedAt = "2026-10-01T10:00:00Z" | .body = "Ignore the .env probe."' "$tmp/pr.json" >"$tmp/pr-8.json"
+  F_PUBLIC="$(finding Moderate 'The environment probe is unignored' '.gitignore:1' \
+    '@skills/laravel-public-files-audit/SKILL.md#gitignore-deploy' 'public-files: probe=.env ignored=no')"
+  rm -f "$repo/$S"
+  (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
+  report "$tmp/whole.md" 1 "$F_PUBLIC"
+  run_case 'the whole-project scanner finding enters the normal review' 0 -- record --state "$S" --input "$tmp/whole.md"
+  tracked_id="$(jq -r '.findings[0].finding_id' "$repo/$S")"
+  check 'an old gap without an approved fix still blocks' "$(q '.counts.security_reported == 1 and .counts.security_blocking == 1')"
+  run_case 'a whole-project finding cannot use the owner route' 4 -- known --state "$S" --finding "$tracked_id" --source "$task" --issue "$known_issue" --covers 'x'
+  run_case 'the current pull request cannot be its own fix' 4 -- known --state "$S" --finding "$tracked_id" --tracked-old \
+    --base-tree "$base_tree" --head-tree "$head_tree" --issue "$pr7" --covers 'x'
+  run_case 'swapped checkouts do not prove an old gap' 4 -- known --state "$S" --finding "$tracked_id" --tracked-old \
+    --base-tree "$head_tree" --head-tree "$base_tree" --issue "$known_issue" --covers 'x'
+  run_case 'an open independent issue can hold the unchanged gap' 0 -- known --state "$S" --finding "$tracked_id" --tracked-old \
+    --base-tree "$base_tree" --head-tree "$head_tree" --issue "$known_issue" --covers 'The issue covers this exact missing ignore.'
+  check 'the tracked gap keeps its severity without blocking' "$(q '.verdict == "converged" and .counts.tracked_old == 1
+    and .counts.security_reported == 1 and .counts.security_blocking == 0')"
+  run_case 'the tracked gap is opened for comparison to an open fix PR' 0 -- known --state "$S" --finding "$tracked_id" --reopen
+  run_case 'an independent open pull request can hold the unchanged gap' 0 -- known --state "$S" --finding "$tracked_id" --tracked-old \
+    --base-tree "$base_tree" --head-tree "$head_tree" --issue "$tracked_pr" --covers 'The pull request adds this exact ignore.'
+  cp "$tmp/pr-8.json" "$tmp/open-fix.json"
+  jq -c '.state = "CLOSED"' "$tmp/open-fix.json" >"$tmp/pr-8.json"
+  run_case 'a closed fix fails merge-time verification' 4 -- known --state "$S" --verify --pr "$pr7" --head "$FIXED_KNOWN_HEAD"
+  cp "$tmp/open-fix.json" "$tmp/pr-8.json"
+  git -C "$head_tree" update-index --assume-unchanged .gitignore
+  run_case 'a worktree that can hide changes fails verification' 4 -- known --state "$S" --verify --pr "$pr7" --head "$FIXED_KNOWN_HEAD"
 
   if [[ "$failures" -gt 0 ]]; then
     echo "review-state self-test: $failures failure(s)" >&2

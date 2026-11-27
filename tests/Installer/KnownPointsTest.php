@@ -44,8 +44,8 @@ test('the rule keeps the match test strict and the three exceptions as new findi
         ->toContain('and says what the change adds on top of it.')
         ->toContain('An issue closed as done means the problem should be gone. When the change still shows it, the')
         ->toContain('finding is a new finding (a regression) with a link to the closed issue.')
-        ->toContain('- **A security finding that a linked issue already reports is a known point too.** The owner decided this on 2026-11-25')
-        ->toContain('so the trust of the link decides, never the kind of the finding. A security finding that no such issue reports stays a finding')
+        ->toContain('- **A linked security finding requires a confirmed human owner (#716).**')
+        ->toContain('A missing owner, an app or bot, an unclear match, and any Critical security finding block at their original severity.')
         ->toContain('**A security known point describes nothing.**');
 });
 
@@ -86,8 +86,8 @@ test('krang reads the linked issues when it gathers and compares after the barri
         ->toContain(knownPointsOwnerHeading() === '' ? '' : '*Known points — a finding that a linked issue already reports (issue #682)*');
     expect($round)
         ->toContain('`leonardo`, `splinter`, `raphael`, and `casey` alike')
-        ->toContain('review-state.sh known --state <state> --finding <id> --source <task URL or JIRA key> --issue <URL> --covers <sentence>')
-        ->toContain('A security finding is marked like every other finding when a trusted linked issue already reports it')
+        ->toContain('review-state.sh known --state <state> --finding <id> --source <task URL or JIRA key> --issue <URL> --inspect')
+        ->toContain('A security finding requires the verified human owner and unchanged reach in the rule.')
         ->toContain('Test every finding against S1–S3 of `@rules/code-review/general.md` before you mark it')
         ->toContain('Reopen a known point whose match no longer holds with `known --reopen`.')
         ->toContain('Then run `evaluate` again: its verdict is the verdict of the round for steps 4 and 5.')
@@ -119,7 +119,7 @@ test('the merge verdict and the loop state leave a known point out', function ()
     expect($state)
         ->toContain('| `known` | A linked issue already reports the same problem (*Known points* below). | no |')
         ->toContain('- **A known point does not block.**')
-        ->toContain('- **A security finding is a known point like any other finding** when a trusted linked issue already reports it')
+        ->toContain('- **A linked security finding requires a confirmed human owner.**')
         ->toContain('- **The script checks the link itself.**')
         ->toContain('- **A reviewer that reports the finding again keeps it known,** in every round and at the cap round');
 });
@@ -215,12 +215,12 @@ test('the task text names a linked issue only from a trusted author, and a short
 
     expect($jiraLoader)
         ->toContain('include "review-trust";')
-        ->toContain('select(trusted_jira_comment($actor; $o.assignee)')
+        ->toContain('then trusted_jira_comment($actor; null)')
         ->toContain('and .authorAccountId == $o.reporterAccountId))')
         ->and(str_contains($jiraLoader, '.author == $o.assignee'))->toBeFalse();
     expect(knownPointsRule())
-        ->toContain('On JIRA a comment of the reporter, matched by account ID, names a linked issue too.')
-        ->toContain('it never changes the assignment or a gate.')
+        ->toContain('On JIRA only a comment by the authenticated operator names a linked issue.')
+        ->toContain('the issue body and comments must be unedited or last edited by the same trusted author.')
         ->and(str_contains(knownPointsRule(), 'it never makes a security finding a known point'))->toBeFalse();
     expect(packageSource('rules/compound-engineering/tracker.md'))
         ->toContain('Treat a JIRA comment as trusted **only** when its `author` matches the issue\'s own `assignee`');
@@ -231,7 +231,7 @@ test('a known point comes only from a trusted, open issue the task links, whatev
 
     expect($rule)
         ->toContain('- **Only a linked issue of a trusted author makes a known point.**')
-        ->toContain('it refuses an issue outside the task\'s link list, a closed issue, and an untrusted author')
+        ->toContain('The GitHub projection binds the editor and text to the same tracker version.')
         ->toContain('A reviewer that reports the same finding again, unchanged, keeps it known, in every round and at the cap round too.')
         ->toContain('`known` refuses a finding whose record merges two reported findings.')
         ->and(str_contains($rule, '--owner'))->toBeFalse()
@@ -239,9 +239,9 @@ test('a known point comes only from a trusted, open issue the task links, whatev
     $stateScript = packageSource('skills/_shared/review-state.sh');
 
     expect($stateScript)
-        ->toContain('known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>' . "\n")
+        ->toContain('known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> --snapshot <digest>' . "\n")
         ->toContain('known    --state <file> --finding <id> --reopen')
-        ->toContain('reports is a known point too (owner decision of 2026-11-25): the trust of the link decides, never')
+        ->toContain('A security finding also requires an active assignee with confirmed human identity.')
         ->and(str_contains($stateScript, 'a security finding is never a known point'))->toBeFalse()
         ->and(str_contains($stateScript, '--security-owned'))->toBeFalse()
         ->and(str_contains($stateScript, '[--owner <login>]'))->toBeFalse();
@@ -292,10 +292,10 @@ test('a security known point shows only its link in every output', function (): 
     }
 });
 
-test('the strictest security gate names the known point as the one case that is no finding', function (): void {
+test('the strictest gate names the two verified security decisions', function (): void {
     expect(packageSource('rules/code-review/general.md'))
-        ->toContain('The one case that is no such finding is a known point: a security finding that a trusted linked issue already')
-        ->toContain('reports is shown with its link and never counted');
+        ->toContain('Only the two verified dispositions in `@rules/code-review/review-process.md`')
+        ->toContain('a linked issue with a confirmed human owner and a tracked gap on the default branch');
 });
 
 test('every caller of the tracker summary passes the known points', function (): void {
@@ -362,7 +362,7 @@ test('the trust of the link decides a known point: no allow-list and no refusal 
         ->toContain('"a known point is malformed or names an unknown finding"');
     expect($extract)
         ->toContain('or ($f.rule_text | test("rules/security/|skills/(security-review|security-audit|')
-        ->toContain('git-history-exposure-audit|laravel-authorization-review)/"; "i"))')
+        ->toContain('git-history-exposure-audit|laravel-public-files-audit|laravel-authorization-review)/"; "i"))')
         ->toContain('or ($f.raised_by | test("splinter|\\\\bboth\\\\b"))')
         ->toContain('test("^[^a-z0-9]*exploit-path")');
     expect(packageSource('skills/code-review/references/finding-records.md'))
@@ -398,17 +398,18 @@ test('a linked issue that the pull request closes makes no known point, in every
         ->toContain('so a closing keyword that the pull request gains after the last review round stops the merge.')
         ->and(str_contains(knownPointsRule(), 'That check is an open decision of the owner'))->toBeFalse();
     expect(packageSource('skills/_shared/review-state.sh'))
-        ->toContain('linked_issue_verdict "$repo" "$pr" "$source" "$url"')
+        ->toContain('linked_issue_verdict "$repo" "$pr" "$source" "$issue"')
         ->toContain('echo \'refused:the pull request cannot be loaded\'')
         ->toContain('then "refused:the pull request does not close the task"')
         ->toContain('then "refused:the pull request closes the linked issue"')
-        ->toContain('then "refused:a commit of the pull request closes the linked issue"')
-        ->toContain('then "refused:the title of the pull request closes the linked issue"')
-        ->toContain('then "refused:the body of the pull request closes the linked issue"')
-        ->toContain('then "refused:the branch name of the pull request names a closing keyword and the linked issue"')
-        ->toContain('then "refused:the loader returned a pull request without its branch name"')
-        ->toContain('then "refused:the loader may have cut the commit list at its page size of \($page)"')
         ->toContain('"a linked issue that a commit body closes by its URL|pr_closes');
+    expect(packageSource('skills/_shared/known-tracker.jq'))
+        ->toContain('refused:a commit of the pull request closes the linked issue')
+        ->toContain('refused:the title of the pull request closes the linked issue')
+        ->toContain('refused:the body of the pull request closes the linked issue')
+        ->toContain('refused:the branch name of the pull request names a closing keyword and the linked issue')
+        ->toContain('refused:the loader returned a pull request without its branch name')
+        ->toContain('refused:the loader may have cut the commit list at its page size of');
     expect(packageSource('skills/code-review-github/scripts/load-issue.sh'))
         ->toContain('      messageBody: (.messageBody // null),');
     expect(packageSource('agents/krang.md'))
@@ -422,9 +423,10 @@ test('the merge rule names a known point as no finding, points to its owner, and
         ->toContain('    - **A known point is no finding.** A finding that a trusted, open linked issue already reports, a security finding')
         ->toContain('(`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*).')
         ->toContain('**The merge checks each known point again.** Before the merge, on the exact head that it merges, the trusted copy of')
-        ->toContain('`skills/_shared/review-state.sh known --verify --pr <PR URL>` runs the checks of `known` on the current text of the pull request,')
+        ->toContain('--verify --pr <PR URL> --head <SHA> --record <trusted record>')
         ->toContain(
-            'a check that cannot run, a state that cannot be read or that belongs to another pull request, and a link of the review that the state does not hold stop the merge (fail closed)',
+            'a check that cannot run, a state that cannot be read or that belongs to another pull request, '
+            . 'and a link of the review that the state does not hold stop the merge (fail closed)',
         )
         ->toContain('It covers the full path and the low-risk path. `@skills/merge-github-pr-fast/SKILL.md` reads no review record')
         ->toContain('`@skills/merge-github-pr/references/known-points-check.md` owns the procedure.')
@@ -443,34 +445,24 @@ test('the merge checks every known point again on the head it merges, fails clos
         ->and(packageSource('skills/merge-github-pr/references/low-risk-path.md'))
         ->toContain('| Known-points check | Mandatory, before the gate (`references/known-points-check.md`) |');
     expect($reference)
-        ->toContain(
-            '`skills/_shared/review-state.sh known --state <state file> --verify --pr <PR URL>` runs the checks of `known` on every known point of the state again',
-        )
-        ->toContain('It writes nothing. It prints `{"checked", "urls", "refused"}` and exits `0` when every point holds, and `4` when')
-        ->toContain('a point is refused or a loader fails.')
-        ->toContain('It exits `3` when the state is missing or invalid, when its path is one that every writing command refuses')
-        ->toContain('when its repository or pull request is not `<PR URL>`, and when a finding has the status `known` without exactly one known point.')
-        ->toContain('Never look for it in the checked-out head, which the branch controls')
-        ->toContain('No state file, and the report lists a known point: the point cannot be checked. Do not merge.')
-        ->toContain('**Run the trusted copy**, never the copy of the branch under review')
+        ->toContain('--head "<head SHA>" --record "<trusted record file>"')
+        ->toContain('Any refusal, bad record, unreadable state or missing trusted helper stops the merge.')
+        ->toContain('Never use a state or executable from the branch under review.')
+        ->toContain('A report with decisions and no matching state stops the merge.')
+        ->toContain('installed-copy-verdict=verified')
         ->toContain('skills/_shared/review-state.sh skills/_shared/state-path.sh skills/_shared/extract-findings.sh skills/_shared/cr-header.sh')
-        ->toContain('( cd "<state root>" && "<clone>/skills/_shared/review-state.sh" known --state "<state file>" --verify --pr "<PR URL>" )')
-        ->toContain('Never run it with `cd` into the checked-out head.')
-        ->not->toContain('cd "<checkout>"')
-        ->toContain('a link in the `## Known points` section that is not in `urls`: the state does not hold that point.')
-        ->toContain(
-            'an exit other than `0`, a copy that is not verified, a state that cannot be read or that belongs to another pull request, or a loader that fails: the check did not pass;',
-        )
+        ->toContain('Use `--match-head-commit` with the verified head.')
         ->toContain('- **Full path:** yes.')
         ->toContain('- **Low-risk path:** yes.')
         ->toContain('- **`@skills/merge-github-pr-fast/SKILL.md`:** no. It reads no review record and no review state')
         ->toContain('this skill passes no `--subject` and no `--body` to `gh pr merge`.')
         ->toContain('Not verified in this run: what GitHub writes into the message of each strategy.');
+    expect(str_contains($reference, 'cd "<checkout>"'))->toBeFalse();
     expect(packageSource('skills/_shared/review-state.sh'))
         ->toContain('review-state.sh known    --state <file> --verify --pr <url>')
         ->toContain('verify_known "$state" "$pr_url"')
         ->toContain('fail 3 \'the review state belongs to another pull request than the one being merged\'')
-        ->toContain('\'--verify takes only --state and --pr\'')
+        ->toContain('\'--verify takes --state, --pr, --head, and --record\'')
         ->toContain('fail 4 \'a known point no longer holds; the merge is refused\'')
         ->toContain('run_case \'verify refuses a linked issue that cannot be loaded\' 4 -- known --state "$S" --verify --pr "$pr7"')
         ->toContain('run_case \'verify of a missing state exits 3\' 3 -- known --state "$S.missing" --verify --pr "$pr7"')

@@ -29,6 +29,13 @@ const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 const JIRA_SUMMARY_PULL_REQUEST_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(?<number>[1-9][0-9]*)'
     . '(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?$#D';
 
+const JIRA_SUMMARY_TRACKED_FIX_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull)/[1-9][0-9]*$#D';
+
+const JIRA_SUMMARY_TRACKED_HEADING = '/^h3\. (?:Tracked security gaps|Sledované bezpečnostní mezery)$/uD';
+
+const JIRA_SUMMARY_TRACKED_ROW = '/^\* \*\(security\):\* \*(?<severity>High|Moderate|Low)\* — '
+    . '(?:Already on the default branch\.|Už je na výchozí větvi\.) \[[^|\]]+\|(?<url>https:\/\/[^\s\]]+)\]$/uD';
+
 const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?<commit>[0-9a-f]{40}|[0-9a-f]{64})/'
     . '(?<path>[A-Za-z0-9._~%-]+(?:/[A-Za-z0-9._~%-]+)*)\#L[1-9][0-9]*$#D';
 
@@ -60,6 +67,7 @@ const JIRA_SUMMARY_USAGE = "Usage: check-jira-comment.php --criteria <unmet|none
     . "  --repository       the task repository, from a pull-request URL that assert-current-repo.sh accepted\n"
     . "  --pull-request     a pull request of that repository a link may point into, once per pull request\n"
     . "  --jira-issue       the URL of the task issue; a link may point to an issue of its JIRA site\n"
+    . "  --tracked-fix     approved Severity=https://tracker/fix from the verified review, once per displayed gap\n"
     . "  --revision         the full hash of the reviewed head commit; a file link may point only to that commit, and\n"
     . "                     without it every file link is refused\n"
     . "  Exit codes: 0 the source passes, 1 usage or read error, 2 at least one violation.\n"
@@ -266,6 +274,7 @@ final readonly class JiraSummaryTask
 
     /**
      * @param list<string> $pullRequests
+     * @param list<string> $trackedFixes
      */
     public function __construct(
         public string $author,
@@ -273,11 +282,16 @@ final readonly class JiraSummaryTask
         public array $pullRequests,
         public string $jiraHost,
         public string $revision,
+        public array $trackedFixes,
     ) {
     }
 
     public function allowsLink(string $href): bool
     {
+        if ($this->allowsTrackedFix($href)) {
+            return true;
+        }
+
         if (preg_match(JIRA_SUMMARY_PULL_REQUEST_LINK, $href, $pullRequest) === 1) {
             return strcasecmp($pullRequest['repository'], $this->repository) === 0
                 && in_array($pullRequest['number'], $this->pullRequests, strict: true);
@@ -291,6 +305,13 @@ final readonly class JiraSummaryTask
         }
 
         return preg_match(JIRA_SUMMARY_ISSUE_LINK, $href, $issue) === 1 && $issue['host'] === $this->jiraHost;
+    }
+
+    private function allowsTrackedFix(string $href): bool
+    {
+        return preg_match(JIRA_SUMMARY_TRACKED_FIX_LINK, $href, $match) === 1
+            && strcasecmp($match['repository'], $this->repository) === 0
+            && in_array($href, array_map(static fn (string $fix): string => explode('=', $fix, 2)[1], $this->trackedFixes), true);
     }
 
     private function isCanonicalPath(string $path): bool
@@ -661,6 +682,48 @@ function jiraSummaryMarkerViolations(array $lines): array
 }
 
 /**
+ * @param list<array{title: string, group: int, body: list<string>}> $findings
+ * @param list<string> $lines
+ * @param list<string> $expected
+ * @return list<string>
+ */
+function jiraSummaryTrackedFixViolations(array $findings, array $lines, array $expected): array
+{
+    $observed = [];
+    foreach ($findings as $block) {
+        $tracked = false;
+        foreach ($block['body'] as $line) {
+            if (str_starts_with($line, 'h3. ')) {
+                $tracked = preg_match(JIRA_SUMMARY_TRACKED_HEADING, $line) === 1;
+            } elseif ($tracked) {
+                if (preg_match(JIRA_SUMMARY_TRACKED_ROW, $line, $match) !== 1) {
+                    return ['tracked security gaps: each row needs its original severity and one fix link'];
+                }
+
+                $observed[] = $match['severity'] . '=' . $match['url'];
+            }
+        }
+    }
+
+    sort($observed);
+    sort($expected);
+    if ($observed !== $expected) {
+        return ['tracked security gaps: the rows differ from the verified review'];
+    }
+
+    $urls = array_unique(array_map(static fn (string $fix): string => explode('=', $fix, 2)[1], $expected));
+    foreach ($urls as $url) {
+        $links = array_sum(array_map(static fn (string $line): int => substr_count($line, '|' . $url . ']'), $lines));
+        $rowsForUrl = count(array_filter($expected, static fn (string $item): bool => str_ends_with($item, '=' . $url)));
+        if ($links !== $rowsForUrl) {
+            return ['tracked security gaps: a fix link belongs only in its verified rows'];
+        }
+    }
+
+    return [];
+}
+
+/**
  * @return list<string>
  */
 function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryTask $task): array
@@ -676,6 +739,7 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryT
         ...jiraSummaryMarkerViolations($lines),
         ...jiraSummaryShapeViolations($layout, $criteriaUnmet),
         ...jiraSummaryFindingsViolations($findings),
+        ...jiraSummaryTrackedFixViolations($findings, $lines, $task->trackedFixes),
         ...jiraSummaryFindingLinkViolations($findings, $layout['groups'] > 0),
         ...jiraSummaryStrayCodeLinkViolations($lines, $findings),
         ...jiraSummaryMentionViolations($findings, $lines, $task->author),
@@ -685,25 +749,28 @@ function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryT
 
 /**
  * @param list<string> $arguments
- * @return array{options: array<string, string>, pullRequests: list<string>, rest: list<string>}
+ * @return array{options: array<string, string>, pullRequests: list<string>, trackedFixes: list<string>, rest: list<string>}
  */
 function jiraSummaryOptions(array $arguments): array
 {
     $options = ['--author' => 'none', '--criteria' => '', '--jira-issue' => '', '--repository' => '', '--revision' => ''];
     $pullRequests = [];
+    $trackedFixes = [];
 
-    while (count($arguments) > 1 && (array_key_exists($arguments[0], $options) || $arguments[0] === '--pull-request')) {
+    while (count($arguments) > 1 && (array_key_exists($arguments[0], $options) || in_array($arguments[0], ['--pull-request', '--tracked-fix'], true))) {
         $name = (string) array_shift($arguments);
         $value = (string) array_shift($arguments);
 
         if ($name === '--pull-request') {
             $pullRequests[] = $value;
+        } elseif ($name === '--tracked-fix') {
+            $trackedFixes[] = $value;
         } else {
             $options[$name] = $value;
         }
     }
 
-    return ['options' => $options, 'pullRequests' => $pullRequests, 'rest' => $arguments];
+    return ['options' => $options, 'pullRequests' => $pullRequests, 'trackedFixes' => $trackedFixes, 'rest' => $arguments];
 }
 
 /**
@@ -720,7 +787,8 @@ function jiraSummaryCall(array $arguments): ?array
         && preg_match('#^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$#D', $options['--repository']) === 1
         && preg_match('/^(?:|[0-9a-f]{40}|[0-9a-f]{64})$/D', $options['--revision']) === 1
         && $parsed['pullRequests'] !== []
-        && preg_grep('/^[1-9][0-9]*$/D', $parsed['pullRequests'], PREG_GREP_INVERT) === [];
+        && preg_grep('/^[1-9][0-9]*$/D', $parsed['pullRequests'], PREG_GREP_INVERT) === []
+        && preg_grep('#^(?:High|Moderate|Low)=https://[^\s<>|\]]+$#D', $parsed['trackedFixes'], PREG_GREP_INVERT) === [];
 
     if (!$valid || preg_match(JIRA_SUMMARY_ISSUE_LINK, $options['--jira-issue'], $issue) !== 1) {
         return null;
@@ -729,7 +797,7 @@ function jiraSummaryCall(array $arguments): ?array
     return [
         'criteria' => $options['--criteria'],
         'source' => $parsed['rest'][0],
-        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host'], $options['--revision']),
+        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host'], $options['--revision'], $parsed['trackedFixes']),
     ];
 }
 
