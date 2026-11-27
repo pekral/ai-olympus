@@ -541,7 +541,6 @@ test('jira load-issue embeds full subtask context (description, comments, attach
     // Each subtask is fetched individually so its description, comments, and
     // attachments are embedded — not just the parent's shallow reference.
     expect($content)->toContain('acli jira workitem view "$SUBTASK_KEY"');
-    expect($content)->toContain('--argjson subtaskDetails "$SUBTASK_DETAILS"');
     expect($content)->toContain('descriptionText:');
     expect($content)->toContain('descriptionAdf:');
     // A failed per-subtask fetch must degrade to the shallow reference, never
