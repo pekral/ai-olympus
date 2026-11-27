@@ -141,7 +141,7 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
 test('a plain summary omits unused screenshot slots', function (): void {
     [$rc, $error, $calls, $sent] = jiraPreviewPublish(jiraSummaryPage([]));
 
-    expect($rc)->toBe(0)->and($error)->toContain('action=created id=17')
+    expect($rc)->toBe(0, $error)->and($error)->toContain('action=created id=17')
         ->and($calls)->not->toContain('comment update', 'comment delete', 'attachment')
         ->and($sent)->toContain('"expand"');
     expect($sent)->not->toContain(':actor=', '{screenshot:', '"media"');
@@ -160,17 +160,17 @@ test('an incomplete or unknown snapshot and an invalid explicit summary permit n
 
 test('a refused or uncertain creation never issues a compensating write', function (string $failure): void {
     $environment = $failure === 'refused' ? ['CREATE_RC' => '1'] : ['READBACK' => 'missing'];
-    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: $environment);
+    [$rc, $error, $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: $environment);
 
-    expect($rc)->toBe(3)->and(substr_count($calls, 'comment create'))->toBe(1)
+    expect($rc)->toBe(3, $error)->and(substr_count($calls, 'comment create'))->toBe(1)
         ->and($calls)->not->toContain('comment delete', 'comment update', 'attachment');
 })->with(['refused', 'unknown']);
 
 test('losing the screenshot source after an uncertain upload blocks even a text-only fallback', function (): void {
     $intent = "april|time|note|jira attachment example.atlassian.net/TEST-1/missing.png|upload intent; no automatic retry\n";
-    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['PREVIOUS_UPLOAD' => $intent]);
+    [$rc, $error, $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['PREVIOUS_UPLOAD' => $intent]);
 
-    expect($rc)->toBe(3)->and($calls)->not->toContain('comment create', 'attachment', 'comment update', 'comment delete');
+    expect($rc)->toBe(3, $error)->and($calls)->not->toContain('comment create', 'attachment', 'comment update', 'comment delete');
 });
 
 test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (bool $bold): void {
@@ -272,7 +272,7 @@ with patch.object(probe, 'run_cli', side_effect=[auth, '']), patch.object(probe,
         credentials.assert_not_called()
 
 view = {'key': 'TEST-1', 'id': '7', 'self': 'https://example.atlassian.net/rest/api/3/issue/7', 'fields': {'attachment': [
-    {'id': '24', 'content': 'https://other.atlassian.net/rest/api/3/attachment/content/24'}
+    {'id': '24', 'content': 'https://other-example.atlassian.net/rest/api/3/attachment/content/24'}
 ]}}
 with patch.object(probe, 'run_cli', return_value=probe.json.dumps(view)):
     try:

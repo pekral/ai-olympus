@@ -238,6 +238,7 @@ def build_review(root, captured, legacy):
 - **Impact:** Staff cannot complete the delivery.
 - **Faulty Example:** The completed fields disappear after the action.
 - **Expected behavior:** Staff can complete the action.
+- **Evidence:** The {step} scenario reproduced the failure on desktop at the reviewed revision.
 - **Test hint:** Check the delivery screen.
 - **Suggested fix:** Preserve the previous action.
 
@@ -362,7 +363,7 @@ esac
             save(context, plan)
         if mode == "wiki-change":
             source.write_bytes(wiki("Save", "Release"))
-        target = "https://other.atlassian.net/browse/TEST-1" if mode == "target" else KEY
+        target = "https://other-example.atlassian.net/browse/TEST-1" if mode == "target" else KEY
         command = ["--summary", *arguments, target, str(source)]
         if mode == "concurrent":
             with ThreadPoolExecutor(max_workers=2) as pool:

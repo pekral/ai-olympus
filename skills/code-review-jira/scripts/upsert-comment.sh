@@ -405,7 +405,7 @@ UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
 SENT_TEXT_TMP="$(mktemp)"
-trap 'if [[ -n "$MEDIA_WORK" ]]; then rm -rf "$MEDIA_WORK"; fi; rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
+trap 'rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2

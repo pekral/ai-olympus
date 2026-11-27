@@ -315,9 +315,11 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     expect($rule)->toContain('`{code:php} ... {code}`');
     expect($rule)->toContain('`[label|https://example.com]`');
     expect($rule)->toContain('valid ADF only');
-    $adfPublicationRule = 'For a create-only summary, send the ADF with `comment create --body-file` and verify the exact stored document and author.';
+    $adfPublicationRule = 'For an ordinary ACLI summary, the helper sends it with `comment create --body-file` '
+        . 'and verifies the exact stored document and author.';
     expect($rule)->toContain($adfPublicationRule);
     expect(substr_count($rule, $adfPublicationRule))->toBe(1);
+    expect($rule)->toContain('An authorized edit or a screenshot summary uses the bound public API operation');
 
     expect($skill)->toContain('Delegate the JIRA comment to `@skills/pr-summary/SKILL.md`');
     expect($skill)->toContain('@skills/pr-summary/templates/pr-summary-jira.md');

@@ -1374,6 +1374,12 @@ test('attachment scripts never disable TLS validation and keep the token out of 
     foreach (['github', 'jira'] as $tracker) {
         $content = (string) file_get_contents($packageDir . sprintf('/skills/code-review-%s/scripts/download-attachments.sh', $tracker));
         expect($content)->toContain('chmod 600 "$CFG"');
+
+        if ($tracker === 'jira') {
+            expect($content)->toContain('jira_rest_write_config "$CFG"');
+            $content = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/jira-rest.sh');
+        }
+
         expect($content)->toContain('header = "Authorization:');
     }
 });
