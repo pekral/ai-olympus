@@ -77,6 +77,7 @@ function jiraSummarySectionViolations(string $section, ?array $block, bool $shar
 function jiraSummaryFindingsStatus(array $body, string $icon, bool $sharedBlocker): array
 {
     $actionable = array_filter($body, static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
+
     if (($actionable !== [] || $sharedBlocker) && $icon !== '⚠️') {
         return ['findings: show a warning title for an open finding or shared blocker'];
     }

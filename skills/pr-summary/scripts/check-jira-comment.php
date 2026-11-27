@@ -606,10 +606,6 @@ function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
             $violations = [...$violations, ...reportCheckMarkdownViolations($line, JIRA_SUMMARY_MARKDOWN)];
         }
 
-        if (preg_match('/🤖|❌|ℹ/u', $line) === 1) {
-            $violations[] = 'content: use the current summary icons';
-        }
-
         if (preg_match('/\{(?:agent-marker|screenshot:)|:actor=|<!--|=== END OF COMMENT BODY/u', $line) === 1) {
             $violations[] = 'content: technical template content in a visible section';
         }
@@ -654,6 +650,7 @@ function jiraSummaryViolations(string $source, JiraSummaryTask $task): array
     $findings = jiraSummaryFindingsBlocks($layout, true);
 
     return [
+        ...(preg_match('/🤖|❌|ℹ/u', $source) === 1 ? ['content: use the current summary icons'] : []),
         ...jiraSummaryPublishedViolations($source, $task),
         ...jiraSummaryVerdictViolations($lines),
         ...jiraSummaryTitleViolations($lines),
