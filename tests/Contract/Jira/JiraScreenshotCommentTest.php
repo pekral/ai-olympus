@@ -318,8 +318,8 @@ spec.loader.exec_module(prepare)
 pr, head = 'https://github.com/example/project/pull/7', 'a' * 40
 binding = {'site': 'example.atlassian.net', 'key': 'TEST-1', 'account': 'qa'}
 entries = [{'finding_id': fid, 'finding_type': 'bug', 'state': 'head', 'file': fid + '.png'} for fid in ('unique', 'ambiguous', 'unverified')]
-captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True, secret_free=True, regression=False,
-                 visually_verified=entry['finding_id'] != 'unverified', revision=head, sha256='1' * 64) for entry in entries]
+captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui',
+                 own_pixels=True, secret_free=True, regression=False, visually_verified=entry['finding_id'] != 'unverified', revision=head, sha256='1' * 64) for entry in entries]
 records = [dict(finding_id=fid, revision=head, status='new', security=False, file='orders.php', line=line)
            for fid, line in [('unique', 2), ('ambiguous', 3), ('other', 3), ('unverified', 4)]]
 qa = dict(jira_source='https://example.atlassian.net/browse/TEST-1', target=pr, reviewed_head=head, captures=captures)
