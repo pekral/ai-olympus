@@ -5,15 +5,7 @@
 >
 > **A review carries no code.** No field of a finding holds a fenced block or a snippet: `Faulty Example` describes the failing input, call, or state in a sentence, and `Suggested fix` says what to change in a sentence (`@rules/code-review/general.md` *A review carries no code*). Every other line and section stays, because the merge gate, the carry-forward, the recurrence analysis, and `pr-summary` read them.
 >
-> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Known points` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Tracked security gaps
-
-> Render only for verified `tracked-old` decisions, after the known points. Use the original severity and the approved fix URL. Include the `**Review decisions:** <digest>` and `**Security findings:** <total> total · <blocking> blocking` header lines when the review contains decisions. Never show a witness, location, secret or private URL outside its audience.
-
-1. **Moderate** — Already on the default branch. Fix tracked in {verified fix URL}
-
----
-
-## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
+> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Known points` / `## Tracked security gaps` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
 > The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 >
 > **Subject — the four areas, nothing else.** The report covers functionality against the assignment, security, database optimisation, and code rules on the changed lines, and carries no out-of-scope observation and no follow-up proposal (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
@@ -176,6 +168,14 @@ History exposure: not run — the repository is private.  *(render this one body
    **Linked issue:** {URL of the linked issue}
    **Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}
 2. **Security point** — **Linked issue:** {URL of the linked issue}
+
+---
+
+## Tracked security gaps
+
+> Render only for verified `tracked-old` decisions, after the known points. Use the original severity and the approved fix URL. Include the `**Review decisions:** <digest>` and `**Security findings:** <total> total · <blocking> blocking` header lines when the review contains decisions. Never show a witness, location, secret or private URL outside its audience.
+
+1. **Moderate** — Already on the default branch. Fix tracked in {verified fix URL}
 
 ---
 

@@ -123,7 +123,11 @@ test('the extractor and the review state load one shared jq module for the findi
         expect($script)
             ->toContain('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
             ->toContain("include \"finding-defs\";\n")
-            ->and(substr_count($script, '-L "$HERE"'))->toBe(substr_count($script, $program) + substr_count($script, 'include "review-trust";'));
+            ->and(substr_count($script, '-L "$HERE"'))->toBe(
+                substr_count($script, $program)
+                + substr_count($script, 'include "review-trust";')
+                + substr_count($script, 'include "known-tracker";'),
+            );
         expect($script)->not->toContain('def isstr(');
         expect($script)->not->toContain('def severity_rank:');
         expect($script)->not->toContain('def status_rank:');
