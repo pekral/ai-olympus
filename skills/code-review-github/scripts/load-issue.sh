@@ -127,6 +127,7 @@ fi
 
 INPUT="$1"
 KNOWN_PROOF="${2:-}"
+if [[ -n "$KNOWN_PROOF" ]]; then export GH_HOST=github.com; fi
 
 for bin in gh jq; do
   if ! command -v "$bin" >/dev/null 2>&1; then

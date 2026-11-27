@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 require __DIR__ . '/../../_shared/report-check-common.php';
+require __DIR__ . '/tracked-jira-fixes.php';
 
 const JIRA_SUMMARY_MAX_CHARACTERS = 3_000;
 
@@ -28,13 +29,6 @@ const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 
 const JIRA_SUMMARY_PULL_REQUEST_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(?<number>[1-9][0-9]*)'
     . '(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?$#D';
-
-const JIRA_SUMMARY_TRACKED_FIX_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/(?:issues|pull)/[1-9][0-9]*$#D';
-
-const JIRA_SUMMARY_TRACKED_HEADING = '/^h3\. (?:Tracked security gaps|Sledované bezpečnostní mezery)$/uD';
-
-const JIRA_SUMMARY_TRACKED_ROW = '/^\* \*\(security\):\* \*(?<severity>High|Moderate|Low)\* — '
-    . '(?:Already on the default branch\.|Už je na výchozí větvi\.) \[[^|\]]+\|(?<url>https:\/\/[^\s\]]+)\]$/uD';
 
 const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?<commit>[0-9a-f]{40}|[0-9a-f]{64})/'
     . '(?<path>[A-Za-z0-9._~%-]+(?:/[A-Za-z0-9._~%-]+)*)\#L[1-9][0-9]*$#D';
@@ -288,7 +282,7 @@ final readonly class JiraSummaryTask
 
     public function allowsLink(string $href): bool
     {
-        if ($this->allowsTrackedFix($href)) {
+        if (jiraSummaryAllowsTrackedFix($href, $this->repository, $this->trackedFixes)) {
             return true;
         }
 
@@ -305,13 +299,6 @@ final readonly class JiraSummaryTask
         }
 
         return preg_match(JIRA_SUMMARY_ISSUE_LINK, $href, $issue) === 1 && $issue['host'] === $this->jiraHost;
-    }
-
-    private function allowsTrackedFix(string $href): bool
-    {
-        return preg_match(JIRA_SUMMARY_TRACKED_FIX_LINK, $href, $match) === 1
-            && strcasecmp($match['repository'], $this->repository) === 0
-            && in_array($href, array_map(static fn (string $fix): string => explode('=', $fix, 2)[1], $this->trackedFixes), true);
     }
 
     private function isCanonicalPath(string $path): bool
@@ -682,48 +669,6 @@ function jiraSummaryMarkerViolations(array $lines): array
 }
 
 /**
- * @param list<array{title: string, group: int, body: list<string>}> $findings
- * @param list<string> $lines
- * @param list<string> $expected
- * @return list<string>
- */
-function jiraSummaryTrackedFixViolations(array $findings, array $lines, array $expected): array
-{
-    $observed = [];
-    foreach ($findings as $block) {
-        $tracked = false;
-        foreach ($block['body'] as $line) {
-            if (str_starts_with($line, 'h3. ')) {
-                $tracked = preg_match(JIRA_SUMMARY_TRACKED_HEADING, $line) === 1;
-            } elseif ($tracked) {
-                if (preg_match(JIRA_SUMMARY_TRACKED_ROW, $line, $match) !== 1) {
-                    return ['tracked security gaps: each row needs its original severity and one fix link'];
-                }
-
-                $observed[] = $match['severity'] . '=' . $match['url'];
-            }
-        }
-    }
-
-    sort($observed);
-    sort($expected);
-    if ($observed !== $expected) {
-        return ['tracked security gaps: the rows differ from the verified review'];
-    }
-
-    $urls = array_unique(array_map(static fn (string $fix): string => explode('=', $fix, 2)[1], $expected));
-    foreach ($urls as $url) {
-        $links = array_sum(array_map(static fn (string $line): int => substr_count($line, '|' . $url . ']'), $lines));
-        $rowsForUrl = count(array_filter($expected, static fn (string $item): bool => str_ends_with($item, '=' . $url)));
-        if ($links !== $rowsForUrl) {
-            return ['tracked security gaps: a fix link belongs only in its verified rows'];
-        }
-    }
-
-    return [];
-}
-
-/**
  * @return list<string>
  */
 function jiraSummaryViolations(string $source, bool $criteriaUnmet, JiraSummaryTask $task): array
@@ -797,7 +742,14 @@ function jiraSummaryCall(array $arguments): ?array
     return [
         'criteria' => $options['--criteria'],
         'source' => $parsed['rest'][0],
-        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $issue['host'], $options['--revision'], $parsed['trackedFixes']),
+        'task' => new JiraSummaryTask(
+            $options['--author'],
+            $options['--repository'],
+            $parsed['pullRequests'],
+            $issue['host'],
+            $options['--revision'],
+            $parsed['trackedFixes'],
+        ),
     ];
 }
 

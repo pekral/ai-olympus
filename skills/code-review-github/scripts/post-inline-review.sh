@@ -9,7 +9,7 @@
 # The file name keeps the word "inline" because the installed copies, the audit lines, and the callers name it.
 #
 # Usage:
-#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> <FINDINGS_FILE|->
+#   post-inline-review.sh post    <NUMBER|URL> --commit-id <SHA> --meta-file <RECORD_FILE> --walkthrough-file <FILE> [--decision-state <STATE_FILE>] <FINDINGS_FILE|->
 #   post-inline-review.sh resolve <NUMBER|URL> --fixed <FINDING_ID>[,<FINDING_ID>...]
 #   post-inline-review.sh --self-test
 #
