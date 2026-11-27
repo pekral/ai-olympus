@@ -182,7 +182,7 @@ test('only an explicit operator edit updates the named unchanged attributed comm
     $author = ['accountId' => $case === 'foreign' ? 'another' : 'qa'];
     $page = jiraSummaryPage([['author' => $author, 'body' => $body, 'id' => '17']]);
     [$rc, , $calls] = jiraPreviewPublish($page, $prior, edit: $case !== 'implicit');
-    expect($rc)->toBe(in_array($case, ['explicit', 'historical'], true) ? 0 : 3)
-        ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], true) ? 1 : 0)
+    expect($rc)->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 0 : 3)
+        ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
 })->with(['explicit', 'historical', 'implicit', 'edited', 'foreign']);

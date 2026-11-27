@@ -737,7 +737,7 @@ test('attributed Jira summaries from the shared account never become operator or
     $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
     $comments = [
         mergePlanJiraComment('10001', 'acc-agent', 'Round one. ' . $marker),
-        mergePlanJiraComment('10002', 'acc-agent', "\n" . $prefix . "AI Olympus · A model summary."),
+        mergePlanJiraComment('10002', 'acc-agent', "\n" . $prefix . 'AI Olympus · A model summary.'),
         mergePlanJiraComment('10003', 'acc-agent', 'Round two. ' . $marker),
     ];
     $result = mergePlanJira(array_column($comments, 'view'), array_column($comments, 'list'));
