@@ -1,4 +1,4 @@
-🤖 AI Olympus · [Deploy verdict in the assignment language. Name any blocking finding. State whether the change has been merged or deployed.]
+AI Olympus · [Deploy verdict in the assignment language. Name any blocking finding. State whether the change has been merged or deployed.]
 
 {expand:⚠️ Acceptance criteria}
 # ✅ [Requirement and the observed result that satisfies it.]
@@ -13,7 +13,7 @@
 # ⚠️ [Precondition. Action. Expected result. Record the observed outcome only when it was verified.]
 {expand}
 
-{expand:ℹ️ What changed and what it affects}
+{expand:What changed and what it affects}
 * [Observable change and affected feature.]
 {expand}
 
@@ -23,6 +23,6 @@ TEMPLATE GUIDANCE
 
 Translate the four section titles to the assignment language. In Czech use Akceptační kritéria, Nálezy z kontroly kódu, Testovací scénáře, Co se změnilo a co to ovlivní. Keep the attribution at the start of the verdict. Its presence never proves ownership of a comment.
 
-Choose the icon independently for every section. Use ❌ when at least one item failed or blocks the merge, otherwise ⚠️ when an answer or verification is pending, otherwise ✅ when evidence confirms the result. An unreviewed change or an unexecuted test is pending. Use ℹ️ for the change summary and for an explicitly out-of-scope criterion. If no criteria were given, say so. Include every stated criterion in a numbered list and mark each one's own status. Keep the actual finding and code-location link together, using the types, ordering and author mentions in references/jira-shape.md. For multiple pull requests follow references/several-pull-requests.md.
+Use ⚠️ for a failed, blocking or pending item and explain which applies in words. Use ✅ for a verified result. An unreviewed change or an unexecuted test is pending. Omit the icon from the impact heading and from numbered informational criteria. If no criteria were given, say so. Include every stated criterion in a numbered list and mark each one's own status. Keep the actual finding and code-location link together, using the types, ordering and author mentions in references/jira-shape.md. For multiple pull requests follow references/several-pull-requests.md.
 
 Separate prerequisites, steps and expected outcomes in plain language. A model scenario must be labelled and never claims a live test. Keep technical instructions below the template boundary. The development panel shows associated pull requests when GitHub for Jira is configured and the real issue key is included in the pull request title.

@@ -2157,7 +2157,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run.** Follow the byline, deploy verdict and four status-labelled sections',
+        '**JIRA renders one shape on every run.** Follow the byline, deploy verdict and four sections',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 

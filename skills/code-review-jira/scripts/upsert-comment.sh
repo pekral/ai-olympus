@@ -360,11 +360,15 @@ if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string
     echo "upsert-comment.sh: summaries require --create or an exact legacy comment ID with --previous-adf" >&2
     exit 1
   fi
+  if [[ "$BODY" == *🤖* || "$BODY" == *❌* || "$BODY" == *ℹ* ]]; then
+    echo "upsert-comment.sh: summary contains a retired icon" >&2
+    exit 1
+  fi
   if [[ "$BODY" == *'{agent-marker}'* || "$BODY" == *':actor='* || "$BODY" == *'=== END OF COMMENT BODY'* || "$BODY" == *'<!--'* ]]; then
     echo "upsert-comment.sh: summary contains technical template content" >&2
     exit 1
   fi
-elif [[ "$SUMMARY_REQUIRED" == 1 || -n "$PREVIOUS_ADF" || "$BODY" == *"🤖 AI Olympus"* ]]; then
+elif [[ "$SUMMARY_REQUIRED" == 1 || -n "$PREVIOUS_ADF" || "$BODY" == *"AI Olympus ·"* || "$BODY" == *"🤖 AI Olympus"* ]]; then
   usage
   exit 1
 elif ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then

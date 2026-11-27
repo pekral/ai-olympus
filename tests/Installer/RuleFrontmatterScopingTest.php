@@ -498,7 +498,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: floor item 1 of *Conflict resolution* points at its one exception, the switched-off walkthrough (issue #666).
         // Re-baselined: a review that the session wrote itself because the project forbids helper agents says so in its header (issue #667).
         // #712 changes the JIRA review shape and screenshot boundaries.
-        'rules/code-review/general.md' => '007f49cc0d4bba7ad9fbac5d3393957956f0451ecaa97a9334d8e09a142790cb',
+        'rules/code-review/general.md' => '990d64cf824215aa0b32b38d642a2c40b03de72f37e6503c52cd53c257ec134a',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -631,7 +631,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
         // #712 changes the JIRA review shape and screenshot boundaries.
-        'rules/reports/general.md' => '7cb22552f574d980bc415059b59cb2ec392e51403ff8beefb76efd82d44c0639',
+        'rules/reports/general.md' => 'bc17f12f5dbc681c0d3423935561b210d657c443e0cd408da52350f3de95dc4a',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

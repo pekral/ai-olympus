@@ -12,7 +12,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 
 - **GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.
 - **`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.
-- **JIRA renders one shape on every run.** Follow the byline, deploy verdict and four status-labelled sections of `references/jira-shape.md`.
+- **JIRA renders one shape on every run.** Follow the byline, deploy verdict and four sections of `references/jira-shape.md`.
 - **`How to test`** (GitHub and Bugsnag) → a scenario a human follows: every step names a concrete input and a must-hold outcome.
 - On GitHub and Bugsnag a closing line links the PR and source issue.
 - Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.
@@ -222,7 +222,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
 
 6. **Write the body sections.** On GitHub and Bugsnag, write `What changed` — the four required fields in order (`Problem`, `Cause`, `Result`, `What I fixed`), then the two conditional ones (`Side benefit`, `Filed separately`) only when each has content. On JIRA follow `references/jira-shape.md` for all four sections. Derive facts from the commits, diff and tracker context.
 7. **Write `How to test`** (GitHub and Bugsnag) — an ordered scenario per *How to test* above: concrete inputs, an explicit must-hold outcome per step, the gating toggle enabled in step 1 when the change is gated, and the regression flows named at the end. Use caller-supplied steps as passed when the caller provided them.
-8. **Assemble and render.** On GitHub and Bugsnag, place the embedded blocks, when the caller passed any, directly above the closing links line, separated by a single blank line — each rendered exactly as received, with no re-formatting, no language conversion, and no re-ordering. On JIRA, each question closes its own criterion or finding. Translate all headings, keep their status icons and use the 3 000-character visible-text cap.
+8. **Assemble and render.** On GitHub and Bugsnag, place the embedded blocks, when the caller passed any, directly above the closing links line, separated by a single blank line — each rendered exactly as received, with no re-formatting, no language conversion, and no re-ordering. On JIRA, each question closes its own criterion or finding. Translate all headings, keep the status icons on the first three and use the 3 000-character visible-text cap.
 
 ---
 

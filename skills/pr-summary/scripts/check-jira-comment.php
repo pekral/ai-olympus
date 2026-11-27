@@ -17,7 +17,7 @@ const JIRA_SUMMARY_BLOCK_OPEN = '/^\{expand:(?<title>[^{}]+)\}$/u';
 
 const JIRA_SUMMARY_BLOCK_CLOSE = '{expand}';
 
-const JIRA_SUMMARY_STATUS = '(?:✅|⚠️|❌)';
+const JIRA_SUMMARY_STATUS = '(?:✅|⚠️)';
 
 const JIRA_SUMMARY_FINDING_TYPE = '/^\* \*\((?<type>security|bug|tests|refactor|performance|documentation)\):\* \S/u';
 
@@ -604,6 +604,10 @@ function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
     foreach ($lines as $line) {
         if ($line !== '----') {
             $violations = [...$violations, ...reportCheckMarkdownViolations($line, JIRA_SUMMARY_MARKDOWN)];
+        }
+
+        if (preg_match('/🤖|❌|ℹ/u', $line) === 1) {
+            $violations[] = 'content: use the current summary icons';
         }
 
         if (preg_match('/\{(?:agent-marker|screenshot:)|:actor=|<!--|=== END OF COMMENT BODY/u', $line) === 1) {

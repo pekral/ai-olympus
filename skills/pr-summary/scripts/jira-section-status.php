@@ -17,7 +17,7 @@ function jiraSummaryTitleViolations(array $lines): array
     for ($group = 0; $group <= $layout['groups']; $group++) {
         $blocks = jiraSummaryGroupBlocks($layout['blocks'], $group);
         $number = $numbers[$group - 1] ?? '';
-        $sharedBlocker = $shared !== null && str_starts_with($shared['title'], '❌ ') && $number !== ''
+        $sharedBlocker = $shared !== null && str_starts_with($shared['title'], '⚠️ ') && $number !== ''
             && preg_match('/\bPR ' . preg_quote($number, '/') . '(?![0-9])/u', implode(' ', $shared['body'])) === 1;
         $sections = jiraSummarySectionTitles($group, $layout['groups'], count($blocks));
 
@@ -55,10 +55,10 @@ function jiraSummarySectionTitles(int $group, int $groups, int $count): array
 function jiraSummarySectionViolations(string $section, ?array $block, bool $sharedBlocker): array
 {
     $changes = str_starts_with($section, 'What changed');
-    $prefix = $changes ? 'ℹ️' : JIRA_SUMMARY_STATUS;
+    $prefix = $changes ? '' : JIRA_SUMMARY_STATUS . ' ';
 
-    if ($block === null || preg_match("/^{$prefix} (?:{$section})$/uD", $block['title']) !== 1 || $block['body'] === []) {
-        return ['sections: expected a populated section with a status icon: ' . $section];
+    if ($block === null || preg_match("/^{$prefix}(?:{$section})$/uD", $block['title']) !== 1 || $block['body'] === []) {
+        return ['sections: expected a populated section with the prescribed title: ' . $section];
     }
 
     $icon = explode(' ', $block['title'], 2)[0];
@@ -67,7 +67,7 @@ function jiraSummarySectionViolations(string $section, ?array $block, bool $shar
         return jiraSummaryFindingsStatus($block['body'], $icon, $sharedBlocker);
     }
 
-    return $changes ? [] : jiraSummaryNumberedStatus($block['body'], $icon);
+    return $changes ? [] : jiraSummaryNumberedStatus($block['body'], $icon, str_starts_with($section, 'Acceptance'));
 }
 
 /**
@@ -77,40 +77,31 @@ function jiraSummarySectionViolations(string $section, ?array $block, bool $shar
 function jiraSummaryFindingsStatus(array $body, string $icon, bool $sharedBlocker): array
 {
     $actionable = array_filter($body, static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
-    $pending = '/^\* \*\([a-z]+\):\* (?:\[~accountid:[^\]]+\] )?⚠️ /u';
-    $blockers = array_filter($actionable, static fn (string $line): bool => preg_match($pending, $line) !== 1);
+    if (($actionable !== [] || $sharedBlocker) && $icon !== '⚠️') {
+        return ['findings: show a warning title for an open finding or shared blocker'];
+    }
 
-    $allowed = match (true) {
-        $blockers !== [] => ['❌'],
-        $sharedBlocker => ['❌', '⚠️'],
-        $actionable !== [] => ['⚠️'],
-        default => ['✅', '⚠️'],
-    };
-
-    $problem = 'findings: show a red title for an open blocking finding, amber for a pending question, or inherit its shared blocker';
-
-    return in_array($icon, $allowed, true) ? [] : [$problem];
+    return [];
 }
 
 /**
  * @param list<string> $body
  * @return list<string>
  */
-function jiraSummaryNumberedStatus(array $body, string $icon): array
+function jiraSummaryNumberedStatus(array $body, string $icon, bool $criteria): array
 {
     $icons = [];
     $violations = [];
 
     foreach ($body as $line) {
-        if (preg_match('/^# (✅|⚠️|❌|ℹ️) \S/u', $line, $match) === 1) {
+        if (preg_match('/^# (✅|⚠️) \S/u', $line, $match) === 1) {
             $icons[] = $match[1];
-        } else {
+        } elseif (!$criteria || preg_match('/^# \S/u', $line) !== 1) {
             $violations[] = 'sections: number each criterion or scenario and give it a status';
         }
     }
 
     $expected = match (true) {
-        in_array('❌', $icons, true) => '❌',
         in_array('⚠️', $icons, true), !in_array('✅', $icons, true) => '⚠️',
         default => '✅',
     };

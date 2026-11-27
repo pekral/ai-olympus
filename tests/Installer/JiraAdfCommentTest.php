@@ -217,7 +217,7 @@ test('april runs three publication checks before a JIRA comment counts as publis
 
     // 3. The structural read-back, and the verdict a flat body produces.
     expect($april)->toContain('**Read the comment back and confirm its structure, not only that it exists.**');
-    expect($april)->toContain('four status-labelled `expand` nodes');
+    expect($april)->toContain('four `expand` nodes with status icons in the first three titles');
     expect($april)->toContain('**A single `paragraph` of flat text means the conversion failed**');
     expect($april)->toContain('**publication failure, not a cosmetic one**');
 

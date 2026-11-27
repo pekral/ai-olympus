@@ -110,9 +110,9 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         jiraSummaryVerdict(),
         '',
         '{expand:⚠️ Akceptační kritéria}',
-        '# ℹ️ Zadání nemá výslovná kritéria.',
+        '# Zadání nemá výslovná kritéria.',
         '{expand}',
-        '{expand:❌ Nálezy z kontroly kódu}',
+        '{expand:⚠️ Nálezy z kontroly kódu}',
         '',
         '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. '
             . 'Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
@@ -126,7 +126,7 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         '{expand:⚠️ Testovací scénáře}',
         '# ⚠️ Po připojení obchodu spusťte synchronizaci a ověřte, že se nové objednávky zobrazí.',
         '{expand}',
-        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
+        '{expand:Co se změnilo a co to ovlivní}',
         jiraSummaryChangesLine(),
         '* Připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
         '{expand}',
@@ -153,14 +153,14 @@ function jiraSummaryMarkerBlock(): string
 
 function jiraSummaryVerdict(): string
 {
-    return '🤖 AI Olympus · Za mě je to skoro hotové, ale zatím to nejde nasadit. '
+    return 'AI Olympus · Za mě je to skoro hotové, ale zatím to nejde nasadit. '
         . 'Sloučení blokuje jeden bod z kontroly kódu níž: synchronizace po nasazení selže. Nic není sloučené ani nasazené.';
 }
 
 function jiraSummaryWithCriteria(): string
 {
     return str_replace(
-        '# ℹ️ Zadání nemá výslovná kritéria.',
+        '# Zadání nemá výslovná kritéria.',
         '# ⚠️ Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
         jiraSummaryWithoutCriteria(),
     );
@@ -178,7 +178,7 @@ function jiraSummaryForTwoPullRequests(): string
         '{expand:⚠️ Testovací scénáře}',
         '# ⚠️ Po připojení obchodu spusťte synchronizaci a ověřte, že se nové objednávky zobrazí.',
         '{expand}',
-        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
+        '{expand:Co se změnilo a co to ovlivní}',
         '* Synchronizace obchodu nově zpracuje jen nové objednávky.',
         '{expand}',
 
@@ -186,17 +186,17 @@ function jiraSummaryForTwoPullRequests(): string
 
     return implode("\n\n", [
         jiraSummaryVerdict(),
-        "{expand:❌ Akceptační kritéria}\n# ❌ Hromadné odeslání vyžaduje opravu.\n{expand}",
+        "{expand:⚠️ Akceptační kritéria}\n# ⚠️ Hromadné odeslání vyžaduje opravu.\n{expand}",
         $group(11),
         $group(12),
     ]);
 }
 
 test('a grouped summary cannot hide a blocker behind a green findings title', function (): void {
-    $source = str_replace('{expand:❌ Nálezy z kontroly kódu}', '{expand:✅ Nálezy z kontroly kódu}', jiraSummaryWithCriteria());
+    $source = str_replace('{expand:⚠️ Nálezy z kontroly kódu}', '{expand:✅ Nálezy z kontroly kódu}', jiraSummaryWithCriteria());
     $process = runJiraSummaryCheck($source, 'present');
 
-    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('red title for an open blocking finding');
+    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('warning title for an open finding');
 });
 
 test('a general pull request link is refused inside the impact summary', function (string $suffix): void {
@@ -208,7 +208,7 @@ test('a general pull request link is refused inside the impact summary', functio
 
 test('an explicitly nonblocking question uses the pending title', function (): void {
     $source = str_replace(
-        ['{expand:❌ Nálezy z kontroly kódu}', '* *(bug):* '],
+        ['{expand:⚠️ Nálezy z kontroly kódu}', '* *(bug):* '],
         ['{expand:⚠️ Nálezy z kontroly kódu}', '* *(bug):* ⚠️ '],
         jiraSummaryWithoutCriteria(),
     );
@@ -217,9 +217,9 @@ test('an explicitly nonblocking question uses the pending title', function (): v
 });
 
 test('a shared blocker reaches its group without duplicating the finding', function (): void {
-    $source = str_replace('h2. PR #11', "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
+    $source = str_replace('h2. PR #11', "{expand:⚠️ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
         . jiraSummaryCodeLink() . "\nPR #12 — {{Synchronizace}} čeká na samostatnou kontrolu.\n{expand}\nh2. PR #11", jiraSummaryForTwoPullRequests());
-    $source = str_replace('{expand:✅ Nálezy z kontroly kódu}', '{expand:❌ Nálezy z kontroly kódu}', $source);
+    $source = str_replace('{expand:✅ Nálezy z kontroly kódu}', '{expand:⚠️ Nálezy z kontroly kódu}', $source);
 
     expect(runJiraSummaryCheck($source, 'present')->getExitCode())->toBe(0)
         ->and(
@@ -238,10 +238,10 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'all criteria met or no criteria stated' => [jiraSummaryWithoutCriteria(), 'none'],
     'a stack with a shared point above the groups' => [
         str_replace(
-            "{expand:❌ Akceptační kritéria}\n# ❌ Hromadné odeslání vyžaduje opravu.\n{expand}",
-            "{expand:❌ Akceptační kritéria}\n# ❌ Objednávka selže.\n{expand}\n"
-                . "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
-            jiraSummaryForTwoPullRequests(),
+            "{expand:⚠️ Akceptační kritéria}\n# ⚠️ Hromadné odeslání vyžaduje opravu.\n{expand}",
+            "{expand:⚠️ Akceptační kritéria}\n# ⚠️ Objednávka selže.\n{expand}\n"
+                . "{expand:⚠️ Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
+            str_replace('{expand:✅ Nálezy', '{expand:⚠️ Nálezy', jiraSummaryForTwoPullRequests()),
         ),
         'none',
     ],
@@ -682,16 +682,16 @@ test(
         '„Refresh products“ nyní aktualizuje jen produkty.',
         'write what changed and what it affects as a few bullets, one fact per bullet',
     ],
-    'a TL;DR label' => ['{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
+    'a TL;DR label' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
     'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
     'the label written with a space' => [
-        '{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label',
+        '{expand:Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label',
     ],
 ]);
 
 test('a section outside a collapsed block is refused', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['{expand:ℹ️ Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"],
+        ['{expand:Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"],
     );
     $process = runJiraSummaryCheck($source, 'none');
 
@@ -706,14 +706,14 @@ test('a collapsed block must close and never nests', function (string $search, s
         ->and($process->getOutput())->toContain('violation: blocks: ' . $violation);
 })->with([
     'a block inside another one' => [
-        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
-        "{expand:ℹ️ Co se změnilo a co to ovlivní}\n{expand:Uvnitř}",
+        '{expand:Co se změnilo a co to ovlivní}',
+        "{expand:Co se změnilo a co to ovlivní}\n{expand:Uvnitř}",
         'a collapsed block inside another one: {expand:Uvnitř}',
     ],
     'a block without its closing line' => [
         "beze změny.\n{expand}",
         'beze změny.',
-        'a collapsed block without its closing line: ℹ️ Co se změnilo a co to ovlivní',
+        'a collapsed block without its closing line: Co se změnilo a co to ovlivní',
     ],
 ]);
 

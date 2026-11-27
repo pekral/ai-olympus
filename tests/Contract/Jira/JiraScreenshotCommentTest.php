@@ -98,7 +98,7 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
 
     $arguments = $edit ? ['--operator-edit', ...$arguments] : $arguments;
     $entry = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts/upsert-comment.sh';
-    $body = ($malformed ? 'Broken byline' : "\n🤖 AI Olympus · Modelový výsledek.") . "\n{expand:✅ Findings from the code review}\n"
+    $body = ($malformed ? 'Broken byline' : "\nAI Olympus · Modelový výsledek.") . "\n{expand:✅ Findings from the code review}\n"
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
         ...$environment,
@@ -171,7 +171,7 @@ test('migration requires the original exact marker, account and unchanged body',
 })->with(['owned', 'another account', 'another email', 'missing account', 'missing authenticated account', 'quoted', 'edited']);
 
 test('only an explicit operator edit updates the named unchanged attributed comment of the same account', function (string $case): void {
-    $paragraph = ['content' => [['text' => '🤖 AI Olympus · Preview.', 'type' => 'text']], 'type' => 'paragraph'];
+    $paragraph = ['content' => [['text' => ($case === 'historical' ? '🤖 ' : '') . 'AI Olympus · Preview.', 'type' => 'text']], 'type' => 'paragraph'];
     $prior = ['content' => [$paragraph], 'type' => 'doc', 'version' => 1];
     $body = $prior;
 
@@ -182,7 +182,7 @@ test('only an explicit operator edit updates the named unchanged attributed comm
     $author = ['accountId' => $case === 'foreign' ? 'another' : 'qa'];
     $page = jiraSummaryPage([['author' => $author, 'body' => $body, 'id' => '17']]);
     [$rc, , $calls] = jiraPreviewPublish($page, $prior, edit: $case !== 'implicit');
-    expect($rc)->toBe($case === 'explicit' ? 0 : 3)
-        ->and(substr_count($calls, 'comment update'))->toBe($case === 'explicit' ? 1 : 0)
+    expect($rc)->toBe(in_array($case, ['explicit', 'historical'], true) ? 0 : 3)
+        ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], true) ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
-})->with(['explicit', 'implicit', 'edited', 'foreign']);
+})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign']);
