@@ -333,7 +333,7 @@ spec.loader.exec_module(prepare)
 pr, head = 'https://github.com/example/project/pull/7', 'a' * 40
 binding = {'site': 'example.atlassian.net', 'key': 'TEST-1', 'account': 'qa'}
 entries = [{'finding_id': fid, 'finding_type': 'bug', 'state': 'head', 'file': fid + '.png'} for fid in ('unique', 'ambiguous', 'unverified')]
-captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True,
+captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True, secret_free=True,
                  visually_verified=entry['finding_id'] != 'unverified', revision=head, sha256='1' * 64) for entry in entries]
 records = [dict(finding_id=fid, revision=head, status='new', security=False, file='orders.php', line=line)
            for fid, line in [('unique', 2), ('ambiguous', 3), ('other', 3), ('unverified', 4)]]
@@ -455,11 +455,11 @@ with tempfile.TemporaryDirectory() as temp:
     digest = hashlib.sha256(data).hexdigest()
     def audit(file, target, code, detail):
         with file.open('a') as out:
-            out.write(f'april|time|note|{target}|{code} {detail}\n')
+            out.write(f'april|time|note|{target}|write failed (exit {code}); {detail}; the remote state was not verified\n')
     with patch.dict(os.environ, {'AUDIT_TRAIL_FILE': str(ledger)}), patch.object(media, 'run_cli', return_value=str(root)), \
          patch.object(media, 'authenticated_identity', return_value=('example.atlassian.net', 'qa', 'fixture')), \
          patch.object(media, 'attachment_inventory', return_value=[]), patch.object(media, 'audit_record', side_effect=audit), \
-         patch.object(media, 'upload', side_effect=TimeoutError) as upload:
+         patch.object(media, 'check_api_actor'), patch.object(media, 'upload', side_effect=TimeoutError) as upload:
         missing = {'id':'17','size':len(data),'filename':'approved.png','mimeType':'image/png','author':{'accountId':'foreign'}}
         for inventory in ([], [], OSError(), [missing]):
             with patch.object(media, 'attachment_inventory', side_effect=[inventory]):

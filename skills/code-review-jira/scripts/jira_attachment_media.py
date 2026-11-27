@@ -97,9 +97,14 @@ def authenticated_identity(expected_site=None, expected_actor=None):
     require(account and not any(c.isspace() for c in account), "cannot establish the acli account ID")
     require(expected_actor is None or expected_actor == account, "the Jira account changed", DestinationChanged)
     header = authorization_for(email[0])
-    code, locations, payload = public_get(site[0], "/rest/api/3/myself", header, 65536)
-    require(code == 200 and not locations and account and json.loads(payload)["accountId"] == account, "mismatch: the attachment credential did not confirm the acli account")
+    check_api_actor(site[0], account, header)
     return site[0], account, header
+
+
+def check_api_actor(site, actor, header):
+    code, locations, payload = public_get(site, "/rest/api/3/myself", header, 65536)
+    require(code == 200 and not locations and actor and json.loads(payload)["accountId"] == actor,
+            "mismatch: the attachment credential did not confirm the acli account", DestinationChanged)
 
 
 def verified_profile(expected_site=None, expected_actor=None):
@@ -107,9 +112,15 @@ def verified_profile(expected_site=None, expected_actor=None):
     return site, actor
 
 
-def attachment_inventory(key, site, issue_id=None):
+def attachment_inventory(key, site, issue_id=None, *, header=None):
     target_key(key)
-    view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
+    if header is None:
+        view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
+    else:
+        require(isinstance(issue_id, str) and re.fullmatch(r"[1-9][0-9]*", issue_id), "invalid Jira issue ID")
+        code, locations, payload = public_get(site, "/rest/api/3/issue/" + issue_id + "?fields=attachment", header, 1048576)
+        require(code == 200 and not locations, "cannot read the target attachment inventory")
+        view = json.loads(payload)
     try:
         origin = issue_origin(view, site, key, issue_id)
     except (KeyError, TypeError, ValueError) as bad:

@@ -656,7 +656,7 @@ publish_screenshots() {
       | [$qa[0].captures[] | select(.finding_id == $e.finding_id and .state == $e.state)] as $captures
       | select(($captures|length) == 1)
       | $captures[0] as $capture
-      | select($capture.kind == "ui" and $capture.visually_verified == true and $capture.own_pixels == true
+      | select($capture.kind == "ui" and $capture.visually_verified == true and $capture.own_pixels == true and $capture.secret_free == true
           and $capture.finding_type == $e.finding_type and $capture.do_not_file_publicly == false
           and $capture.file == $e.file and ($capture.sha256 | test("^[0-9a-f]{64}$"))
           and ($capture.step | type == "string" and length > 0) and ($capture.viewport | IN("desktop","mobile")) and ($failed | split("\n") | index($capture.step + "\t" + $capture.viewport)) != null
@@ -1907,7 +1907,7 @@ REPORT
   shot_entry() {
     jq -n -c --arg id "$1" --arg type "$2" --arg state "$3" --arg file "$shotrepo/.claude/run/demo.artifacts/step-$3.png" \
       '{finding_id: $id, finding_type: $type, do_not_file_publicly: false, state: $state, default_branch: (if $state == "base" then "master" else null end), file: $file,
-        masking: "verified", crop: "element", own_data_only: true, not_error_page: true, masked_in_capture_session: true}'
+        masking: "none", crop: "element", own_data_only: true, not_error_page: true, masked_in_capture_session: false}'
   }
   shot_manifest="$shotrepo/.claude/run/demo.screenshots.json"
   local canonical="$tmp/shot-canonical.png" shot_digest
@@ -1916,7 +1916,7 @@ REPORT
   jq -n --arg head "$sha" --arg id "$shot_id" --arg digest "$shot_digest" --arg dir "$shotrepo/.claude/run/demo.artifacts" '
     {target:"https://github.com/o/r/pull/7",reviewed_head:$head,captures: [
       ("head","base") as $s | {finding_id:$id,finding_type:"bug",do_not_file_publicly:false,state:$s,kind:"ui",
-      step:"Open the page",viewport:"desktop",verdict:(if $s=="head" then "failed" else "passed" end),visually_verified:true,own_pixels:true,
+      step:"Open the page",viewport:"desktop",verdict:(if $s=="head" then "failed" else "passed" end),visually_verified:true,own_pixels:true,secret_free:true,
       revision:(if $s=="head" then $head else "1111111111111111111111111111111111111111" end),sha256:$digest,file:($dir+"/step-"+$s+".png")} ]}' >"$shotrepo/.claude/run/demo.screenshot-evidence.json"
   export GH_EXPECTED_BLOB
   GH_EXPECTED_BLOB="$(git hash-object "$canonical")"
@@ -1965,10 +1965,10 @@ REPORT
   GH_PRIVATE_VALUE=true POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" META_FILE="$shot_record" run_post "[$f_shot_priv]"
   check 'a finding flagged do_not_file_publicly gets no screenshot on a private repository either' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"
 
-  printf '[%s]' "$(jq -c '.masking = "none"' <<<"$(shot_entry "$shot_id" bug head)")" >"$shot_manifest"
+  printf '[%s]' "$(jq -c '.masking = "verified"' <<<"$(shot_entry "$shot_id" bug head)")" >"$shot_manifest"
   POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" META_FILE="$shot_record" run_post "[$f_shot_a]"
-  check 'a screenshot whose masking is not verified leaves the finding text only, and the review is published' \
-    "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && grep -q 'masking is not verified' "$tmp/stderr" && echo yes || echo no)"
+  check 'a masked screenshot leaves the finding text only, and the review is published' \
+    "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && grep -q 'capture must use unmodified pixels' "$tmp/stderr" && echo yes || echo no)"
   printf '[%s]' "$(shot_entry "$id2" bug head)" >"$shot_manifest"
   POST_CWD="$shotrepo" POST_SHOTS="$shot_manifest" META_FILE="$shot_record" run_post "[$f_shot_a]"
   check 'a screenshot of a finding that is not in the review is not uploaded' "$([[ $rc -eq 0 && ! -s "$tmp/shot.puts" ]] && echo yes || echo no)"

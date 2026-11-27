@@ -51,15 +51,11 @@ test('the capture is cropped and never a full page', function (): void {
     expect($reference)->toContain('It covers the failing element within the tested viewport, never the full page (`fullPage: true`).');
 });
 
-test('masking runs in the capturing session and covers values, split text, shadow roots, and embedded content', function (): void {
+test('the walkthrough keeps its own test values visible and withholds a crop containing credentials', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
-    expect($reference)->toContain('**Masking ran in the browser session that writes the file, right before the capture.**')
-        ->and($reference)->toContain('every `input`, `textarea`, and `select`')
-        ->and($reference)->toContain('the text of an element that is spread over several child nodes')
-        ->and($reference)->toContain('every open shadow root')
-        ->and($reference)->toContain('It paints a canvas, an `img`, a `video`, SVG text, and a cross-origin iframe in the cropped area over as a whole.')
-        ->and($reference)->toContain('A secret value of the environment is never shown.');
+    expect($reference)->toContain('Capture without masks, overlays, or redaction.')
+        ->and($reference)->toContain('If any secret is visible or any region cannot be inspected, leave the finding text-only.');
 });
 
 test('the baseline of a regression runs before the head migrations or in its own database', function (): void {

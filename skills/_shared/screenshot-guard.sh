@@ -24,8 +24,8 @@
 #   and: finding_id is `r-` or `f-` and 16 hex digits; finding_type is one of bug, tests, refactor, performance,
 #   documentation (a `security` finding never gets a screenshot, and neither does a missing type);
 #   do_not_file_publicly is false; state is `head` or `base`; default_branch matches `^[A-Za-z0-9._/-]{1,100}$` for
-#   `base` and is null for `head`; masking is `verified`; crop is `element`;
-#   own_data_only, not_error_page, and masked_in_capture_session are true. A finding carries at most one `head` and one
+#   `base` and is null for `head`; masking is `none`; crop is `element`;
+#   own_data_only and not_error_page are true, and masked_in_capture_session is false. A finding carries at most one `head` and one
 #   `base` entry, a `base` entry needs the `head` entry, and the manifest holds at most 20 entries. Each accepted entry
 #   gets `label`: `This change` for `head` and `Default branch (<default_branch>)` for `base`, the only two labels there
 #   are. A refused entry is listed in `skipped` with its reason, so the finding stays text only and the handoff says why.
@@ -94,11 +94,11 @@ def problem:
   elif .state == "base" and (.default_branch | type != "string" or (test("^[A-Za-z0-9._/-]{1,100}$") | not)) then "the default branch name is not a plain name"
   elif .state == "head" and .default_branch != null then "a head screenshot carries no default branch"
   elif (.file | type != "string" or length < 1) then "the file is missing"
-  elif .masking != "verified" then "masking is not verified"
+  elif .masking != "none" then "capture must use unmodified pixels"
   elif .crop != "element" then "the capture is not cropped to the failing element"
   elif .own_data_only != true then "the cropped area is not proven to hold only data this run created"
   elif .not_error_page != true then "the page is not proven to be free of an error or debug view"
-  elif .masked_in_capture_session != true then "masking did not run in the session that wrote the file"
+  elif .masked_in_capture_session != false then "capture contains masking"
   else null end;
 if type != "array" then error("the manifest is not a JSON array")
 elif length > $max then error("the manifest holds more than \($max) entries")
@@ -208,22 +208,23 @@ self_test() {
     function pngChunk(string $type, string $data): string {
         return pack("N", strlen($data)) . $type . $data . pack("N", crc32($type . $data));
     }
-    foreach (["animated", "too-wide", "bad-raster", "hidden-data"] as $name) {
+    foreach (["animated", "too-wide", "bad-raster", "translucent", "hidden-data"] as $name) {
         $width = $name === "too-wide" ? 100000 : 1;
         $pixels = $name === "bad-raster" ? "\xff" : "\x00\xff\x00\x00";
+        if ($name === "translucent") { $pixels .= "\xfe"; }
         $data = gzcompress($pixels) . ($name === "hidden-data" ? "private-text" : "");
-        file_put_contents($argv[1]."/".$name.".png", "\x89PNG\r\n\x1a\n" . pngChunk("IHDR", pack("NNCCCCC", $width, 1, 8, 2, 0, 0, 0))
+        file_put_contents($argv[1]."/".$name.".png", "\x89PNG\r\n\x1a\n" . pngChunk("IHDR", pack("NNCCCCC", $width, 1, 8, $name === "translucent" ? 6 : 2, 0, 0, 0))
             . ($name === "animated" ? pngChunk("acTL", pack("NN", 2, 0)) : "") . pngChunk("IDAT", $data) . pngChunk("IEND", ""));
     }
   ' "$repo/.claude/run/demo.artifacts"
-  for malicious in animated too-wide bad-raster; do
+  for malicious in animated too-wide bad-raster translucent; do
     rc=0; run_file "$repo/.claude/run/demo.artifacts/$malicious.png" >/dev/null || rc=$?
     check "a $malicious PNG cannot reach an uploader" "$([[ $rc -ne 0 && ! -e "$tmp/out/$malicious.png" ]] && echo yes || echo no)"
   done
   rc=0; run_file "$repo/.claude/run/demo.artifacts/hidden-data.png" >/dev/null || rc=$?
   check 'a private suffix inside IDAT is discarded or refused' "$([[ $rc -ne 0 ]] || ! grep -aq private-text "$tmp/out/hidden-data.png" && echo yes || echo no)"
   local good base
-  good='{"finding_id":"f-0123456789abcdef","finding_type":"bug","do_not_file_publicly":false,"state":"head","default_branch":null,"file":"a.png","masking":"verified","crop":"element","own_data_only":true,"not_error_page":true,"masked_in_capture_session":true}'
+  good='{"finding_id":"f-0123456789abcdef","finding_type":"bug","do_not_file_publicly":false,"state":"head","default_branch":null,"file":"a.png","masking":"none","crop":"element","own_data_only":true,"not_error_page":true,"masked_in_capture_session":false}'
   base="$(jq -c '.state = "base" | .default_branch = "master"' <<<"$good")"
   m() { printf '%s' "$1" >"$repo/.claude/run/demo.screenshots.json"; (cd "$repo" && bash "$HERE/screenshot-guard.sh" manifest "$repo/.claude/run/demo.screenshots.json" demo); }
   check 'a head entry is accepted with the label This change' "$([[ "$(m "[$good]" | jq -r '.accepted[0].label')" == "This change" ]] && echo yes || echo no)"
@@ -234,10 +235,10 @@ self_test() {
   check 'a missing finding type is skipped' "$(m "[$(jq -c '.finding_type = null' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
   check 'a do_not_file_publicly finding is skipped' "$(m "[$(jq -c '.do_not_file_publicly = true' <<<"$good")]" | jq -e '(.accepted | length) == 0 and (.skipped[0].reason | test("do_not_file_publicly"))' >/dev/null && echo yes || echo no)"
   check 'a full-page capture is skipped' "$(m "[$(jq -c '.crop = "fullPage"' <<<"$good")]" | jq -e '(.accepted | length) == 0 and (.skipped[0].reason | test("cropped"))' >/dev/null && echo yes || echo no)"
-  check 'masking that is not verified is skipped' "$(m "[$(jq -c '.masking = "unverified"' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
+  check 'an unknown masking state is skipped' "$(m "[$(jq -c '.masking = "unverified"' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
   check 'data the run did not create is skipped' "$(m "[$(jq -c '.own_data_only = false' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
   check 'an error or debug page is skipped' "$(m "[$(jq -c '.not_error_page = false' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
-  check 'masking outside the capture session is skipped' "$(m "[$(jq -c '.masked_in_capture_session = false' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
+  check 'a masked capture is skipped' "$(m "[$(jq -c '.masked_in_capture_session = true' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
   check 'a default branch name with a space is skipped' "$(m "[$good,$(jq -c '.default_branch = "ma ster"' <<<"$base")]" | jq -e '(.accepted | length) == 1' >/dev/null && echo yes || echo no)"
   check 'an unknown key is skipped' "$(m "[$(jq -c '. + {extra: 1}' <<<"$good")]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"
   check 'two head entries for one finding are both skipped' "$(m "[$good,$good]" | jq -e '(.accepted | length) == 0' >/dev/null && echo yes || echo no)"

@@ -1323,9 +1323,9 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     expect($content)->toContain('**The exception is a scenario that changes state:**');
     expect($content)->toContain('parallelise only the ones that read');
 
-    // Only the observed, masked pixels of the run's own UI may travel with a finding.
+    // Only the observed pixels of the run's own UI may travel with a finding.
     expect($content)->toContain('**Capture evidence for a reproduced UI failure.**')
-        ->toContain('Mask before capture, crop to the failing element')
+        ->toContain('Capture without masking, crop to the failing element')
         ->toContain('bind that exact digest to the tested step, revision and finding')
         ->toContain('If the page, crop or pixels change, keep a text observation.')
         ->toContain('Name the step without copying its URL.');

@@ -3,7 +3,7 @@
 
 declare(strict_types = 1);
 
-/** Decode one bounded static RGB/RGBA raster, composite it onto white and re-encode only its pixels. */
+/** Decode one bounded static RGB/RGBA raster, require opaque pixels and re-encode without content changes. */
 const PNG_SIGNATURE = "\x89PNG\r\n\x1a\n";
 const MAX_PNG_BYTES = 2_097_152;
 const MAX_PNG_PIXELS = 4_194_304;
@@ -99,7 +99,30 @@ function pngDimensions(string $header): ?array
     return [$width, $height, 1 + $width * (ord($header[9]) === 2 ? 3 : 4)];
 }
 
-function validPngScanlines(string $compressed, int $height, int $stride): bool
+/** For an opaque raster, every available alpha neighbour is 255. Check its filtered byte before GD reduces alpha precision. */
+function opaqueAlphaRow(string $pixels, int $offset, int $stride, int $filter, bool $hasPreviousRow): bool
+{
+    $above = $hasPreviousRow ? 255 : 0;
+
+    for ($alpha = 4; $alpha < $stride; $alpha += 4) {
+        $left = $alpha === 4 ? 0 : 255;
+        $predictor = match ($filter) {
+            0 => 0,
+            1 => $left,
+            2 => $above,
+            3 => intdiv($left + $above, 2),
+            default => max($above, $left), // Paeth with opaque neighbours, including row and column boundaries.
+        };
+
+        if (ord($pixels[$offset + $alpha]) !== 255 - $predictor) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function validPngScanlines(string $compressed, int $height, int $stride, bool $rgba): bool
 {
     $pixels = @gzuncompress($compressed, $height * $stride);
 
@@ -108,7 +131,13 @@ function validPngScanlines(string $compressed, int $height, int $stride): bool
     }
 
     for ($row = 0; $row < $height; $row++) {
-        if (ord($pixels[$row * $stride]) > 4) {
+        $offset = $row * $stride;
+        $filter = ord($pixels[$offset]);
+
+        if ($filter > 4) {
+            return false;
+        }
+        if ($rgba && !opaqueAlphaRow($pixels, $offset, $stride, $filter, $row > 0)) {
             return false;
         }
     }
@@ -122,7 +151,7 @@ function validPngScanlines(string $compressed, int $height, int $stride): bool
  */
 function canonicalPng(string $header, string $compressed, int $width, int $height): ?string
 {
-    // Feed the decoder raster chunks only, then draw onto an opaque white background.
+    // Feed the decoder raster chunks only, then write only the validated opaque pixels.
     $raster = PNG_SIGNATURE . $header
         . pack('N', strlen($compressed)) . 'IDAT' . $compressed . pack('N', crc32('IDAT' . $compressed))
         . "\x00\x00\x00\x00IEND\xae\x42\x60\x82";
@@ -133,7 +162,6 @@ function canonicalPng(string $header, string $compressed, int $width, int $heigh
         return null;
     }
 
-    imagefill($opaque, 0, 0, 0xffffff);
     imagecopy($opaque, $decoded, 0, 0, 0, 0, $width, $height);
     ob_start();
     $written = imagepng($opaque, null, 9);
@@ -165,7 +193,7 @@ function sanitizePng(string $bytes): ?array
     $data = array_filter($chunks, static fn (array $chunk): bool => $chunk['type'] === 'IDAT');
     $compressed = implode('', array_map(static fn (array $chunk): string => substr($chunk['raw'], 8, -4), $data));
 
-    if (!validPngScanlines($compressed, $height, $stride)) {
+    if (!validPngScanlines($compressed, $height, $stride, ord($header[17]) === 6)) {
         return null;
     }
 

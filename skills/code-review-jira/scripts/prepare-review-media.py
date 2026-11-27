@@ -126,6 +126,7 @@ def selection(binding, slug, manifest, document, work):
         step = (capture["step"], capture["viewport"])
         require(capture["finding_type"] == kind and capture["do_not_file_publicly"] is False and capture["file"] == entry["file"]
                 and capture["kind"] == "ui" and capture["own_pixels"] is True and capture["visually_verified"] is True
+                and capture.get("secret_free") is True
                 and step in failed and step[1] in ("mobile", "desktop"), "capture is not the failed interactive step")
         if state == "head":
             require(capture["verdict"] == "failed" and capture["revision"] == head, "head capture is not a reproduced failure")

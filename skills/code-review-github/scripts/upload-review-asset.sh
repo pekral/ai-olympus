@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# upload-review-asset.sh — put one masked defect screenshot on the `cr-assets` branch of the base repository of a
+# upload-review-asset.sh — put one verified defect screenshot on the `cr-assets` branch of the base repository of a
 # pull request, and verify the URL a review may link.
 #
 # Why this exists

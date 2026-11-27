@@ -14,15 +14,15 @@ from jira_review_media import HERE, UncertainWrite, audit_record, locked_ledger
 from jira_target import issue_origin
 
 
-def read_pinned(path, digest, private=False):
+def read_pinned(path, digest, private=False, *, limit=65536):
     path = Path(path)
     require(path.is_absolute() and path == path.resolve() and re.fullmatch(r"[0-9a-f]{64}", digest), "invalid pinned input")
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as source:
         info = os.fstat(fd)
         require(stat.S_ISREG(info.st_mode) and info.st_nlink == 1 and info.st_uid == os.getuid()
-                and not info.st_mode & (0o077 if private else 0o022) and 0 < info.st_size <= 65536, "invalid pinned file")
-        data = source.read(65537)
+                and not info.st_mode & (0o077 if private else 0o022) and 0 < info.st_size <= limit, "invalid pinned file")
+        data = source.read(limit + 1)
         require(len(data) == info.st_size and hashlib.sha256(data).hexdigest() == digest, "pinned content changed")
         return data
 

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 import tempfile
 from pathlib import Path
 
-from jira_attachment_media import DestinationChanged, Unconfirmed, attachment_identity, attachment_inventory, authenticated_identity, require, run_cli, target_key
+from jira_attachment_media import DestinationChanged, Unconfirmed, attachment_identity, attachment_inventory, authenticated_identity, check_api_actor, require, run_cli, target_key
 
 HERE = Path(__file__).resolve().parent
 SHARED = HERE.parent.parent / "_shared"
@@ -49,7 +49,7 @@ def upload(site, key, header, name, data):
         })
         response = connection.getresponse()
         payload = response.read(65537)
-        require(response.status == 200 and len(payload) <= 65536, "unconfirmed attachment upload; inspect the ticket")
+        require(response.status == 200 and not response.headers.get_all("Location") and len(payload) <= 65536, "unconfirmed attachment upload; inspect the ticket")
         items = json.loads(payload)
         require(isinstance(items, list) and len(items) == 1, "ambiguous Jira upload response; inspect the ticket")
         return items[0]
@@ -81,6 +81,14 @@ def locked_ledger(slug, *, writable=False):
         yield file, ledger
 
 
+def durable_intent(file, ledger, target, detail):
+    ledger.seek(0, os.SEEK_END)
+    audit_record(file, target, 3, detail)
+    require(any(line.rstrip("\n").split("|")[2:] == ["note", target, "write failed (exit 3); " + detail + "; the remote state was not verified"] for line in ledger),
+            "intent did not reach the locked audit file")
+    os.fsync(ledger.fileno())
+
+
 def pending_uploads(ledger, site, key):
     prefix = f"jira attachment {site}/{key}/"
     pending = set()
@@ -101,25 +109,26 @@ def unresolved(slug, site, key):
         return pending_uploads(ledger, site, key)
 
 
-def confirmed_file(key, slug, name, data, expected, binding, issue_id):
+def confirmed_file(key, slug, name, data, expected, binding, issue_id, *, session=None):
     target_key(key)
     require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
             and 0 < len(data) <= 2097152, "invalid reviewed PNG")
     target = "jira attachment " + binding[0] + "/" + key + "/" + name
-    with locked_ledger(slug) as (file, ledger):
+    with locked_ledger(slug, writable=True) as (file, ledger):
         pending = pending_uploads(ledger, binding[0], key)
         ledger.seek(0)
         attempted = any(line.split("|")[3:4] == [target] for line in ledger)
         try:
-            site, actor, header = authenticated_identity(*binding)
+            site, actor, header = authenticated_identity(*binding) if session is None else session
             require((site, actor) == binding, "active Jira profile changed before attaching the screenshot", DestinationChanged)
             def inventory():
-                return [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
+                return [i for i in attachment_inventory(key, site, issue_id, header=header) if i["filename"] == name]
 
             items = inventory()
             if not items:
                 require(not (attempted or pending), "previous upload attempt requires reconciliation", UncertainWrite)
-                audit_record(file, target, 3, "upload intent; no automatic retry")
+                check_api_actor(site, actor, header)
+                durable_intent(file, ledger, target, "upload intent; no automatic retry")
                 attempted = True
                 created = upload(site, key, header, name, data)
                 checked_item(created, name, len(data), actor)
