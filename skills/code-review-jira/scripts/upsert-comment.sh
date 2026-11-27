@@ -168,6 +168,7 @@ usage() {
 Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
        upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
+  --summary   require the attributed, create-only CR-summary path
   --create    always create a new comment; never update an existing one
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
@@ -187,6 +188,7 @@ EOF
 CREATE_ONLY=0
 TARGET_COMMENT_ID=""
 PREVIOUS_ADF=""
+SUMMARY_REQUIRED=0
 SHOTS_MANIFEST=""
 SHOTS_SLUG=""
 while [[ "${1:-}" == --* ]]; do
@@ -207,6 +209,7 @@ while [[ "${1:-}" == --* ]]; do
       SHOTS_SLUG="$2"
       shift 2
       ;;
+    --summary) SUMMARY_REQUIRED=1; shift ;;
     --previous-adf)
       [[ $# -ge 2 && -f "$2" && -r "$2" ]] || { usage; exit 1; }
       PREVIOUS_ADF="$2"
@@ -337,8 +340,12 @@ fi
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
 SUMMARY=0
-if [[ "$BODY" == "🤖 AI Olympus · "* ]]; then
+if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
   SUMMARY=1
+  if [[ "$INPUT" != "$KEY" && "$INPUT" != "https://${SITE}/browse/${KEY}" ]]; then
+    echo "upsert-comment.sh: summary target must be a key or its canonical URL on the authenticated site" >&2
+    exit 1
+  fi
   if [[ "$MODE" != cr-comment || ( "$CREATE_ONLY" != 1 && ( -z "$TARGET_COMMENT_ID" || -z "$PREVIOUS_ADF" ) ) ]]; then
     echo "upsert-comment.sh: summaries require --create or an exact legacy comment ID with --previous-adf" >&2
     exit 1
@@ -347,7 +354,7 @@ if [[ "$BODY" == "🤖 AI Olympus · "* ]]; then
     echo "upsert-comment.sh: summary contains technical template content" >&2
     exit 1
   fi
-elif [[ -n "$PREVIOUS_ADF" ]]; then
+elif [[ "$SUMMARY_REQUIRED" == 1 || -n "$PREVIOUS_ADF" || "$BODY" == *"🤖 AI Olympus"* ]]; then
   usage
   exit 1
 elif ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
@@ -398,6 +405,21 @@ read_comments() {
     return 1
   fi
 
+  if [[ "$SUMMARY" == 1 ]]; then
+    # The detailed view is the only installed acli read that preserves ADF. Reject a partial
+    # embed or unfamiliar envelope. Treating either as an empty issue can duplicate a prior write.
+    jq -sce '
+      select(length == 1) | .[0].fields.comment as $page
+      | select(($page | type) == "object" and ($page.comments | type) == "array"
+          and ($page.total | type) == "number" and $page.startAt == 0
+          and $page.total == ($page.comments | length)
+          and ($page.comments | all((.id | tostring | test("^[1-9][0-9]*$"))
+              and (.body.type == "doc" and .body.version == 1 and (.body.content | type) == "array")))
+          and ($page.comments | map(.id | tostring) | unique | length) == $page.total)
+      | $page.comments' <<<"$raw"
+    return
+  fi
+
   printf '%s' "$raw" \
     | jq -s 'map(
           if type == "array" then .
@@ -422,8 +444,8 @@ AUTHOR_JQ="$(cat <<'JQ'
   def author_of: .author | if type == "object" then . else {} end;
   def owned: author_of as $a
     | (($a.emailAddress // "") as $e | $e == "" or $e == $email)
-      and (($account != "" and ($a.accountId // "") == $account)
-           or ($email != "" and ($a.emailAddress // "") == $email));
+      and (if $account != "" and ($a.accountId // "") != "" then $a.accountId == $account
+           else $email != "" and ($a.emailAddress // "") == $email end);
   def decidable: author_of as $a
     | ($a.emailAddress // "") != "" or ($account != "" and ($a.accountId // "") != "");
   def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);

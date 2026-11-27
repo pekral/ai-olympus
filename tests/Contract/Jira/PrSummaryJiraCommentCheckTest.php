@@ -120,7 +120,7 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
         'h3. Už nahlášené v dřívější kontrole',
         '',
         '* *(bug):* Objednávka bez zákazníka selže. Autor odpověděl 10. 11. 2026 v komentáři [ACME-1|https://example.atlassian.net/browse/ACME-1]. '
-            . '[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]',
+            . '[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]',
         '{expand}',
         '',
         '{expand:⚠️ Testovací scénáře}',
@@ -165,9 +165,9 @@ function jiraSummaryWithCriteria(): string
 function jiraSummaryForTwoPullRequests(): string
 {
     $group = static fn (int $number): string => implode("\n", [
-        'h2. [PR #' . $number . '|https://github.com/acme/app/pull/' . $number . '] — Synchronizace',
+        'h2. PR #' . $number . ' — {{Synchronizace}}',
         '',
-        '{expand:❌ Nálezy z kontroly kódu}',
+        '{expand:✅ Nálezy z kontroly kódu}',
         'Kontrola nenašla žádný bod k vyřešení.',
         '{expand}',
         '',
@@ -187,6 +187,20 @@ function jiraSummaryForTwoPullRequests(): string
         $group(12),
     ]);
 }
+
+test('a grouped summary cannot hide a blocker behind a green findings title', function (): void {
+    $source = str_replace('{expand:❌ Nálezy z kontroly kódu}', '{expand:✅ Nálezy z kontroly kódu}', jiraSummaryWithCriteria());
+    $process = runJiraSummaryCheck($source, 'present');
+
+    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('red title for an open blocking finding');
+});
+
+test('a general pull request link is refused inside the impact summary', function (string $suffix): void {
+    $source = jiraSummaryWithoutCriteria([jiraSummaryChangesLine() => '* [Celá změna|https://github.com/acme/app/pull/27625' . $suffix . ']']);
+    $process = runJiraSummaryCheck($source, 'none');
+
+    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('violation: links:');
+})->with(['', '/files']);
 
 test('a JIRA summary in the shape of the template passes the check', function (string $source, string $criteria): void {
     $process = runJiraSummaryCheck($source, $criteria);
@@ -391,7 +405,7 @@ function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'sr
 
 test('a finding outside the pull request may link its file and line at the reviewed commit of the task repository', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
     );
 
     $process = runJiraSummaryCheck($source, 'none');
@@ -508,7 +522,7 @@ test(
 
 test('a file link at a commit other than the reviewed one is refused', function (string $revision): void {
     $href = jiraSummaryBlobLink(revision: $revision);
-    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . $href . ']']);
+    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . $href . ']']);
 
     $process = runJiraSummaryCheck($source, 'none');
 
@@ -526,7 +540,7 @@ test('a file link at a commit other than the reviewed one is refused', function 
 
 test('a file link is refused when the check names no reviewed commit', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
     );
 
     $process = ReportCheckRun::over(

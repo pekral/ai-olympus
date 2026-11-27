@@ -10,7 +10,7 @@ const JIRA_SUMMARY_MAX_CHANGES_CHARACTERS = 600;
 
 const JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA = 3;
 
-const JIRA_SUMMARY_GROUP_HEADING = '/^h2\. \[PR #\d+\|/u';
+const JIRA_SUMMARY_GROUP_HEADING = '/^h2\. PR #(?<number>[1-9][0-9]*) — \{\{[^{}\r\n]+\}\}$/uD';
 
 const JIRA_SUMMARY_BLOCK_OPEN = '/^\{expand:(?<title>[^{}]+)\}$/u';
 
@@ -27,7 +27,7 @@ const JIRA_SUMMARY_TYPE_ORDER = ['security', 'bug', 'tests', 'refactor', 'perfor
 const JIRA_SUMMARY_LINK = '/\[(?<label>[^|\]]+)\|(?<url>[^\]]+)\]/u';
 
 const JIRA_SUMMARY_PULL_REQUEST_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/(?<number>[1-9][0-9]*)'
-    . '(?:/files(?:\#diff-[0-9a-f]{64}R[1-9][0-9]*)?)?$#D';
+    . '/files\#diff-[0-9a-f]{64}R[1-9][0-9]*$#D';
 
 const JIRA_SUMMARY_FILE_LINK = '#^https://github\.com/(?<repository>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/blob/(?<commit>[0-9a-f]{40}|[0-9a-f]{64})/'
     . '(?<path>[A-Za-z0-9._~%-]+(?:/[A-Za-z0-9._~%-]+)*)\#L[1-9][0-9]*$#D';
@@ -594,6 +594,10 @@ function jiraSummaryTextViolations(array $lines): array
             $violations[] = 'content: technical template content in a visible section';
         }
 
+        if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
+            continue;
+        }
+
         $withoutLinks = (string) preg_replace('/\[~accountid:[^\]]+\]|\[[^|\]]+\|[^\]]+\]/u', '', $line);
         $violations = [...$violations, ...reportCheckDeveloperTokenViolations($withoutLinks, JIRA_SUMMARY_DEVELOPER_TOKEN)];
     }
@@ -611,7 +615,7 @@ function jiraSummaryVerdictViolations(array $lines): array
     $next = $lines[1] ?? '';
     $sectionFollows = preg_match(JIRA_SUMMARY_BLOCK_OPEN, $next) === 1 || preg_match(JIRA_SUMMARY_GROUP_HEADING, $next) === 1;
 
-    if (str_starts_with($opening, '🤖 AI Olympus · ') && $sectionFollows) {
+    if (jiraReviewByline($opening) && $sectionFollows) {
         return [];
     }
 
@@ -644,6 +648,12 @@ function jiraSummaryTitleViolations(array $lines): array
             if ($block === null || preg_match("/^{$prefix} (?:{$section})$/uD", $block['title']) !== 1 || $block['body'] === []) {
                 $violations[] = 'sections: expected a populated section with a status icon: ' . $section;
                 continue;
+            }
+            if (str_starts_with($section, 'Findings')) {
+                $actionable = array_filter($block['body'], static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
+                if (($actionable !== []) !== str_starts_with($block['title'], '❌ ')) {
+                    $violations[] = 'findings: show a red title for an open blocking finding and a green or pending title otherwise';
+                }
             }
             if (str_starts_with($section, 'Acceptance') || str_starts_with($section, 'Test scenarios')) {
                 $icons = [];
@@ -678,6 +688,10 @@ function jiraSummaryViolations(string $source, JiraSummaryTask $task): array
         ...jiraSummaryPublishedViolations($source, $task),
         ...jiraSummaryVerdictViolations($lines),
         ...jiraSummaryTitleViolations($lines),
+        ...array_values(array_map(static fn (string $line): string => 'groups: a heading names an unrelated pull request: ' . $line,
+            array_filter($lines, static fn (string $line): bool => preg_match(JIRA_SUMMARY_GROUP_HEADING, $line, $match) === 1
+                && !in_array($match['number'], $task->pullRequests, true)))),
+
         ...jiraSummaryShapeViolations($layout, true),
         ...jiraSummaryFindingsViolations($findings),
         ...jiraSummaryFindingLinkViolations($findings),

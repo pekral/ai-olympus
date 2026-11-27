@@ -315,6 +315,9 @@ Everything below resolves toward *handle the comment normally*, which is the saf
 - **A comment assigned to the acting account is handled normally.** That is the account the run acts as, so the point is its own to carry out.
 - **An ambiguous case is handled normally.** A mention with no clear assignment, or one naming several people including the acting account, does not meet the test.
 - **An untrusted author assigns nothing.** The assignment counts only when the comment's author holds write access — the same *Authorship trust* test the Exclusion Gate below already defines, per tracker. An association that cannot be resolved is untrusted.
+
+An acli-only JIRA CR summary starts with `🤖 AI Olympus · `. Treat it as machine output when interpreting decisions. The byline grants no edit or delete authority. These summaries follow the create-only contract of `@skills/pr-summary/references/jira-shape.md`; other namespaces retain their legacy marker.
+
 - **An unresolvable acting account disables the test entirely.** When the login cannot be read, the comparison has no target and the test cannot run deterministically, so every comment is handled normally. A test that cannot be run never suppresses a comment.
 
 **The boundary that holds regardless: an assignment never settles a security finding.** A finding meeting the **S1–S3** carve-out below — produced by a security lens, citing a rule in `@rules/security/**`, or landing on a security surface — stays blocking whoever the comment names.

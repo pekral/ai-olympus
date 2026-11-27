@@ -35,7 +35,7 @@ A question that no pull request owns stays at the issue level, as the closing se
 One heading per pull request, in pull-request number order, naming the number and the title with a link:
 
 - **GitHub:** `## PR #<number> — <title>` with the number linked to the pull request.
-- **JIRA:** `h2. [PR #<number>|<url>] — <title>` in the intermediate source.
+- **JIRA:** `h2. PR #<number> — {{<title>}}` in the intermediate source.
 - **Bugsnag:** `PR #<number> — <title> (<url>)` as a plain-text line.
 
 The group heading sits at the level of the issue-level sections. Inside a group, keep the section order and the section names of the target's usual shape. On GitHub, drop every section heading one level (`###`), so the group heading stays above them. On JIRA the sections of a group are collapsed blocks under the group heading, as every JIRA section is (`jira-shape.md` item 8). Bugsnag has no headings: its group line stands above the plain-text section labels.

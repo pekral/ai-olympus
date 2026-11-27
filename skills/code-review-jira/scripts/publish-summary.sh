@@ -2,9 +2,15 @@
 # Sourced by upsert-comment.sh after converting the body to ADF and resolving the authenticated actor.
 # This byline classifies machine output. It never establishes ownership of a previous comment.
 publish_summary() {
+  # acli does not support a conditional update. The migration requires a quiet operator-approved window.
   local action=created id="" result="" rc=0 before="" matches="" attempt
   local -a identity=(--arg email "$EMAIL" --arg account "$ACCOUNT_ID" --arg marker "$MARKER_TEXT")
   local query="$AUTHOR_JQ"'
+    def legacy_summary_marker:
+      .body.content[-1] as $block | $block.type == "expand" and ($block.content | length) == 1
+      and ($block.content[0] | .type == "paragraph" and (.content | length) == 1
+        and (.content[0] | .type == "text" and .marks == [{"type":"em"}]
+          and (.text | test("^" + $marker + "( lines=([0-9a-f]{8}(,[0-9a-f]{8})*)?)?\\z"))));
     def same_adf($adf): .body == $adf;
     def valid_id: (.id | tostring) | test("^[1-9][0-9]*$");
   '
@@ -14,7 +20,7 @@ publish_summary() {
     # A previous read confirming this exact author's marker and body is essential. The caller supplies
     # the stored ADF from that read. Refuse manual edits and newly attributed, unmarked summaries.
     if ! read_comments | jq -e "${identity[@]}" --arg id "$id" --slurpfile prior "$PREVIOUS_ADF" "$query"'
-      [.[] | select((.id | tostring) == $id and owned and marked and same_adf($prior[0]))] | length == 1
+      [.[] | select((.id | tostring) == $id and owned and legacy_summary_marker and same_adf($prior[0]))] | length == 1
     ' >/dev/null; then
       echo "upsert-comment.sh: the marked comment or its previously verified body changed; no update" >&2
       return 3
