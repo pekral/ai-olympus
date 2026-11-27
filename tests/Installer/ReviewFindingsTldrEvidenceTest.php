@@ -77,7 +77,7 @@ test('every target template carries the TL;DR and lists only the points to resol
         ->toContain('for example "an order created without a customer fails"')
         ->toContain('never an assumption, a hypothesis, or a point that needs no action.')
         ->toContain('Every such point of the technical')
-        ->toContain('"{expand:Nálezy z kontroly kódu}"');
+        ->toContain('Nálezy z kontroly kódu, Testovací scénáře');
     expect($jira)->not->toContain('h3. Not verified');
     expect($jira)->not->toContain('Neověřeno');
 });

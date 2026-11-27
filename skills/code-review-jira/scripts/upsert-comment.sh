@@ -29,8 +29,12 @@
 # Usage:
 #   upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
 #   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
 #
-# Inputs:
+# Optional media require an accepted GitHub finding and verified screenshot. Media and explicit operator edits use the bound public API publication context.
+# CR summaries begin with the AI Olympus byline and are create-only. A one-time migration of a marked
+# comment requires its exact ID plus --previous-adf with the previously verified, unmodified ADF.
+#
 #   --comment-id <ID>
 #               Optional. Update exactly that comment instead of the newest one of this actor and
 #               namespace. The comment must be authored by this actor and carry this actor's marker of the
@@ -162,10 +166,18 @@ set -euo pipefail
 usage() {
   cat >&2 <<'EOF'
 Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
+       upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
+  --summary   require the attributed CR-summary path
+  --operator-edit
+              with --summary, --comment-id and --previous-adf: requires the operator's direct request and run publication context
   --create    always create a new comment; never update an existing one
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
+  --screenshots <MANIFEST> --slug <SLUG>
+              with --summary --create and the run publication context: attach verified images to their matching findings
+  --previous-adf <file>
+              previously verified stored ADF for an exact-ID migration of a marked summary
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -177,14 +189,42 @@ EOF
 
 CREATE_ONLY=0
 TARGET_COMMENT_ID=""
+PREVIOUS_ADF=""
+SUMMARY_REQUIRED=0
+OPERATOR_EDIT=0
+SHOTS_MANIFEST=""
+SHOTS_SLUG=""
 while [[ "${1:-}" == --* ]]; do
   case "$1" in
+    --screenshots)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      SHOTS_MANIFEST="$2"
+      shift 2
+      ;;
+    --slug)
+      if [[ $# -lt 2 ]]; then
+        usage
+        exit 1
+      fi
+      SHOTS_SLUG="$2"
+      shift 2
+      ;;
+    --summary) SUMMARY_REQUIRED=1; shift ;;
+    --operator-edit) OPERATOR_EDIT=1; shift ;;
+    --previous-adf)
+      [[ $# -ge 2 && -z "$PREVIOUS_ADF" && -f "$2" && -r "$2" ]] || { usage; exit 1; }
+      PREVIOUS_ADF="$2"
+      shift 2
+      ;;
     --create)
       CREATE_ONLY=1
       shift
       ;;
     --comment-id)
-      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+      if [[ $# -lt 2 || -n "$TARGET_COMMENT_ID" || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
         usage
         exit 1
       fi
@@ -197,9 +237,19 @@ while [[ "${1:-}" == --* ]]; do
       ;;
   esac
 done
+if [[ "$OPERATOR_EDIT" == 1 && ( "$SUMMARY_REQUIRED" != 1 || "$CREATE_ONLY" == 1 || -z "$TARGET_COMMENT_ID" || -z "$PREVIOUS_ADF" ) ]]; then
+  usage
+  exit 1
+fi
 if [[ "$CREATE_ONLY" -eq 1 && -n "$TARGET_COMMENT_ID" ]]; then
   usage
   exit 1
+fi
+if [[ -n "$SHOTS_MANIFEST" || -n "$SHOTS_SLUG" ]]; then
+  if [[ -z "$SHOTS_MANIFEST" || -z "$SHOTS_SLUG" || "$CREATE_ONLY" -ne 1 ]]; then
+    echo "upsert-comment.sh: --screenshots and --slug go together and need --create" >&2
+    exit 1
+  fi
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
@@ -221,6 +271,15 @@ fi
 if [[ -n "$TARGET_COMMENT_ID" && "$MODE" == "agent-note" ]]; then
   echo "upsert-comment.sh: --comment-id never combines with the create-only agent-note namespace" >&2
   exit 1
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$OPERATOR_EDIT" == 1 || -n "$SHOTS_MANIFEST" ]]; then
+  [[ "$SUMMARY_REQUIRED" == 1 && "$MODE" == cr-comment ]] || { usage; exit 1; }
+  for bin in acli jq php python3; do
+    command -v "$bin" >/dev/null 2>&1 || { echo "upsert-comment.sh: required tool not found: $bin" >&2; exit 2; }
+  done
+  exec python3 -B "$SCRIPT_DIR/jira_comment_api.py" "$INPUT" "$BODY_SRC" "$TARGET_COMMENT_ID" "$PREVIOUS_ADF" "$SHOTS_MANIFEST" "$SHOTS_SLUG"
 fi
 
 for bin in acli jq php; do
@@ -264,10 +323,10 @@ fi
 #   ✓ Authenticated
 #     Site: your-org.atlassian.net
 #     Email: someone@example.com
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
+
 
 AUTH_STATUS="$(acli jira auth status 2>/dev/null || true)"
 SITE="$(jira_auth_status_field "$AUTH_STATUS" site)"
@@ -296,7 +355,31 @@ fi
 
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
-if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
+SUMMARY=0
+# The PHP interpreter reads $argv, not the shell.
+# shellcheck disable=SC2016
+if printf '%s' "$BODY" | php -r 'require $argv[1]; exit(jiraReviewByline((string) stream_get_contents(STDIN)) ? 0 : 1);' "$SCRIPT_DIR/../../_shared/report-check-common.php"; then
+  SUMMARY=1
+  if [[ "$INPUT" != "$KEY" && "$INPUT" != "https://${SITE}/browse/${KEY}" ]]; then
+    echo "upsert-comment.sh: summary target must be a key or its canonical URL on the authenticated site" >&2
+    exit 1
+  fi
+  if [[ "$MODE" != cr-comment || ( "$CREATE_ONLY" != 1 && ( -z "$TARGET_COMMENT_ID" || -z "$PREVIOUS_ADF" ) ) ]]; then
+    echo "upsert-comment.sh: summaries require --create or an exact legacy comment ID with --previous-adf" >&2
+    exit 1
+  fi
+  if [[ "$BODY" == *🤖* || "$BODY" == *❌* || "$BODY" == *ℹ* ]]; then
+    echo "upsert-comment.sh: summary contains a retired icon" >&2
+    exit 1
+  fi
+  if [[ "$BODY" == *'{agent-marker}'* || "$BODY" == *':actor='* || "$BODY" == *'=== END OF COMMENT BODY'* || "$BODY" == *'<!--'* ]]; then
+    echo "upsert-comment.sh: summary contains technical template content" >&2
+    exit 1
+  fi
+elif [[ "$SUMMARY_REQUIRED" == 1 || -n "$PREVIOUS_ADF" || "$BODY" == *"AI Olympus ·"* || "$BODY" == *"🤖 AI Olympus"* ]]; then
+  usage
+  exit 1
+elif ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
   if grep -Fxq "$MARKER_SLOT" <<<"$BODY"; then
     BODY="$(printf '%s\n' "$BODY" | awk -v slot="$MARKER_SLOT" -v marker="_${MARKER_TEXT}_" '
       { lines[NR] = $0; if ($0 == slot) { last = NR } }
@@ -307,6 +390,9 @@ if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
 _${MARKER_TEXT}_"
   fi
 fi
+
+# The slot lines of the screenshots never reach the ADF path: a comment that shows no image carries none.
+BODY="$(printf '%s\n' "$BODY" | php "$SCRIPT_DIR/screenshot-slots.php" strip)"
 
 # Build valid ADF before the external write. The create call has no dedicated
 # `--body-adf` flag, but `--body-file` accepts an ADF document. The update call
@@ -319,7 +405,7 @@ UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
 SENT_TEXT_TMP="$(mktemp)"
-trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
+trap 'rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -336,10 +422,15 @@ fi
 # the envelope differs between acli builds, hence the fallbacks and the `[]`
 # default for a shape none of them matches.
 read_comments() {
+  if [[ "$SUMMARY" == 1 ]]; then
+    read_summary_comments
+    return
+  fi
   local raw=""
   if ! raw="$(acli jira workitem view "$KEY" --fields comment --json 2>"$LIST_STDERR")"; then
     return 1
   fi
+
 
   printf '%s' "$raw" \
     | jq -s 'map(
@@ -365,8 +456,8 @@ AUTHOR_JQ="$(cat <<'JQ'
   def author_of: .author | if type == "object" then . else {} end;
   def owned: author_of as $a
     | (($a.emailAddress // "") as $e | $e == "" or $e == $email)
-      and (($account != "" and ($a.accountId // "") == $account)
-           or ($email != "" and ($a.emailAddress // "") == $email));
+      and (if $account != "" and ($a.accountId // "") != "" then $a.accountId == $account
+           else $email != "" and ($a.emailAddress // "") == $email end);
   def decidable: author_of as $a
     | ($a.emailAddress // "") != "" or ($account != "" and ($a.accountId // "") != "");
   def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);
@@ -382,11 +473,19 @@ JQ
 # to prevent overwriting or deleting. A lookup that cannot be made publishes
 # nothing: it could hide the comment a create would duplicate, or the older
 # note the snapshot exists to protect.
+if [[ "$SUMMARY" == 1 ]]; then
+  source "$SCRIPT_DIR/publish-summary.sh"
+fi
 EXISTING_ID=""
 if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
   echo "upsert-comment.sh: comment lookup failed on $KEY, nothing was published: $(<"$LIST_STDERR")" >&2
   echo "upsert-comment.sh: a create without the lookup could duplicate a comment this actor already owns; rerun once the issue is readable" >&2
   exit 3
+fi
+
+if [[ "$SUMMARY" == 1 ]]; then
+  publish_summary
+  exit $?
 fi
 
 # Look for a comment this actor already published under the same marker. A
@@ -528,33 +627,35 @@ else
   ACTION="created"
 fi
 
-UPDATE_RC=0
-acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || UPDATE_RC=$?
-if [[ "$UPDATE_RC" -ne 0 ]]; then
-  if [[ "$ACTION" == "created" ]]; then
-    # The create happened before the update: record it first, as the write it was.
-    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, its ADF update failed next" || true
-  fi
-  bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID ADF update on $KEY" --status "$UPDATE_RC" || true
-  if [[ "$ACTION" == "created" ]]; then
-    # The comment this run just created may render as Wiki Markup. Remove it rather than leave an
-    # unformatted comment behind for a reader to find, then fail loudly. A comment an earlier run
-    # published is never deleted here — a failed update leaves the previous body in place.
-    DELETE_RC=0
-    acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || DELETE_RC=$?
-    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID delete on $KEY" --status "$DELETE_RC" --detail "removed after the ADF update failed" || true
-    echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
-    if [[ "$DELETE_RC" -eq 0 ]]; then
-      echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
-    else
-      echo "upsert-comment.sh: the created comment $TARGET_ID could not be removed (acli exit $DELETE_RC); remove it by hand, and do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+{
+  UPDATE_RC=0
+  acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || UPDATE_RC=$?
+  if [[ "$UPDATE_RC" -ne 0 ]]; then
+    if [[ "$ACTION" == "created" ]]; then
+      # The create happened before the update: record it first, as the write it was.
+      bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, its ADF update failed next" || true
     fi
-  else
-    echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
-    echo "upsert-comment.sh: the existing comment was left unchanged; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID ADF update on $KEY" --status "$UPDATE_RC" || true
+    if [[ "$ACTION" == "created" ]]; then
+      # The comment this run just created may render as Wiki Markup. Remove it rather than leave an
+      # unformatted comment behind for a reader to find, then fail loudly. A comment an earlier run
+      # published is never deleted here — a failed update leaves the previous body in place.
+      DELETE_RC=0
+      acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || DELETE_RC=$?
+      bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID delete on $KEY" --status "$DELETE_RC" --detail "removed after the ADF update failed" || true
+      echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
+      if [[ "$DELETE_RC" -eq 0 ]]; then
+        echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+      else
+        echo "upsert-comment.sh: the created comment $TARGET_ID could not be removed (acli exit $DELETE_RC); remove it by hand, and do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+      fi
+    else
+      echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
+      echo "upsert-comment.sh: the existing comment was left unchanged; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    fi
+    exit 3
   fi
-  exit 3
-fi
+}
 
 # Print "marked", "unmarked", or "missing" for the stored body of comment
 # $TARGET_ID, after up to three reads.

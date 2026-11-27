@@ -13,7 +13,8 @@
 #   Sets OWNER, REPO, NUMBER, and NWO (`owner/repo`). On a problem it prints the message on stderr and
 #   returns 1. The caller decides the exit code; this function never exits.
 #
-# github_actor_resolve
+# github_actor_resolve <hostname-or-empty>
+#   An empty hostname keeps the GitHub CLI default for legacy callers.
 #   Sets ACTOR to the login of the account `gh` is authenticated as, through `gh api user --jq .login`.
 #   A transient failure (rate limit, network error, token refresh) is retried up to three times, and the
 #   last stderr of `gh` is part of the message. On a problem it prints the message on stderr and returns 3.
@@ -71,11 +72,15 @@ github_target_resolve() {
 
 github_actor_resolve() {
   local attempt err_file err=""
+  local -a host=()
+  if [[ -n "${1:-}" ]]; then
+    host=(--hostname "$1")
+  fi
   ACTOR=""
   err_file="$(mktemp)"
   for attempt in 1 2 3; do
     : >"$err_file"
-    if ACTOR="$(gh api user --jq .login 2>"$err_file")" && [[ -n "$ACTOR" ]]; then
+    if ACTOR="$(gh api ${host[@]+"${host[@]}"} user --jq .login 2>"$err_file")" && [[ -n "$ACTOR" ]]; then
       rm -f "$err_file"
       return 0
     fi

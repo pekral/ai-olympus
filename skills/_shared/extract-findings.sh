@@ -299,6 +299,7 @@ def subsystem_of($text):
         ] | join("; ")),
         finding: {
           severity: $v.severity,
+          security_lens: (($v.fields["raised by"] // "") | ascii_downcase | test("splinter|both")),
           category: (if $parts != null then ($parts[0] | sub("\\.md$"; "") | ascii_downcase)
                      elif $v.section | test("^Functional Review"; "i") then "assignment" else "unclassified" end),
           cause_key: (if $parts != null and ($parts | length) > 1 then ($parts[1] | slug)
@@ -370,7 +371,7 @@ EOF
 JQ_ROUND=''
 IFS= read -r -d '' JQ_ROUND <<'EOF' || true
 def is_security($f):
-  ($f.category | test("^(rules/security/|skills/(security-review|laravel-authorization-review)(/|$))"))
+  $f.security_lens or ($f.category | test("^(rules/security/|skills/(security-review|laravel-authorization-review)(/|$))"))
   or ([$f.category, $f.cause_key, $f.file, $f.title] | join(" ") | ascii_downcase
       | test("auth|login|passw|session|cookie|token|csrf|xss|inject|secret|credential|crypt|signature|permission|polic|privilege|idor|ssrf|open.?redirect|upload|traversal|payment|billing|pii|rate.?limit|brute|security|sanitiz|escap|deserializ|mass.?assign|\\bcsp\\b|\\bcors\\b|\\btls\\b|certificat"));
 

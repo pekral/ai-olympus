@@ -347,7 +347,7 @@ test('assignment-compliance-check states the tracker verdict in all three cases'
     }
 });
 
-test('GitHub and Bugsnag carry the full verdict while JIRA carries remaining actions', function (): void {
+test('all tracker summaries carry the decision and JIRA lists every explicit criterion', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
@@ -364,10 +364,10 @@ test('GitHub and Bugsnag carry the full verdict while JIRA carries remaining act
         expect($template)->not->toContain('the only route an assignment gap takes into this comment');
     }
 
-    // JIRA filters the internal verdict to requests that still need action.
+    // JIRA includes all explicitly stated criteria and their observed status.
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
-    expect($jiraTemplate)->toContain('or answer and its evidence. Omit satisfied requirements, positive verdicts,');
-    expect($jiraTemplate)->toContain('satisfied, omit the whole section. Omit it too when no criteria are stated.');
+    expect($jiraTemplate)->toContain('Include every stated criterion in a numbered list');
+    expect($jiraTemplate)->toContain('If no criteria were given, say so.');
     expect($jiraTemplate)->not->toContain('the only route an assignment gap takes into this comment');
 });
 
@@ -1374,6 +1374,12 @@ test('attachment scripts never disable TLS validation and keep the token out of 
     foreach (['github', 'jira'] as $tracker) {
         $content = (string) file_get_contents($packageDir . sprintf('/skills/code-review-%s/scripts/download-attachments.sh', $tracker));
         expect($content)->toContain('chmod 600 "$CFG"');
+
+        if ($tracker === 'jira') {
+            expect($content)->toContain('jira_rest_write_config "$CFG"');
+            $content = (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/jira-rest.sh');
+        }
+
         expect($content)->toContain('header = "Authorization:');
     }
 });
@@ -2001,21 +2007,9 @@ test('the JIRA and Bugsnag PR link-backs have a mechanism and a named limitation
     $packageDir = dirname(__DIR__, 2);
     $followUp = (string) file_get_contents($packageDir . '/skills/resolve-issue/references/tracker-follow-up.md');
 
-    // "Link the created PR back to the JIRA issue." was the entire JIRA instruction: no script,
-    // no command, no comment content — nothing a run could execute or verify.
-    expect($followUp)->not->toContain('- Link the created PR back to the JIRA issue.');
-    expect($followUp)->toContain('**Write the PR link-back on the JIRA issue**');
-
-    // The comment is the mechanism because the structured alternative does not exist in acli.
-    expect($followUp)->toContain('`acli jira workitem link create` links a work item only to another work item');
-    expect($followUp)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -');
-    expect($followUp)->toContain('**Re-read and verify the PR URL is on the issue**');
-    expect($followUp)->toContain('skills/code-review-jira/scripts/load-issue.sh <KEY|URL>');
-
-    // The native Development panel is additive infrastructure, never the guarantee.
-    expect($followUp)->toContain('**The JIRA key travels in the PR title**');
-    expect($followUp)->toContain('`devSummary.pullRequestCount > 0` is a second confirmation');
-    expect($followUp)->toContain('never a substitute for step 1');
+    expect($followUp)->toContain('**The JIRA key travels in the PR title.**')
+        ->and($followUp)->toContain('Record the native association as unverified')
+        ->and($followUp)->not->toContain('**Post the PR URL in a comment**');
 
     // Bugsnag: the API limitation is named, and the comment is required even when no mirrored
     // GitHub issue exists — that is the case where nothing else connects the error to the PR.
@@ -2038,7 +2032,7 @@ test('the resolve-issue skill body names the link-back obligation it delegates',
         'The run also writes the PR link-back on the source tracker '
         . '(`@rules/compound-engineering/tracker.md` *Every pull request links back to its tracker issue*)',
     );
-    expect($skill)->toContain('JIRA and Bugsnag expose no structured link write at all');
+    expect($skill)->toContain('JIRA uses the source key in the PR title and the native Development panel');
     expect($skill)->toContain('verified by re-reading the item through its deterministic loader');
 });
 

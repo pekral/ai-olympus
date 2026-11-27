@@ -1429,11 +1429,8 @@ test('the PR linking invariant states the no-tracker case and both tracker limit
     expect($rule)->toContain('**GitHub\'s mechanic lives with the git rules.**');
     expect($rule)->toContain('`@rules/git/pull-requests.md` *Issue Linking* owns the literal closing keyword');
 
-    // JIRA: no structured raw-URL link exists through acli, so the comment is the mechanism and
-    // the Development panel is additive infrastructure, never the guarantee.
-    expect($rule)->toContain('**JIRA carries the link as a comment, because no structured write exists.**');
-    expect($rule)->toContain('`acli` links a work item only to another work item');
-    expect($rule)->toContain('That panel is opt-in infrastructure on the JIRA side, so it never replaces the comment.');
+    expect($rule)->toContain('**JIRA uses the Development panel.**')
+        ->and($rule)->toContain('Keep whole-PR links out of JIRA comments.');
 
     // Bugsnag: named limitation with its substitute signal, never a silent omission.
     expect($rule)->toContain('**Bugsnag has no link relationship at all, and that is the documented limitation.**');
@@ -1738,7 +1735,7 @@ test('every comment an agent publishes on GitHub or JIRA carries a marker, and n
         ->and($jira)->not->toContain('A replacement TL;DR published through the JIRA MCP fallback carries none');
 
     expect($prSummary)->toContain('Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call')
-        ->and($prSummary)->toContain('put the same `_cr-comment:actor=<actor-digest>_` marker line into the marker block of that ADF');
+        ->and($prSummary)->toContain('A new summary is create-only.');
 });
 
 test('a JIRA comment addressed to another account is compared by account ID, never by display name (issue #156)', function (): void {

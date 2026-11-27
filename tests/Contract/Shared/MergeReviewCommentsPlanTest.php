@@ -233,7 +233,7 @@ function mergePlanIds(array $plan, string $key): array
 
 /**
  * @param array<mixed> $plan
- * @return array<string, string>
+ * @return array<array-key, string>
  */
 function mergePlanClasses(array $plan): array
 {
@@ -731,6 +731,34 @@ test('the JIRA plan merges the marked comments of the operator account and leave
         ->and(mergePlanClasses($result['plan']))->toBe(['10001' => 'review', '10002' => 'other', '10003' => 'review', '10004' => 'other'])
         ->and($result['plan']['carrier'])->toBe('10003')
         ->and($result['plan']['delete'])->toBe(['10001']);
+});
+
+test('attributed Jira summaries from the shared account never become operator or review candidates', function (string $prefix): void {
+    $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
+    $comments = [
+        mergePlanJiraComment('10001', 'acc-agent', 'Round one. ' . $marker),
+        mergePlanJiraComment('10002', 'acc-agent', "\n" . $prefix . 'AI Olympus · A model summary.'),
+        mergePlanJiraComment('10003', 'acc-agent', 'Round two. ' . $marker),
+    ];
+    $result = mergePlanJira(array_column($comments, 'view'), array_column($comments, 'list'));
+
+    expect(mergePlanClasses($result['plan'])['10002'])->toBe('other')
+        ->and($result['plan']['operatorCandidates'])->not->toContain('10002')
+        ->and($result['plan']['delete'])->not->toContain('10002');
+})->with(['', '🤖 ']);
+
+test('an attributed human reply protects its linked Jira review from deletion', function (): void {
+    $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
+    $comments = [
+        mergePlanJiraComment('10001', 'acc-agent', 'First review. ' . $marker),
+        mergePlanJiraComment('10002', 'acc-agent', 'Second review. ' . $marker),
+        mergePlanJiraComment('10003', 'acc-agent', 'AI Olympus · My reply to https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'),
+    ];
+    $result = mergePlanJira(array_column($comments, 'view'), array_column($comments, 'list'));
+
+    expect(mergePlanClasses($result['plan'])['10003'])->toBe('other')
+        ->and(mergePlanCommentById($result['plan'], '10001')['reply'])->toBeTrue()
+        ->and($result['plan']['delete'])->not->toContain('10001');
 });
 
 test('the JIRA plan stops when the comment list may be shorter than the thread', function (): void {

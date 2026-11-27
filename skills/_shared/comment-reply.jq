@@ -165,8 +165,13 @@ def github_normalised($actor):
           restricted: false }
       | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
 
-# jira_normalised($actor) — the input is the `comments` array of the JIRA issue loader (`$actor` is the account ID).
-def jira_normalised($actor):
+# A byline classifies a report for merge planning. A reply is excluded only by the account's marker.
+def jira_reply_marker($digest):
+  type == "string" and ($digest | test("^[0-9a-f]{16}$"))
+  and test("(^|\\n|_)[a-z][a-z0-9-]*:actor=" + $digest + "( lines=[0-9a-f]{8}(,[0-9a-f]{8})*)?(_|\\n|$)");
+
+# jira_normalised — the loader's comments with the publishing account ID and its marker digest.
+def jira_normalised($actor; $digest):
   to_entries
   | map(.key as $pos | .value
       | { id: ((.id // null) | if . == null then null else tostring end),
@@ -180,12 +185,12 @@ def jira_normalised($actor):
           mentions: (.mentionAccountIds // []),
           parentId: null,
           restricted: ((.visibility // null) != null) }
-      | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
+      | . + { agent: (.authorKey == $actor and (.body | jira_reply_marker($digest))) });
 
-# jira_acli_normalised($actor) — the input is the `fields.comment.comments` array of `acli jira workitem view`, which the
+# jira_acli_normalised — the input is the `fields.comment.comments` array of `acli jira workitem view`, which the
 # delete helper reads. The body is an Atlassian Document: its text nodes, the target of a linked text, and the URL of a
 # smart link become lines, its mention nodes the mentions.
-def jira_acli_normalised($actor):
+def jira_acli_normalised($actor; $digest):
   to_entries
   | map(.key as $pos | .value
       | (.body // "") as $raw
@@ -200,7 +205,11 @@ def jira_acli_normalised($actor):
           mentions: (if ($raw | type) == "string" then []
                      else [ $raw | .. | objects | select(.type? == "mention") | .attrs.id? // empty ] end),
           parentId: null }
-      | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
+      | . + { agent: (.authorKey == $actor and
+          (if ($raw | type) == "string" then ($raw | jira_reply_marker($digest))
+           else any($raw | .. | objects | select(.type? == "text" and (.marks // []) == [{"type":"em"}]);
+                    .text | jira_reply_marker($digest))
+           end)) });
 
 # github_api_normalised($actor) — the input is the REST list of the issue comments, which the delete helper reads.
 def github_api_normalised($actor):

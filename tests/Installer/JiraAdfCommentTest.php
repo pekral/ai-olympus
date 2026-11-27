@@ -213,11 +213,11 @@ test('april runs three publication checks before a JIRA comment counts as publis
 
     // 2. ADF publication.
     expect($april)->toContain('**Publish as ADF.**');
-    expect($april)->toContain('acli jira workitem comment update --body-adf');
+    expect($april)->toContain('skills/code-review-jira/scripts/upsert-comment.sh --summary --create');
 
     // 3. The structural read-back, and the verdict a flat body produces.
     expect($april)->toContain('**Read the comment back and confirm its structure, not only that it exists.**');
-    expect($april)->toContain('real `heading`, `bulletList`, and `listItem` nodes');
+    expect($april)->toContain('four `expand` nodes with status icons in the first three titles');
     expect($april)->toContain('**A single `paragraph` of flat text means the conversion failed**');
     expect($april)->toContain('**publication failure, not a cosmetic one**');
 
@@ -234,9 +234,9 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
 
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
     expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
-    expect($april)->toContain('On **JIRA** there is no headline: the comment opens with the deploy verdict paragraph');
+    expect($april)->toContain('On **JIRA** the comment opens with its byline and the deploy verdict in one paragraph');
     expect($krang)->not->toContain('the opening sentence of the `Problem` field is');
-    expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
+    expect($krang)->toContain('on JIRA it follows the four sections including the status-labelled test scenarios');
 });
 
 test('an expand block becomes a collapsed ADF expand node that keeps its content', function (): void {
@@ -293,5 +293,5 @@ test('the JIRA MCP fallback reads the stored comment back for the agent marker (
         'After the MCP write, read the comment back and require that marker line in its stored body, as the helper does after its own write.',
     )
         ->and($rule)->toContain('stop as blocked, name its ID, and leave its removal to a human')
-        ->and($summary)->toContain('and read the stored comment back for that marker as `@rules/jira/general.md` states.');
+        ->and($summary)->toContain('All JIRA operations in this flow use acli.');
 });

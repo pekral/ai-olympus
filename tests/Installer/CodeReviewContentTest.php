@@ -26,7 +26,7 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
     // JIRA renders the verdict as its first section and each question inside its bullet, so its
     // published body carries no slot at all.
     expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
-    expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
+    expect($jiraTemplate)->toContain('Include every stated criterion');
 });
 
 test('pr-summary renders no assignment verdict of its own — the embedded block is the verdict', function (): void {
@@ -53,7 +53,7 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     expect($prSummary)->toContain('authors no verdict, no banner');
 
     // JIRA publishes only remaining requests; the full verdict stays on the pull request.
-    expect($prSummary)->toContain('on JIRA only requirements that still need action are published');
+    expect($prSummary)->toContain('every explicit requirement, numbered');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');
@@ -65,8 +65,8 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     // JIRA has no slot: the verdict is the first section and each question closes its own bullet.
     expect($jiraTemplate)->not->toContain('{assignment_verdict}');
     expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
-    expect($jiraTemplate)->toContain('The JIRA template has no {embedded_blocks} slot.');
-    expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
+    expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
+    expect($jiraTemplate)->toContain('Include every stated criterion');
 });
 
 /**
@@ -80,20 +80,18 @@ function jiraPublishedBody(string $template): string
     return $end === false ? $template : mb_substr($template, 0, $end);
 }
 
-test('the JIRA template keeps only actionable requirements and one combined summary', function (): void {
+test('the JIRA template includes acceptance criteria, findings, test scenarios and a single impact summary', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $body = jiraPublishedBody($jiraTemplate);
 
-    expect($body)->toContain('only for explicit requirements that still need a change or an answer')
-        ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('{expand:What changed and what it affects}');
-    expect($body)->not->toContain('h2. What changed');
-    expect($body)->not->toContain('h2. Impact after deployment');
-    expect($body)->not->toContain('h2. How to test');
-    expect($jiraTemplate)->toContain('remaining action; omit repaired parts and their history.')
-        ->toContain('When every requirement is')
-        ->toContain('satisfied, omit the whole section.');
+    expect($body)->toContain(
+        '{expand:⚠️ Acceptance criteria}',
+        '{expand:✅ Findings from the code review}',
+        '{expand:⚠️ Test scenarios}',
+        '{expand:What changed and what it affects}',
+    );
+    expect($body)->not->toContain('{agent-marker}', 'PR_URL', 'ISSUE_URL', 'Technical marker for AI agents');
 
     foreach (['github', 'bugsnag'] as $target) {
         $other = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
@@ -306,7 +304,7 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
 
     // The intermediate template retells the review instead of listing test steps. The helper turns
     // its supported source constructs into ADF before JIRA receives the body.
-    expect($template)->toContain('{expand:Findings from the code review}');
+    expect($template)->toContain('{expand:✅ Findings from the code review}');
     expect(jiraPublishedBody($template))->not->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
@@ -317,9 +315,11 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     expect($rule)->toContain('`{code:php} ... {code}`');
     expect($rule)->toContain('`[label|https://example.com]`');
     expect($rule)->toContain('valid ADF only');
-    $adfPublicationRule = 'The final `acli` write must use `comment update --body-adf`; a successful plain-text create is not publication success.';
+    $adfPublicationRule = 'For an ordinary ACLI summary, the helper sends it with `comment create --body-file` '
+        . 'and verifies the exact stored document and author.';
     expect($rule)->toContain($adfPublicationRule);
     expect(substr_count($rule, $adfPublicationRule))->toBe(1);
+    expect($rule)->toContain('An authorized edit or a screenshot summary uses the bound public API operation');
 
     expect($skill)->toContain('Delegate the JIRA comment to `@skills/pr-summary/SKILL.md`');
     expect($skill)->toContain('@skills/pr-summary/templates/pr-summary-jira.md');
@@ -2159,8 +2159,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` '
-        . '(only for requirements that still need action), `Review findings`, `What changed and what it affects`.',
+        '**JIRA renders one shape on every run.** Follow the byline, deploy verdict and four sections',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4680,7 +4679,7 @@ test('every code-review report is published as a new comment on each destination
         ->and($contract)->toContain('and `pr-summary` posts a new comment with `--create` on every tracker destination')
         ->and(preg_match_all($updateInPlace, $contract))->toBe(0);
     expect(substr_count($prSummary, 'skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -'))->toBe(1)
-        ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -'))->toBe(1)
+        ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --summary --create <KEY|URL> <source>'))->toBe(1)
         ->and($prSummary)->toContain('`addIssueComment`, never `updateIssueComment`')
         ->and(preg_match_all($updateInPlace, $prSummary))->toBe(0);
     expect($severalPullRequests)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')

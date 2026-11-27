@@ -4,13 +4,22 @@ declare(strict_types = 1);
 
 const REPORT_CHECK_DEVELOPER_TOKEN = '\{\{|\{code|(?<![0-9A-Za-z])(?=[0-9a-f]*[a-f])[0-9a-f]{10,40}(?![0-9A-Za-z])';
 
+const JIRA_REVIEW_BYLINE = 'AI Olympus · ';
+
+function jiraReviewByline(string $source): bool
+{
+    return str_starts_with(reportCheckLines($source)[0] ?? '', JIRA_REVIEW_BYLINE);
+}
+
 /**
  * @return list<string>
  */
 function reportCheckLines(string $source): array
 {
+    $lines = preg_split('/\R/u', $source);
+
     return array_values(array_filter(
-        preg_split('/\R/u', $source) ?: [],
+        $lines === false ? [] : $lines,
         static fn (string $line): bool => trim($line) !== '',
     ));
 }
