@@ -53,7 +53,7 @@ function jiraLegacyPreviewAdf(string $text, bool $quoted = false): array
 }
 
 /**
- * @return array{string, Process}
+ * @return array{string, \Symfony\Component\Process\Process}
  */
 function jiraPreviewCommands(): array
 {

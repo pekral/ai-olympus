@@ -433,8 +433,11 @@ function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'sr
 
 test('a finding outside the pull request may link its file and line at the reviewed commit of the task repository', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat('c', 64) . 'R4]'
-            => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat(
+            'c',
+            64,
+        ) . 'R4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']',
+        ],
     );
 
     $process = runJiraSummaryCheck($source, 'none');
@@ -571,8 +574,11 @@ test('a file link at a commit other than the reviewed one is refused', function 
 
 test('a file link is refused when the check names no reviewed commit', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat('c', 64) . 'R4]'
-            => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat(
+            'c',
+            64,
+        ) . 'R4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']',
+        ],
     );
 
     $process = ReportCheckRun::over(
