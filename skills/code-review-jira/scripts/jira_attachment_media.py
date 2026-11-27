@@ -61,9 +61,9 @@ def authorization_for(email):
     program = 'source "$1"; jira_rest_resolve_auth || exit 2; printf "%s\\n%s" "$JIRA_REST_EMAIL" "$JIRA_REST_TOKEN"'
     resolved = subprocess.run(["bash", "-c", program, "jira-attachment-media", str(provider)], capture_output=True, timeout=10)
     if resolved.returncode:
-        raise Unconfirmed("configure JIRA_API_EMAIL and JIRA_API_TOKEN or ~/.config/acli/jira_api_token (chmod 600)")
+        raise Unconfirmed("missing: configure JIRA_API_EMAIL and JIRA_API_TOKEN or an email:token line in ~/.config/acli/jira_api_token (chmod 600)")
     token_email, token = resolved.stdout.decode().split("\n", 1)
-    require(token_email.casefold() == email.casefold() and token and not any(x.isspace() for x in token), "configure the same account for acli and the attachment helper")
+    require(token_email.casefold() == email.casefold() and token and not any(x.isspace() for x in token), "mismatch: configure the same account for acli and the attachment helper")
     return "Basic " + base64.b64encode((token_email + ":" + token).encode()).decode()
 
 
@@ -72,27 +72,48 @@ def run_cli(*args):
     return subprocess.run(args, env=env, capture_output=True, check=True, timeout=45).stdout.decode()
 
 
-def resolve(key, attachment_id, expected, filename):
-    require(re.fullmatch(r"[A-Z][A-Z0-9_]+-[1-9][0-9]*", key) and re.fullmatch(r"[1-9][0-9]*", attachment_id), "invalid Jira target")
-    require(re.fullmatch(r"[0-9a-f]{64}", expected) and re.fullmatch(r"[a-z0-9-]{1,140}\.png", filename), "expected the reviewed PNG digest and filename")
+def target_key(key):
+    require(re.fullmatch(r"[A-Z][A-Z0-9_]+-[1-9][0-9]*", key), "invalid Jira target")
+
+
+def authenticated_identity():
     auth = run_cli("acli", "jira", "auth", "status")
     site = re.findall(r"^\s*Site:\s*([a-z0-9-]+\.atlassian\.net)\s*$", auth, re.M)
     email = re.findall(r"^\s*Email:\s*(\S+@\S+)\s*$", auth, re.M)
     require(len(site) == len(email) == 1, "cannot establish the authenticated Jira Cloud site and account")
-    view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
-    require(view["key"] == key and isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory")
-    items = [a for a in view["fields"]["attachment"] if str(a["id"]) == attachment_id]
-    require(len(items) == 1, "attachment is absent or ambiguous on this ticket")
-    item = items[0]
+    header = authorization_for(email[0])
     actor_file = Path(__file__).resolve().with_name("jira-actor.sh")
     account = run_cli("bash", "-c", 'source "$1"; jira_actor_account_id', "jira-attachment-media", str(actor_file)).strip()
+    code, locations, payload = public_get(site[0], "/rest/api/3/myself", header, 65536)
+    require(code == 200 and not locations and account and json.loads(payload)["accountId"] == account, "mismatch: the attachment credential did not confirm the acli account")
+    return site[0], account, header
+
+
+def attachment_inventory(key):
+    target_key(key)
+    view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
+    require(view["key"] == key and isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory")
+    return view["fields"]["attachment"]
+
+
+def resolve(key, attachment_id, expected, filename):
+    require(re.fullmatch(r"[1-9][0-9]*", attachment_id), "invalid attachment ID")
+    require(re.fullmatch(r"[0-9a-f]{64}", expected) and re.fullmatch(r"[a-z0-9-]{1,140}\.png", filename), "expected the reviewed PNG digest and filename")
+    site, account, header = authenticated_identity()
+    items = [a for a in attachment_inventory(key) if str(a["id"]) == attachment_id]
+    require(len(items) == 1, "attachment is absent or ambiguous on this ticket")
+    item = items[0]
     require(account and item["author"]["accountId"] == account, "attachment author differs from the authenticated account")
     require(item["filename"] == filename and item["mimeType"] == "image/png" and 0 < item["size"] <= 2097152, "unexpected attachment metadata")
-    return attachment_identity(site[0], authorization_for(email[0]), item, expected)
+    return attachment_identity(site, header, item, expected)
 
 
 if __name__ == "__main__":
     try:
+        if sys.argv[1:] == ["--check-auth"]:
+            authenticated_identity()
+            print("configured")
+            sys.exit(0)
         require(len(sys.argv) == 5, "use <KEY> <attachment-id> <reviewed-sha256> <expected-filename.png>")
         print(json.dumps(resolve(*sys.argv[1:])))
     except Unconfirmed as refused:
