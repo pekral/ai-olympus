@@ -233,7 +233,7 @@ function mergePlanIds(array $plan, string $key): array
 
 /**
  * @param array<mixed> $plan
- * @return array<string, string>
+ * @return array<array-key, string>
  */
 function mergePlanClasses(array $plan): array
 {

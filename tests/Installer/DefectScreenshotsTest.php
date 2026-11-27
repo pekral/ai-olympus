@@ -131,9 +131,9 @@ test('the boundaries never let an agent run an upload script directly or for a s
 });
 
 test('only the GitHub review can publish a screenshot', function (): void {
-    expect(defectShotRead('rules/compound-engineering/orchestration.md'))
-        ->toContain('GitHub Contents API only: no `git push`, no hook, no force')
-        ->not->toContain('Attach the masked screenshot of a reproduced defect to the JIRA work item');
+    $rule = defectShotRead('rules/compound-engineering/orchestration.md');
+    expect($rule)->toContain('GitHub Contents API only: no `git push`, no hook, no force');
+    expect($rule)->not->toContain('Attach the masked screenshot of a reproduced defect to the JIRA work item');
     expect(defectShotRead('rules/jira/general.md'))->toContain('It never uploads or deletes attachments.');
 });
 

@@ -10,7 +10,7 @@ function jiraSummaryTitleViolations(array $lines): array
 {
     $layout = jiraSummaryLayout($lines);
     $shared = $layout['groups'] > 0 ? jiraSummaryGroupBlocks($layout['blocks'], 0)[1] ?? null : null;
-    $headings = preg_grep(JIRA_SUMMARY_GROUP_HEADING, $lines) ?: [];
+    $headings = array_filter($lines, static fn (string $line): bool => preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1);
     $numbers = array_values(array_map(static fn (string $heading): string => explode(' ', $heading)[2], $headings));
     $violations = [];
 
@@ -76,9 +76,9 @@ function jiraSummarySectionViolations(string $section, ?array $block, bool $shar
  */
 function jiraSummaryFindingsStatus(array $body, string $icon, bool $sharedBlocker): array
 {
-    $actionable = preg_grep(JIRA_SUMMARY_FINDING_TYPE, $body) ?: [];
+    $actionable = array_filter($body, static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
     $pending = '/^\* \*\([a-z]+\):\* (?:\[~accountid:[^\]]+\] )?⚠️ /u';
-    $blockers = preg_grep($pending, $actionable, PREG_GREP_INVERT) ?: [];
+    $blockers = array_filter($actionable, static fn (string $line): bool => preg_match($pending, $line) !== 1);
 
     $allowed = match (true) {
         $blockers !== [] => ['❌'],

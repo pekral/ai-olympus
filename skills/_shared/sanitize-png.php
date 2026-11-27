@@ -81,7 +81,7 @@ function staticPngChunks(array $types): bool
 }
 
 /**
- * @return array{int, int, int}|null
+ * @return array{positive-int, positive-int, int}|null
  */
 function pngDimensions(string $header): ?array
 {
@@ -92,7 +92,7 @@ function pngDimensions(string $header): ?array
     $width = readUint32(substr($header, 0, 4));
     $height = readUint32(substr($header, 4, 4));
 
-    if (min($width, $height) < 1 || max($width, $height) > 4_096 || $width * $height > MAX_PNG_PIXELS) {
+    if (($width < 1 || $height < 1) || max($width, $height) > 4_096 || $width * $height > MAX_PNG_PIXELS) {
         return null;
     }
 
@@ -116,6 +116,10 @@ function validPngScanlines(string $compressed, int $height, int $stride): bool
     return true;
 }
 
+/**
+ * @param positive-int $width
+ * @param positive-int $height
+ */
 function canonicalPng(string $header, string $compressed, int $width, int $height): ?string
 {
     // Feed the decoder raster chunks only, then draw onto an opaque white background.
@@ -125,10 +129,12 @@ function canonicalPng(string $header, string $compressed, int $width, int $heigh
     $decoded = @imagecreatefromstring($raster);
     $opaque = imagecreatetruecolor($width, $height);
 
-    if ($decoded === false || $opaque === false || !imagefill($opaque, 0, 0, 0xffffff) || !imagecopy($opaque, $decoded, 0, 0, 0, 0, $width, $height)) {
+    if ($decoded === false || $opaque === false) {
         return null;
     }
 
+    imagefill($opaque, 0, 0, 0xffffff);
+    imagecopy($opaque, $decoded, 0, 0, 0, 0, $width, $height);
     ob_start();
     $written = imagepng($opaque, null, 9);
     $canonical = ob_get_clean();
@@ -143,7 +149,7 @@ function sanitizePng(string $bytes): ?array
 {
     $chunks = str_starts_with($bytes, PNG_SIGNATURE) ? parsePngChunks($bytes) : null;
 
-    if ($chunks === null || !function_exists('imagecreatefromstring')) {
+    if ($chunks === null || $chunks === [] || !function_exists('imagecreatefromstring')) {
         return null;
     }
 

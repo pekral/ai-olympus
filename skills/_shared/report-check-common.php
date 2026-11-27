@@ -16,8 +16,10 @@ function jiraReviewByline(string $source): bool
  */
 function reportCheckLines(string $source): array
 {
+    $lines = preg_split('/\R/u', $source);
+
     return array_values(array_filter(
-        preg_split('/\R/u', $source) ?: [],
+        $lines === false ? [] : $lines,
         static fn (string $line): bool => trim($line) !== '',
     ));
 }

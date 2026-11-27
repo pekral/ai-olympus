@@ -125,21 +125,28 @@ test('the screenshot fallback creates only the attributed structured summary and
 
     expect($rc)->toBe(0)->and($error)->toContain('action=created id=17', 'text only')
         ->and($calls)->not->toContain('comment update', 'comment delete', 'attachment')
-        ->and($sent)->toContain('"expand"')->not->toContain(':actor=', '{screenshot:', '"media"');
+        ->and($sent)->toContain('"expand"');
+    expect($sent)->not->toContain(':actor=', '{screenshot:', '"media"');
 });
 
-test('an incomplete or unknown snapshot and an invalid explicit summary permit no write', function (array $page, bool $malformed): void {
-    [$rc, , $calls] = jiraPreviewPublish($page, malformed: $malformed);
+test('an incomplete or unknown snapshot and an invalid explicit summary permit no write', function (string $case): void {
+    $page = match ($case) {
+        'incomplete' => jiraSummaryPage([], 1),
+        'unknown' => ['results' => []],
+        default => jiraSummaryPage([]),
+    };
+    [$rc, , $calls] = jiraPreviewPublish($page, malformed: $case === 'invalid byline');
 
     expect($rc)->not->toBe(0)->and($calls)->not->toContain('comment create', 'comment update', 'comment delete');
-})->with([[jiraSummaryPage([], 1), false], [['results' => []], false], [jiraSummaryPage([]), true]]);
+})->with(['incomplete', 'unknown', 'invalid byline']);
 
-test('a refused or uncertain creation never issues a compensating write', function (array $environment): void {
+test('a refused or uncertain creation never issues a compensating write', function (string $failure): void {
+    $environment = $failure === 'refused' ? ['CREATE_RC' => '1'] : ['READBACK' => 'missing'];
     [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: $environment);
 
     expect($rc)->toBe(3)->and(substr_count($calls, 'comment create'))->toBe(1)
         ->and($calls)->not->toContain('comment delete', 'comment update', 'attachment');
-})->with([[['CREATE_RC' => '1']], [['READBACK' => 'missing']]]);
+})->with(['refused', 'unknown']);
 
 test('migration requires the original exact marker, account and unchanged body', function (string $case): void {
     $marker = 'cr-comment:actor=' . substr(hash('sha256', 'qa@example.test'), 0, 16) . ' lines=1234abcd';
