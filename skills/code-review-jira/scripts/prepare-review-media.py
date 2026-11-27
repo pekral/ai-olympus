@@ -9,7 +9,7 @@ import tempfile
 from pathlib import Path
 
 from jira_attachment_media import DestinationChanged, Unconfirmed, require, run_bytes, run_cli
-from jira_review_media import HERE, SHARED, UncertainWrite, attach_media, canonical_png, confirmed_file, find_item
+from jira_review_media import HERE, SHARED, UncertainWrite, attach_media, canonical_png, confirmed_file, find_item, unresolved
 
 GITHUB = HERE.parent.parent / "code-review-github" / "scripts"
 PULL = r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)"
@@ -163,12 +163,18 @@ if __name__ == "__main__":
             pr, head, repo, number, review, default, pairs = selection(binding, slug, source, document, work)
             profile = (binding["site"], binding["account"])
             prepared = []
-            for fid, state, _, item, data, digest in sorted(pairs, key=lambda p: p[1] != "head"):
+            pending = unresolved(slug, binding["site"], key)
+            def filename(pair):
+                return f"review-{pair[0]}-{pair[1]}-{pair[5]}.png"
+            require(pending.issubset({filename(pair) for pair in pairs}), "an earlier attachment lost its source proof", UncertainWrite)
+            ordered = sorted(pairs, key=lambda pair: (filename(pair) not in pending, pair[1] != "head"))
+            for pair in ordered:
+                fid, state, _, item, data, digest = pair
                 if state == "base" and not any(f == fid and s == "head" for f, s, _, _ in prepared):
                     continue
                 revalidate(pr, key, head, repo, number, review, work)
                 try:
-                    media = confirmed_file(key, slug, f"review-{fid}-{state}-{digest}.png", data, digest, profile, issue_id)
+                    media = confirmed_file(key, slug, filename(pair), data, digest, profile, issue_id)
                 except (DestinationChanged, UncertainWrite):
                     raise
                 except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException):

@@ -113,7 +113,10 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
 {
     [$dir, $jq] = jiraPreviewCommands();
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
-    file_put_contents($dir . '/preview.audit', '');
+    (new Process(['git', 'init', '--quiet', $dir]))->mustRun();
+    mkdir($dir . '/.codex/run', 0o700, recursive: true);
+    $ledger = $dir . '/.codex/run/preview.audit';
+    file_put_contents($ledger, $environment['PREVIOUS_UPLOAD'] ?? '');
     $arguments = ['--create', '--screenshots', $dir . '/unused', '--slug', 'preview'];
 
     if ($prior !== null) {
@@ -128,7 +131,7 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
         ...$environment,
         'ACLI_CONFIG_DIR' => $dir . '/profile',
-        'AUDIT_TRAIL_FILE' => $dir . '/preview.audit',
+        'AUDIT_TRAIL_FILE' => $ledger,
         'AUDIT_TRAIL_ROLE' => 'april',
         'FIXTURE' => $dir,
         'PATH' => $dir . PATH_SEPARATOR . (string) getenv('PATH'),
@@ -175,6 +178,13 @@ test('a refused or uncertain creation never issues a compensating write', functi
     expect($rc)->toBe(3)->and(substr_count($calls, 'comment create'))->toBe(1)
         ->and($calls)->not->toContain('comment delete', 'comment update', 'attachment');
 })->with(['refused', 'unknown']);
+
+test('losing the screenshot source after an uncertain upload blocks even a text-only fallback', function (): void {
+    $intent = "april|time|note|jira attachment example.atlassian.net/TEST-1/missing.png|upload intent; no automatic retry\n";
+    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['PREVIOUS_UPLOAD' => $intent]);
+
+    expect($rc)->toBe(3)->and($calls)->not->toContain('comment create', 'attachment', 'comment update', 'comment delete');
+});
 
 test('a changed isolated Jira site or actor stops before any attachment or comment write', function (string $change): void {
     [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: [$change => '1']);

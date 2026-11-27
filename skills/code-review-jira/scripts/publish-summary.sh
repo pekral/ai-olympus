@@ -75,6 +75,7 @@ publish_summary() {
       if ! (
         mkdir "${ledger}.summary-intent.lock" || exit 1
         trap 'rmdir "${ledger}.summary-intent.lock"' EXIT
+        python3 -B "$SCRIPT_DIR/jira_review_media.py" "$SHOTS_SLUG" "$SITE" "$KEY" || exit 1
         local prior_rc=0
         grep -Fq "|$attempt_key|" "$ledger" || prior_rc=$?
         [[ "$prior_rc" == 1 ]] || exit 1

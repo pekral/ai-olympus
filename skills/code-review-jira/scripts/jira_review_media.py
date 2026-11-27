@@ -8,6 +8,8 @@ import re
 import secrets
 import stat
 import subprocess
+import sys
+from contextlib import contextmanager
 import tempfile
 from pathlib import Path
 
@@ -64,22 +66,48 @@ class UncertainWrite(Unconfirmed):
     """The run must reconcile a possible external write before publishing or retrying."""
 
 
-def confirmed_file(key, slug, name, data, expected, binding, issue_id):
-    target_key(key)
-    require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
-            and 0 < len(data) <= 2097152, "invalid reviewed PNG")
+@contextmanager
+def locked_ledger(slug):
     root = Path(run_cli("git", "rev-parse", "--show-toplevel").strip()).resolve()
     file = Path(os.environ.get("AUDIT_TRAIL_FILE", ""))
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", slug)
             and file in [root / r / "run" / (slug + ".audit") for r in (".codex", ".claude")]
             and file.resolve() == file, "the existing audit ledger for this run is required")
-    target = "jira attachment " + binding[0] + "/" + key + "/" + name
-    # Read the intent before inventory or identity checks: an older POST remains unresolved
-    # until the original attachment can be positively identified and all bytes verified.
     fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as ledger:
         require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_nlink == 1, "invalid run ledger")
         fcntl.flock(fd, fcntl.LOCK_EX)
+        yield file, ledger
+
+
+def pending_uploads(ledger, site, key):
+    prefix = f"jira attachment {site}/{key}/"
+    pending = set()
+    for line in ledger:
+        fields = line.rstrip("\n").split("|")
+        if len(fields) != 5 or not fields[3].startswith(prefix):
+            continue
+        name = fields[3][len(prefix):]
+        if fields[2] == "note" and "upload intent; no automatic retry" in fields[4]:
+            pending.add(name)
+        elif fields[2] == "external-write" and fields[4] == "stored attachment bytes and media identity verified (exit 0)":
+            pending.discard(name)
+    return pending
+
+
+def unresolved(slug, site, key):
+    with locked_ledger(slug) as (_, ledger):
+        return pending_uploads(ledger, site, key)
+
+
+def confirmed_file(key, slug, name, data, expected, binding, issue_id):
+    target_key(key)
+    require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
+            and 0 < len(data) <= 2097152, "invalid reviewed PNG")
+    target = "jira attachment " + binding[0] + "/" + key + "/" + name
+    with locked_ledger(slug) as (file, ledger):
+        pending = pending_uploads(ledger, binding[0], key)
+        ledger.seek(0)
         attempted = any(line.split("|")[3:4] == [target] for line in ledger)
         try:
             site, actor, header = authenticated_identity(*binding)
@@ -89,7 +117,7 @@ def confirmed_file(key, slug, name, data, expected, binding, issue_id):
 
             items = inventory()
             if not items:
-                require(not attempted, "previous upload attempt requires reconciliation")
+                require(not (attempted or pending), "previous upload attempt requires reconciliation", UncertainWrite)
                 audit_record(file, target, 3, "upload intent; no automatic retry")
                 attempted = True
                 created = upload(site, key, header, name, data)
@@ -100,7 +128,10 @@ def confirmed_file(key, slug, name, data, expected, binding, issue_id):
             require(len(items) == 1, "attachment is absent or ambiguous")
             item = items[0]
             checked_item(item, name, len(data), actor)
-            return {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+            proof = {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+            if attempted:
+                audit_record(file, target, 0, "stored attachment bytes and media identity verified")
+            return proof
         except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException) as error:
             if attempted:
                 raise UncertainWrite("attempted attachment upload requires reconciliation") from error
@@ -135,3 +166,12 @@ def attach_media(item, media, caption):
                                       "type": "file", "collection": "", "alt": caption},
         }]},
     ])
+
+if __name__ == "__main__":
+    # Read-only last check for both image and text fallback, before the comment CREATE intent.
+    try:
+        slug, site, key = sys.argv[1:]
+        if unresolved(slug, site, key):
+            raise UncertainWrite("attachment write requires reconciliation")
+    except (Unconfirmed, ValueError, OSError, subprocess.SubprocessError):
+        sys.exit("Jira attachment audit is unavailable or contains an unresolved write")
