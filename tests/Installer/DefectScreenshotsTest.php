@@ -47,7 +47,7 @@ test('an error or debug page is never captured, and the detection list is pinned
 test('the capture is cropped and never a full page', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
-    expect($reference)->toContain('It covers the failing element or the viewport of the failing step, never the full page (`fullPage: true`).');
+    expect($reference)->toContain('It covers the failing element within the tested viewport, never the full page (`fullPage: true`).');
 });
 
 test('masking runs in the capturing session and covers values, split text, shadow roots, and embedded content', function (): void {
@@ -78,16 +78,16 @@ test('the upload happens only inside the publishing step', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
     expect($reference)->toContain('**Upload happens only inside the publishing step.**')
-        ->and($reference)->toContain('A refused post (exit 1 or exit 4) and a quiet review round upload nothing.')
+        ->and($reference)->toContain('A quiet review round uploads nothing.')
         ->and($reference)->toContain('**A refused write is never a failed review.**');
 });
 
-test('the evidence URL loses the values of the sensitive parameters', function (): void {
+test('the evidence does not expose any component of a private step URL', function (): void {
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
     $raphael = defectShotRead('agents/raphael.md');
 
-    expect($reference)->toContain('`token`, `signature`, `key`, `code`, or `expires` with `<redacted>`')
-        ->and($raphael)->toContain('the exact URL goes through `skills/_shared/redact-url-params.sh` first');
+    expect($reference)->toContain('Do not include the source URL, its host, path, query or fragment.')
+        ->and($raphael)->toContain('Name the step without copying its URL.');
 });
 
 test('raphael, april, and the interactive-testing skill point to the reference and stop saying GitHub has no image path', function (): void {
@@ -115,8 +115,8 @@ test(
         }
     },
 )->with([
-    'april' => ['april', ['upload-review-asset.sh', 'upload-attachment.sh']],
-    'leonardo' => ['leonardo', ['upload-review-asset.sh', 'upload-attachment.sh']],
+    'april' => ['april', ['upload-review-asset.sh']],
+    'leonardo' => ['leonardo', ['upload-review-asset.sh']],
     'raphael' => ['raphael', ['redact-url-params.sh', 'screenshot-guard.sh']],
 ]);
 
@@ -124,28 +124,16 @@ test('the boundaries never let an agent run an upload script directly or for a s
     $leonardo = defectShotRead('agents/leonardo.md');
     $raphael = defectShotRead('agents/raphael.md');
 
-    expect($leonardo)->toContain('you never run either directly')
-        ->and($leonardo)->toContain('neither runs for a security finding, a finding marked `do_not_file_publicly`, or a quiet review round')
+    expect($leonardo)->toContain('you never run it directly')
+        ->and($leonardo)->toContain('it never runs for a security finding, a finding marked `do_not_file_publicly`, or a quiet review round')
         ->and($raphael)->toContain('You never run an upload script: the publisher does.');
 });
 
-test('the consent table lists the two screenshot writes as L1 rows with their limits', function (): void {
-    $orchestration = defectShotRead('rules/compound-engineering/orchestration.md');
-
-    expect($orchestration)->toContain('GitHub Contents API only: no `git push`, no hook, no force')
-        ->and($orchestration)->toContain('sends the token to the configured site only')
-        ->and($orchestration)->toContain('and the two screenshot upload scripts of `@skills/interactive-testing/references/defect-screenshots.md`');
-});
-
-test('the JIRA rule, template, and shape reference describe the slot line and the upload script', function (): void {
-    expect(defectShotRead('rules/jira/general.md'))->toContain(
-        'Upload a defect screenshot only through `skills/code-review-jira/scripts/upload-attachment.sh`.',
-    )
-        ->and(defectShotRead('skills/pr-summary/templates/pr-summary-jira.md'))->toContain('{screenshot:<finding id>:head}')
-        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain(
-            '14. **A reproduced defect shows its screenshot inside its finding.**',
-        )
-        ->and(defectShotRead('skills/pr-summary/references/jira-shape.md'))->toContain('a `security` finding, or a finding marked do not file publicly');
+test('only the GitHub review can publish a screenshot', function (): void {
+    expect(defectShotRead('rules/compound-engineering/orchestration.md'))
+        ->toContain('GitHub Contents API only: no `git push`, no hook, no force')
+        ->not->toContain('Attach the masked screenshot of a reproduced defect to the JIRA work item');
+    expect(defectShotRead('rules/jira/general.md'))->toContain('It never uploads or deletes attachments.');
 });
 
 test('the GitHub review template and the wrapper contract describe the one allowed image', function (): void {
@@ -163,5 +151,5 @@ test('the self-tests of the new scripts run in the shell self-test command', fun
     expect($composer)->toContain('skills/_shared/screenshot-guard.sh')
         ->and($composer)->toContain('skills/_shared/redact-url-params.sh')
         ->and($composer)->toContain('skills/code-review-github/scripts/upload-review-asset.sh')
-        ->and($composer)->toContain('skills/code-review-jira/scripts/upload-attachment.sh');
+        ->and($composer)->not->toContain('skills/code-review-jira/scripts/upload-attachment.sh');
 });

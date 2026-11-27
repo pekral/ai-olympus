@@ -19,7 +19,7 @@ Read the branch's commits and its linked tracker. Write one non-technical commen
 - Prose is terse. Business "why" first, enough technical context to locate the change, nothing more.
 - No code snippets, file paths, line numbers, diff fragments.
 - Length follows the facts the report carries. There is no word budget on GitHub and Bugsnag; JIRA caps the comment at 3 000 characters.
-- Publish through `upsert-comment.sh --create` — every run posts a new comment on GitHub and JIRA and leaves the comment of an earlier run unchanged.
+- Publish through the tracker-specific commands in *Publishing*. Every run posts a new comment on GitHub and JIRA and leaves the comment of an earlier run unchanged.
 
 ---
 
@@ -208,7 +208,7 @@ Eight numbered steps, three independent jobs. The headings below are the jobs; t
    - **GitHub:** `skills/code-review-github/scripts/load-issue.sh <URL>` — always the full GitHub URL, never a bare number (the loader rejects it); read `body`, `comments[]`, and `closingIssues[]` off the resulting JSON document.
    - **JIRA:** `skills/code-review-jira/scripts/load-issue.sh <KEY|URL>` — read `descriptionText`, `comments[]`, and linked PRs. Also load the pull request through `skills/code-review-github/scripts/load-issue.sh <PR_URL>` and read the newest trusted code-review report through `skills/_shared/cr-header.sh --report <loader-file>` (the hidden record of a pull-request review, or a legacy `cr-comment` comment): it is the source of the JIRA `Review findings` section, and its `## Affected behaviour outside the diff` section feeds `What changed and what it affects`.
    - **Bugsnag:** `skills/code-review-bugsnag/scripts/load-issue.sh <URL|TRIPLE>` — read the error context, its `comments[]`, and its linked issues / PRs.
-   - Never call `gh pr view`, `gh issue view`, or `acli` directly; fall back to the GitHub / JIRA / Bugsnag MCP server only when the loader is unavailable (exit code 2/3).
+   - Use the canonical loaders. For JIRA report an unavailable acli read. The GitHub and Bugsnag paths retain their MCP fallback when their loader exits 2 or 3.
 
 ### Decide the target (5)
 

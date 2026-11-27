@@ -10,7 +10,7 @@
 #   skills/interactive-testing/references/defect-screenshots.md owns the rules behind it.
 #
 # Usage
-#   upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <source-slug> --finding <finding-id> --state head|base <png>
+#   upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <source-slug> --finding <finding-id> --state head|base --sha256 <canonical-digest> <png>
 #   upload-review-asset.sh verify <PR-URL> <image-URL>
 #   upload-review-asset.sh --self-test
 #
@@ -74,6 +74,11 @@ require_tools() {
 gh_api() {
   local prefix="$1" rc=0
   shift
+  if [[ "${1:-}" == "-X" && ( "${2:-}" == "POST" || "${2:-}" == "PUT" ) ]]; then
+    local current
+    current="$(gh api "repos/${NWO}/pulls/${NUMBER}" --jq '.head.sha' 2>/dev/null)" || die 3 "could not confirm the review head before an asset write"
+    [[ "$current" == "$UPLOAD_HEAD" ]] || die 4 "the reviewed head moved; stopped before the next asset write"
+  fi
   gh api "$@" >"$prefix.out" 2>"$prefix.err" || rc=$?
   return "$rc"
 }
@@ -88,12 +93,12 @@ audit_write() {
 
 # verify_asset <commit> <path> — the commit is an ancestor of the branch (or its tip) and the path exists in it.
 verify_asset() {
-  local commit="$1" path="$2" status
+  local commit="$1" path="$2" expected_blob="${3:-}" status
   gh_api "$TMP_ROOT/cmp" "repos/${NWO}/compare/${commit}...${BRANCH}" || return 1
   status="$(jq -r '.status // empty' "$TMP_ROOT/cmp.out" 2>/dev/null || true)"
   [[ "$status" == "ahead" || "$status" == "identical" ]] || return 1
   gh_api "$TMP_ROOT/at" "repos/${NWO}/contents/${path}?ref=${commit}" || return 1
-  jq -e '.type == "file"' "$TMP_ROOT/at.out" >/dev/null 2>&1
+  jq -e --arg blob "$expected_blob" '.type == "file" and ($blob == "" or .sha == $blob)' "$TMP_ROOT/at.out" >/dev/null 2>&1
 }
 
 asset_url() {
@@ -152,7 +157,9 @@ ensure_branch() {
     audit_write "branch ${BRANCH} created on ${NWO}" 0 "orphan branch of review screenshots, root commit ${root}"
   elif gh_api "$TMP_ROOT/ref" "repos/${NWO}/git/ref/heads/${BRANCH}"; then
     # Another run created the branch in the meantime: it must carry the marker.
-    ensure_branch
+    gh_api "$TMP_ROOT/marker" "repos/${NWO}/contents/${MARKER_PATH}?ref=${BRANCH}" || die 4 "the concurrently created asset branch cannot be verified"
+    marker_json="$(jq -r '.content // empty' "$TMP_ROOT/marker.out" | tr -d '\n' | base64 -d 2>/dev/null)" || die 4 "invalid asset branch marker"
+    [[ "$marker_json" == "$MARKER_TEXT" ]] || die 4 "the concurrently created asset branch has a different marker"
   else
     audit_write "branch ${BRANCH} creation on ${NWO}" 1 "the ref was refused"
     die 3 "creating ${BRANCH} on ${NWO} was refused: $(head -c 300 "$TMP_ROOT/newref.err")"
@@ -160,14 +167,15 @@ ensure_branch() {
 }
 
 cmd_upload() {
-  local pr="" head="" slug="" finding="" state="" file="" safe name path b64 size local_sha remote_sha commit="" url attempt put_rc
-  [[ $# -ge 1 ]] || die 1 "usage: upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <slug> --finding <id> --state head|base <png>"
+  local digest="" pr="" head="" slug="" finding="" state="" file="" safe name path b64 size local_sha remote_sha commit="" url attempt put_rc
+  [[ $# -ge 1 ]] || die 1 "usage: upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <slug> --finding <id> --state head|base --sha256 <canonical-digest> <png>"
   pr="$1"
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --head-sha) [[ $# -ge 2 ]] || die 1 "--head-sha needs a value"; head="$2"; shift 2 ;;
       --slug) [[ $# -ge 2 ]] || die 1 "--slug needs a value"; slug="$2"; shift 2 ;;
+      --sha256) [[ $# -ge 2 ]] || die 1 "--sha256 needs a value"; digest="$2"; shift 2 ;;
       --finding) [[ $# -ge 2 ]] || die 1 "--finding needs a value"; finding="$2"; shift 2 ;;
       --state) [[ $# -ge 2 ]] || die 1 "--state needs a value"; state="$2"; shift 2 ;;
       *) [[ -z "$file" ]] || die 1 "unexpected argument: $1"; file="$1"; shift ;;
@@ -179,8 +187,10 @@ cmd_upload() {
   [[ -n "$slug" && -n "$file" ]] || die 1 "--slug and a file are required"
   require_tools
   resolve_pull_request "$pr"
+  UPLOAD_HEAD="$head"
   mkdir -p "$TMP_ROOT/safe"
   safe="$(bash "$GUARD" file --slug "$slug" --out "$TMP_ROOT/safe" "$file")" || exit 1
+  [[ "$digest" =~ ^[0-9a-f]{64}$ && "$(shasum -a 256 <"$safe" | cut -d' ' -f1)" == "$digest" ]] || die 1 "the reviewed image digest does not match"
   name="${head:0:12}-${finding}-${state}.png"
   path="pr-${NUMBER}/${name}"
 
@@ -213,10 +223,11 @@ cmd_upload() {
       audit_write "cr-assets upload of ${name} to ${NWO}#${NUMBER}" "$put_rc" "the write was refused"
       die 3 "writing ${path} to ${BRANCH} of ${NWO} was refused: $(jq -r '.message // empty' "$TMP_ROOT/put.out" 2>/dev/null | head -c 200) $(head -c 200 "$TMP_ROOT/put.err")"
     done
+    audit_write "cr-assets path ${path} on ${NWO}" 0 "GitHub accepted the content write; verifying pinned bytes"
     commit="$(jq -r '.commit.sha // empty' "$TMP_ROOT/put.out")"
   fi
   [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || die 3 "the write of ${path} returned no commit SHA"
-  verify_asset "$commit" "$path" || { audit_write "cr-assets upload of ${name} to ${NWO}#${NUMBER}" 1 "the commit ${commit} is not on ${BRANCH} or the path is missing in it"; die 3 "the commit ${commit} is not on ${BRANCH} of ${NWO}, or ${path} is missing in it"; }
+  verify_asset "$commit" "$path" "$local_sha" || { audit_write "cr-assets upload of ${name} to ${NWO}#${NUMBER}" 1 "the commit ${commit} is not on ${BRANCH} or the path is missing in it"; die 3 "the commit ${commit} is not on ${BRANCH} of ${NWO}, or ${path} is missing in it"; }
   url="$(asset_url "$commit" "$path")"
   audit_write "$url" 0 "review screenshot of pull request #${NUMBER} written to ${BRANCH}"
   printf '%s\n' "$url"
@@ -239,6 +250,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -X) method="$2"; shift 2 ;;
     --input) input="$2"; shift 2 ;;
+    --jq) shift 2 ;;
     *) endpoint="$1"; shift ;;
   esac
 done
@@ -247,6 +259,7 @@ if [[ "$input" == "-" ]]; then body="$(cat)"; elif [[ -n "$input" ]]; then body=
 notfound() { echo '{"message":"Not Found"}'; echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
 sha() { printf '%040d' "$1"; }
 case "$method $endpoint" in
+  "GET repos/o/r/pulls/7") printf '%s\n' "$EXPECTED_HEAD" ;;
   "GET repos/o/r") if [[ -f "$S/nopush" ]]; then echo '{"permissions":{"push":false}}'; else echo '{"permissions":{"push":true}}'; fi ;;
   "GET repos/o/r/git/ref/heads/cr-assets") [[ -f "$S/branch" ]] || notfound; printf '{"object":{"sha":"%s"}}\n' "$(cat "$S/tip")" ;;
   "GET repos/o/r/contents/.ai-olympus-cr-assets?ref=cr-assets")
@@ -256,7 +269,7 @@ case "$method $endpoint" in
   "GET repos/o/r/contents/pr-7/"*"?ref=cr-assets")
     [[ -f "$S/exists_sha" ]] || notfound
     printf '{"type":"file","sha":"%s"}\n' "$(cat "$S/exists_sha")" ;;
-  "GET repos/o/r/contents/pr-7/"*"?ref="*) [[ -f "$S/commit_ok" ]] || notfound; echo '{"type":"file"}' ;;
+  "GET repos/o/r/contents/pr-7/"*"?ref="*) [[ -f "$S/commit_ok" ]] || notfound; printf '{"type":"file","sha":"%s"}\n' "$EXPECTED_TEST_BLOB" ;;
   "PUT repos/o/r/contents/pr-7/"*)
     n=$(($(cat "$S/puts" 2>/dev/null || echo 0) + 1)); echo "$n" >"$S/puts"
     if [[ -f "$S/forbidden" ]]; then echo '{"message":"Repository rule violations found"}'; echo "gh: Repository rule violations found (HTTP 403)" >&2; exit 1; fi
@@ -319,7 +332,12 @@ SHIM
     (cd "$repo" && PATH="$base/bin:$PATH" STUB_DIR="$stub" AUDIT_TRAIL_FILE="$audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$HERE/upload-review-asset.sh" "$@" 2>"$base/err")
   }
-  upload() { run upload "$pr" --head-sha "$head" --slug demo --finding "$finding" --state head "${1:-$png}"; }
+  local test_digest canonical="$base/canonical.png"
+  php "$HERE/../../_shared/sanitize-png.php" "$png" "$canonical" 2>/dev/null
+  test_digest="$(shasum -a 256 <"$canonical" | cut -d' ' -f1)"
+  export EXPECTED_HEAD="$head" EXPECTED_TEST_BLOB
+  EXPECTED_TEST_BLOB="$(git hash-object "$canonical")"
+  upload() { run upload "$pr" --head-sha "$head" --slug demo --finding "$finding" --state head --sha256 "$test_digest" "${1:-$png}"; }
   want_url="https://github.com/o/r/blob/$(printf '%040d' 99)/pr-7/0123456789ab-${finding}-head.png?raw=true"
 
   reset

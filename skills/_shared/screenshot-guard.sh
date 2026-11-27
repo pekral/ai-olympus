@@ -2,20 +2,18 @@
 # screenshot-guard.sh — the one gate a defect screenshot passes before any publisher uploads it.
 #
 # Why this exists
-#   A screenshot of a reproduced defect goes to a public tracker and stays there. The GitHub wrapper, the JIRA wrapper,
-#   and both publishers must therefore refuse the same files and the same manifest entries, so the checks exist here
-#   once (skills/interactive-testing/references/defect-screenshots.md owns the rules behind them).
+#   The QA walkthrough and GitHub publisher share this gate so both verify identical canonical pixels.
 #
 # Usage
 #   screenshot-guard.sh file --slug <source-slug> --out <dir> <png>
-#   screenshot-guard.sh manifest <manifest.json>
+#   screenshot-guard.sh manifest <manifest.json> <slug>
 #   screenshot-guard.sh --self-test
 #
 # file
 #   Accepts one file only when ALL hold: it is a regular file and not a symbolic link; after realpath it lies directly
 #   inside `.claude/run/<slug>.artifacts/` (or `.codex/run/`) of the PHYSICAL git toplevel, and that directory is no
 #   symbolic link either; its name matches `^[a-z0-9-]{1,100}\.png$`; it starts with the PNG signature; and it is
-#   1 to 2097152 bytes. It then writes a copy without the tEXt, iTXt, zTXt, and eXIf chunks to <dir>/<name> through
+#   1 to 2097152 bytes. It writes the decoded, opaque static raster to a new <dir>/<name> through
 #   sanitize-png.php and prints that path. Every refusal prints one reason on stderr and exits 1.
 #
 # manifest
@@ -26,7 +24,7 @@
 #   and: finding_id is `r-` or `f-` and 16 hex digits; finding_type is one of bug, tests, refactor, performance,
 #   documentation (a `security` finding never gets a screenshot, and neither does a missing type);
 #   do_not_file_publicly is false; state is `head` or `base`; default_branch matches `^[A-Za-z0-9._/-]{1,100}$` for
-#   `base` and is null for `head`; masking is `verified`; crop is `element` or `viewport` (never a full page);
+#   `base` and is null for `head`; masking is `verified`; crop is `element`;
 #   own_data_only, not_error_page, and masked_in_capture_session are true. A finding carries at most one `head` and one
 #   `base` entry, a `base` entry needs the `head` entry, and the manifest holds at most 20 entries. Each accepted entry
 #   gets `label`: `This change` for `head` and `Default branch (<default_branch>)` for `base`, the only two labels there
@@ -34,10 +32,10 @@
 #
 # Exit codes: 0 done, 1 refused (file) or invalid manifest document, 2 usage error or missing tool.
 set -euo pipefail
+umask 077
 
 PROG="screenshot-guard.sh"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MAX_BYTES=2097152
 MAX_ENTRIES=20
 SELF_TMP=""
 
@@ -50,30 +48,21 @@ die() {
 
 require_tools() {
   local bin
-  for bin in jq php git od wc; do
+  for bin in jq php git python3; do
     command -v "$bin" >/dev/null 2>&1 || die 2 "required tool not found: $bin"
   done
 }
 
-# artifacts_dir <slug> — prints the physical path of the artifacts directory, or returns 1 with the reason on stderr.
-artifacts_dir() {
-  local slug="$1" top run dir
-  [[ "$slug" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]] || { echo "$PROG: the source slug is not a plain name" >&2; return 1; }
-  top="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "$PROG: not inside a git work tree" >&2; return 1; }
-  top="$(cd "$top" && pwd -P)"
-  for run in .claude/run .codex/run; do
-    dir="$top/$run/$slug.artifacts"
-    if [[ -d "$dir" && ! -L "$dir" ]]; then
-      (cd "$dir" && pwd -P)
-      return 0
-    fi
-  done
-  echo "$PROG: no artifacts directory $slug.artifacts under .claude/run or .codex/run of the git toplevel" >&2
-  return 1
+read_artifact() {
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  root="$(cd "$root" && pwd -P)" || return 1
+  if git ls-files --error-unmatch -- "$3" >/dev/null 2>&1; then return 1; fi
+  python3 "$HERE/read-screenshot-artifact.py" "$root" "$@" 2>/dev/null
 }
 
 cmd_file() {
-  local slug="" out="" file="" dir real name size magic
+  local slug="" out="" file="" name
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --slug) [[ $# -ge 2 ]] || die 2 "--slug needs a value"; slug="$2"; shift 2 ;;
@@ -84,19 +73,11 @@ cmd_file() {
   [[ -n "$slug" && -n "$out" && -n "$file" ]] || die 2 "usage: screenshot-guard.sh file --slug <slug> --out <dir> <png>"
   require_tools
   [[ -d "$out" && ! -L "$out" ]] || die 1 "the output directory does not exist or is a symbolic link"
-  [[ ! -L "$file" ]] || die 1 "the screenshot is a symbolic link"
-  [[ -f "$file" ]] || die 1 "the screenshot is not a regular file"
-  dir="$(artifacts_dir "$slug")" || exit 1
-  real="$(cd "$(dirname -- "$file")" && pwd -P)/$(basename -- "$file")"
-  [[ "$(dirname -- "$real")" == "$dir" ]] || die 1 "the screenshot is not directly inside the artifacts directory of this run"
-  name="$(basename -- "$real")"
-  [[ "$name" =~ ^[a-z0-9-]{1,100}\.png$ ]] || die 1 "the screenshot name must match ^[a-z0-9-]{1,100}\\.png\$"
-  size="$(wc -c <"$real" | tr -d ' ')"
-  [[ "$size" -ge 1 && "$size" -le "$MAX_BYTES" ]] || die 1 "the screenshot must be 1 to $MAX_BYTES bytes, it is $size"
-  magic="$(head -c 8 "$real" | od -An -tx1 | tr -d ' \n')"
-  [[ "$magic" == "89504e470d0a1a0a" ]] || die 1 "the screenshot does not start with the PNG signature"
-  php "$HERE/sanitize-png.php" "$real" "$out/$name" 2>"$out/.sanitize.err" || { rm -f "$out/$name"; die 1 "the screenshot is not a well-formed PNG"; }
-  rm -f "$out/.sanitize.err"
+  name="$(basename -- "$file")"
+  [[ ! -e "$out/$name" && ! -L "$out/$name" ]] || die 1 "the output file already exists"
+  if ! read_artifact "$slug" png "$file" | php "$HERE/sanitize-png.php" php://stdin "$out/$name" 2>/dev/null; then
+    die 1 "the screenshot path or PNG raster was refused"
+  fi
   printf '%s\n' "$out/$name"
 }
 
@@ -114,7 +95,7 @@ def problem:
   elif .state == "head" and .default_branch != null then "a head screenshot carries no default branch"
   elif (.file | type != "string" or length < 1) then "the file is missing"
   elif .masking != "verified" then "masking is not verified"
-  elif (.crop | IN("element","viewport") | not) then "the capture is not cropped to the failing element or the viewport"
+  elif .crop != "element" then "the capture is not cropped to the failing element"
   elif .own_data_only != true then "the cropped area is not proven to hold only data this run created"
   elif .not_error_page != true then "the page is not proven to be free of an error or debug view"
   elif .masked_in_capture_session != true then "masking did not run in the session that wrote the file"
@@ -124,7 +105,7 @@ elif length > $max then error("the manifest holds more than \($max) entries")
 else
   map({e: ., p: problem}) as $checked
   | [$checked[] | select(.p == null) | .e] as $ok
-  | ($ok | map(select(.state == "head") | .finding_id)) as $heads
+  | ($ok | group_by(.finding_id) | map(select(map(select(.state == "head")) | length == 1) | .[0].finding_id)) as $heads
   | ($ok | group_by([.finding_id, .state]) | map(select(length > 1) | .[0] | [.finding_id, .state])) as $dupes
   | [$ok[] | . as $e
       | if ([$e.finding_id, $e.state] | IN($dupes[])) then {skip: {finding_id: $e.finding_id, reason: "the finding has two \($e.state) screenshots, one is allowed"}}
@@ -132,16 +113,15 @@ else
         else {keep: ($e + {label: (if $e.state == "head" then "This change" else "Default branch (\($e.default_branch))" end)})} end] as $sorted
   | {
       accepted: [$sorted[] | select(.keep) | .keep],
-      skipped: ([$checked[] | select(.p != null) | {finding_id: (if (.e | type == "object") and (.e.finding_id | type == "string") then .e.finding_id else "unknown" end), reason: .p}] + [$sorted[] | select(.skip) | .skip])
+      skipped: ([$checked[] | select(.p != null) | {finding_id: (if (.e | type == "object") and (.e.finding_id | type == "string" and test("^[rf]-[0-9a-f]{16}$")) then .e.finding_id else "unknown" end), reason: .p}] + [$sorted[] | select(.skip) | .skip])
     }
 end
 JQ
 
 cmd_manifest() {
-  [[ $# -eq 1 ]] || die 2 "usage: screenshot-guard.sh manifest <manifest.json>"
+  [[ $# -eq 2 ]] || die 2 "usage: screenshot-guard.sh manifest <manifest.json> <slug>"
   require_tools
-  [[ -r "$1" ]] || die 1 "cannot read the manifest"
-  jq -c --argjson max "$MAX_ENTRIES" "$JQ_MANIFEST" "$1" 2>/dev/null || die 1 "the manifest is not a valid screenshot manifest"
+  read_artifact "$2" screenshots "$1" | jq -ce --argjson max "$MAX_ENTRIES" "$JQ_MANIFEST" || die 1 "the manifest is not a valid run artifact"
 }
 
 # --- self-test ------------------------------------------------------------------------------------------------
@@ -184,41 +164,66 @@ self_test() {
   check 'the copy keeps the pixel data' "$(grep -aq IDAT "$tmp/out/step-head.png" && echo yes || echo no)"
 
   rc=0; run_file "$tmp/trailing.png" >/dev/null || rc=$?
-  check 'a file outside the artifacts directory is refused' "$([[ $rc -eq 1 ]] && grep -q 'not directly inside' "$tmp/err" && echo yes || echo no)"
+  check 'a file outside the artifacts directory is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   ln -s "$png" "$repo/.claude/run/demo.artifacts/link-head.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/link-head.png" >/dev/null || rc=$?
-  check 'a symbolic link is refused' "$([[ $rc -eq 1 ]] && grep -q 'symbolic link' "$tmp/err" && echo yes || echo no)"
+  check 'a symbolic link is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   cp "$png" "$repo/.claude/run/demo.artifacts/Bad_Name.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/Bad_Name.png" >/dev/null || rc=$?
-  check 'a file name outside the allowed pattern is refused' "$([[ $rc -eq 1 ]] && grep -q 'name must match' "$tmp/err" && echo yes || echo no)"
+  check 'a file name outside the allowed pattern is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   printf 'not a png at all' >"$repo/.claude/run/demo.artifacts/fake.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/fake.png" >/dev/null || rc=$?
-  check 'a file without the PNG signature is refused' "$([[ $rc -eq 1 ]] && grep -q 'PNG signature' "$tmp/err" && echo yes || echo no)"
+  check 'a file without the PNG signature is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   cp "$tmp/trailing.png" "$repo/.claude/run/demo.artifacts/trailing.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/trailing.png" >/dev/null || rc=$?
-  check 'a PNG with bytes after IEND is refused' "$([[ $rc -eq 1 ]] && grep -q 'well-formed' "$tmp/err" && echo yes || echo no)"
+  check 'a PNG with bytes after IEND is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   cp "$tmp/badcrc.png" "$repo/.claude/run/demo.artifacts/badcrc.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/badcrc.png" >/dev/null || rc=$?
-  check 'a PNG with a wrong chunk CRC is refused' "$([[ $rc -eq 1 ]] && grep -q 'well-formed' "$tmp/err" && echo yes || echo no)"
+  check 'a PNG with a wrong chunk CRC is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   { cat "$png"; head -c 2200000 /dev/zero; } >"$repo/.claude/run/demo.artifacts/huge.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/huge.png" >/dev/null || rc=$?
-  check 'a file over the size cap is refused' "$([[ $rc -eq 1 ]] && grep -q 'bytes' "$tmp/err" && echo yes || echo no)"
+  check 'a file over the size cap is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   : >"$repo/.claude/run/demo.artifacts/empty.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/empty.png" >/dev/null || rc=$?
   check 'an empty file is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   mkdir -p "$repo/elsewhere"
   cp "$png" "$repo/elsewhere/step-head.png"
   rc=0; run_file "$repo/.claude/run/demo.artifacts/../../../elsewhere/step-head.png" >/dev/null || rc=$?
-  check 'a path that climbs out of the artifacts directory is refused' "$([[ $rc -eq 1 ]] && grep -q 'not directly inside' "$tmp/err" && echo yes || echo no)"
+  check 'a path that climbs out of the artifacts directory is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   rc=0; (cd "$repo" && bash "$HERE/screenshot-guard.sh" file --slug other --out "$tmp/out" "$png" 2>"$tmp/err") >/dev/null || rc=$?
-  check 'a slug with no artifacts directory is refused' "$([[ $rc -eq 1 ]] && grep -q 'no artifacts directory' "$tmp/err" && echo yes || echo no)"
+  check 'a slug with no artifacts directory is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
   rc=0; (cd "$repo" && bash "$HERE/screenshot-guard.sh" file --slug '../x' --out "$tmp/out" "$png" 2>"$tmp/err") >/dev/null || rc=$?
-  check 'a slug that is not a plain name is refused' "$([[ $rc -eq 1 ]] && grep -q 'plain name' "$tmp/err" && echo yes || echo no)"
+  check 'a slug that is not a plain name is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
 
+  rm -f "$tmp/out/step-head.png"
+  mv "$repo/.claude/run" "$tmp/outside-run"
+  ln -s "$tmp/outside-run" "$repo/.claude/run"
+  rc=0; run_file "$png" >/dev/null || rc=$?
+  check 'a symlinked run ancestor is refused even when its file has valid pixels' "$([[ $rc -eq 1 && ! -e "$tmp/out/step-head.png" ]] && echo yes || echo no)"
+  rm "$repo/.claude/run"
+  mv "$tmp/outside-run" "$repo/.claude/run"
+  php -r '
+    function pngChunk(string $type, string $data): string {
+        return pack("N", strlen($data)) . $type . $data . pack("N", crc32($type . $data));
+    }
+    foreach (["animated", "too-wide", "bad-raster", "hidden-data"] as $name) {
+        $width = $name === "too-wide" ? 100000 : 1;
+        $pixels = $name === "bad-raster" ? "\xff" : "\x00\xff\x00\x00";
+        $data = gzcompress($pixels) . ($name === "hidden-data" ? "private-text" : "");
+        file_put_contents($argv[1]."/".$name.".png", "\x89PNG\r\n\x1a\n" . pngChunk("IHDR", pack("NNCCCCC", $width, 1, 8, 2, 0, 0, 0))
+            . ($name === "animated" ? pngChunk("acTL", pack("NN", 2, 0)) : "") . pngChunk("IDAT", $data) . pngChunk("IEND", ""));
+    }
+  ' "$repo/.claude/run/demo.artifacts"
+  for malicious in animated too-wide bad-raster; do
+    rc=0; run_file "$repo/.claude/run/demo.artifacts/$malicious.png" >/dev/null || rc=$?
+    check "a $malicious PNG cannot reach an uploader" "$([[ $rc -ne 0 && ! -e "$tmp/out/$malicious.png" ]] && echo yes || echo no)"
+  done
+  rc=0; run_file "$repo/.claude/run/demo.artifacts/hidden-data.png" >/dev/null || rc=$?
+  check 'a private suffix inside IDAT is discarded or refused' "$([[ $rc -ne 0 ]] || ! grep -aq private-text "$tmp/out/hidden-data.png" && echo yes || echo no)"
   local good base
   good='{"finding_id":"f-0123456789abcdef","finding_type":"bug","do_not_file_publicly":false,"state":"head","default_branch":null,"file":"a.png","masking":"verified","crop":"element","own_data_only":true,"not_error_page":true,"masked_in_capture_session":true}'
   base="$(jq -c '.state = "base" | .default_branch = "master"' <<<"$good")"
-  m() { printf '%s' "$1" >"$tmp/m.json"; bash "$HERE/screenshot-guard.sh" manifest "$tmp/m.json"; }
+  m() { printf '%s' "$1" >"$repo/.claude/run/demo.screenshots.json"; (cd "$repo" && bash "$HERE/screenshot-guard.sh" manifest "$repo/.claude/run/demo.screenshots.json" demo); }
   check 'a head entry is accepted with the label This change' "$([[ "$(m "[$good]" | jq -r '.accepted[0].label')" == "This change" ]] && echo yes || echo no)"
   check 'a regression keeps both entries, the base one labelled with the default branch' \
     "$([[ "$(m "[$good,$base]" | jq -r '[.accepted[].label] | join("|")')" == "This change|Default branch (master)" ]] && echo yes || echo no)"

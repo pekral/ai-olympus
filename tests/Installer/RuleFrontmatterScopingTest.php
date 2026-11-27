@@ -497,7 +497,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a project that switched interactive testing off gets the one switched-off sentence in the review (issue #666).
         // Re-baselined: floor item 1 of *Conflict resolution* points at its one exception, the switched-off walkthrough (issue #666).
         // Re-baselined: a review that the session wrote itself because the project forbids helper agents says so in its header (issue #667).
-        'rules/code-review/general.md' => '381f4ceabaafd0890c77ea12373ef536b430212f4fe0a5b97bb5b89377eb7e69',
+        // #712 changes the JIRA review shape and screenshot boundaries.
+        'rules/code-review/general.md' => '007f49cc0d4bba7ad9fbac5d3393957956f0451ecaa97a9334d8e09a142790cb',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -580,7 +581,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
         // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
         // Re-baselined: *Attachments* names the one upload script of a defect screenshot (issue #712).
-        'rules/jira/general.md' => 'f502b41a8a53831a32120af1f429fcc5c50640961cd1bd02508c31c999ac3790',
+        // #712 changes the JIRA review shape and screenshot boundaries.
+        'rules/jira/general.md' => 'e5bf5550d5fd2756805b1609ea2843be4505b8b1d1fb7417978d32e5c3376fc4',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
@@ -628,7 +630,8 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        'rules/reports/general.md' => '5f4d9fab82d4e826fc86b3ecbcc6a22cf8db93f6dd0d77979c24d155e491d505',
+        // #712 changes the JIRA review shape and screenshot boundaries.
+        'rules/reports/general.md' => '7cb22552f574d980bc415059b59cb2ec392e51403ff8beefb76efd82d44c0639',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

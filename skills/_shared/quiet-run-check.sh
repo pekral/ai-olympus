@@ -31,10 +31,9 @@
 #   Pull request   the head SHA, the issue comments, the review submissions, and the line-anchored review
 #                  comments, all from skills/code-review-github/scripts/load-issue.sh. A payload whose
 #                  `reviewCommentsComplete` is not true is a failed read. It also reads the tip of the `cr-assets`
-#                  branch of the base repository (`gh api repos/<owner>/<repo>/git/ref/heads/cr-assets`): a review
-#                  screenshot is published by writing to that branch, so a quiet run leaves the tip where it was.
+#                  branch of the base repository (`gh api repos/<owner>/<repo>/git/ref/heads/cr-assets`): a change on this shared branch has no per-run attribution.
 #   GitHub issue   the issue comments (the same loader).
-#   JIRA issue     the issue comments (skills/code-review-jira/scripts/load-issue.sh).
+#   JIRA issue     the issue comments and attachment IDs (skills/code-review-jira/scripts/load-issue.sh).
 #   Anything else  not counted. Bugsnag is one: its loader returns comments without a URL and needs a token.
 #
 #   The script only reads. It never writes to a tracker and it never prints a comment body: it prints SHAs and
@@ -45,13 +44,13 @@
 #   result: quiet | published | quiet-head-moved     (published: a comment was added during the run, by any author)
 #   head: unchanged <sha>            or    head: moved <before> → <now>
 #   new-comment: <url>               one line per comment that is new since `record`
-#   new-asset: cr-assets moved <before> → <now>     a review screenshot was written during the run (result: published)
+#   new-attachment: <id>              one line per new JIRA attachment
 #   not-verified: <item> — <why>; settled by: <step>     one line per item the script could not count
 #
 # Exit codes (verify)
 #   0  nothing was published and the head did not move
 #   1  a comment was added during the run, by any author; every new comment is printed as `new-comment: <url>`
-#      A review screenshot written to `cr-assets` during the run is a publish too, printed as `new-asset: …`
+#      A new attachment is printed as `new-attachment: <id>` with the same exit status.
 #   3  nothing was published, but the head moved during the review; `head: moved <before> → <now>`
 #   2  usage error, or a required tool is missing
 #   4  a read failed or the state file is unusable, so the check did not run to its end
@@ -143,7 +142,7 @@ collect_jira() {
   printf '%s' "$payload" | jq -c "
     (.url // \"\") as \$base
     | [ (.comments // [])[] | (\$base + \"?focusedCommentId=\" + ((.id // \"\") | tostring)) ] as \$all
-    | { urls: (\$all | $CLEAN_URLS), count: (\$all | length) }" 2>/dev/null || return 4
+    | { urls: (\$all | $CLEAN_URLS), count: (\$all | length), attachments: [(.attachments // [])[] | .id | tostring | select(test(\"^[0-9]+$\"))] }" 2>/dev/null || return 4
 }
 
 # classify <item> — prints github | jira | unsupported
@@ -179,7 +178,7 @@ collect_linked() {
       ;;
     jira)
       data="$(collect_jira "$item")" || return 4
-      printf '%s' "$data" | jq -c --arg input "$item" '{ input: $input, kind: "jira", urls: .urls, count: .count, reason: null }'
+      printf '%s' "$data" | jq -c --arg input "$item" '{ input: $input, kind: "jira", urls: .urls, count: .count, attachments: .attachments, reason: null }'
       ;;
     *)
       jq -nc --arg input "$item" --arg reason "$(unsupported_reason "$item")" \
@@ -295,15 +294,14 @@ cmd_verify() {
     lines="${lines}new-comment: $pr_url (the comment count grew from $before_count to $after_count; the loader returned no URL for it)"$'\n'
   fi
 
-  # The branch of the review screenshots: a moved tip means a screenshot was written during the run.
+  # This tip is shared across runs. A move alone has no author or target.
   local assets_before assets_now
   assets_before="$(printf '%s' "$doc" | jq -r '.pr.assets // "unread"')"
   assets_now="$(read_assets_tip "$(printf '%s' "$pr_data" | jq -r '.repo // empty')")"
   if [[ "$assets_before" == unread || "$assets_now" == unread ]]; then
     lines="${lines}not-verified: cr-assets — the tip of the review screenshot branch could not be read before or after the run; settled by: read the ref refs/heads/cr-assets of the base repository and compare it with the one at the start of the run"$'\n'
   elif [[ "$assets_before" != "$assets_now" ]]; then
-    published=1
-    lines="${lines}new-asset: cr-assets moved ${assets_before} → ${assets_now}"$'\n'
+    lines="${lines}not-verified: shared cr-assets moved ${assets_before} → ${assets_now}"$'\n'
   fi
 
   linked_count="$(printf '%s' "$doc" | jq -r '.linked | length')"
@@ -323,6 +321,13 @@ cmd_verify() {
     after_urls="$(printf '%s' "$after" | jq -c '.urls')"
     after_count="$(printf '%s' "$after" | jq -r '.count')"
 
+    if [[ "$kind" == jira ]]; then
+      while IFS= read -r attachment; do
+        [[ -n "$attachment" ]] || continue
+        published=1
+        lines="${lines}new-attachment: $input (ID $attachment)"$'\n'
+      done < <(jq -rn --argjson before "$entry" --argjson after "$after" '($after.attachments // []) - ($before.attachments // []) | .[]')
+    fi
     # The JIRA loader degrades a failed comment fetch to an empty list, so an empty list proves nothing: not an
     # empty list after the run (a comment may have been hidden), and not an empty list recorded before it (every
     # comment the second read returns would then look new).
@@ -505,7 +510,7 @@ EOF
   fixtures "$sha_a" "1 2" "10" "20"
   issue_fixture "1"
   printf '%s' "$sha_b" >"$tmp/fx/assets"
-  run_verify 'a new tip of cr-assets is a publish, even with no new comment' 1 "new-asset: cr-assets moved none → $sha_b"
+  run_verify 'a new shared tip alone cannot attribute a publish to this run' 0 "not-verified: shared cr-assets moved none → $sha_b"
   rm -f "$tmp/fx/assets"
   run_verify 'an unchanged cr-assets keeps the run quiet' 0 'result: quiet'
   touch "$tmp/fx/assets.unread"
@@ -540,6 +545,9 @@ EOF
   jira_fixture "100 101"
   record --linked ACME-9
   run_verify 'an unchanged JIRA issue is quiet' 0 'result: quiet'
+  jq '.attachments = [{id:"88"}]' "$tmp/fx/jira.json" >"$tmp/fx/attached.json"
+  cp "$tmp/fx/attached.json" "$tmp/fx/jira.json"
+  run_verify 'a JIRA attachment with no new comment is visible in the quiet check' 1 'new-attachment:'
   jira_fixture "100 101 102"
   run_verify 'a new JIRA comment is a publish with its URL' 1 'new-comment: https://acme.atlassian.net/browse/ACME-9?focusedCommentId=102'
   jira_fixture ""

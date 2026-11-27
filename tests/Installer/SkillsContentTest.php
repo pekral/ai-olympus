@@ -1374,8 +1374,6 @@ test('attachment scripts never disable TLS validation and keep the token out of 
     // Each wrapper writes the token into a 0600 config file, not an -H/argv flag.
     foreach (['github', 'jira'] as $tracker) {
         $content = (string) file_get_contents($packageDir . sprintf('/skills/code-review-%s/scripts/download-attachments.sh', $tracker));
-        // The JIRA wrapper writes the header through jira-rest.sh, the one definition of the token handling.
-        $content .= $tracker === 'jira' ? (string) file_get_contents($packageDir . '/skills/code-review-jira/scripts/jira-rest.sh') : '';
         expect($content)->toContain('chmod 600 "$CFG"');
         expect($content)->toContain('header = "Authorization:');
     }

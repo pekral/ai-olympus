@@ -26,7 +26,7 @@ test('CR run produces one consolidated linked-tracker comment per linked issue (
     // JIRA renders the verdict as its first section and each question inside its bullet, so its
     // published body carries no slot at all.
     expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
-    expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
+    expect($jiraTemplate)->toContain('Include every stated criterion');
 });
 
 test('pr-summary renders no assignment verdict of its own — the embedded block is the verdict', function (): void {
@@ -53,7 +53,7 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     expect($prSummary)->toContain('authors no verdict, no banner');
 
     // JIRA publishes only remaining requests; the full verdict stays on the pull request.
-    expect($prSummary)->toContain('on JIRA only requirements that still need action are published');
+    expect($prSummary)->toContain('every explicit requirement, numbered');
 
     foreach ($templates as $template) {
         expect($template)->not->toContain('{assignment_verdict}');
@@ -65,8 +65,8 @@ test('pr-summary renders no assignment verdict of its own — the embedded block
     // JIRA has no slot: the verdict is the first section and each question closes its own bullet.
     expect($jiraTemplate)->not->toContain('{assignment_verdict}');
     expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
-    expect($jiraTemplate)->toContain('The JIRA template has no {embedded_blocks} slot.');
-    expect($jiraTemplate)->toContain('@skills/assignment-compliance-check/SKILL.md');
+    expect(jiraPublishedBody($jiraTemplate))->not->toContain('{embedded_blocks}');
+    expect($jiraTemplate)->toContain('Include every stated criterion');
 });
 
 /**
@@ -85,15 +85,9 @@ test('the JIRA template keeps only actionable requirements and one combined summ
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $body = jiraPublishedBody($jiraTemplate);
 
-    expect($body)->toContain('only for explicit requirements that still need a change or an answer')
-        ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('{expand:What changed and what it affects}');
-    expect($body)->not->toContain('h2. What changed');
-    expect($body)->not->toContain('h2. Impact after deployment');
-    expect($body)->not->toContain('h2. How to test');
-    expect($jiraTemplate)->toContain('remaining action; omit repaired parts and their history.')
-        ->toContain('When every requirement is')
-        ->toContain('satisfied, omit the whole section.');
+    expect($body)->toContain('{expand:⚠️ Acceptance criteria}', '{expand:✅ Findings from the code review}',
+        '{expand:⚠️ Test scenarios}', '{expand:ℹ️ What changed and what it affects}');
+    expect($body)->not->toContain('{agent-marker}', 'PR_URL', 'ISSUE_URL', 'Technical marker for AI agents');
 
     foreach (['github', 'bugsnag'] as $target) {
         $other = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-' . $target . '.md');
@@ -2159,8 +2153,7 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` '
-        . '(only for requirements that still need action), `Review findings`, `What changed and what it affects`.',
+        '**JIRA renders one shape on every run.** Follow the byline, deploy verdict and four status-labelled sections',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
