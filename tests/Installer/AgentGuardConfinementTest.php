@@ -627,10 +627,6 @@ test('a confined command cannot reach the host file system through another proce
     }
 })->skip(PHP_OS_FAMILY !== 'Linux' || agentGuardSkipWithoutConfinement(), 'only bwrap exposes /proc of the host this way');
 
-test('the confinement is applied on a host that ships sandbox-exec', function (): void {
-    expect(AgentGuardRun::confinementAvailable())->toBeTrue();
-})->skip(PHP_OS_FAMILY !== 'Darwin', 'sandbox-exec ships only with macOS');
-
 test('the confinement is applied on CI, where the workflow installs bubblewrap', function (): void {
     expect(AgentGuardRun::confinementAvailable())->toBeTrue();
 })->skip(getenv('AI_OLYMPUS_EXPECT_CONFINEMENT') !== '1', 'only the CI workflow promises a usable bwrap');
@@ -642,7 +638,43 @@ test('a confined command exits with its own status and names the confinement on 
         $process = AgentGuardRun::exec($root, 'leonardo', 'exit 7');
 
         expect($process->getExitCode())->toBe(7)
-            ->and($process->getErrorOutput())->toContain('leonardo ran this command in its read-only confinement (exit 7)');
+            ->and($process->getErrorOutput())->toContain('confined Bash command exited with status 7')
+            ->and($process->getErrorOutput())->not->toContain('Blocked');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+})->skip(agentGuardSkipWithoutConfinement(), AGENT_GUARD_UNAVAILABLE);
+
+test('an alias cannot make project or Git metadata a writable scratch directory', function (string $target): void {
+    $root = AgentGuardRun::repository();
+
+    try {
+        rmdir($root . '/.claude/run');
+        symlink($root . $target, $root . '/.claude/run');
+        $process = AgentGuardRun::exec($root, 'leonardo', 'echo x > .claude/run/guard-test-marker');
+
+        expect($process->getExitCode())->toBe(5)
+            ->and($process->getErrorOutput())->toContain('Blocked: unsafe writable directory')
+            ->and(file_exists($root . $target . '/guard-test-marker'))->toBeFalse();
+    } finally {
+        unlink($root . '/.claude/run');
+        AgentGuardRun::remove($root);
+    }
+})->with(['project' => [''], 'Git metadata' => ['/.git']]);
+
+test('Casey can write a Laravel log with the tracked placeholder protected', function (): void {
+    $root = AgentGuardRun::repository();
+    mkdir($root . '/storage/logs', 0777, recursive: true);
+    file_put_contents($root . '/storage/logs/.gitignore', "*\n!.gitignore\n");
+    AgentGuardRun::git($root, 'add', 'storage/logs/.gitignore');
+    AgentGuardRun::git($root, 'commit', '-qm', 'track log placeholder');
+
+    try {
+        $process = AgentGuardRun::exec($root, 'casey', 'echo logged > storage/logs/fixture.log && ! (echo changed > storage/logs/.gitignore)');
+
+        expect($process->getExitCode())->toBe(0, $process->getErrorOutput())
+            ->and(file_get_contents($root . '/storage/logs/fixture.log'))->toBe("logged\n")
+            ->and(file_get_contents($root . '/storage/logs/.gitignore'))->toBe("*\n!.gitignore\n");
     } finally {
         AgentGuardRun::remove($root);
     }

@@ -352,7 +352,7 @@ test('the hook allows a command an allow rule matches when the user settings in 
     }
 });
 
-test('the hook ignores a tool other than Bash', function (): void {
+test('known read tools retain the native harness decision', function (): void {
     $root = AgentGuardRun::repository();
     $input = (string) json_encode(['tool_name' => 'Read', 'agent_type' => 'leonardo', 'tool_input' => ['file_path' => '/x']]);
 
@@ -360,6 +360,48 @@ test('the hook ignores a tool other than Bash', function (): void {
         $process = AgentGuardRun::run($root, ['hook'], $input, ['CLAUDE_PROJECT_DIR' => $root]);
 
         expect($process->getOutput())->toBe('');
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
+
+test('the hook denies further actions of a role invocation after a native guard denial and cleans up the session record', function (): void {
+    $root = AgentGuardRun::repository();
+    $session = ['session_id' => 'fixture-session', 'agent_id' => 'fixture-agent', 'agent_type' => 'leonardo'];
+
+    try {
+        $first = agentGuardHookDecision($root, json_encode([...$session, 'tool_name' => 'Write'], JSON_THROW_ON_ERROR));
+        $next = agentGuardHookDecision($root, json_encode([
+            ...$session,
+            'tool_name' => 'Bash',
+            'tool_input' => ['command' => 'true'],
+        ], JSON_THROW_ON_ERROR));
+        $after = AgentGuardRun::run($root, ['hook'], json_encode([
+            ...$session,
+            'hook_event_name' => 'SessionEnd',
+        ], JSON_THROW_ON_ERROR));
+
+        expect($first->permissionDecision)->toBe('deny')
+            ->and($next->permissionDecision)->toBe('deny')
+            ->and($next->updatedInput)->toBeNull()
+            ->and($after->getExitCode())->toBe(0)
+            ->and(is_dir($root . '/.git/ai-olympus/agent-guard-fixture-session'))->toBeFalse();
+    } finally {
+        AgentGuardRun::remove($root);
+    }
+});
+
+test('a strict Claude hook blocks dispatch of a read-only role before it starts', function (): void {
+    $root = AgentGuardRun::repository(['security' => ['strict-agent-guard' => true]]);
+
+    try {
+        $decision = agentGuardHookDecision($root, json_encode([
+            'tool_name' => 'Agent',
+            'tool_input' => ['subagent_type' => 'leonardo'],
+        ], JSON_THROW_ON_ERROR));
+
+        expect($decision->permissionDecision)->toBe('deny')
+            ->and($decision->updatedInput)->toBeNull();
     } finally {
         AgentGuardRun::remove($root);
     }

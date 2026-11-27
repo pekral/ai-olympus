@@ -23,6 +23,7 @@
 # Usage
 #   read-manifest.sh [--ref <git-ref>] [--env | --raw]
 #   read-manifest.sh --default-ref
+#   read-manifest.sh --guard-policy
 #   read-manifest.sh --self-test
 #
 #   --ref          read composer.json from this ref instead of the default branch
@@ -30,6 +31,8 @@
 #   --raw          print composer.json from the ref as it is, without parsing it (no jq)
 #   --default-ref  print the default-branch ref this script reads (the full name, for example `refs/remotes/origin/master`), so a
 #                  caller that reads other files from the default branch resolves the same ref (no jq)
+#   --guard-policy print the exact boolean strict-agent-guard setting, defaulting to false only for an absent key
+#                  on a verified default-branch commit. A missing ref or invalid policy returns a nonzero status.
 #
 #   composer.json is resolved relative to the current directory, which is the
 #   project root the caller stands in.
@@ -69,6 +72,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: read-manifest.sh [--ref <git-ref>] [--env | --raw]
        read-manifest.sh --default-ref
+       read-manifest.sh --guard-policy
        read-manifest.sh --self-test
 
 Prints extra.ai-olympus of ./composer.json on the default branch as JSON,
@@ -93,7 +97,7 @@ default_ref() {
     return 1
   fi
 
-  if reported="$(reported_default_branch)" && [[ "refs/remotes/origin/$reported" != "$ref" ]]; then
+  if [[ "${1:-}" != 'local' ]] && reported="$(reported_default_branch)" && [[ "refs/remotes/origin/$reported" != "$ref" ]]; then
     echo "$PROG: origin/HEAD names ${ref#refs/remotes/}, GitHub reports origin/$reported; run: git remote set-head origin --auto" >&2
     return 1
   fi
@@ -150,7 +154,7 @@ read_manifest() {
       ref="$2"
       shift 2
       ;;
-    --env | --raw | --default-ref)
+    --env | --raw | --default-ref | --guard-policy)
       mode="${1#--}"
       shift
       ;;
@@ -170,7 +174,12 @@ read_manifest() {
     return 0
   fi
 
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [[ "$mode" == "guard-policy" ]]; then
+    if [[ -n "$ref" ]] || ! ref="$(default_ref local)" || ! ref="$(git rev-parse --verify "$ref^{commit}")"; then
+      echo "$PROG: cannot pin the default-branch commit for the agent guard" >&2
+      return 3
+    fi
+  elif ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "$PROG: not a git checkout — using no manifest" >&2
     [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
@@ -186,6 +195,7 @@ read_manifest() {
   # present but that git cannot read is a broken manifest: it is reported and never read as an empty one.
   local composer listing
   if ! git rev-parse --verify --quiet "$ref^{tree}" >/dev/null 2>&1; then
+    [[ "$mode" != "guard-policy" ]] || return 3
     [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
   fi
@@ -195,8 +205,13 @@ read_manifest() {
     return 3
   fi
   if [[ -z "$listing" ]]; then
+    [[ "$mode" != "guard-policy" ]] || printf 'false\n'
     [[ "$mode" == "json" ]] && printf '{}\n'
     return 0
+  fi
+  if [[ "$mode" == "guard-policy" && ! "$listing" =~ ^100(644|755)[[:space:]]blob[[:space:]] ]]; then
+    echo "$PROG: composer.json on the default branch is not a regular file" >&2
+    return 3
   fi
   if ! composer="$(git show "$ref:./composer.json" 2>/dev/null)"; then
     echo "$PROG: composer.json on $ref exists but cannot be read — the project manifest is not read as an empty one" >&2
@@ -206,6 +221,20 @@ read_manifest() {
 
   if [[ "$mode" == "raw" ]]; then
     printf '%s\n' "$composer"
+    return 0
+  fi
+
+  if [[ "$mode" == "guard-policy" ]]; then
+    printf '%s\n' "$composer" | jq -ers '
+      def member($key):
+        if type != "object" then error("invalid agent guard policy")
+        elif has($key) then .[$key] else {} end;
+      if length == 1 then .[0] else error("expected one manifest") end
+      | member("extra") | member("ai-olympus") | member("security")
+      | if type != "object" then error("invalid agent guard security policy")
+        elif has("strict-agent-guard") then .["strict-agent-guard"] else false end
+      | if type == "boolean" then tostring else error("strict-agent-guard must be a boolean") end
+    ' || return 3
     return 0
   fi
 
