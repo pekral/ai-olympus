@@ -221,12 +221,13 @@ test('only an explicit operator edit updates the named unchanged attributed comm
     }
 
     $author = ['accountId' => $case === 'foreign' ? 'another' : 'qa'];
+    $environment = ['SWITCHED_SITE' => $case === 'changed site' ? '1' : '0'];
     $page = jiraSummaryPage([['author' => $author, 'body' => $body, 'id' => '17']]);
-    [$rc, , $calls] = jiraPreviewPublish($page, $prior, edit: $case !== 'implicit');
+    [$rc, , $calls] = jiraPreviewPublish($page, $prior, $environment, edit: $case !== 'implicit');
     expect($rc)->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 0 : 3)
         ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
-})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign']);
+})->with(['explicit', 'historical', 'implicit', 'edited', 'foreign', 'changed site']);
 
 test('the Jira media probe binds the public attachment bytes and accepts only the exact media redirect', function (): void {
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';

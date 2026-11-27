@@ -22,7 +22,7 @@ test('an issue with several pull requests gets its remarks and findings split pe
         ->and($reference)->toContain('2. Render no group for a pull request this run did not review.')
         ->and($reference)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')
         ->and($reference)->toContain('- **GitHub:** `## PR #<number> — <title>`')
-        ->and($reference)->toContain('- **JIRA:** `h2. PR #<number> — {{<title>}}`')
+        ->and($reference)->toContain('- **JIRA:** `h2. PR #<number> — <change and acceptance criteria>`')
         ->and($reference)->toContain('On GitHub, drop every section heading one level (`###`)')
         ->and($reference)->toContain('On JIRA the sections of a group are collapsed blocks under the group heading')
         ->and($reference)->not->toContain('Carry every other pull request\'s group over verbatim.');

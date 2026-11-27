@@ -169,7 +169,7 @@ function jiraSummaryWithCriteria(): string
 function jiraSummaryForTwoPullRequests(): string
 {
     $group = static fn (int $number): string => implode("\n", [
-        'h2. PR #' . $number . ' — {{Synchronizace}}',
+        'h2. PR #' . $number . ' — Synchronizuje nové objednávky a plní kritérium 1',
         '',
         '{expand:✅ Nálezy z kontroly kódu}',
         'Kontrola nenašla žádný bod k vyřešení.',
@@ -215,6 +215,14 @@ test('an explicitly nonblocking question uses the pending title', function (): v
 
     expect(runJiraSummaryCheck($source, 'none')->getExitCode())->toBe(0);
 });
+
+test('the full visible group heading allows 255 Unicode characters in plain text', function (string $suffix, int $expected): void {
+    $prefix = 'PR #11 — ';
+    $heading = $prefix . str_repeat('ř', 255 - mb_strlen($prefix)) . $suffix;
+    $source = str_replace($prefix . 'Synchronizuje nové objednávky a plní kritérium 1', $heading, jiraSummaryForTwoPullRequests());
+
+    expect(runJiraSummaryCheck($source, 'present')->getExitCode())->toBe($expected);
+})->with([['', 0], ['ě', 2], ['{{název}}', 2]]);
 
 test('a shared blocker reaches its group without duplicating the finding', function (): void {
     $source = str_replace('h2. PR #11', "{expand:⚠️ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "

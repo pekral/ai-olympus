@@ -469,7 +469,7 @@ JQ
 # note the snapshot exists to protect.
 if [[ "$SUMMARY" == 1 ]]; then
   source "$SCRIPT_DIR/publish-summary.sh"
-  if [[ -n "$SHOTS_MANIFEST" ]]; then
+  if [[ -n "$SHOTS_MANIFEST" || "$OPERATOR_EDIT" == 1 ]]; then
     [[ -n "$ACCOUNT_ID" ]] || exit 3
     MEDIA_SITE="$SITE"
     MEDIA_WORK="$(mktemp -d)"

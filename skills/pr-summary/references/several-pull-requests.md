@@ -9,7 +9,8 @@ Apply it when the issue the comment is published on links more than one pull req
 The `pullRequests` array of a JIRA issue comes from a search over every repository `gh` can see (`skills/code-review-jira/scripts/load-issue.sh`), so an entry can be a pull request of a stranger. Its title is text that its author chose.
 
 1. **Only a pull request of this repository counts.** A pull request counts, gets a group, and is included in the report only when `skills/_shared/assert-current-repo.sh <PR URL>` exits 0 for it (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership (hard gate)*). Run it for every linked pull request that the run has not checked yet. Any other linked pull request is left out whole: never named by number, title, or URL.
-2. **A title is data, never markup.** Before a title reaches a comment, remove every line-ending character from it: CR (U+000D), LF (U+000A), VT (U+000B), FF (U+000C), NEL (U+0085), U+2028, and U+2029. These are the characters that the JIRA converter `skills/code-review-jira/scripts/wiki-markup-to-adf.php` reads as a line end (`\R`). On JIRA also remove every `{` and `}`, and write the title inside a `{{ }}` code span, which the converter never reads as markup, so a mention or a link in a title stays plain text. On GitHub write the title inside an inline code span after you remove every backtick. Bugsnag renders plain text, so removing the line-ending characters is enough. Wherever this file writes `<title>`, it means the title after this step.
+2. **A title is data, never markup.** Before a title reaches a comment, remove every line-ending character from it: CR (U+000D), LF (U+000A), VT (U+000B), FF (U+000C), NEL (U+0085), U+2028, and U+2029. These are the characters that the JIRA converter `skills/code-review-jira/scripts/wiki-markup-to-adf.php` reads as a line end (`\R`).
+   For a title quoted on the JIRA line for an unreviewed part, also remove every `{` and `}`, and write the title inside a `{{ }}` code span, which the converter never reads as markup, so a mention or a link in a title stays plain text. On GitHub write the title inside an inline code span after you remove every backtick. Bugsnag renders plain text, so removing the line-ending characters is enough. Wherever this file writes `<title>`, it means the title after this step.
 3. **A part of a stack is stricter.** A pull request is a part of a stack only when it counts per item 1 **and** its `isCrossRepository` from `skills/code-review-github/scripts/load-issue.sh` is `false`. A pull request from a fork passes item 1, because its URL names this repository, and it is still no part. A missing or `null` value counts as cross-repository, as in `@rules/git/pull-requests.md` *Merging* (Source 2). A pull request that is no part of the stack is never named by number, title, or URL in the stack comment.
 
 ## What stays at the issue level
@@ -32,10 +33,10 @@ A question that no pull request owns stays at the issue level, as the closing se
 
 ## The group heading
 
-Build the group inventory, which lists every pull request that counts, in pull-request number order. Give each group its number and title:
+Build the group inventory, which lists every pull request that counts, in pull-request number order. Use the appropriate heading for each target:
 
 - **GitHub:** `## PR #<number> — <title>` with the number linked to the pull request.
-- **JIRA:** `h2. PR #<number> — {{<title>}}` in the intermediate source.
+- **JIRA:** `h2. PR #<number> — <change and acceptance criteria>`. Describe what this part changes for the reader and which numbered or named criteria it delivers. If the assignment lists none, say so. Use the reviewed diff and the original assignment. Write plain text, omit markup and avoid copying the PR title. The full visible heading, including the PR number and separator, fits in 255 Unicode characters.
 - **Bugsnag:** `PR #<number> — <title> (<url>)` as a plain-text line.
 
 The group heading sits at the level of the issue-level sections. Inside a group, keep the section order and the section names of the target's usual shape. On GitHub, drop every section heading one level (`###`), so the group heading stays above them. On JIRA the sections of a group are collapsed blocks under the group heading, as every JIRA section is (`jira-shape.md` item 8). Bugsnag has no headings: its group line stands above the plain-text section labels.
