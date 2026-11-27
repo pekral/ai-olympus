@@ -109,7 +109,7 @@ test(
         $definition = defectShotRead('agents/' . $agent . '.md');
         $codex = defectShotRead('codex/agents/' . $agent . '.toml');
         $boundary = substr($definition, (int) strpos($definition, 'Bash is granted for one purpose'));
-    
+
         foreach ($scripts as $script) {
             expect($boundary)->toContain($script)
                 ->and($codex)->toContain($script);

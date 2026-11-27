@@ -202,6 +202,8 @@ self_test() {
   check 'a symlinked run ancestor is refused even when its file has valid pixels' "$([[ $rc -eq 1 && ! -e "$tmp/out/step-head.png" ]] && echo yes || echo no)"
   rm "$repo/.claude/run"
   mv "$tmp/outside-run" "$repo/.claude/run"
+  # PHP reads the fixture variables.
+  # shellcheck disable=SC2016
   php -r '
     function pngChunk(string $type, string $data): string {
         return pack("N", strlen($data)) . $type . $data . pack("N", crc32($type . $data));
