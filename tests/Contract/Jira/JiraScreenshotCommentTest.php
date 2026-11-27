@@ -10,21 +10,16 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$FIXTURE/calls"
 case "$1 $2 $3" in
   'jira auth status')
-    config="${ACLI_CONFIG_DIR}/jira_config.yaml"
-    if grep -Fxq 'current_profile: [' "$config"; then exit 1; fi
-    if [[ "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" && "${SWITCHED_SITE:-0}" == 1 ]]; then
-      printf 'Site: other.atlassian.net\nEmail: qa@example.test\n'; exit
-    fi
-    printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
+    printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'
+    exit ;;
   'jira workitem search')
-    if [[ "$5" == 'key = TEST-1' ]]; then
-      if [[ "${PARTIAL_LOOKUP:-0}" == 1 ]]; then echo '{"issues":[{"id":"123","key":"TEST-1"}],"isLast":false,"nextPageToken":"more","total":2,"startAt":1}'; exit; fi
-      echo '[{"id":"123","key":"TEST-1"}]'; exit
-    fi
-    if [[ "${SWITCHED_ACTOR:-0}" == 1 && "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" ]]; then echo '[{"fields":{"assignee":{"accountId":"foreign"}}}]'; exit; fi; if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
+    if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi
+    echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'
+    exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
-      jq -n --slurpfile sent "$FIXTURE/sent" '{key:"TEST-1",id:"123",self:"https://jira-prod-eu-33-as-3.prod.atl-paas.net/rest/api/3/issue/123",fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
+      jq -n --slurpfile sent "$FIXTURE/sent" '
+        {fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
     else
       cat "$FIXTURE/before"
     fi
@@ -71,19 +66,19 @@ function jiraLegacyPreviewAdf(string $text, bool $quoted = false): array
 }
 
 /**
- * @return array{string, \Symfony\Component\Process\Process}
+ * @param array<string,mixed> $page
+ * @return array{string, \Symfony\Component\Process\Process, string}
  */
-function jiraPreviewCommands(): array
+function jiraPreviewCommands(array $page, string $priorIntent): array
 {
     $dir = sys_get_temp_dir() . '/jira-summary-' . bin2hex(random_bytes(8));
     mkdir($dir, 0o700);
     $dir = (string) realpath($dir);
-    mkdir($dir . '/profile', 0o700);
-    file_put_contents(
-        $dir . '/profile/jira_config.yaml',
-        "current_profile: cloud:qa\nprofiles:\n  - site: example.atlassian.net\n    cloud_id: cloud\n    account_id: qa\n",
-    );
-    chmod($dir . '/profile/jira_config.yaml', 0o600);
+    (new Process(['git', 'init', '--quiet', $dir]))->mustRun();
+    mkdir($dir . '/.codex/run', 0o700, recursive: true);
+    $ledger = $dir . '/.codex/run/preview.audit';
+    file_put_contents($ledger, $priorIntent);
+    file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
     file_put_contents($dir . '/acli', JIRA_SUMMARY_ACLI_FIXTURE);
     file_put_contents($dir . '/jq', <<<'SH'
 #!/usr/bin/env bash
@@ -100,7 +95,7 @@ SH);
     $jq->mustRun();
     chmod($dir . '/acli', 0o700);
 
-    return [$dir, $jq];
+    return [$dir, $jq, $ledger];
 }
 
 /**
@@ -111,12 +106,7 @@ SH);
  */
 function jiraPreviewPublish(array $page, ?array $prior = null, array $environment = [], bool $malformed = false): array
 {
-    [$dir, $jq] = jiraPreviewCommands();
-    file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
-    (new Process(['git', 'init', '--quiet', $dir]))->mustRun();
-    mkdir($dir . '/.codex/run', 0o700, recursive: true);
-    $ledger = $dir . '/.codex/run/preview.audit';
-    file_put_contents($ledger, $environment['PREVIOUS_UPLOAD'] ?? '');
+    [$dir, $jq, $ledger] = jiraPreviewCommands($page, $environment['PREVIOUS_UPLOAD'] ?? '');
     $arguments = ['--create'];
 
     if ($prior !== null) {
@@ -129,7 +119,6 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
         ...$environment,
-        'ACLI_CONFIG_DIR' => $dir . '/profile',
         'AUDIT_TRAIL_FILE' => $ledger,
         'AUDIT_TRAIL_ROLE' => 'april',
         'FIXTURE' => $dir,
@@ -187,7 +176,7 @@ test('losing the screenshot source after an uncertain upload blocks even a text-
 test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (bool $bold): void {
     [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
     $stored = json_decode($sent, associative: true, flags: JSON_THROW_ON_ERROR);
-    $item = &$stored['content'][1]['content'][0]['content'][0]['content'];
+    $item = $stored['content'][1]['content'][0]['content'][0]['content'];
     $caption = 'This change';
     $text = ['type' => 'text', 'text' => $caption];
 
@@ -197,6 +186,7 @@ test('a previously stored summary still blocks retry when the attachment proof b
 
     $item[] = ['type' => 'paragraph', 'content' => [$text]];
     $item[] = ['type' => 'mediaSingle', 'content' => [['type' => 'media', 'attrs' => ['alt' => $caption, 'type' => 'file']]]];
+    $stored['content'][1]['content'][0]['content'][0]['content'] = $item;
     [$retry, , $retryCalls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => ['accountId' => 'qa'], 'body' => $stored]]));
 
     expect($first)->toBe(3)->and($retry)->toBe(3)
@@ -274,7 +264,8 @@ for content, code, targets, accepted in cases:
             assert not accepted
         assert all(call.args[0] == 'example.atlassian.net' and call.args[1].startswith('/rest/api/3/attachment/content/24?') for call in get.call_args_list)
 
-with patch.object(probe, 'run_cli', side_effect=['Site: example.atlassian.net\nEmail: qa@example.test\n', '']), patch.object(probe, 'authorization_for') as credentials:
+auth = 'Site: example.atlassian.net\nEmail: qa@example.test\n'
+with patch.object(probe, 'run_cli', side_effect=[auth, '']), patch.object(probe, 'authorization_for') as credentials:
     try:
         probe.authenticated_identity()
         raise AssertionError('missing acli identity was accepted')

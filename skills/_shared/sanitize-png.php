@@ -111,7 +111,8 @@ function opaqueAlphaRow(string $pixels, int $offset, int $stride, int $filter, b
             1 => $left,
             2 => $above,
             3 => intdiv($left + $above, 2),
-            default => max($above, $left), // Paeth with opaque neighbours, including row and column boundaries.
+            // Paeth with opaque neighbours, including row and column boundaries.
+            default => max($above, $left),
         };
 
         if (ord($pixels[$offset + $alpha]) !== 255 - $predictor) {
@@ -137,6 +138,7 @@ function validPngScanlines(string $compressed, int $height, int $stride, bool $r
         if ($filter > 4) {
             return false;
         }
+
         if ($rgba && !opaqueAlphaRow($pixels, $offset, $stride, $filter, $row > 0)) {
             return false;
         }
