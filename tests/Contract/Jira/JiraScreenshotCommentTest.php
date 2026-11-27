@@ -192,19 +192,25 @@ test('a changed isolated Jira site or actor stops before any attachment or comme
     expect($rc)->toBe(3)->and($calls)->not->toContain('attachment', 'comment create', 'comment update', 'comment delete');
 })->with(['SWITCHED_SITE', 'SWITCHED_ACTOR']);
 
-test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (): void {
+test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (bool $bold): void {
     [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
     $stored = json_decode($sent, associative: true, flags: JSON_THROW_ON_ERROR);
     $item = &$stored['content'][1]['content'][0]['content'][0]['content'];
     $caption = 'This change';
-    $item[] = ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $caption]]];
+    $text = ['type' => 'text', 'text' => $caption];
+
+    if ($bold) {
+        $text['marks'] = [['type' => 'strong']];
+    }
+
+    $item[] = ['type' => 'paragraph', 'content' => [$text]];
     $item[] = ['type' => 'mediaSingle', 'content' => [['type' => 'media', 'attrs' => ['alt' => $caption, 'type' => 'file']]]];
     [$retry, , $retryCalls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => ['accountId' => 'qa'], 'body' => $stored]]));
 
     expect($first)->toBe(3)->and($retry)->toBe(3)
         ->and(substr_count($originalCalls . $retryCalls, 'comment create'))->toBe(1)
         ->and($retryCalls)->not->toContain('comment delete', 'comment update');
-});
+})->with([false, true]);
 
 test('migration requires the original exact marker, account and unchanged body', function (string $case): void {
     $marker = 'cr-comment:actor=' . substr(hash('sha256', 'qa@example.test'), 0, 16) . ' lines=1234abcd';
@@ -442,6 +448,7 @@ assert matched is bug
 verified = {'id': 'da9acf8d-e3cf-468f-9910-0da5385562ed', 'attachment_id': '17', 'width': 120, 'height': 80}
 media.attach_media(matched, verified, 'This change')
 assert len(security['content']) == 1
+assert matched['content'][1]['content'] == [{'type': 'text', 'text': 'This change', 'marks': [{'type': 'strong'}]}]
 assert matched['content'][2]['content'][0]['attrs']['id'] == verified['id']
 assert 'attachment_id' not in matched['content'][2]['content'][0]['attrs']
 

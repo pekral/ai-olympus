@@ -171,7 +171,7 @@ def find_item(document, matches):
 
 def attach_media(item, media, caption):
     item["content"].extend([
-        {"type": "paragraph", "content": [{"type": "text", "text": caption}]},
+        {"type": "paragraph", "content": [{"type": "text", "text": caption, "marks": [{"type": "strong"}]}]},
         {"type": "mediaSingle", "attrs": {"layout": "align-start"}, "content": [{
             "type": "media", "attrs": {"id": media["id"], "width": media["width"], "height": media["height"],
                                       "type": "file", "collection": "", "alt": caption},
