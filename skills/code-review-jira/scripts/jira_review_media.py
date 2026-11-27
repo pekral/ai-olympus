@@ -7,10 +7,11 @@ import os
 import re
 import secrets
 import stat
+import subprocess
 import tempfile
 from pathlib import Path
 
-from jira_attachment_media import attachment_identity, attachment_inventory, authenticated_identity, require, run_cli, target_key
+from jira_attachment_media import DestinationChanged, Unconfirmed, attachment_identity, attachment_inventory, authenticated_identity, require, run_cli, target_key
 
 HERE = Path(__file__).resolve().parent
 SHARED = HERE.parent.parent / "_shared"
@@ -59,6 +60,10 @@ def audit_record(file, target, code, detail):
             "--status", str(code), "--detail", detail)
 
 
+class UncertainWrite(Unconfirmed):
+    """The run must reconcile a possible external write before publishing or retrying."""
+
+
 def confirmed_file(key, slug, name, data, expected, binding):
     target_key(key)
     require(re.fullmatch(r"[a-z0-9-]{1,140}\.png", name) and hashlib.sha256(data).hexdigest() == expected
@@ -68,9 +73,9 @@ def confirmed_file(key, slug, name, data, expected, binding):
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", slug)
             and file in [root / r / "run" / (slug + ".audit") for r in (".codex", ".claude")]
             and file.resolve() == file, "the existing audit ledger for this run is required")
-    site, actor, header = authenticated_identity()
-    require((site, actor) == binding, "active Jira profile changed before attaching the screenshot")
-    target = "jira attachment " + key + "/" + name
+    site, actor, header = authenticated_identity(*binding)
+    require((site, actor) == binding, "active Jira profile changed before attaching the screenshot", DestinationChanged)
+    target = "jira attachment " + site + "/" + key + "/" + name
     # The existing run ledger serializes uploads and remembers an unknown write even after a restart.
     fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as ledger:
@@ -78,18 +83,22 @@ def confirmed_file(key, slug, name, data, expected, binding):
         fcntl.flock(fd, fcntl.LOCK_EX)
         items = [i for i in attachment_inventory(key, site) if i["filename"] == name]
         require(len(items) <= 1, "duplicate named attachments; inspect the ticket")
-        created = None
+        if not items and any(line.split("|")[3:4] == [target] for line in ledger):
+            raise UncertainWrite("previous upload attempt requires reconciliation")
         if not items:
-            require(not any(line.split("|")[3:4] == [target] for line in ledger), "previous upload attempt requires reconciliation")
             audit_record(file, target, 3, "upload intent; no automatic retry")
-            created = upload(site, key, header, name, data)
-            checked_item(created, name, len(data), actor)
-            audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
-            items = [i for i in attachment_inventory(key, site) if i["filename"] == name]
-        require(len(items) == 1, "attachment is not uniquely visible on the target ticket")
+            try:
+                created = upload(site, key, header, name, data)
+                checked_item(created, name, len(data), actor)
+                audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
+                items = [i for i in attachment_inventory(key, site) if i["filename"] == name]
+                require(len(items) == 1 and str(items[0]["id"]) == str(created["id"]), "stored upload is unconfirmed")
+                checked_item(items[0], name, len(data), actor)
+                return {"attachment_id": str(created["id"]), **attachment_identity(site, header, items[0], expected)}
+            except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException) as error:
+                raise UncertainWrite("attempted attachment upload requires reconciliation") from error
         item = items[0]
         checked_item(item, name, len(data), actor)
-        require(created is None or str(item["id"]) == str(created["id"]), "stored attachment ID differs from the upload")
         return {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
 
 

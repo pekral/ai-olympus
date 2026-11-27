@@ -398,7 +398,8 @@ UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
 SENT_TEXT_TMP="$(mktemp)"
-trap 'rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
+MEDIA_WORK=""
+trap 'if [[ -n "$MEDIA_WORK" ]]; then rm -rf "$MEDIA_WORK"; fi; rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -468,7 +469,15 @@ JQ
 # note the snapshot exists to protect.
 if [[ "$SUMMARY" == 1 ]]; then
   source "$SCRIPT_DIR/publish-summary.sh"
-  if [[ -n "$SHOTS_MANIFEST" ]]; then MEDIA_SITE="$SITE"; fi
+  if [[ -n "$SHOTS_MANIFEST" ]]; then
+    [[ -n "$ACCOUNT_ID" ]] || exit 3
+    MEDIA_SITE="$SITE"
+    MEDIA_WORK="$(mktemp -d)"
+    printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"
+    jq -n --arg site "$SITE" --arg key "$KEY" --rawfile account "$SENT_TEXT_TMP" '{site:$site,key:$key,account:$account}' >"$MEDIA_WORK/binding"
+    python3 -B "$SCRIPT_DIR/pin-jira-profile.py" "$MEDIA_WORK/binding" "$MEDIA_WORK/profile" || exit 3
+    export ACLI_CONFIG_DIR="$MEDIA_WORK/profile"
+  fi
 fi
 EXISTING_ID=""
 if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
@@ -480,7 +489,7 @@ fi
 if [[ -n "$SHOTS_MANIFEST" ]]; then
   if [[ "$SUMMARY" == 1 ]]; then
     media_rc=0
-    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
+    python3 -B "$SCRIPT_DIR/prepare-review-media.py" "$KEY" "$SHOTS_SLUG" "$SHOTS_MANIFEST" "$MEDIA_WORK/binding" <"$ADF_FILE_TMP" >"$CARRIED_ADF_TMP" || media_rc=$?
     case "$media_rc" in
       0)
         printf '%s' "$ACCOUNT_ID" >"$SENT_TEXT_TMP"

@@ -63,9 +63,27 @@ publish_summary() {
   else
     # A retry after an uncertain create must never duplicate the already stored body. No write on match.
     if ! before="$(jq -ce '[.[] | .id | tostring]' <<<"$COMMENTS_JSON")" ||
-       ! jq -e --slurpfile sent "$ADF_FILE_TMP" '[.[] | select(.body == $sent[0])] | length == 0' <<<"$COMMENTS_JSON" >/dev/null; then
+       ! jq -e -L "$SCRIPT_DIR" --slurpfile sent "$ADF_FILE_TMP" 'include "summary-content"; ($sent[0] | summary_content) as $source | all(.[]; (.body | summary_content) != $source)' <<<"$COMMENTS_JSON" >/dev/null; then
       echo "upsert-comment.sh: an identical or undecidable comment exists; inspect the ticket before retrying" >&2
       return 3
+    fi
+    if [[ -n "${MEDIA_SITE:-}" ]]; then
+      local attempt_key digest ledger="${AUDIT_TRAIL_FILE:-}"
+      [[ -n "$ledger" && -f "$ledger" && ! -L "$ledger" ]] || return 3
+      digest="$(jq -cS -L "$SCRIPT_DIR" 'include "summary-content"; summary_content' "$ADF_FILE_TMP" | shasum -a 256 | cut -d' ' -f1)" || return 3
+      attempt_key="jira media summary $SITE/$KEY $digest"
+      # Reserve a single durable attempt even if two callers observed the same empty snapshot.
+      if ! (
+        mkdir "${ledger}.summary-intent.lock" || exit 1
+        trap 'rmdir "${ledger}.summary-intent.lock"' EXIT
+        local prior_rc=0
+        grep -Fq "|$attempt_key|" "$ledger" || prior_rc=$?
+        [[ "$prior_rc" == 1 ]] || exit 1
+        bash "$AUDIT_TRAIL" record --file "$ledger" --target "$attempt_key" --status 3 --detail "create intent; no automatic retry"
+      ); then
+        echo "upsert-comment.sh: overlapping or previous media summary attempt requires reconciliation" >&2
+        return 3
+      fi
     fi
     result="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")" || rc=$?
     # Restrict the response to documented comment ID envelopes. A nested user or issue ID identifies no comment.
@@ -92,33 +110,3 @@ publish_summary() {
   echo "upsert-comment.sh: cannot confirm the stored $action summary on $KEY (ID ${id:-unknown}); inspect it before any retry" >&2
   return 3
 }
-
-# Internal create-only transport for the approved media builder. The caller owns the selection of permitted
-# findings and the exact assembled document. This file supplies no public command or arbitrary-ADF option.
-publish_prepared_media_summary() (
-  set -euo pipefail
-  umask 077
-  local KEY="$1" ADF_FILE_TMP="$2" binding="$3" SCRIPT_DIR
-  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # shellcheck source=jira-actor.sh
-  source "$SCRIPT_DIR/jira-actor.sh"
-  local AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh" auth work SITE EMAIL ACCOUNT_ID COMMENTS_JSON
-  local MARKER_TEXT="" TARGET_COMMENT_ID="" OPERATOR_EDIT=0 PREVIOUS_ADF=""
-  [[ "$KEY" =~ ^[A-Z][A-Z0-9_]+-[1-9][0-9]*$ ]] || return 1
-  jq -e '.version == 1 and .type == "doc" and .content[0].type == "paragraph"
-    and (.content[0].content[0].text | startswith("AI Olympus · ")) and any(.. | objects; .type? == "mediaSingle")' "$ADF_FILE_TMP" >/dev/null || return 1
-  auth="$(acli jira auth status 2>/dev/null)" || return 3
-  SITE="$(jira_auth_status_field "$auth" site)"
-  EMAIL="$(jira_auth_status_field "$auth" email)"
-  ACCOUNT_ID="$(jira_actor_account_id)"
-  [[ "$SITE" =~ ^[a-z0-9-]+\.atlassian\.net$ && -n "$EMAIL" && -n "$ACCOUNT_ID" ]] || return 3
-  local MEDIA_SITE="$SITE"
-  work="$(mktemp -d)"
-  trap 'rm -rf "$work"' EXIT
-  local LIST_STDERR="$work/list" SENT_TEXT_TMP="$work/email" CARRIED_ADF_TMP="$work/account"
-  local CREATE_STDERR="$work/create" UPDATE_STDERR="$work/update"
-  printf '%s' "$ACCOUNT_ID" >"$CARRIED_ADF_TMP"
-  jq -e --arg site "$SITE" --arg key "$KEY" --rawfile actor "$CARRIED_ADF_TMP" '.site == $site and .key == $key and .account == $actor' "$binding" >/dev/null || return 3
-  COMMENTS_JSON="$(read_summary_comments)" || return 3
-  publish_summary
-)

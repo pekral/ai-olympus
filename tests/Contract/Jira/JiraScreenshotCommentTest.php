@@ -9,8 +9,14 @@ const JIRA_SUMMARY_ACLI_FIXTURE = <<<'SH'
 set -euo pipefail
 printf '%s\n' "$*" >> "$FIXTURE/calls"
 case "$1 $2 $3" in
-  'jira auth status') printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
-  'jira workitem search') if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
+  'jira auth status')
+    config="${ACLI_CONFIG_DIR}/jira_config.yaml"
+    if grep -Fxq 'current_profile: [' "$config"; then exit 1; fi
+    if [[ "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" && "${SWITCHED_SITE:-0}" == 1 ]]; then
+      printf 'Site: other.atlassian.net\nEmail: qa@example.test\n'; exit
+    fi
+    printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
+  'jira workitem search') if [[ "${SWITCHED_ACTOR:-0}" == 1 && "$ACLI_CONFIG_DIR" != "$FIXTURE/profile" ]]; then echo '[{"fields":{"assignee":{"accountId":"foreign"}}}]'; exit; fi; if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
       jq -n --slurpfile sent "$FIXTURE/sent" '{key:"TEST-1",id:"123",self:"https://example.atlassian.net/rest/api/3/issue/123",fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
@@ -59,6 +65,10 @@ function jiraPreviewCommands(): array
 {
     $dir = sys_get_temp_dir() . '/jira-summary-' . bin2hex(random_bytes(8));
     mkdir($dir, 0o700);
+    $dir = (string) realpath($dir);
+    mkdir($dir . '/profile', 0o700);
+    file_put_contents($dir . '/profile/jira_config.yaml', "current_profile: cloud:qa\nprofiles:\n  - site: example.atlassian.net\n    cloud_id: cloud\n    account_id: qa\n");
+    chmod($dir . '/profile/jira_config.yaml', 0o600);
     file_put_contents($dir . '/acli', JIRA_SUMMARY_ACLI_FIXTURE);
     file_put_contents($dir . '/jq', <<<'SH'
 #!/usr/bin/env bash
@@ -88,7 +98,7 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
 {
     [$dir, $jq] = jiraPreviewCommands();
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
-    file_put_contents($dir . '/audit', '');
+    file_put_contents($dir . '/preview.audit', '');
     $arguments = ['--create', '--screenshots', $dir . '/unused', '--slug', 'preview'];
 
     if ($prior !== null) {
@@ -102,7 +112,8 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
         ...$environment,
-        'AUDIT_TRAIL_FILE' => $dir . '/audit',
+        'ACLI_CONFIG_DIR' => $dir . '/profile',
+        'AUDIT_TRAIL_FILE' => $dir . '/preview.audit',
         'AUDIT_TRAIL_ROLE' => 'april',
         'FIXTURE' => $dir,
         'PATH' => $dir . PATH_SEPARATOR . (string) getenv('PATH'),
@@ -148,6 +159,26 @@ test('a refused or uncertain creation never issues a compensating write', functi
     expect($rc)->toBe(3)->and(substr_count($calls, 'comment create'))->toBe(1)
         ->and($calls)->not->toContain('comment delete', 'comment update', 'attachment');
 })->with(['refused', 'unknown']);
+
+test('a changed isolated Jira site or actor stops before any attachment or comment write', function (string $change): void {
+    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([]), environment: [$change => '1']);
+
+    expect($rc)->toBe(3)->and($calls)->not->toContain('attachment', 'comment create', 'comment update', 'comment delete');
+})->with(['SWITCHED_SITE', 'SWITCHED_ACTOR']);
+
+test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (): void {
+    [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
+    $stored = json_decode($sent, true, flags: JSON_THROW_ON_ERROR);
+    $item = &$stored['content'][1]['content'][0]['content'][0]['content'];
+    $caption = 'This change';
+    $item[] = ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $caption]]];
+    $item[] = ['type' => 'mediaSingle', 'content' => [['type' => 'media', 'attrs' => ['alt' => $caption, 'type' => 'file']]]];
+    [$retry, , $retryCalls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => ['accountId' => 'qa'], 'body' => $stored]]));
+
+    expect($first)->toBe(3)->and($retry)->toBe(3)
+        ->and(substr_count($originalCalls . $retryCalls, 'comment create'))->toBe(1)
+        ->and($retryCalls)->not->toContain('comment delete', 'comment update');
+});
 
 test('migration requires the original exact marker, account and unchanged body', function (string $case): void {
     $marker = 'cr-comment:actor=' . substr(hash('sha256', 'qa@example.test'), 0, 16) . ' lines=1234abcd';
@@ -247,6 +278,55 @@ PY;
         ->and($process->getExitCode())->toBe(0);
 });
 
+test('only independently verified captures at unambiguous accepted finding locations survive selection', function (): void {
+    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
+    $fixture = <<<'PY'
+import importlib.util
+import json
+import tempfile
+from contextlib import ExitStack
+from pathlib import Path
+from unittest.mock import patch
+
+spec = importlib.util.spec_from_file_location('prepare', 'prepare-review-media.py')
+prepare = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(prepare)
+pr, head = 'https://github.com/example/project/pull/7', 'a' * 40
+binding = {'site': 'example.atlassian.net', 'key': 'TEST-1', 'account': 'qa'}
+entries = [{'finding_id': fid, 'finding_type': 'bug', 'state': 'head', 'file': fid + '.png'} for fid in ('unique', 'ambiguous', 'unverified')]
+captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True,
+                 visually_verified=entry['finding_id'] != 'unverified', revision=head, sha256='1' * 64) for entry in entries]
+records = [dict(finding_id=fid, revision=head, status='new', security=False, file='orders.php', line=line)
+           for fid, line in [('unique', 2), ('ambiguous', 3), ('other', 3), ('unverified', 4)]]
+qa = dict(jira_source='https://example.atlassian.net/browse/TEST-1', target=pr, reviewed_head=head, captures=captures)
+report = '## Interactive testing\n| Save | desktop | Failed | error |\n'
+def read(*args):
+    if args[:2] == ('git', 'rev-parse'): return '/repo'
+    if args[0] == 'python3': return json.dumps(qa)
+    if args[0] == 'bash' and 'manifest' in args: return json.dumps({'accepted': entries})
+    if args[:2] == ('gh', 'api'): return 'release'
+    return ''
+
+with tempfile.TemporaryDirectory() as work, ExitStack() as patching:
+    def mock(name, **options):
+        return patching.enter_context(patch.object(prepare, name, **options))
+    mock('run_cli', side_effect=read)
+    mock('current_head')
+    mock('current_review', return_value={'body': ''})
+    mock('accepted_records', return_value=(records, report))
+    mock('finding_item', return_value={})
+    mock('canonical_png', return_value=b'crop')
+    asset = mock('reviewed_asset')
+    *_, default, pairs = prepare.selection(binding, 'run', 'run.screenshots.json', {}, Path(work))
+    assert default == 'release' and [p[0] for p in pairs] == ['unique'] and asset.call_count == 1
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
+    $process->run();
+
+    expect($process->getErrorOutput())->toContain('lacks a unique verified capture')
+        ->and($process->getExitCode())->toBe(0);
+});
+
 test('attachment credential files reject exposed permissions and symbolic links before reading', function (): void {
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
     $fixture = <<<'PY'
@@ -320,11 +400,11 @@ with tempfile.TemporaryDirectory() as temp:
          patch.object(media, 'authenticated_identity', return_value=('example.atlassian.net', 'qa', 'fixture')), \
          patch.object(media, 'attachment_inventory', return_value=[]), patch.object(media, 'audit_record', side_effect=audit), \
          patch.object(media, 'upload', side_effect=TimeoutError) as upload:
-        for refusal in (TimeoutError, Unconfirmed):
+        for _ in range(2):
             try:
                 media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'))
                 raise AssertionError('unconfirmed upload succeeded')
-            except refusal:
+            except media.UncertainWrite:
                 pass
         assert upload.call_count == 1
 PY;

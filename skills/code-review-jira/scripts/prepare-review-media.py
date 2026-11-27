@@ -8,8 +8,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from jira_attachment_media import Unconfirmed, require, run_bytes, run_cli, verified_profile
-from jira_review_media import HERE, SHARED, attach_media, canonical_png, confirmed_file, find_item
+from jira_attachment_media import DestinationChanged, Unconfirmed, require, run_bytes, run_cli, verified_profile
+from jira_review_media import HERE, SHARED, UncertainWrite, attach_media, canonical_png, confirmed_file, find_item
 
 GITHUB = HERE.parent.parent / "code-review-github" / "scripts"
 PULL = r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)"
@@ -21,15 +21,26 @@ def current_head(pr, key, head):
             and re.search(r"(?<![A-Z0-9_-])" + re.escape(key) + r"(?![A-Z0-9_-])", value["title"]), "pull request head or Jira source changed")
 
 
-def trusted_review(pr, repo, number, work):
+def current_review(repo, number, head, work):
+    # The GitHub CLI returns review bodies via stdout. Only a private file, never jq argv, contains those bodies.
+    pages = json.loads(run_cli("gh", "api", "--paginate", "--slurp", f"repos/{repo}/pulls/{number}/reviews?per_page=100"))
+    reviews = [{"id": r["id"], "body": r["body"], "state": r["state"], "commit": r["commit_id"], "submittedAt": r["submitted_at"],
+                "author": r["user"]["login"], "authorAssociation": r["author_association"]} for page in pages for r in page]
     source = work / "pull.json"
-    source.write_text(run_cli("bash", str(GITHUB / "load-issue.sh"), pr))
+    source.write_text(json.dumps({"reviews": reviews}))
+    selected = json.loads(run_cli("jq", "-ec", "-L", str(SHARED), 'include "review-trust"; newest_trusted_report', str(source)))
+    require(selected["state"] in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED") and selected["commit"] == head,
+            "the latest trusted review is not active on this head")
+    return selected
+
+
+def accepted_records(review, repo, number, work):
+    source = work / "accepted.json"
+    source.write_text(json.dumps({"reviews": [review]}))
     report = work / "review.md"
     report.write_text(run_cli("bash", str(SHARED / "cr-header.sh"), "--report", str(source)))
     lines = run_cli("bash", str(SHARED / "extract-findings.sh"), "--round", "--repo", repo, "--pr", number, "--input", str(report))
-    visible = run_cli("jq", "-er", "-L", str(SHARED),
-                      'include "review-trust"; newest_trusted_report | select(.home=="review") | .body | split("\\n<!-- cr-review-meta\\n")[0]', str(source))
-    return [json.loads(line) for line in lines.splitlines()], visible, report.read_text()
+    return [json.loads(line) for line in lines.splitlines()], report.read_text()
 
 
 def reviewed_asset(body, pr, repo, number, head, entry, data):
@@ -61,21 +72,23 @@ def finding_item(document, pr, head, record, kind):
     return find_item(document, matches)
 
 
-def selection(key, slug, manifest, document, work):
+def selection(binding, slug, manifest, document, work):
+    key = binding["key"]
     root = run_cli("git", "rev-parse", "--show-toplevel").strip()
     qa_path = str(Path(manifest).with_name(slug + ".screenshot-evidence.json"))
     qa = json.loads(run_cli("python3", "-B", str(SHARED / "read-screenshot-artifact.py"), root, slug, "screenshot-evidence", qa_path))
     require(not run_cli("git", "ls-files", "--", qa_path).strip(), "capture evidence is tracked")
+    require(qa.get("jira_source") == f'https://{binding["site"]}/browse/{key}', "Jira target differs from the original QA assignment")
     entries = json.loads(run_cli("bash", str(SHARED / "screenshot-guard.sh"), "manifest", manifest, slug))["accepted"]
     pr, head = qa["target"], qa["reviewed_head"]
     target = re.fullmatch(PULL, pr)
     require(target and re.fullmatch(r"[0-9a-f]{40}", head), "invalid QA target")
     repo, number = target.groups()
     run_cli("bash", str(SHARED / "assert-current-repo.sh"), pr)
-    ticket = json.loads(run_cli("bash", str(HERE / "load-issue.sh"), key))
-    require(ticket["key"] == key and any(p["url"] == pr for p in ticket["pullRequests"]), "pull request is not linked to the target issue")
     current_head(pr, key, head)
-    records, visible, report = trusted_review(pr, repo, number, work)
+    review = current_review(repo, number, head, work)
+    records, report = accepted_records(review, repo, number, work)
+    visible = review["body"].split("\n<!-- cr-review-meta\n")[0]
     testing = re.search(r"^## Interactive testing\n((?:(?!^## ).)*)", report, re.M | re.S)
     require(testing, "no interactive testing section in the accepted review")
     failed = set()
@@ -85,14 +98,19 @@ def selection(key, slug, manifest, document, work):
             failed.add((cells[1], cells[2]))
     pairs = []
     default = run_cli("gh", "api", "repos/" + repo, "--jq", ".default_branch").strip()
-    for entry in entries:
+
+    def approved(entry):
         fid, state, kind = entry["finding_id"], entry["state"], entry["finding_type"]
         candidates = [r for r in records if r["finding_id"] == fid and r["revision"] == head and r["status"] == "new" and r["security"] is False]
         captures = [c for c in qa["captures"] if c["finding_id"] == fid and c["state"] == state]
         require(len(candidates) == len(captures) == 1, "finding or independent capture is absent or ambiguous")
+        record = candidates[0]
+        require(sum(r["file"] == record["file"] and r["line"] == record["line"] for r in records) == 1,
+                "more than one reviewed finding occupies this code location")
         capture = captures[0]
         step = (capture["step"], capture["viewport"])
         require(capture["finding_type"] == kind and capture["do_not_file_publicly"] is False and capture["file"] == entry["file"]
+                and capture["kind"] == "ui" and capture["own_pixels"] is True and capture["visually_verified"] is True
                 and step in failed and step[1] in ("mobile", "desktop"), "capture is not the failed interactive step")
         if state == "head":
             require(capture["verdict"] == "failed" and capture["revision"] == head, "head capture is not a reproduced failure")
@@ -102,37 +120,68 @@ def selection(key, slug, manifest, document, work):
         item = finding_item(document, pr, head, candidates[0], kind)
         data = canonical_png(slug, entry["file"], capture["sha256"])
         reviewed_asset(visible, pr, repo, number, head, entry, data)
-        pairs.append((fid, state, step, item, data, capture["sha256"]))
+        return fid, state, step, item, data, capture["sha256"]
+
+    for entry in entries:
+        try:
+            pairs.append(approved(entry))
+        except (Unconfirmed, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError):
+            print("Jira media: a finding lacks a unique verified capture", file=sys.stderr)
+    pairs = [p for p in pairs if p[1] == "head" or any(t[0] == p[0] and t[1] == "head" and t[2] == p[2] for t in pairs)]
     require(pairs and all(any(t[0] == fid and t[1] == "head" and t[2] == step for t in pairs) for fid, _, step, *_ in pairs),
             "no matching approved HEAD capture for the tested step")
     require(len({p[0] for p in pairs}) == len({id(p[3]) for p in pairs}), "two findings point to the same summary item")
-    return pr, head, pairs
+    return pr, head, repo, number, review, default, pairs
 
 
 if __name__ == "__main__":
-    attempted = False
     try:
-        require(len(sys.argv) == 4, "expected a target, run slug, capture manifest and ADF on stdin")
-        key, slug, source = sys.argv[1:]
+        require(len(sys.argv) == 5, "expected target, run slug, capture manifest, private destination binding and ADF on stdin")
+        key, slug, source, binding_file = sys.argv[1:]
+        binding = json.loads(Path(binding_file).read_bytes())
+        require(binding["key"] == key and re.fullmatch(r"[a-z0-9-]+\.atlassian\.net", binding["site"]) and binding["account"], "invalid original target")
         document = json.load(sys.stdin)
         require(document["type"] == "doc" and document["version"] == 1, "expected an ADF v1 summary")
-        with tempfile.TemporaryDirectory() as work:
-            pr, head, pairs = selection(key, slug, source, document, Path(work))
-        site, actor = verified_profile()
-        prepared = []
-        for fid, state, _, item, data, digest in sorted(pairs, key=lambda p: p[1] != "head"):
-            current_head(pr, key, head)
-            attempted = True
-            name = f"review-{fid}-{state}-{digest}.png"
-            media = confirmed_file(key, slug, name, data, digest, (site, actor))
-            prepared.append((state, item, media))
-        current_head(pr, key, head)
-        for state, item, media in sorted(prepared, key=lambda p: p[0] == "head"):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            pr, head, repo, number, review, default, pairs = selection(binding, slug, source, document, work)
+            profile = (binding["site"], binding["account"])
+            require(verified_profile(*profile) == profile, "active profile differs from original target")
+            prepared = []
+
+            def revalidate():
+                try:
+                    current_head(pr, key, head)
+                    require(current_review(repo, number, head, work) == review, "the accepted review changed")
+                except (Unconfirmed, KeyError, ValueError, TypeError, OSError, subprocess.SubprocessError) as reason:
+                    if prepared:
+                        raise UncertainWrite("the review changed after verifying an attachment") from reason
+                    raise
+
+            for fid, state, _, item, data, digest in sorted(pairs, key=lambda p: p[1] != "head"):
+                if state == "base" and not any(f == fid and s == "head" for f, s, _, _ in prepared):
+                    continue
+                revalidate()
+                try:
+                    media = confirmed_file(key, slug, f"review-{fid}-{state}-{digest}.png", data, digest, profile)
+                except (DestinationChanged, UncertainWrite):
+                    raise
+                except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException):
+                    print("Jira media: verification failed before a new upload", file=sys.stderr)
+                    continue
+                prepared.append((fid, state, item, media))
+            revalidate()
             czech = any(n.get("attrs", {}).get("title") == "⚠️ Nálezy z kontroly kódu" for n in document["content"])
-            label = ("Výchozí větev" if state == "base" else "Tato změna") if czech else ("Default branch" if state == "base" else "This change")
-            attach_media(item, media, label)
-        json.dump({"adf": document, "key": key, "site": site, "account": actor}, sys.stdout)
+            for _, state, item, media in sorted(prepared, key=lambda p: p[1] == "head"):
+                if state == "base":
+                    label = ("Výchozí větev" if czech else "Default branch") + " (" + default + ")"
+                else:
+                    label = "Tato změna" if czech else "This change"
+                attach_media(item, media, label)
+        json.dump({"adf": document, **binding}, sys.stdout)
+    except (DestinationChanged, UncertainWrite):
+        sys.exit(3)
     except (Unconfirmed, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError, http.client.HTTPException) as error:
         reason = str(error) if isinstance(error, Unconfirmed) else "could not confirm source or attachment"
-        print("Jira media: " + reason + "; inspect the ticket and run audit", file=sys.stderr)
-        sys.exit(3 if attempted else 4)
+        print("Jira media: " + reason, file=sys.stderr)
+        sys.exit(4)
