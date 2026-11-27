@@ -38,7 +38,14 @@ SH;
  */
 function jiraSummaryPage(array $comments, ?int $total = null): array
 {
-    return ['id' => '123', 'key' => 'TEST-1', 'self' => 'https://example.atlassian.net/rest/api/3/issue/123', 'fields' => ['comment' => ['startAt' => 0, 'comments' => $comments, 'total' => $total ?? count($comments)]]];
+    $page = ['comments' => $comments, 'startAt' => 0, 'total' => $total ?? count($comments)];
+
+    return [
+        'fields' => ['comment' => $page],
+        'id' => '123',
+        'key' => 'TEST-1',
+        'self' => 'https://example.atlassian.net/rest/api/3/issue/123',
+    ];
 }
 
 /**
@@ -67,7 +74,10 @@ function jiraPreviewCommands(): array
     mkdir($dir, 0o700);
     $dir = (string) realpath($dir);
     mkdir($dir . '/profile', 0o700);
-    file_put_contents($dir . '/profile/jira_config.yaml', "current_profile: cloud:qa\nprofiles:\n  - site: example.atlassian.net\n    cloud_id: cloud\n    account_id: qa\n");
+    file_put_contents(
+        $dir . '/profile/jira_config.yaml',
+        "current_profile: cloud:qa\nprofiles:\n  - site: example.atlassian.net\n    cloud_id: cloud\n    account_id: qa\n",
+    );
     chmod($dir . '/profile/jira_config.yaml', 0o600);
     file_put_contents($dir . '/acli', JIRA_SUMMARY_ACLI_FIXTURE);
     file_put_contents($dir . '/jq', <<<'SH'
@@ -168,7 +178,7 @@ test('a changed isolated Jira site or actor stops before any attachment or comme
 
 test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (): void {
     [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
-    $stored = json_decode($sent, true, flags: JSON_THROW_ON_ERROR);
+    $stored = json_decode($sent, associative: true, flags: JSON_THROW_ON_ERROR);
     $item = &$stored['content'][1]['content'][0]['content'][0]['content'];
     $caption = 'This change';
     $item[] = ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $caption]]];
