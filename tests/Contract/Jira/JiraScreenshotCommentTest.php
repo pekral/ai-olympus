@@ -175,18 +175,17 @@ test('losing the screenshot source after an uncertain upload blocks even a text-
 
 test('a previously stored summary still blocks retry when the attachment proof becomes unavailable', function (bool $bold): void {
     [$first, , $originalCalls, $sent] = jiraPreviewPublish(jiraSummaryPage([]), environment: ['READBACK' => 'missing']);
-    $stored = json_decode($sent, associative: true, flags: JSON_THROW_ON_ERROR);
-    $item = $stored['content'][1]['content'][0]['content'][0]['content'];
-    $caption = 'This change';
-    $text = ['type' => 'text', 'text' => $caption];
-
-    if ($bold) {
-        $text['marks'] = [['type' => 'strong']];
-    }
-
-    $item[] = ['type' => 'paragraph', 'content' => [$text]];
-    $item[] = ['type' => 'mediaSingle', 'content' => [['type' => 'media', 'attrs' => ['alt' => $caption, 'type' => 'file']]]];
-    $stored['content'][1]['content'][0]['content'][0]['content'] = $item;
+    $addMedia = new Process(['jq', '--argjson', 'bold', $bold ? 'true' : 'false', <<<'JQ'
+        "This change" as $caption
+        | {type:"text", text:$caption} as $text
+        | .content[1].content[0].content[0].content += [
+            {type:"paragraph", content:[if $bold then ($text + {marks:[{type:"strong"}]}) else $text end]},
+            {type:"mediaSingle", content:[{type:"media", attrs:{alt:$caption, type:"file"}}]}
+          ]
+        JQ
+    ], input: $sent);
+    $addMedia->mustRun();
+    $stored = json_decode($addMedia->getOutput(), associative: true, flags: JSON_THROW_ON_ERROR);
     [$retry, , $retryCalls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => ['accountId' => 'qa'], 'body' => $stored]]));
 
     expect($first)->toBe(3)->and($retry)->toBe(3)
