@@ -345,6 +345,27 @@ with tempfile.TemporaryDirectory() as work, ExitStack() as patching:
     asset = mock('reviewed_asset')
     *_, default, pairs = prepare.selection(binding, 'run', 'run.screenshots.json', {}, Path(work))
     assert default == 'release' and [p[0] for p in pairs] == ['unique'] and asset.call_count == 1
+# A later trusted comment can supersede an otherwise valid, current native review.
+from subprocess import check_output
+native = dict(id=7,body='<!-- cr-comment:actor=qa -->',state='APPROVED',commit_id=head,
+              submitted_at='2026-11-20T10:00:00Z',user={'login':'qa'},author_association='MEMBER')
+newer = dict(id=8,body='<!-- cr-comment:actor=qa -->',created_at='2026-11-21T10:00:00Z',user={'login':'qa'},author_association='MEMBER')
+def reports(*args):
+    if args[0] == 'jq': return check_output(args).decode()
+    return json.dumps([[native] if '/reviews?' in args[-1] else [newer]])
+with tempfile.TemporaryDirectory() as work, patch.object(prepare, 'run_cli', side_effect=reports):
+    try:
+        prepare.current_review('example/project','7',head,Path(work))
+        raise AssertionError('superseded review accepted')
+    except prepare.StaleReview:
+        pass
+with patch.object(prepare, 'current_head', return_value=None), patch.object(prepare, 'current_review', return_value=newer):
+    try:
+        prepare.revalidate(pr,'TEST-1',head,'example/project','7',native,Path('.'))
+        raise AssertionError('summary from a superseded review was accepted')
+    except prepare.StaleReview:
+        pass
+
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();
@@ -426,12 +447,14 @@ with tempfile.TemporaryDirectory() as temp:
          patch.object(media, 'authenticated_identity', return_value=('example.atlassian.net', 'qa', 'fixture')), \
          patch.object(media, 'attachment_inventory', return_value=[]), patch.object(media, 'audit_record', side_effect=audit), \
          patch.object(media, 'upload', side_effect=TimeoutError) as upload:
-        for _ in range(2):
-            try:
-                media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'), '123')
-                raise AssertionError('unconfirmed upload succeeded')
-            except media.UncertainWrite:
-                pass
+        missing = {'id':'17','size':len(data),'filename':'approved.png','mimeType':'image/png','author':{'accountId':'foreign'}}
+        for inventory in ([], [], OSError(), [missing]):
+            with patch.object(media, 'attachment_inventory', side_effect=[inventory]):
+                try:
+                    media.confirmed_file('TEST-1', 'example', 'approved.png', data, digest, ('example.atlassian.net', 'qa'), '123')
+                    raise AssertionError('unconfirmed upload succeeded')
+                except media.UncertainWrite:
+                    pass
         assert upload.call_count == 1
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);

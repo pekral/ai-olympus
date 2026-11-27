@@ -73,33 +73,38 @@ def confirmed_file(key, slug, name, data, expected, binding, issue_id):
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", slug)
             and file in [root / r / "run" / (slug + ".audit") for r in (".codex", ".claude")]
             and file.resolve() == file, "the existing audit ledger for this run is required")
-    site, actor, header = authenticated_identity(*binding)
-    require((site, actor) == binding, "active Jira profile changed before attaching the screenshot", DestinationChanged)
-    target = "jira attachment " + site + "/" + key + "/" + name
-    # The existing run ledger serializes uploads and remembers an unknown write even after a restart.
+    target = "jira attachment " + binding[0] + "/" + key + "/" + name
+    # Read the intent before inventory or identity checks: an older POST remains unresolved
+    # until the original attachment can be positively identified and all bytes verified.
     fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as ledger:
         require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_nlink == 1, "invalid run ledger")
         fcntl.flock(fd, fcntl.LOCK_EX)
-        items = [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
-        require(len(items) <= 1, "duplicate named attachments; inspect the ticket")
-        if not items and any(line.split("|")[3:4] == [target] for line in ledger):
-            raise UncertainWrite("previous upload attempt requires reconciliation")
-        if not items:
-            audit_record(file, target, 3, "upload intent; no automatic retry")
-            try:
+        attempted = any(line.split("|")[3:4] == [target] for line in ledger)
+        try:
+            site, actor, header = authenticated_identity(*binding)
+            require((site, actor) == binding, "active Jira profile changed before attaching the screenshot", DestinationChanged)
+            def inventory():
+                return [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
+
+            items = inventory()
+            if not items:
+                require(not attempted, "previous upload attempt requires reconciliation")
+                audit_record(file, target, 3, "upload intent; no automatic retry")
+                attempted = True
                 created = upload(site, key, header, name, data)
                 checked_item(created, name, len(data), actor)
                 audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
-                items = [i for i in attachment_inventory(key, site, issue_id) if i["filename"] == name]
+                items = inventory()
                 require(len(items) == 1 and str(items[0]["id"]) == str(created["id"]), "stored upload is unconfirmed")
-                checked_item(items[0], name, len(data), actor)
-                return {"attachment_id": str(created["id"]), **attachment_identity(site, header, items[0], expected)}
-            except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException) as error:
+            require(len(items) == 1, "attachment is absent or ambiguous")
+            item = items[0]
+            checked_item(item, name, len(data), actor)
+            return {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+        except (Unconfirmed, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError, http.client.HTTPException) as error:
+            if attempted:
                 raise UncertainWrite("attempted attachment upload requires reconciliation") from error
-        item = items[0]
-        checked_item(item, name, len(data), actor)
-        return {"attachment_id": str(item["id"]), **attachment_identity(site, header, item, expected)}
+            raise
 
 
 def find_item(document, matches):

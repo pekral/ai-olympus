@@ -8,17 +8,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-from jira_attachment_media import DestinationChanged, Unconfirmed, require, run_bytes, run_cli, verified_profile
+from jira_attachment_media import DestinationChanged, Unconfirmed, require, run_bytes, run_cli
 from jira_review_media import HERE, SHARED, UncertainWrite, attach_media, canonical_png, confirmed_file, find_item
 
 GITHUB = HERE.parent.parent / "code-review-github" / "scripts"
 PULL = r"https://github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)/pull/([1-9][0-9]*)"
 
 
+class StaleReview(Unconfirmed):
+    """The source of the complete summary changed before publication."""
+
+
 def current_head(pr, key, head):
     value = json.loads(run_cli("gh", "pr", "view", pr, "--json", "url,headRefOid,title,isCrossRepository"))
     require(value["url"] == pr and value["headRefOid"] == head and value["isCrossRepository"] is False
-            and re.search(r"(?<![A-Z0-9_-])" + re.escape(key) + r"(?![A-Z0-9_-])", value["title"]), "pull request head or Jira source changed")
+            and re.search(r"(?<![A-Z0-9_-])" + re.escape(key) + r"(?![A-Z0-9_-])", value["title"]), "pull request head or Jira source changed", StaleReview)
 
 
 def current_review(repo, number, head, work):
@@ -26,12 +30,23 @@ def current_review(repo, number, head, work):
     pages = json.loads(run_cli("gh", "api", "--paginate", "--slurp", f"repos/{repo}/pulls/{number}/reviews?per_page=100"))
     reviews = [{"id": r["id"], "body": r["body"], "state": r["state"], "commit": r["commit_id"], "submittedAt": r["submitted_at"],
                 "author": r["user"]["login"], "authorAssociation": r["author_association"]} for page in pages for r in page]
+    pages = json.loads(run_cli("gh", "api", "--paginate", "--slurp", f"repos/{repo}/issues/{number}/comments?per_page=100"))
+    comments = [{"id": c["id"], "body": c["body"], "createdAt": c["created_at"], "author": c["user"]["login"],
+                 "authorAssociation": c["author_association"]} for page in pages for c in page]
     source = work / "pull.json"
-    source.write_text(json.dumps({"reviews": reviews}))
+    source.write_text(json.dumps({"reviews": reviews, "comments": comments}))
     selected = json.loads(run_cli("jq", "-ec", "-L", str(SHARED), 'include "review-trust"; newest_trusted_report', str(source)))
-    require(selected["state"] in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED") and selected["commit"] == head,
-            "the latest trusted review is not active on this head")
+    require(selected["home"] == "review" and selected["state"] in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED") and selected["commit"] == head,
+            "the latest trusted review is not active on this head", StaleReview)
     return selected
+
+
+def revalidate(pr, key, head, repo, number, review, work):
+    try:
+        current_head(pr, key, head)
+        require(current_review(repo, number, head, work) == review, "the accepted review changed")
+    except (Unconfirmed, KeyError, ValueError, TypeError, OSError, subprocess.SubprocessError) as reason:
+        raise StaleReview("the accepted review could not be reconfirmed") from reason
 
 
 def accepted_records(review, repo, number, work):
@@ -147,22 +162,11 @@ if __name__ == "__main__":
             work = Path(temporary)
             pr, head, repo, number, review, default, pairs = selection(binding, slug, source, document, work)
             profile = (binding["site"], binding["account"])
-            require(verified_profile(*profile) == profile, "active profile differs from original target")
             prepared = []
-
-            def revalidate():
-                try:
-                    current_head(pr, key, head)
-                    require(current_review(repo, number, head, work) == review, "the accepted review changed")
-                except (Unconfirmed, KeyError, ValueError, TypeError, OSError, subprocess.SubprocessError) as reason:
-                    if prepared:
-                        raise UncertainWrite("the review changed after verifying an attachment") from reason
-                    raise
-
             for fid, state, _, item, data, digest in sorted(pairs, key=lambda p: p[1] != "head"):
                 if state == "base" and not any(f == fid and s == "head" for f, s, _, _ in prepared):
                     continue
-                revalidate()
+                revalidate(pr, key, head, repo, number, review, work)
                 try:
                     media = confirmed_file(key, slug, f"review-{fid}-{state}-{digest}.png", data, digest, profile, issue_id)
                 except (DestinationChanged, UncertainWrite):
@@ -171,7 +175,7 @@ if __name__ == "__main__":
                     print("Jira media: verification failed before a new upload", file=sys.stderr)
                     continue
                 prepared.append((fid, state, item, media))
-            revalidate()
+            revalidate(pr, key, head, repo, number, review, work)
             czech = any(n.get("attrs", {}).get("title") == "⚠️ Nálezy z kontroly kódu" for n in document["content"])
             for _, state, item, media in sorted(prepared, key=lambda p: p[1] == "head"):
                 if state == "base":
@@ -180,7 +184,8 @@ if __name__ == "__main__":
                     label = "Tato změna" if czech else "This change"
                 attach_media(item, media, label)
         json.dump({"adf": document, **binding}, sys.stdout)
-    except (DestinationChanged, UncertainWrite):
+    except (DestinationChanged, StaleReview, UncertainWrite) as stop:
+        print("Jira media: " + str(stop), file=sys.stderr)
         sys.exit(3)
     except (Unconfirmed, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError, http.client.HTTPException) as error:
         reason = str(error) if isinstance(error, Unconfirmed) else "could not confirm source or attachment"
