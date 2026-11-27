@@ -203,7 +203,7 @@ LOOKUP_STDERR="$(mktemp)"
 NEW_BODY_FILE="$(mktemp)"
 PREVIOUS_BODY_FILE="$(mktemp)"
 trap 'rm -f "$LOOKUP_STDERR" "$NEW_BODY_FILE" "$PREVIOUS_BODY_FILE"' EXIT
-github_actor_resolve || exit 3
+github_actor_resolve "" || exit 3
 
 MARKER="<!-- ${MARKER_KEY}:actor=${ACTOR} -->"
 

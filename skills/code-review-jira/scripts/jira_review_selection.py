@@ -137,7 +137,7 @@ def selection(binding, slug, manifest, document, work, *, approval, source=None)
             failed.add((cells[1], cells[2]))
     pairs = []
     default = default_branch(repo)
-    regression_text = re.compile(r"(?:regression|regrese|regresi|regresí)", re.I)
+    regression_text = re.compile(r"\b(?:regression|regrese|regresi|regresí|BASE\s*→\s*HEAD)\b", re.I)
     regressions = {c["finding_id"] for c in qa["captures"] if c.get("regression") is True or c["state"] == "base"}
     regressions.update(r["finding_id"] for r in records if regression_text.search(r.get("description", "")))
 
@@ -186,5 +186,6 @@ def selection(binding, slug, manifest, document, work, *, approval, source=None)
             continue
         complete.extend(group)
     pairs = complete
+    require(pairs, "no matching verified capture")
     require(len({p[0] for p in pairs}) == len({id(p[3]) for p in pairs}), "two findings point to the same summary item")
     return pr, head, repo, number, review, default, pairs

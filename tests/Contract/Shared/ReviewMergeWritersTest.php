@@ -446,15 +446,18 @@ function reviewMergeJiraComment(string $id, string $accountId, string $text, arr
  * @param list<string> $paragraphs
  * @return array<string, mixed>
  */
-function reviewMergeJiraDocument(string $id, string $accountId, array $paragraphs): array
+function reviewMergeJiraDocument(string $id, string $accountId, array $paragraphs, string $marker): array
 {
     return [
         'author' => ['accountId' => $accountId, 'displayName' => 'Agent'],
         'body' => [
-            'content' => array_map(
-                static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'],
-                $paragraphs,
-            ),
+            'content' => [
+                ...array_map(
+                    static fn (string $text): array => ['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph'],
+                    $paragraphs,
+                ),
+                ['content' => [['text' => $marker, 'type' => 'text', 'marks' => [['type' => 'em']]]], 'type' => 'paragraph'],
+            ],
             'type' => 'doc',
             'version' => 1,
         ],
@@ -848,14 +851,13 @@ test('the JIRA delete helper deletes nothing when the account ID of the acli use
 });
 
 test('the JIRA delete helper keeps a review comment until the merged comment carries its operator line', function (string $merged, int $exit): void {
-    $marker = reviewMergeJiraMarker();
+    $marker = trim(reviewMergeJiraMarker(), '_');
     $before = [
         reviewMergeJiraDocument('10001', 'acc-agent', [
             'Round 1: the limit is 2 MB.',
             'Decision: keep the 2 MB limit.',
-            $marker . ' lines=' . reviewMergeFingerprint('Round 1: the limit is 2 MB.'),
-        ]),
-        reviewMergeJiraDocument('10003', 'acc-agent', ['Round 2: merged.', ...($merged === '' ? [] : [$merged]), $marker]),
+        ], $marker . ' lines=' . reviewMergeFingerprint('Round 1: the limit is 2 MB.')),
+        reviewMergeJiraDocument('10003', 'acc-agent', ['Round 2: merged.', ...($merged === '' ? [] : [$merged])], $marker),
     ];
     $result = runReviewMergeJira(
         'skills/code-review-jira/scripts/delete-owned-comment.sh',
