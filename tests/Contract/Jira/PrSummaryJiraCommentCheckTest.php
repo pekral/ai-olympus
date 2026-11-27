@@ -202,6 +202,22 @@ test('a general pull request link is refused inside the impact summary', functio
     expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('violation: links:');
 })->with(['', '/files']);
 
+test('an explicitly nonblocking question uses the pending title', function (): void {
+    $source = str_replace(['{expand:❌ Nálezy z kontroly kódu}', '* *(bug):* '],
+        ['{expand:⚠️ Nálezy z kontroly kódu}', '* *(bug):* ⚠️ '], jiraSummaryWithoutCriteria());
+
+    expect(runJiraSummaryCheck($source, 'none')->getExitCode())->toBe(0);
+});
+
+test('a shared blocker reaches its group without duplicating the finding', function (): void {
+    $source = str_replace("h2. PR #11", "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
+        . jiraSummaryCodeLink() . "\nPR #12 — {{Synchronizace}} čeká na samostatnou kontrolu.\n{expand}\nh2. PR #11", jiraSummaryForTwoPullRequests());
+    $source = str_replace('{expand:✅ Nálezy z kontroly kódu}', '{expand:❌ Nálezy z kontroly kódu}', $source);
+
+    expect(runJiraSummaryCheck($source, 'present')->getExitCode())->toBe(0)
+        ->and(runJiraSummaryCheck(str_replace('PR #12 — {{Synchronizace}} čeká', 'PR #999 — {{Synchronizace}} čeká', $source), 'present')->getExitCode())->toBe(2);
+});
+
 test('a JIRA summary in the shape of the template passes the check', function (string $source, string $criteria): void {
     $process = runJiraSummaryCheck($source, $criteria);
 

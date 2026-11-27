@@ -581,10 +581,12 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
  * @param list<string> $lines
  * @return list<string>
  */
-function jiraSummaryTextViolations(array $lines): array
+function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
 {
     $violations = [];
 
+    $layout = jiraSummaryLayout($lines);
+    $shared = $layout['groups'] > 0 ? jiraSummaryGroupBlocks($layout['blocks'], 0)[1]['body'] ?? [] : [];
     foreach ($lines as $line) {
         if ($line !== '----') {
             $violations = [...$violations, ...reportCheckMarkdownViolations($line, JIRA_SUMMARY_MARKDOWN)];
@@ -596,6 +598,11 @@ function jiraSummaryTextViolations(array $lines): array
 
         if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
             continue;
+        }
+
+        if (in_array($line, $shared, true) && preg_match('/^PR #([1-9][0-9]*) — \{\{[^{}\p{C}]+\}\} (?<reason>[^{}]+)$/uD', $line, $part) === 1
+            && in_array($part[1], $task->pullRequests, true)) {
+            $line = $part['reason'];
         }
 
         $withoutLinks = (string) preg_replace('/\[~accountid:[^\]]+\]|\[[^|\]]+\|[^\]]+\]/u', '', $line);
@@ -631,6 +638,13 @@ function jiraSummaryTitleViolations(array $lines): array
     $layout = jiraSummaryLayout($lines);
     $violations = [];
 
+    $shared = $layout['groups'] > 0 ? jiraSummaryGroupBlocks($layout['blocks'], 0)[1] ?? null : null;
+    $groupNumbers = [];
+    foreach ($lines as $line) {
+        if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line, $heading) === 1) {
+            $groupNumbers[] = $heading['number'];
+        }
+    }
     for ($group = 0; $group <= $layout['groups']; $group++) {
         $blocks = jiraSummaryGroupBlocks($layout['blocks'], $group);
         $sections = $group === 0 ? ['Acceptance criteria|Akceptační kritéria'] : [];
@@ -651,8 +665,15 @@ function jiraSummaryTitleViolations(array $lines): array
             }
             if (str_starts_with($section, 'Findings')) {
                 $actionable = array_filter($block['body'], static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
-                if (($actionable !== []) !== str_starts_with($block['title'], '❌ ')) {
-                    $violations[] = 'findings: show a red title for an open blocking finding and a green or pending title otherwise';
+                $blockers = array_filter($actionable, static fn (string $line): bool =>
+                    preg_match('/^\* \*\([a-z]+\):\* (?:\[~accountid:[^\]]+\] )?⚠️ /u', $line) !== 1);
+                $groupNumber = $groupNumbers[$group - 1] ?? null;
+                $sharedBlocker = $groupNumber !== null && $shared !== null && str_starts_with($shared['title'], '❌ ')
+                    && preg_match('/\bPR #' . $groupNumber . '(?![0-9])/u', implode(' ', $shared['body'])) === 1;
+                $icon = explode(' ', $block['title'], 2)[0];
+                if ($blockers !== [] && $icon !== '❌' || $blockers === [] && $actionable !== [] && !$sharedBlocker && $icon !== '⚠️'
+                    || $icon === '❌' && $blockers === [] && !$sharedBlocker || $icon === '✅' && $sharedBlocker) {
+                    $violations[] = 'findings: show a red title for an open blocking finding, amber for a pending question, or inherit its shared blocker';
                 }
             }
             if (str_starts_with($section, 'Acceptance') || str_starts_with($section, 'Test scenarios')) {
@@ -697,7 +718,7 @@ function jiraSummaryViolations(string $source, JiraSummaryTask $task): array
         ...jiraSummaryFindingLinkViolations($findings),
         ...jiraSummaryStrayCodeLinkViolations($lines, $findings),
         ...jiraSummaryMentionViolations($findings, $lines, $task->author),
-        ...jiraSummaryTextViolations($lines),
+        ...jiraSummaryTextViolations($lines, $task),
     ];
 }
 

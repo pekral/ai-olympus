@@ -733,6 +733,20 @@ test('the JIRA plan merges the marked comments of the operator account and leave
         ->and($result['plan']['delete'])->toBe(['10001']);
 });
 
+test('attributed Jira summaries from the shared account never become operator or review candidates', function (): void {
+    $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
+    $comments = [
+        mergePlanJiraComment('10001', 'acc-agent', 'Round one. ' . $marker),
+        mergePlanJiraComment('10002', 'acc-agent', "\n🤖 AI Olympus · A model summary."),
+        mergePlanJiraComment('10003', 'acc-agent', 'Round two. ' . $marker),
+    ];
+    $result = mergePlanJira(array_column($comments, 'view'), array_column($comments, 'list'));
+
+    expect(mergePlanClasses($result['plan'])['10002'])->toBe('other')
+        ->and($result['plan']['operatorCandidates'])->not->toContain('10002')
+        ->and($result['plan']['delete'])->not->toContain('10002');
+});
+
 test('the JIRA plan stops when the comment list may be shorter than the thread', function (): void {
     $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
     $comments = [

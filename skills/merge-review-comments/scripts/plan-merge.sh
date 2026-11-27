@@ -235,6 +235,7 @@ def classified:
   elif (.restricted == true) then . + {class: "other", reason: "restricted visibility"}
   elif (.id == null) then . + {class: "other", reason: "no comment id"}
   elif $meta.tracker == "bugsnag" then . + {class: "operator", reason: "operator account, no marker on this tracker"}
+  elif ($meta.tracker == "jira" and (.body | jira_summary)) then . + {class: "other", reason: "create-only attributed report"}
   elif (has_own_cr and (.body | other_agent_marker | not)) then . + {class: "review", reason: "review comment of the operator account"}
   elif (.body | agent_marker | not) then . + {class: "operator", reason: "operator account, no agent marker"}
   else . + {class: "other", reason: "carries another agent marker"} end;

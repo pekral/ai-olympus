@@ -10,7 +10,7 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$FIXTURE/calls"
 case "$1 $2 $3" in
   'jira auth status') printf 'Site: example.atlassian.net\nEmail: qa@example.test\n'; exit ;;
-  'jira workitem search') echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
+  'jira workitem search') if [[ "${NO_ACTOR:-0}" == 1 ]]; then echo '[]'; exit; fi; echo '{"issues":[{"fields":{"assignee":{"accountId":"qa"}}}]}'; exit ;;
   'jira workitem view')
     if [[ -f "$FIXTURE/sent" && "${READBACK:-ok}" == ok ]]; then
       jq -n --slurpfile sent "$FIXTURE/sent" '{fields:{comment:{startAt:0,total:1,comments:[{id:"17",author:{accountId:"qa"},body:$sent[0]}]}}}'
@@ -61,6 +61,19 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
     $dir = sys_get_temp_dir() . '/jira-summary-' . bin2hex(random_bytes(8));
     mkdir($dir, 0o700);
     file_put_contents($dir . '/acli', JIRA_SUMMARY_ACLI_FIXTURE);
+    file_put_contents($dir . '/jq', <<<'SH'
+#!/usr/bin/env bash
+for arg in "$@"; do
+    if [[ "$arg" == *qa@example.test* ]]; then
+        touch "$FIXTURE/leaked"
+        exit 97
+    fi
+done
+exec "$REAL_JQ" "$@"
+SH);
+    chmod($dir . '/jq', 0o700);
+    $jq = new Process(['sh', '-c', 'command -v jq']);
+    $jq->mustRun();
     chmod($dir . '/acli', 0o700);
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
     file_put_contents($dir . '/audit', '');
@@ -74,11 +87,12 @@ function jiraPreviewPublish(array $page, ?array $prior = null, array $environmen
     $body = ($malformed ? 'Broken byline' : "\n🤖 AI Olympus · Modelový výsledek.") . "\n{expand:✅ Findings from the code review}\n"
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
-        ...$environment, 'FIXTURE' => $dir, 'AUDIT_TRAIL_FILE' => $dir . '/audit', 'AUDIT_TRAIL_ROLE' => 'april',
+        ...$environment, 'REAL_JQ' => trim($jq->getOutput()), 'FIXTURE' => $dir, 'AUDIT_TRAIL_FILE' => $dir . '/audit', 'AUDIT_TRAIL_ROLE' => 'april',
         'PATH' => $dir . PATH_SEPARATOR . (string) getenv('PATH'),
     ], $body);
     try {
         $process->run();
+        expect(is_file($dir . '/leaked'))->toBeFalse();
 
         return [$process->getExitCode(), $process->getErrorOutput(), (string) file_get_contents($dir . '/calls'),
             is_file($dir . '/sent') ? (string) file_get_contents($dir . '/sent') : ''];
@@ -112,10 +126,10 @@ test('migration requires the original exact marker, account and unchanged body',
     $marker = 'cr-comment:actor=' . substr(hash('sha256', 'qa@example.test'), 0, 16) . ' lines=1234abcd';
     $body = jiraLegacyPreviewAdf($marker, $case === 'quoted');
     $prior = $case === 'edited' ? jiraLegacyPreviewAdf($marker . ',cafefeed') : $body;
-    $author = ['accountId' => $case === 'another account' ? 'stranger' : 'qa', 'emailAddress' => 'qa@example.test'];
-    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => $author, 'body' => $body]]), $prior);
+    $author = ['accountId' => match ($case) {'another account' => 'stranger', 'missing account' => '', default => 'qa'}, 'emailAddress' => $case === 'another email' ? 'other@example.test' : 'qa@example.test'];
+    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => $author, 'body' => $body]]), $prior, ['NO_ACTOR' => $case === 'missing authenticated account' ? '1' : '0']);
 
     expect($rc)->toBe($case === 'owned' ? 0 : 3)
         ->and(substr_count($calls, 'comment update'))->toBe($case === 'owned' ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
-})->with(['owned', 'another account', 'quoted', 'edited']);
+})->with(['owned', 'another account', 'another email', 'missing account', 'missing authenticated account', 'quoted', 'edited']);

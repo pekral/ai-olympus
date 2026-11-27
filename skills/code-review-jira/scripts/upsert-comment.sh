@@ -468,6 +468,16 @@ if ! COMMENTS_JSON="$(read_comments)" || [[ -z "$COMMENTS_JSON" ]]; then
   exit 3
 fi
 
+if [[ -n "$SHOTS_MANIFEST" ]]; then
+  echo "upsert-comment.sh: screenshots skipped: acli has no attachment upload or stable media identity; the comment shows text only" >&2
+fi
+
+if [[ "$SUMMARY" == 1 ]]; then
+  source "$SCRIPT_DIR/publish-summary.sh"
+  publish_summary
+  exit $?
+fi
+
 # Look for a comment this actor already published under the same marker. A
 # marked comment whose author cannot be decided also publishes nothing: it
 # could hide the comment a create would duplicate. `agent-note` mode skips
@@ -506,7 +516,7 @@ if [[ "$MODE" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   fi
 fi
 
-if [[ "$SUMMARY" == 0 && "$MODE" != "agent-note" ]]; then
+if [[ "$MODE" != "agent-note" ]]; then
   CARRY_ARGS=(adf "$MARKER_NAMESPACE" "$ADF_FILE_TMP")
   if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
     printf '%s' "$COMMENTS_JSON" \
@@ -518,16 +528,6 @@ if [[ "$SUMMARY" == 0 && "$MODE" != "agent-note" ]]; then
     exit 3
   fi
   cp "$CARRIED_ADF_TMP" "$ADF_FILE_TMP"
-fi
-
-if [[ -n "$SHOTS_MANIFEST" ]]; then
-  echo "upsert-comment.sh: screenshots skipped: acli has no attachment upload or stable media identity; the comment shows text only" >&2
-fi
-
-if [[ "$SUMMARY" == 1 ]]; then
-  source "$SCRIPT_DIR/publish-summary.sh"
-  publish_summary
-  exit $?
 fi
 
 if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then

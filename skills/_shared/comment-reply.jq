@@ -180,7 +180,7 @@ def jira_normalised($actor):
           mentions: (.mentionAccountIds // []),
           parentId: null,
           restricted: ((.visibility // null) != null) }
-      | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
+      | . + { agent: (.authorKey == $actor and (.body | jira_machine_output)) });
 
 # jira_acli_normalised($actor) — the input is the `fields.comment.comments` array of `acli jira workitem view`, which the
 # delete helper reads. The body is an Atlassian Document: its text nodes, the target of a linked text, and the URL of a
@@ -200,7 +200,7 @@ def jira_acli_normalised($actor):
           mentions: (if ($raw | type) == "string" then []
                      else [ $raw | .. | objects | select(.type? == "mention") | .attrs.id? // empty ] end),
           parentId: null }
-      | . + { agent: (.authorKey == $actor and (.body | agent_marker)) });
+      | . + { agent: (.authorKey == $actor and (.body | jira_machine_output)) });
 
 # github_api_normalised($actor) — the input is the REST list of the issue comments, which the delete helper reads.
 def github_api_normalised($actor):
