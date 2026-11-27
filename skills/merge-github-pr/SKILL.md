@@ -132,13 +132,13 @@ The project's fixers and checkers do not run during the branch's working life �
 
 ### 5. Post-merge
 
-- Delete branch (if configured)
+- Delete branch (if configured). A confined `krang` hands the local steps to the session without `--agent` (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*).
 - **Remove worktree (opt-in only)** — if an isolated git worktree was explicitly created for this work unit (per `@rules/git/general.md` *Worktrees / Workspaces*), remove it now that the merge is complete:
   1. Verify the worktree is not the currently active working tree and has no uncommitted changes. If active, dirty, or holding a swap directory (`@skills/process-code-review/references/close-the-defect-class.md` *A stopped swap keeps its saved copy*), skip removal and report it; never pass `--force`.
   2. `git worktree remove <path>` — removes the worktree.
   3. `git worktree prune` — clears stale metadata.
   A parallel unit's worktree (`.claude/worktrees/agent-impl-<source-slug>-donatello`, `@rules/compound-engineering/concurrency.md` *Parallel units*) is such a worktree: unlock it first with `git worktree unlock <path>` only when its lock reason names this run's own `$PPID`, otherwise only after the confirmed-dead probe of `skills/_shared/orchestration/stale-run-recovery.md` *Stale worktrees*; a live, EPERM, or unparseable probe leaves it in place and the report names it. Remove it before you delete the local branch, because git refuses to delete a branch that a worktree has checked out.
-  If no worktree was explicitly created for this work unit (the default: agent worked in the shared tree), skip this step entirely.
+  Without an explicit worktree (the default), skip this step.
 - **Interactive-testing follow-up issue — only for a front-end UI change.** When the project asks for an `interactive-testing` issue after a merge, create it only when the merged diff changes the front-end UI (`@skills/merge-github-pr/references/interactive-testing-follow-up.md`).
 - Confirm merge success
 

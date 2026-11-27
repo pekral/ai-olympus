@@ -21,6 +21,7 @@
 #   new keyword must extend the validator and its --self-test in the same change.
 #
 # Usage
+#   audit-artifacts.sh [--tree <dir>] <command> ...
 #   audit-artifacts.sh budget --profile <quick|standard|deep> [--total <passes>]
 #   audit-artifacts.sh snapshot [<dir>]
 #   audit-artifacts.sh fingerprint <boundary> <source> <sink> <root_cause>
@@ -29,6 +30,12 @@
 #   audit-artifacts.sh inventory <run-dir>
 #   audit-artifacts.sh validate <run-dir>
 #   audit-artifacts.sh --self-test
+#
+# --tree
+#   Names the git work tree the audit reads, for every command. Without it, snapshot reads the work
+#   tree that holds <dir>, digest the one that holds the current directory, and impact, inventory,
+#   and validate the one that holds the run directory. A review that audits a review worktree keeps
+#   its run directory outside that worktree and passes the worktree with --tree.
 #
 # budget
 #   Prints the execution budget as one line of JSON. The unit is a pass: one bounded worker pass
@@ -131,6 +138,7 @@ UNIT_DIGEST=''
 UNIT_ORIGIN=''
 UNIT_PATHS=()
 PATH_PROBLEM=''
+AUDITED_TREE=''
 
 REPORT_HEADINGS=(
   '## Scope'
@@ -144,7 +152,8 @@ REPORT_HEADINGS=(
 
 usage() {
   cat >&2 <<'EOF'
-Usage: audit-artifacts.sh budget --profile <quick|standard|deep> [--total <passes>]
+Usage: audit-artifacts.sh [--tree <dir>] <command> ...
+       audit-artifacts.sh budget --profile <quick|standard|deep> [--total <passes>]
        audit-artifacts.sh snapshot [<dir>]
        audit-artifacts.sh fingerprint <boundary> <source> <sink> <root_cause>
        audit-artifacts.sh digest <path>...
@@ -269,10 +278,16 @@ git_plain() {
   git -c core.fsmonitor=false -C "$dir" "$@"
 }
 
+# audited_top <dir> — the top of the audited work tree: the --tree directory when one is given,
+# otherwise the work tree that holds <dir>.
+audited_top() {
+  git_plain "${AUDITED_TREE:-$1}" rev-parse --show-toplevel
+}
+
 cmd_snapshot() {
   [[ $# -le 1 ]] || { usage; exit 1; }
   local dir="${1:-.}" top
-  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)" || ! git_plain "$top" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+  if ! top="$(audited_top "$dir" 2>/dev/null)" || ! git_plain "$top" rev-parse -q --verify HEAD >/dev/null 2>&1; then
     echo "$PROG: not a git work tree with a commit: $(printable "$dir")" >&2
     exit 1
   fi
@@ -485,8 +500,8 @@ unit_digests() {
 cmd_digest() {
   [[ $# -ge 1 ]] || { usage; exit 1; }
   local top path ignored found
-  if ! top="$(git_plain . rev-parse --show-toplevel 2>/dev/null)"; then
-    echo "$PROG: not a git work tree: $(printable "$PWD")" >&2
+  if ! top="$(audited_top . 2>/dev/null)"; then
+    echo "$PROG: not a git work tree: $(printable "${AUDITED_TREE:-$PWD}")" >&2
     exit 1
   fi
   for path in "$@"; do
@@ -850,8 +865,8 @@ base_run_problems() {
 # paths and inputs in the working tree now.
 digest_problems() {
   local dir="$1" ledger="$2" top actual ignored any_ignored listed=listed any_link='' path refused found
-  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
-    echo "digest: the run directory is not inside a git work tree"
+  if ! top="$(audited_top "$dir" 2>/dev/null)"; then
+    echo "digest: the audited work tree is not a git work tree"
     return
   fi
   local -a all=()
@@ -1008,8 +1023,8 @@ cmd_impact() {
   if [[ -n "$problems" ]]; then
     emit_result "$dir" "$problems"
   fi
-  if ! top="$(git_plain "$dir" rev-parse --show-toplevel 2>/dev/null)"; then
-    emit_result "$dir" "impact: the base run directory is not inside a git work tree"
+  if ! top="$(audited_top "$dir" 2>/dev/null)"; then
+    emit_result "$dir" "impact: the audited work tree is not a git work tree"
   fi
   commit="$(jq -r .commit "$dir/metadata.json")"
   if ! git_plain "$top" cat-file -e "$commit^{commit}" 2>/dev/null; then
@@ -1367,6 +1382,26 @@ self_test() {
   expect_problem 'inventory: the problem names the run directory that is not git-ignored' 'the run directory is not git-ignored'
   printf '.claude/run/\n' >"$scratch/unignored/.gitignore"
   expect_exit 'inventory: the same run directory passes once the project ignores it' 0 cmd_inventory "$unignored/inventory-unignored"
+
+  local audited="$scratch/audited"
+  git init -q "$audited"
+  write_sources "$audited"
+  fresh tree-outside
+  expect_exit 'tree: a run directory outside the audited tree validates against the tree --tree names' 0 \
+    main --tree "$audited" validate "$tmp/tree-outside"
+  expect_exit 'tree: inventory reads the tree --tree names' 0 main --tree "$audited" inventory "$tmp/inventory"
+  printf 'v2 changed\n' >"$audited/src/Auth/Login.php"
+  expect_exit 'tree: a change in the tree --tree names invalidates the run' 3 main --tree "$audited" validate "$tmp/tree-outside"
+  expect_problem 'tree: the problem names the changed security path' 'the security path changed'
+  expect_exit 'tree: without --tree the run reads the tree that holds the run directory' 0 main validate "$tmp/tree-outside"
+  git -C "$audited" add -A
+  git -C "$audited" -c user.name=audit -c user.email=audit@example.invalid -c commit.gpgsign=false -c core.hooksPath=/dev/null commit -q -m init
+  if [[ "$(main --tree "$audited" snapshot "$scratch")" == "$(main snapshot "$audited")" ]]; then
+    pass 'tree: snapshot reads the tree --tree names'
+  else
+    fail 'tree: snapshot reads the tree --tree names'
+  fi
+  expect_exit 'usage: --tree without a directory is refused' 1 main --tree "$scratch/missing" validate "$tmp/tree-outside"
 
   mkdir -p "$tmp/inventory-missing"
   expect_exit 'inventory: a missing coverage-ledger.json is refused' 3 cmd_inventory "$tmp/inventory-missing"
@@ -2116,6 +2151,11 @@ self_test() {
 }
 
 main() {
+  if [[ "${1:-}" == --tree ]]; then
+    [[ $# -ge 3 && -d "$2" ]] || { usage; exit 1; }
+    AUDITED_TREE="$2"
+    shift 2
+  fi
   case "${1:-}" in
   --self-test)
     self_test

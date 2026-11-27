@@ -149,6 +149,7 @@ vendor/bin/ai-olympus install --disable-co-author-attribution # opt into the glo
 vendor/bin/ai-olympus install --allow-bundled-scripts         # whitelist this package's bundled scripts in ~/.claude/settings.json
 vendor/bin/ai-olympus install --allow-subagent-writes         # allow dispatched-subagent file writes (scoped Edit/Write) in .claude/settings.local.json
 vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-network Bash commands (curl, wget, ssh, ...) in .claude/settings.local.json
+vendor/bin/ai-olympus install --no-agent-guard                # remove the runtime agent guard handlers from .claude/settings.local.json
 ```
 
 ## Installer Flow
@@ -159,8 +160,9 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 4. Install skills into `.claude/skills` and `.agents/skills` (and additionally into `~/.claude/skills` and `~/.agents/skills` when `--global` is passed and `HOME`/`USERPROFILE` is set).
 5. Copy `agents/` to `.claude/agents` and `.codex/agent-instructions`, install the Codex TOML adapters into `.codex/agents`, and copy `AGENTS.md` to the project root. An existing `AGENTS.md` is never overwritten. The installer never generates a `CLAUDE.md` and never touches an existing one; without a `CLAUDE.md`, Claude Code uses its native `AGENTS.md` fallback. When [Laravel Boost](https://github.com/laravel/boost) is installed, the installer writes no root instruction file and no guideline: Boost generates the guideline file from `.ai/guidelines` (`AGENTS.md` by default for Claude Code; see [`rules/laravel/boost.md`](../rules/laravel/boost.md)). A Codex user on such a project merges the [Codex integration section](../AGENTS.md#codex-integration) into a guideline of their own.
 6. Remove any leftover handler under `hooks` in `.claude/settings.local.json` that points at the removed `bash-guard` validator, so a project that once opted into the deleted `--enforce-agent-bash-boundary` flag stops seeing a `PreToolUse` hook error on every Bash call. Only that handler is removed; every other key in the file is preserved, and a project that has no such handler is not written to at all. The file is **read** on every `install` to make this check, so a `.claude/settings.local.json` file that is not valid JSON now ends the install with `Cannot parse Claude settings file <path>: Syntax error.` and exit `1` instead of being skipped. Restart the session afterwards — hooks are read once, at session start. See [`SECURITY.md`](../SECURITY.md#agent-capability-model--residual-risk).
-7. Optionally overwrite existing files with `--force`; use `--symlink` to prefer symlinks (fallback to copy on Windows).
-8. Surface explicit errors for missing directories, removal failures, and copy/symlink failures.
+7. Register the runtime agent guard: after `.claude/skills/_shared/agent-guard.sh --self-test` passes, write an all-tool `PreToolUse` handler and a `SessionEnd` cleanup handler into `hooks` in `.claude/settings.local.json`. Every other key and handler is kept, a second `install` changes nothing, and a failed self-test writes nothing and says so. `--no-agent-guard` removes only those handlers. The installer writes no guard settings for Codex. See [`SECURITY.md`](../SECURITY.md#runtime-agent-guard).
+8. Optionally overwrite existing files with `--force`; use `--symlink` to prefer symlinks (fallback to copy on Windows).
+9. Surface explicit errors for missing directories, removal failures, and copy/symlink failures.
 
 ## CLI Switches
 
@@ -175,7 +177,8 @@ vendor/bin/ai-olympus install --deny-network-bash             # deny outbound-ne
 | `--allow-bundled-scripts` | Opt-in. Idempotently appends a narrow allow-list for this package's bundled scripts (`load-issue.sh` for GitHub and JIRA) to `~/.claude/settings.json`, so Claude Code stops prompting on every run. Other entries in `settings.json` are preserved. No effect when `HOME` / `USERPROFILE` is not set. |
 | `--allow-subagent-writes` | Opt-in. Idempotently prepends scoped `Edit` / `Write` allow entries for the project working tree to `permissions.allow` in `.claude/settings.local.json`, so a dispatched subagent (e.g. `donatello`) can write files without interactive approval. Existing allow entries and unrelated keys are preserved. |
 | `--deny-network-bash`     | Opt-in. Idempotently appends ten `permissions.deny` patterns (`curl`, `wget`, `nc`, `ncat`, `netcat`, `telnet`, `ssh`, `scp`, `sftp`, `openssl s_client`) to `.claude/settings.local.json`, so Claude Code refuses those literal Bash commands. The rule is **session-wide and project-scoped**: inside this project it applies to every agent *and* to your own interactive Bash, never per agent. Existing `allow` and foreign `deny` entries are preserved. It is **not** an egress control — see [`SECURITY.md`](../SECURITY.md#--deny-network-bash) for what it does not cover and how to undo it. |
-| *(default)*               | Copy missing files; refresh security rules and remove obsolete `bash-guard` hooks. Preserve root instruction files and global Claude settings.                                                                                                |
+| `--no-agent-guard`        | Removes the runtime agent guard: removes the package hooks in `.claude/settings.local.json` and keeps other handlers. The default install registers Claude hooks, with Bash isolation on supported hosts. Whole-role protection for mixed Claude and Codex sessions reports `inactive`. See [`SECURITY.md`](../SECURITY.md#runtime-agent-guard). |
+| *(default)*               | Copy missing files; refresh security rules, register the runtime agent guard, and remove obsolete `bash-guard` hooks. Preserve root instruction files and global Claude settings.                                                                                                |
 
 ## Where skills are installed
 

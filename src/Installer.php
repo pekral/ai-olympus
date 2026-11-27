@@ -82,7 +82,7 @@ final class Installer
         echo "Usage:\n";
         echo "  vendor/bin/ai-olympus install [--force] [--symlink] [--prune] [--global] [--prune-global]\n";
         echo "                                 [--allow-bundled-scripts] [--allow-subagent-writes] [--deny-network-bash]\n";
-        echo "                                 [--disable-co-author-attribution]\n\n";
+        echo "                                 [--disable-co-author-attribution] [--no-agent-guard]\n\n";
         echo "  vendor/bin/ai-olympus stats [--last=7d|30d|all]\n";
         echo "  vendor/bin/ai-olympus graph build | graph query <path|class|symbol>\n";
         echo "  vendor/bin/ai-olympus memory migrate | memory add --entry <file.json> | memory query --role <role> --path <p> --symbol <s>\n\n";
@@ -113,6 +113,8 @@ final class Installer
         echo "                          via permissions.deny in .claude/settings.local.json. Opt-in. The rule is session-wide\n";
         echo "                          and project-scoped: within this project it applies to every agent AND to your own\n";
         echo "                          interactive Bash, never per agent. Not an egress control - see SECURITY.md.\n";
+        echo "  --no-agent-guard        Remove the runtime agent guard (a PreToolUse hook in .claude/settings.local.json that runs\n";
+        echo "                          the shell commands of read-only agents in an OS sandbox). On by default - see SECURITY.md.\n";
     }
 
     private static function install(InstallOptions $options): int
@@ -133,6 +135,7 @@ final class Installer
         $subagentWritesEnabled = InstallerProjectSettings::applySubagentWritesIfRequested($options->allowSubagentWrites, $root);
         $networkBashDenied = InstallerProjectSettings::applyNetworkBashDenyIfRequested($options->denyNetworkBash, $root);
         $orphanedHandlersRemoved = InstallerProjectSettings::removeOrphanedBashGuardHandlers($root);
+        $agentGuard = InstallerAgentGuard::apply($options->noAgentGuard, $root);
 
         self::reportInstallSummary(new InstallSummary(
             copied: $copied,
@@ -144,7 +147,7 @@ final class Installer
         ));
 
         self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied, $orphanedHandlersRemoved);
-        echo InstallerHelperAgentsDefault::apply($root)->message(lockFileExists: is_file($root . '/composer.lock'));
+        echo $agentGuard->installMessage(), InstallerHelperAgentsDefault::apply($root)->message(lockFileExists: is_file($root . '/composer.lock'));
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 

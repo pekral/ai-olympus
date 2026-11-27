@@ -35,11 +35,14 @@
 #     "tier": "STANDARD",
 #     "pr_url": "https://github.com/owner/repo/pull/42",
 #     "source_url": "https://github.com/owner/repo/issues/7",
-#     "how_to_test": ["Post an empty payload to /api/import", "Expect 422 and no rows created"]
+#     "how_to_test": ["Post an empty payload to /api/import", "Expect 422 and no rows created"],
+#     "runtime_protection": [{"role": "leonardo", "platform": "codex", "protection": "inactive (session isolation unverified)"}]
 #   }
 #
 #   `status` and `summary` are required; everything else renders only when
 #   present, because a line that says `PR: none` is noise rather than a report.
+#   `runtime_protection` renders one `Runtime protection:` line per confined role
+#   the run dispatched, with the `**Protection:**` value of its handoff.
 #
 # Exit codes
 #   0  a report was rendered
@@ -77,6 +80,7 @@ label() {
   en:pr) printf 'Pull request' ;;
   en:source) printf 'Source' ;;
   en:howto) printf 'How to test' ;;
+  en:protection) printf 'Runtime protection' ;;
   en:passed) printf 'PASS' ;;
   en:failed) printf 'FAIL' ;;
   en:skipped) printf 'not required at this tier' ;;
@@ -89,6 +93,7 @@ label() {
   cs:pr) printf 'Pull request' ;;
   cs:source) printf 'Zadání' ;;
   cs:howto) printf 'Jak to otestovat' ;;
+  cs:protection) printf 'Ochrana za běhu' ;;
   cs:passed) printf 'PROŠLO' ;;
   cs:failed) printf 'SELHALO' ;;
   cs:skipped) printf 'na této úrovni se nevyžaduje' ;;
@@ -186,6 +191,18 @@ render() {
   [[ -n "$pr" ]] && printf -- '- %s: %s\n' "$(label pr)" "$pr"
   [[ -n "$source" ]] && printf -- '- %s: %s\n' "$(label source)" "$source"
 
+  local protection_role protection_value protection_platform
+  while IFS=$'\t' read -r protection_role protection_value protection_platform; do
+    [[ -n "$protection_role" ]] || continue
+    case "$protection_platform" in
+      claude) protection_role+=' (Claude Code)' ;;
+      codex) protection_role+=' (Codex)' ;;
+    esac
+    printf -- '- %s: %s — %s\n' "$(label protection)" "$(safe_display "$protection_role")" "$(safe_display "$protection_value")"
+  done < <(printf '%s' "$data" | jq -r '.runtime_protection // [] | .[]
+    | select((.role // "") != "" and (.protection // "") != "")
+    | [(.role | tostring), (.protection | tostring), (.platform // "" | tostring)] | @tsv')
+
   local steps
   steps="$(printf '%s' "$data" | jq -r '.how_to_test // [] | .[]')"
   if [[ -n "$steps" ]]; then
@@ -272,6 +289,10 @@ self_test() {
   # The report follows the assignment's language, per @rules/reports/general.md.
   expect_contains 'the report renders in the assignment language' "$FULL" cs \
     '## Hotovo' 'Validace: PROŠLO' 'Jak to otestovat'
+
+  expect_contains 'one runtime protection line per confined role' \
+    '{ "status": "completed", "summary": "Reviewed.", "runtime_protection": [{"role": "leonardo", "protection": "active"}, {"role": "april", "protection": "inactive (bwrap is not installed)"}] }' en \
+    '- Runtime protection: leonardo — active' '- Runtime protection: april — inactive (bwrap is not installed)'
 
   expect_contains 'a failed run reports the failure, not a success' \
     '{ "status": "blocked", "summary": "Tests fail on the changed surface.", "validation": "failed" }' en \

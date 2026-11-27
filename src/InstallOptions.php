@@ -17,6 +17,7 @@ final readonly class InstallOptions
         public bool $global,
         public bool $pruneGlobal,
         public bool $disableCoAuthorAttribution = false,
+        public bool $noAgentGuard = false,
     ) {
     }
 
@@ -35,6 +36,7 @@ final readonly class InstallOptions
             global: in_array('--global', $argv, strict: true),
             pruneGlobal: in_array('--prune-global', $argv, strict: true),
             disableCoAuthorAttribution: in_array('--disable-co-author-attribution', $argv, strict: true),
+            noAgentGuard: in_array('--no-agent-guard', $argv, strict: true),
         );
     }
 

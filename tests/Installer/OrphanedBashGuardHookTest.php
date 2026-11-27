@@ -275,7 +275,7 @@ test('install removes the orphaned handler and reports the removal with the sess
     try {
         chdir($root);
         ob_start();
-        $exitCode = Installer::run(['ai-olympus', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--no-agent-guard']);
         $output = (string) ob_get_clean();
 
         expect($exitCode)->toBe(0);

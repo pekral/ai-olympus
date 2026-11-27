@@ -899,7 +899,7 @@ test('install --allow-subagent-writes writes the allow entries and reports it', 
     }
 });
 
-test('install without --allow-subagent-writes does not write settings.local.json', function (): void {
+test('install without --allow-subagent-writes writes no permission into settings.local.json', function (): void {
     $root = installerCreateProjectRoot();
     $homeEnv = getenv('HOME');
     $homeBefore = $homeEnv !== false && $homeEnv !== '' ? $homeEnv : getenv('USERPROFILE');
@@ -919,7 +919,7 @@ test('install without --allow-subagent-writes does not write settings.local.json
         $output = ob_get_clean();
 
         expect($output)->not->toContain('Allowed subagent file writes');
-        expect(is_file($root . '/.claude/settings.local.json'))->toBeFalse();
+        expect((string) file_get_contents($root . '/.claude/settings.local.json'))->not->toContain('"permissions"');
     } finally {
         installerRestoreEnvAndCleanup($homeBefore, $originalCwd, $root);
     }

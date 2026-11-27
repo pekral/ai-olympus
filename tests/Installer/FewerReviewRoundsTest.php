@@ -285,12 +285,15 @@ test('the delta lists name a rename under both paths, and krang may compute the 
     expect(fewerRoundsFile('skills/process-code-review/references/review-state.md'))
         ->toContain('The delta paths are `git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('the delta line counts are `git diff --no-renames --numstat <reviewedRevision>..<head SHA>`')
-        ->toContain('When `git rev-parse --verify --quiet <head SHA>^{commit}` fails, run `git fetch origin <head SHA>` first.');
+        ->toContain('When `git rev-parse --verify --quiet <head SHA>^{commit}` fails, fetch the commit into a scratch object directory first');
     expect(fewerRoundsFile('skills/process-code-review/references/review-loop-scope.md'))
         ->toContain('`git diff --no-renames --name-only <reviewedRevision>..<head SHA>`')
         ->toContain('`git diff --no-renames --numstat <reviewedRevision>..<head SHA>`');
     expect(fewerRoundsFile('agents/krang.md'))
-        ->toContain('with `git fetch origin <head SHA>` and `git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into')
+        ->toContain(
+            'with the scratch-store fetch of the head that `@skills/process-code-review/references/review-state.md` step 2 names and '
+            . '`git diff --no-renames --name-only|--numstat <reviewedRevision>..<head SHA>` redirected into',
+        )
         ->toContain('step 2 against the round\'s head SHA in `${BRIEF%.md}.delta`');
     expect(fewerRoundsFile('agents/krang.md'))
         ->toContain('`skills/_shared/review-state.sh scope` (*Parallel CR round* step 1; it writes only the loop state that step names)')

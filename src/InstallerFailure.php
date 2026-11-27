@@ -86,4 +86,9 @@ final class InstallerFailure extends RuntimeException
         return new self(sprintf('Invalid network-Bash deny permissions for %s: %s.', $path, $reason));
     }
 
+    public static function settingsAgentGuardInvalid(string $path): self
+    {
+        return new self(sprintf('Invalid agent guard hook in %s: the file does not hold exactly one current handler.', $path));
+    }
+
 }

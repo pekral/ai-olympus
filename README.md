@@ -75,11 +75,13 @@ Installation leaves global Claude settings unchanged by default. The opt-in swit
 
 ## Quick start
 
-In Claude Code, start the session as `krang`, so the session itself orchestrates and dispatches the specialists:
+In Claude Code, start a session without `--agent` and hand it the request, so the session itself holds the `krang` role and dispatches the specialists:
 
 ```text
-claude --agent krang "resolve https://github.com/owner/repo/issues/123"
+claude "resolve https://github.com/owner/repo/issues/123"
 ```
+
+`claude --agent krang` returns the nested hand-over when the runtime agent guard confines its Bash commands and the review needs a worktree (see the [trust model](SECURITY.md)).
 
 A command works in any session, because the session that receives it holds the `krang` role itself:
 

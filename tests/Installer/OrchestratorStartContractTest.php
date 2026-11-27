@@ -44,6 +44,9 @@ test('one section of the orchestration rule owns how krang is started and how it
         'the shared brief, the write-lock, and the dispatch, audit, and routing ledgers unchanged' => 1,
         '**The tracked-file limit is advisory on this path.**' => 1,
         '`claude --agent krang` starts a session whose main thread takes on the tool restrictions and the model of `krang`' => 1,
+        '**Start the Claude orchestration session without `--agent` when it must prepare review worktrees.**' => 1,
+        'whose shell is confined hands those steps to the top-level session' => 1,
+        'Use it on Claude Code when the session exists only to run `krang`.' => 0,
         '- **The tool is available.** `krang` runs the whole route as the active orchestrator' => 1,
         'It takes no write-lock and dispatches nothing.' => 1,
         'It runs no *Run cleanup*: the brief, the dispatch ledger, the audit trail, and the routing ledger stay in place for the caller.' => 1,
@@ -176,7 +179,9 @@ test('the skills, the docs, the README, and the Codex adapter reference the owne
     expect($counts)->toBe($references);
 
     $readme = [
-        'claude --agent krang "resolve https://github.com/owner/repo/issues/123"' => 1,
+        'claude --agent krang "resolve https://github.com/owner/repo/issues/123"' => 0,
+        'claude "resolve https://github.com/owner/repo/issues/123"' => 1,
+        '`claude --agent krang` returns the nested hand-over when the runtime agent guard confines its Bash commands' => 1,
         'Follow .codex/agent-instructions/krang.md as krang and resolve https://github.com/owner/repo/issues/123' => 1,
     ];
     $codex = [

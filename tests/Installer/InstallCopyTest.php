@@ -612,11 +612,13 @@ test('install from package root installs rules and skills into .claude', functio
 
     $cwd = getcwd();
     $originalCwd = $cwd !== false ? $cwd : '';
+    $settingsPath = $packageRoot . '/.claude/settings.local.json';
+    $settingsBefore = is_file($settingsPath) ? file_get_contents($settingsPath) : false;
 
     try {
         chdir($packageRoot);
         ob_start();
-        $exitCode = Installer::run(['ai-olympus', 'install']);
+        $exitCode = Installer::run(['ai-olympus', 'install', '--no-agent-guard']);
         $output = ob_get_clean();
 
         expect($exitCode)->toBe(0);
@@ -626,6 +628,10 @@ test('install from package root installs rules and skills into .claude', functio
         expect(installerCountFiles($packageRoot . '/.claude/rules'))->toBeGreaterThan(0);
         expect(installerCountFiles($packageRoot . '/.claude/skills'))->toBeGreaterThan(0);
     } finally {
+        if ($settingsBefore !== false) {
+            file_put_contents($settingsPath, $settingsBefore);
+        }
+
         if ($originalCwd !== '') {
             chdir($originalCwd);
         }

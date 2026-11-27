@@ -17,6 +17,8 @@ Every code review runs this gate before any analysis step. It is the one owner o
    Run every later git read in that worktree, such as `git status`, `git diff`, `git show`, or `git log`, as `skills/_shared/branch-worktree.sh git --path <worktree> -- <command>`.
 5. **Confirm the head.** `git -C <worktree> rev-parse HEAD` must equal `HEAD_SHA`. A wrapper compares it with the PR head SHA from the loaded context. The detached `HEAD` is expected there.
 
+**When the dispatch names a prepared review worktree, the reviewer runs steps 1 and 5 only.** The dispatching session has already run `git fetch origin` in this round, which refreshes `origin/$DEFAULT_BRANCH`, fetched the head, and prepared the worktree (`agents/leonardo.md` *Review worktree*). Confirm the head with `git cat-file -e <head SHA>^{commit}` and step 5. If it fails, return `Blocked: review worktree not prepared`.
+
 When any step fails, stop and report it instead of reviewing from a diff. Failures include a missing ref, a moved branch head, a refusal of the script, and a change to a tracked file in the worktree that a move would overwrite.
 
 The review then reads the files of that worktree, never a remote diff in isolation and never the main tree.
