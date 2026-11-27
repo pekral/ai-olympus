@@ -32,7 +32,7 @@ A question that no pull request owns stays at the issue level, as the closing se
 
 ## The group heading
 
-One heading per pull request, in pull-request number order, naming the number and the title with a link:
+Build the group inventory, which lists every pull request that counts, in pull-request number order. Give each group its number and title:
 
 - **GitHub:** `## PR #<number> — <title>` with the number linked to the pull request.
 - **JIRA:** `h2. PR #<number> — {{<title>}}` in the intermediate source.

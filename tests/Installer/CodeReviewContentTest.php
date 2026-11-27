@@ -304,7 +304,7 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
 
     // The intermediate template retells the review instead of listing test steps. The helper turns
     // its supported source constructs into ADF before JIRA receives the body.
-    expect($template)->toContain('{expand:Findings from the code review}');
+    expect($template)->toContain('{expand:✅ Findings from the code review}');
     expect(jiraPublishedBody($template))->not->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
@@ -315,7 +315,7 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
     expect($rule)->toContain('`{code:php} ... {code}`');
     expect($rule)->toContain('`[label|https://example.com]`');
     expect($rule)->toContain('valid ADF only');
-    $adfPublicationRule = 'The final `acli` write must use `comment update --body-adf`; a successful plain-text create is not publication success.';
+    $adfPublicationRule = 'For a create-only summary, send the ADF with `comment create --body-file` and verify the exact stored document and author.';
     expect($rule)->toContain($adfPublicationRule);
     expect(substr_count($rule, $adfPublicationRule))->toBe(1);
 
@@ -4677,7 +4677,7 @@ test('every code-review report is published as a new comment on each destination
         ->and($contract)->toContain('and `pr-summary` posts a new comment with `--create` on every tracker destination')
         ->and(preg_match_all($updateInPlace, $contract))->toBe(0);
     expect(substr_count($prSummary, 'skills/code-review-github/scripts/upsert-comment.sh --create <NUMBER|URL> -'))->toBe(1)
-        ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --create <KEY|URL> -'))->toBe(1)
+        ->and(substr_count($prSummary, 'skills/code-review-jira/scripts/upsert-comment.sh --summary --create <KEY|URL> <source>'))->toBe(1)
         ->and($prSummary)->toContain('`addIssueComment`, never `updateIssueComment`')
         ->and(preg_match_all($updateInPlace, $prSummary))->toBe(0);
     expect($severalPullRequests)->toContain('3. Never copy a group, or any other line, out of an earlier comment into the new one.')

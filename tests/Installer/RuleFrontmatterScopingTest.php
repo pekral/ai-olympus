@@ -631,7 +631,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
         // #712 changes the JIRA review shape and screenshot boundaries.
-        'rules/reports/general.md' => 'bc17f12f5dbc681c0d3423935561b210d657c443e0cd408da52350f3de95dc4a',
+        'rules/reports/general.md' => 'b8f40e0c818d27f4eb36a7509d5f6bb3a4cbb23ff8170fe2b3f7fed0faa68d09',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

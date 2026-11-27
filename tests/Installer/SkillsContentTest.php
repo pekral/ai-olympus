@@ -347,7 +347,7 @@ test('assignment-compliance-check states the tracker verdict in all three cases'
     }
 });
 
-test('GitHub and Bugsnag carry the full verdict while JIRA carries remaining actions', function (): void {
+test('all tracker summaries carry the decision and JIRA lists every explicit criterion', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $rule = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $prSummary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
@@ -364,10 +364,10 @@ test('GitHub and Bugsnag carry the full verdict while JIRA carries remaining act
         expect($template)->not->toContain('the only route an assignment gap takes into this comment');
     }
 
-    // JIRA filters the internal verdict to requests that still need action.
+    // JIRA includes all explicitly stated criteria and their observed status.
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
-    expect($jiraTemplate)->toContain('or answer and its evidence. Omit satisfied requirements, positive verdicts,');
-    expect($jiraTemplate)->toContain('satisfied, omit the whole section. Omit it too when no criteria are stated.');
+    expect($jiraTemplate)->toContain('Include every stated criterion in a numbered list');
+    expect($jiraTemplate)->toContain('If no criteria were given, say so.');
     expect($jiraTemplate)->not->toContain('the only route an assignment gap takes into this comment');
 });
 

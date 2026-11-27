@@ -33,7 +33,7 @@ Perform code review for JIRA issues by analyzing related pull requests (the revi
 - **Repository ownership** — run the hard gate (`@skills/code-review-github/references/cr-wrapper-contract.md` *Repository ownership*) **per linked PR, after the `pullRequests` array is known and before that PR is checked out**. A JIRA project can carry links to PRs across several repositories, so this is where a cross-repo review silently starts — and it is why this wrapper skips a mismatching PR and continues with the rest instead of stopping the run.
 
 #### Issue Context Analysis
-The assignment is the **JIRA issue**. Read its description, comments and attachment inventory through acli and run the four analysis steps in `@skills/code-review-github/references/cr-wrapper-contract.md` *Issue Context Analysis* against it.
+The assignment is the **JIRA issue**. Follow `@rules/jira/general.md` *Attachments* for attachment handling. For an acli-only run, read its description, comments and attachment inventory through acli and run the four analysis steps in `@skills/code-review-github/references/cr-wrapper-contract.md` *Issue Context Analysis* against it.
 
 #### Incremental review scope — where the round history lives
 The baseline still resolves from the **GitHub PR's** CR comments (`@skills/code-review-github/references/cr-wrapper-contract.md` *Incremental review scope*) — JIRA carries no reviewed revision. The round markers this wrapper reads as a pointer to that history are the `kolo N` / `round N` markers in the **JIRA description and comments**, and they are resolved **per linked PR**: each PR keeps its own baseline, so a ticket linking several PRs never crosses one PR's revision into another's delta.

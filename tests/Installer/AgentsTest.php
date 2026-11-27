@@ -1323,28 +1323,18 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     expect($content)->toContain('**The exception is a scenario that changes state:**');
     expect($content)->toContain('parallelise only the ones that read');
 
-    // A failure carries evidence: the screenshot at the failing viewport plus the URL the
-    // failure actually happened on, kept out of the temp-file sweep so april can publish it.
-    expect($content)->toContain('**Capture evidence for every failure.**');
-    expect($content)->toContain('.claude/run/<source-slug>.artifacts/');
-    expect($content)->toContain('not the URL you started from');
-    expect($content)->toContain('A failed UI criterion without a screenshot row is an incomplete report.');
-
-    // The upload story is stated honestly rather than promised where it cannot be delivered.
-    expect($content)->toContain('the plain GitHub comment API takes no image, so a comment published another way carries the description only');
-    expect($content)->toContain('Never claim an image was uploaded where it was not.');
-
-    // A filesystem path is never published: the reader cannot reach that machine, and Run cleanup
-    // deletes the file before the comment is read — the written description carries the finding.
-    expect($content)->toContain('a filesystem path is never published to a tracker');
-    expect($content)->toContain('**The description carries the finding, not the file.**');
-    expect($content)->toContain('a dead pointer dressed as evidence');
+    // Only the observed, masked pixels of the run's own UI may travel with a finding.
+    expect($content)->toContain('**Capture evidence for a reproduced UI failure.**')
+        ->toContain('Mask before capture, crop to the failing element')
+        ->toContain('bind that exact digest to the tested step, revision and finding')
+        ->toContain('If the page, crop or pixels change, keep a text observation.')
+        ->toContain('Name the step without copying its URL.');
     expect((string) file_get_contents($packageDir . '/agents/april.md'))
         ->toContain('**Never publish the artifact\'s filesystem path**');
 
     // The publishing agent consumes the evidence, and the caller cleans the directory up.
     expect((string) file_get_contents($packageDir . '/agents/april.md'))
-        ->toContain('carry each row\'s exact URL, viewport, and description of what the screenshot showed');
+        ->toContain('carry each row\'s safe step name, viewport, and description of what the screenshot showed');
     expect(krangContractText())->toContain('.artifacts');
     // The invariant survives the skip: an unexercised criterion still has no verdict.
     expect($content)->toContain('**`Blocked`, with that reason stated**, never `Met`');

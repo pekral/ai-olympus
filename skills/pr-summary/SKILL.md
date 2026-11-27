@@ -57,11 +57,11 @@ GitHub and Bugsnag carry the **same** structure and differ only in markup — no
 
 ### The JIRA shape
 
-A JIRA ticket is read by the person who asked for the work, so its comment has its own shape on every run. `references/jira-shape.md` owns that shape, and `templates/pr-summary-jira.md` renders it.
+A JIRA ticket is read by the person who asked for the work, so its comment has its own shape on every run. `references/jira-shape.md` owns that shape, and `templates/pr-summary-jira.md` renders it. Apply `@rules/code-review/general.md` *The tracker comment carries the same verdict — in all three cases*. In the impact section a few bullets with no TL;DR label combine observable changes with what to watch after the release.
 
 ### The section names are translated, the concepts are not
 
-The headings and field labels above are this skill's canonical **concepts**, written in English because the skill itself is. The rendered comment follows the assignment language per `@rules/reports/general.md`, headings and field labels included — a Czech assignment renders `Co se změnilo` / `Problém` / `Příčina` / `Výsledek` / `Co jsem opravil` / `Vedlejší přínos` / `Na jiný ticket` / `Jak otestovat`, and a Czech JIRA ticket renders `Akceptační kritéria` / `Nálezy z kontroly kódu` / `Co se změnilo a co to ovlivní`. Never publish an English heading above assignment-language prose; that is the bilingual mixing the rule bans.
+The headings and field labels above are this skill's canonical **concepts**, written in English because the skill itself is. The rendered comment follows the assignment language per `@rules/reports/general.md`, headings and field labels included — a Czech assignment renders `Co se změnilo` / `Problém` / `Příčina` / `Výsledek` / `Co jsem opravil` / `Vedlejší přínos` / `Na jiný ticket` / `Jak otestovat`, and a Czech JIRA ticket renders `Akceptační kritéria` / `Nálezy z kontroly kódu` / `Testovací scénáře` / `Co se změnilo a co to ovlivní`. Never publish an English heading above assignment-language prose; that is the bilingual mixing the rule bans.
 
 ### What changed — four required fields, two conditional ones (GitHub and Bugsnag)
 
@@ -252,7 +252,7 @@ Post the summary as a comment to the related PR or issue if available, using the
   - `--revision` with the `Reviewed revision:` of the code-review report, the commit `pr-code-link.php` takes for a finding outside the pull request. Without it the check refuses every link to a file at a commit.
   - The check converts the source with the converter the publish uses. It refuses every link outside those pull requests, the task repository at that one commit, and the issues of that JIRA site, every code link that does not end a finding, and every mention of another account.
   - Exit `0` means the source passed. Exit `2` lists each violation of the shape `references/jira-shape.md` owns; the template names every check. Fix the source and run the check again. Never publish a source the check refused.
-- **JIRA target:** use `skills/code-review-jira/scripts/upsert-comment.sh --summary --create <KEY|URL> <source>`. The helper sends ADF v1 through acli and verifies the exact stored body and author. A new summary is create-only. See `references/jira-shape.md` for the byline and screenshot limits.
+- **JIRA target:** use `skills/code-review-jira/scripts/upsert-comment.sh --summary --create <KEY|URL> <source>`. The helper sends ADF v1 through acli and verifies the exact stored body and author. A new summary is create-only. Only on a direct operator request naming the existing ID, follow `references/jira-shape.md` and use `upsert-comment.sh --summary --operator-edit --comment-id <ID> --previous-adf <file> <KEY> <source>`. See `references/jira-shape.md` for the byline and screenshot limits.
   If the write is uncertain, inspect its readback before any retry. All JIRA operations in this flow use acli.
 - **Bugsnag target**: pipe the rendered body into `skills/code-review-bugsnag/scripts/upsert-comment.sh <URL|TRIPLE> -`. The helper POSTs a new comment on every run. Fall back to the Bugsnag MCP server only when the helper exits with code 2 (missing tool) or 3 (API failure) — also as a fresh post.
 - Comments that earlier runs published are left untouched.

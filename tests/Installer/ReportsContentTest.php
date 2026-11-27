@@ -207,8 +207,8 @@ test('every restatement of the JIRA shape names what changed and what it affects
     $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
     $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
-    expect($reports)->toContain('*Nálezy z kontroly kódu*, and *Co se změnilo a co to ovlivní*, never an English heading')
-        ->and($summary)->toContain('`Nálezy z kontroly kódu` / `Co se změnilo a co to ovlivní`.')
+    expect($reports)->toContain('*Nálezy z kontroly kódu*, *Testovací scénáře*, and *Co se změnilo a co to ovlivní*, never an English heading')
+        ->and($summary)->toContain('`Nálezy z kontroly kódu` / `Testovací scénáře` / `Co se změnilo a co to ovlivní`.')
         ->and($summary)->toContain('a few bullets with no TL;DR label combine observable changes with what to watch after the release')
         ->and($summary)->not->toContain('one TL;DR paragraph');
 });
