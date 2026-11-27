@@ -7,6 +7,7 @@ import re
 import stat
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 from jira_attachment_media import authenticated_identity, public_get, require
@@ -62,9 +63,36 @@ def fetch(site, path, header):
     return json.loads(body)
 
 
+def comment_mismatch(comment, number, actor, document):
+    if str(comment["id"]) != number or comment["author"]["accountId"] != actor:
+        return "readback-identity"
+    if comment.get("jsdPublic") is not True or comment.get("visibility") is not None:
+        return "readback-visibility"
+    return None if same_json(comment["body"], document) else "readback-body"
+
+
 def check_comment(comment, number, actor, body):
-    require(str(comment["id"]) == number and comment["author"]["accountId"] == actor and comment.get("jsdPublic") is True
-            and comment.get("visibility") is None and same_json(comment["body"], body), "comment identity, visibility or body changed")
+    require(comment_mismatch(comment, number, actor, body) is None, "comment identity, visibility or body changed")
+
+
+def readback_comment(site, path, header, number, actor, document):
+    """Retry only a bounded GET of the known comment. Reasons contain no response data."""
+    reason = "readback-transport"
+    for delay in (0, 1, 2):
+        if delay:
+            time.sleep(delay)
+        try:
+            code, redirect, data = public_get(site, path, header, 131072)
+            reason = "readback-http-" + str(code)
+            if code == 200 and not redirect:
+                reason = comment_mismatch(json.loads(data), number, actor, document)
+                if reason is None:
+                    return
+        except (OSError, http.client.HTTPException):
+            reason = "readback-transport"
+        except (ValueError, TypeError, KeyError):
+            reason = "readback-response"
+    raise UncertainWrite(reason)
 
 
 def put_comment(site, path, header, document):
@@ -104,8 +132,11 @@ def edit_summary(plan):
         try:
             reply = put_comment(site, path, header, document)
             require(str(reply["id"]) == number, "update response did not identify the named comment")
-            check_comment(fetch(site, path, header), number, actor, document)
+            audit_record(file, intent, 0, "update response identified comment " + number)
+            readback_comment(site, path, header, number, actor, document)
             audit_record(file, intent, 0, "named comment and whole ADF verified")
+        except UncertainWrite:
+            raise
         except Exception:
             raise UncertainWrite("operator edit unconfirmed; inspect the named comment before any further write") from None
     return plan["url"] + "?focusedCommentId=" + number

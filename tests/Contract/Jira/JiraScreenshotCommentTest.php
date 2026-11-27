@@ -541,6 +541,8 @@ for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertai
         audit_calls=mock('audit_record',side_effect=audit)
         stack.enter_context(patch.object(api.os,'fsync',side_effect=sync))
         mock('fetch',side_effect=get)
+        mock('public_get',side_effect=lambda host,path,header,limit: (200, [], api.json.dumps(get(host,path,header)).encode()))
+        stack.enter_context(patch.object(api.time,'sleep'))
         mock('put_comment',side_effect=put)
         try:
             result=api.edit_summary(plan)
