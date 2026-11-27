@@ -80,7 +80,7 @@ function jiraPublishedBody(string $template): string
     return $end === false ? $template : mb_substr($template, 0, $end);
 }
 
-test('the JIRA template keeps only actionable requirements and one combined summary', function (): void {
+test('the JIRA template includes acceptance criteria, findings, test scenarios and a single impact summary', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $body = jiraPublishedBody($jiraTemplate);
@@ -89,7 +89,7 @@ test('the JIRA template keeps only actionable requirements and one combined summ
         '{expand:⚠️ Acceptance criteria}',
         '{expand:✅ Findings from the code review}',
         '{expand:⚠️ Test scenarios}',
-        '{expand:ℹ️ What changed and what it affects}',
+        '{expand:What changed and what it affects}',
     );
     expect($body)->not->toContain('{agent-marker}', 'PR_URL', 'ISSUE_URL', 'Technical marker for AI agents');
 

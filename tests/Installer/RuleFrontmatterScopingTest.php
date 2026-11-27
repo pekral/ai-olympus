@@ -582,7 +582,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
         // Re-baselined: *Attachments* names the one upload script of a defect screenshot (issue #712).
         // #712 changes the JIRA review shape and screenshot boundaries.
-        'rules/jira/general.md' => 'e5bf5550d5fd2756805b1609ea2843be4505b8b1d1fb7417978d32e5c3376fc4',
+        'rules/jira/general.md' => '83e64e7261116ef9082235c00f32758c6c71ecc047ad167cc8f77920af41b130',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history

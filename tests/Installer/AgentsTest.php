@@ -1359,7 +1359,7 @@ test('agents directory ships the raphael acceptance-tester subagent with require
     // The four rules that separate "drove a browser" from "tested like a person": look at the
     // rendering, locate what a user locates, stay CommonJS, and never blanket-disable TLS.
     expect($content)->toContain('**A UI verdict of `Met` that is not backed by a screenshot you looked at is not a verdict**');
-    expect($content)->toContain('page.screenshot({ path: <temp>, fullPage: true })');
+    expect($content)->toContain('locator.screenshot({ path: <temp> })');
     expect($content)->toContain('getByRole(\'button\', { name: \'Save\' })');
     expect($content)->toContain('A `#id` is an implementation detail the application may rename');
     expect($content)->toContain('**Write the scenario as CommonJS');
