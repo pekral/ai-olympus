@@ -2,7 +2,7 @@
 # load-issue.sh — single deterministic entry point for loading JIRA issue context.
 #
 # Usage:
-#   load-issue.sh <KEY|URL>
+#   load-issue.sh <KEY|URL> [--known-proof]
 #
 # Accepts:
 #   - a bare issue key, e.g. ACME-1234
@@ -148,7 +148,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: load-issue.sh <KEY|URL>
+Usage: load-issue.sh <KEY|URL> [--known-proof]
        load-issue.sh --self-test
 
   KEY    bare JIRA work-item key (e.g. ACME-1234)
@@ -183,6 +183,22 @@ self_test() {
   err_file="$tmp/err"
   script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$PROG"
 
+  cat >"$stubbin/curl" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+cat >/dev/null
+case "${!#}" in
+  'https://example.atlassian.net/rest/api/3/myself')
+    printf '%s\n' '{"accountId":"actor-1","accountType":"atlassian","active":true,"emailAddress":"operator@example.test"}'
+    ;;
+  'https://example.atlassian.net/rest/api/3/issue/10001?fields=*all&expand=changelog')
+    cat "${0%/*}/known-issue.json"
+    ;;
+  *) exit 1 ;;
+esac
+STUB
+  chmod +x "$stubbin/curl"
+
   # The stub reads the case it plays from the `mode` file beside it: ok, list-fails, short, subtasks,
   # subtask-list-fails, attachments, or subtask-attachments.
   printf 'ok' >"$stubbin/mode"
@@ -190,6 +206,14 @@ self_test() {
 #!/usr/bin/env bash
 set -euo pipefail
 mode="$(cat "${0%/*}/mode")"
+if [[ "$1 $2 $3" == "jira auth status" ]]; then
+  printf '%s\n' 'Site: example.atlassian.net' 'Email: operator@example.test'
+  exit 0
+fi
+if [[ "$1 $2 $3 $4" == "jira workitem view TEST-1" && "$mode" == known ]]; then
+  printf '%s\n' '{"id":"10001","key":"TEST-1"}'
+  exit 0
+fi
 if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" && "$mode" != "subtask-original" ]]; then
   attachments='[]'
   [[ "$mode" != "subtask-attachments" ]] || attachments='[{"id": "10600", "filename": "sub-notes.md"}]'
@@ -370,6 +394,36 @@ STUB
   load_case forged-language
   check 'a section title of one language before an original title of the other is not an original' '.descriptionOriginalText' 'null'
 
+  # The live command uses the REST issue projection since the normal CLI view has no history.
+  printf '%s' known >"$stubbin/mode"
+  cat >"$stubbin/known-issue.json" <<'EOF'
+{"id":"10001","key":"TEST-1","self":"https://example.atlassian.net/rest/api/3/issue/10001",
+ "changelog":{"startAt":0,"total":0,"histories":[]},
+ "fields":{"summary":"An omitted step","creator":{"accountId":"actor-1"},"reporter":{"accountId":"actor-1"},
+ "updated":"2026-10-01T10:00:00.000+0000","status":{"statusCategory":{"key":"new"}},
+ "description":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"TEST-2 already describes the omitted step."}]}]},
+ "assignee":{"accountId":"human-1","accountType":"atlassian","active":true},
+ "resolution":null,"subtasks":[],"issuelinks":[]}}
+EOF
+  out="$(PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net JIRA_API_TOKEN=operator@example.test:fixture-token \
+    "$script" TEST-1 --known-proof 2>"$err_file")" || out='null'
+  check 'the verified tenant, open status, identity, text and description history reach the consumer' \
+    '.descriptionTrusted and .sessionSite == "example.atlassian.net" and .issueId == "10001"
+     and .assigneeType == "atlassian" and .assigneeAccountId == "human-1"
+     and .statusCategory == "new" and .mentionedKeys == ["TEST-2"]' 'true'
+  rc=0
+  PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net JIRA_API_TOKEN=operator@example.test:fixture-token \
+    "$script" https://other-example.atlassian.net/browse/TEST-1 --known-proof >/dev/null 2>"$err_file" || rc=$?
+  out="$rc"
+  check 'the authenticated host cannot be relabelled by a ticket URL' '.' '3'
+  jq -c '.changelog.total = 1' "$stubbin/known-issue.json" >"$stubbin/incomplete.json"
+  mv "$stubbin/incomplete.json" "$stubbin/known-issue.json"
+  rc=0
+  PATH="$stubbin:$PATH" JIRA_SITE=example.atlassian.net JIRA_API_TOKEN=operator@example.test:fixture-token \
+    "$script" TEST-1 --known-proof >/dev/null 2>"$err_file" || rc=$?
+  out="$rc"
+  check 'an incomplete issue history does not prove the text' '.' '3'
+
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
     return 4
@@ -383,12 +437,13 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exit $?
 fi
 
-if [[ $# -ne 1 || -z "${1:-}" ]]; then
+if [[ $# -lt 1 || $# -gt 2 || -z "${1:-}" || ( $# -eq 2 && "$2" != --known-proof ) ]]; then
   usage
   exit 1
 fi
 
 INPUT="$1"
+KNOWN_PROOF="${2:-}"
 
 for bin in acli jq; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -465,6 +520,15 @@ fi
 DEV_FIELD="${JIRA_DEV_SUMMARY_FIELD:-customfield_10000}"
 
 VIEW_JSON="$(acli jira workitem view "$KEY" --fields '*all' --json 2>/dev/null || true)"
+if [[ -n "$KNOWN_PROOF" ]]; then
+  # The normal acli view cannot request the changelog. Use the REST projection for a review decision.
+  # shellcheck source=jira-known-proof.sh
+  . "$SCRIPT_DIR/jira-known-proof.sh"
+  if ! VIEW_JSON="$(jira_known_view "$KEY" "$HOST" "$CONTENT_HOST" "$VIEW_JSON")"; then
+    echo "load-issue.sh: could not verify the tenant, issue, and description history for $KEY" >&2
+    exit 3
+  fi
+fi
 if [[ -z "$VIEW_JSON" ]] || ! printf '%s' "$VIEW_JSON" | jq -e . >/dev/null 2>&1; then
   echo "load-issue.sh: failed to fetch JIRA issue $KEY" >&2
   exit 3
@@ -715,6 +779,11 @@ input as $view | input as $commentsResp | input as $subtaskDetails | input as $p
     url: (if $host != "" then "https://" + $host + "/browse/" + $key else null end),
     summary: ($f.summary // null),
     status: ($f.status.name // null),
+    statusCategory: ($f.status.statusCategory.key // null),
+    issueId: ($view.id // null),
+    sessionSite: ($view.knownSite // null),
+    assigneeType: ($f.assignee.accountType // null),
+    assigneeActive: $f.assignee.active,
     issueType: ($f.issuetype.name // null),
     priority: ($f.priority.name // null),
     assignee: ($f.assignee.displayName // null),
@@ -821,11 +890,15 @@ input as $view | input as $commentsResp | input as $subtaskDetails | input as $p
 SHARED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../_shared"
 # shellcheck source=jira-actor.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/jira-actor.sh"
-ACTOR_ID="$(jira_actor_account_id || true)"
+if [[ -n "$KNOWN_PROOF" ]]; then
+  ACTOR_ID="$(jq -r '.knownActor' <<<"$VIEW_JSON")"
+else
+  ACTOR_ID="$(jira_actor_account_id || true)"
+fi
 # Who wrote and who changed the description: the creator and the change log of the view, when the view carries them.
 DESCRIPTION_META="$(printf '%s' "$VIEW_JSON" | jq -c '{creator: (.fields.creator.accountId? // null), changelog: (.changelog? // null)}' 2>/dev/null || true)"
 [[ -n "$DESCRIPTION_META" ]] || DESCRIPTION_META='null'
-if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "$SHARED_DIR" --arg actor "$ACTOR_ID" --argjson meta "$DESCRIPTION_META" '
+if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "$SHARED_DIR" --arg actor "$ACTOR_ID" --arg mode "$KNOWN_PROOF" --argjson meta "$DESCRIPTION_META" '
   include "review-trust";
   . as $o
   # The description is the text of the operator account alone: it created the issue, it is the reporter, and it made
@@ -841,10 +914,12 @@ if [[ -f "$SHARED_DIR/review-trust.jq" ]] && OUT="$(printf '%s' "$DOC" | jq -L "
   | (($o.key | sub("-[0-9]+$"; "")) as $project
      | [ [ if $trusted then $o.descriptionText else empty end ]
          + [ $o.comments[]
-             | select(trusted_jira_comment($actor; $o.assignee)
-                 or ((.body | type) == "string" and (.body | agent_marker | not)
-                     and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId != ""
-                     and .authorAccountId == $o.reporterAccountId))
+             | select(if $mode == "--known-proof" then trusted_jira_comment($actor; null)
+                      else trusted_jira_comment($actor; $o.assignee)
+                        or ((.body | type) == "string" and (.body | agent_marker | not)
+                            and ($o.reporterAccountId | type) == "string" and $o.reporterAccountId != ""
+                            and .authorAccountId == $o.reporterAccountId)
+                      end)
              | .body ]
          | .[] | select(type == "string") | scan("(?<![A-Za-z0-9_-])(\($project)-[0-9]{1,9})(?![0-9A-Za-z_-])") | .[0] ]
      | unique

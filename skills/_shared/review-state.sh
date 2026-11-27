@@ -21,9 +21,10 @@
 #   review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
 #   review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
 #   review-state.sh defer    --state <file> --finding <id> --url <https-url>
-#   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>
+#   review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> --snapshot <digest>
+       review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --inspect
 #   review-state.sh known    --state <file> --finding <id> --reopen
-#   review-state.sh known    --state <file> --verify --pr <url>
+#   review-state.sh known    --state <file> --verify --pr <url> [--head <sha>] [--record <file>]
 #   review-state.sh --self-test
 #
 #   --state          the state file. Every command that writes it refuses a path outside the `.claude/run/` or
@@ -73,9 +74,9 @@
 #                    `closingIssues[]` nor through a closing keyword that reaches a reference to it in the
 #                    full message of one of its commits, in its title, in its body, or in its branch name, and the
 #                    commit list is shorter than the 100 entries that the loader returns at most. A pull request that cannot be loaded is a refusal.
-#                    A security finding a linked issue already
-#                    reports is a known point too (owner decision of 2026-11-25): the trust of the link decides, never
-#                    the kind of the finding. The state stores the task and the issue. Every refusal exits 4 and
+#                    Inspect the current evidence with --inspect before marking it with --snapshot <digest>.
+#                    A security finding also requires an active assignee with confirmed human identity.
+#                    Critical security findings always block. Every refusal exits 4 and
 #                    leaves the state unchanged. A known point is not blocking, so it never counts in a verdict. The state
 #                    stores the finding as it was marked (`marked`: severity, security, file, line, title, impact, and
 #                    evidence), and `known` refuses a finding whose record merges more than one reported finding. A
@@ -137,6 +138,8 @@ PROG="${0##*/}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=state-path.sh
 . "$HERE/state-path.sh"
+# shellcheck source=review-owner-proof.sh
+. "$HERE/review-owner-proof.sh"
 LOADER="$HERE/../code-review-github/scripts/load-issue.sh"
 JIRA_LOADER="$HERE/../code-review-jira/scripts/load-issue.sh"
 
@@ -158,9 +161,10 @@ Usage: review-state.sh init     --state <file> --repo <owner/name> --pr <number>
        review-state.sh scope    --state <file> --changed-files <file|-> [--numstat <file|->]
        review-state.sh dismiss  --state <file> --finding <id> --comment <comment-url>
        review-state.sh defer    --state <file> --finding <id> --url <https-url>
-       review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text>
+       review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --covers <text> --snapshot <digest>
+       review-state.sh known    --state <file> --finding <id> --source <task> --issue <url> --inspect
        review-state.sh known    --state <file> --finding <id> --reopen
-       review-state.sh known    --state <file> --verify --pr <url>
+       review-state.sh known    --state <file> --verify --pr <url> [--head <sha>] [--record <file>]
        review-state.sh --self-test
 EOF
 }
@@ -204,6 +208,8 @@ def outside_delta($changed): . as $f | ($f | is_blocking) and ($changed | index(
 
 # The fields of a finding that a known point stores when it is marked, and that a later report must repeat to keep it
 # known: a report that differs in any of them is another finding of the same identity, or the same one changed.
+def oid: isstr(.; "^[0-9a-f]{40}$");
+def proof_digest: isstr(.; "^[0-9a-f]{64}$");
 def marked_view: {severity, security, file, line, description, impact, evidence};
 def marked_ok: type == "object" and keys == ["description", "evidence", "file", "impact", "line", "security", "severity"]
   and (.severity | severity_rank) > 0 and (.security | type) == "boolean" and (.file | type) == "string"
@@ -271,9 +277,14 @@ def state_errors:
         (if ($s | has("known_points") | not) or (($s.known_points | type) == "array"
               and ($s.known_points | map(.finding_id?) | unique | length) == ($s.known_points | length)
               and all($s.known_points[];
-                type == "object" and ((keys - ["marked"]) == ["covers", "finding_id", "source", "url"])
-                and ((has("marked") | not) or (.marked | marked_ok))
-                and (.finding_id as $id | $ids | index([$id])) != null
+                . as $p | type == "object" and (keys == ["base", "category", "covers", "digest", "finding_id", "head", "iteration", "marked", "owner", "source", "url"])
+                and (.category | IN("linked", "owned-security"))
+                and (.marked | marked_ok)
+                and (.digest | proof_digest) and (.head | oid) and (.base | oid)
+                and .head == $s.revision and .iteration == $s.iteration
+                and (if .category == "owned-security" then .marked.security and .marked.severity != "critical"
+                     and isstr(.owner; "^[A-Za-z0-9:_-]{1,100}$") else (.marked.security | not) and .owner == null end)
+                and any($s.findings[]; .finding_id == $p.finding_id and .status == "known" and (marked_view == $p.marked))
                 and isstr(.url; "^https://\\S+$") and (.url | length) <= 500
                 and isstr(.source; "^(https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]{0,8}|[A-Z][A-Z0-9_]*-[1-9][0-9]{0,8})$")
                 and isstr(.covers; "^[^\\x00-\\x1f\\x7f]{1,300}$")))
@@ -418,9 +429,10 @@ def round_counts($moves; $next):
   };
 
 # The known points a merge of round records keeps: an entry leaves the list when its finding leaves the status known.
-def keep_known_points($merged):
+def keep_known_points($merged; $n):
   ([$merged[] | select(.rec.status == "known") | .rec.finding_id]) as $kept
-  | if has("known_points") then .known_points |= map(select(.finding_id as $id | $kept | index([$id]) != null)) else . end;
+  | if has("known_points") then .known_points |= map(select(.finding_id as $id | $kept | index([$id]) != null)
+    | .iteration = $n) else . end;
 
 # Move the known points $ids back to an open finding, as the orchestrator: the comparison no longer matches, or the
 # link no longer passes the checks of `known`. A finding with evidence blocks again, one without needs verification.
@@ -465,7 +477,7 @@ IFS= read -r -d '' JQ_RECORD <<'EOF' || true
   | .revision = $rev
   | .scope = null
   | .findings = ($merged | map(.rec) | sort_by(.finding_id))
-  | keep_known_points($merged)
+  | keep_known_points($merged; .iteration)
   | .transitions += $moves
   | . as $next
   | verdict($cap; $threshold) as $v
@@ -491,7 +503,7 @@ IFS= read -r -d '' JQ_LATE <<'EOF' || true
     | {iteration: $n, finding_id: .rec.finding_id, from, to: .rec.status, actor: "reviewer"} ] as $moves
 | $s
 | .findings = ($merged | map(.rec) | sort_by(.finding_id))
-| keep_known_points($merged)
+| keep_known_points($merged; .iteration)
 | .transitions += $moves
 | . as $next
 | verdict($cap; $threshold) as $v
@@ -687,6 +699,7 @@ cmd_record() {
   # the checks of `known` is an open finding of this round.
   reverify_known "$TMP/state.json" "$cap" "$threshold" false
 
+
   local repo pr
   repo="$(jq -r '.repo' "$TMP/state.json")"
   pr="$(jq -r '.pr' "$TMP/state.json")"
@@ -698,6 +711,12 @@ cmd_record() {
     || fail 3 "the round report could not be read; nothing was recorded"
   "$HERE/extract-findings.sh" --round --repo "$repo" --pr "$pr" --input "$input" >"$TMP/round.jsonl" \
     || fail 3 "the round report could not be read; nothing was recorded"
+
+  if [[ "$(jq -r '.revision' "$TMP/state.json")" != "$(jq -r '.revision' "$TMP/header.json")" ]]; then
+    jq -c -L "$HERE" "$JQ_STATE"' reopen_known([(.known_points // [])[].finding_id])' \
+      "$TMP/state.json" >"$TMP/reopened.json"
+    mv -f "$TMP/reopened.json" "$TMP/state.json"
+  fi
 
   local paths='null'
   if [[ -n "$changed" ]]; then
@@ -1031,7 +1050,7 @@ lower() { printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]'; }
 #   Not covered: a title or message that a person edits in the merge dialog of a squash or a merge commit. A closing
 #   keyword that reaches the pull request after the last review round is caught by `known --verify` before the merge.
 linked_issue_verdict() {
-  local repo="$1" pr="$2" source="$3" issue="$4" rc=0 verdict
+  local repo="$1" pr="$2" source="$3" issue="$4" category="$5" head="$6" rc=0 verdict tracker=github scope=""
   if [[ "$source" =~ $GH_ISSUE_RE ]]; then
     [[ "$(lower "${BASH_REMATCH[1]}")" == "$(lower "$repo")" ]] \
       || { echo 'refused:the task is not an issue of the repository of the pull request'; return 0; }
@@ -1039,60 +1058,26 @@ linked_issue_verdict() {
     [[ "$(lower "${BASH_REMATCH[1]}")" == "$(lower "$repo")" ]] \
       || { echo 'refused:the linked issue is not an issue of the repository of the pull request'; return 0; }
     set +e
-    "$LOADER" "$source" </dev/null >"$TMP/source.json" 2>/dev/null && "$LOADER" "$issue" </dev/null >"$TMP/linked.json" 2>/dev/null
+    "$LOADER" "$source" --known-proof </dev/null >"$TMP/source.json" 2>/dev/null && "$LOADER" "$issue" --known-proof </dev/null >"$TMP/linked.json" 2>/dev/null
     rc=$?
     set -e
     [[ "$rc" -eq 0 ]] || { echo 'refused:the task or the linked issue cannot be loaded'; return 0; }
     set +e
-    "$LOADER" "https://github.com/$repo/pull/$pr" </dev/null >"$TMP/closing.json" 2>/dev/null
+    "$LOADER" "https://github.com/$repo/pull/$pr" --known-proof </dev/null >"$TMP/closing.json" 2>/dev/null
     rc=$?
     set -e
     [[ "$rc" -eq 0 ]] || { echo 'refused:the pull request cannot be loaded'; return 0; }
     verdict="$(jq -r -n -L "$HERE" --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
       --slurpfile prq "$TMP/closing.json" --arg source "$source" --arg issue "$issue" --arg repo "$repo" \
-      --argjson pr "$pr" --argjson page "$COMMIT_PAGE" --arg n "${issue##*/}" 'include "review-trust";
-      # Every closing keyword (close, fix, resolve, with or without -s and -d, any case) of a line opens a reach: the
-      # rest of its line and the whole next line (the next line with text, when nothing but marks follows the
-      # keyword). A reference to issue $n of $repo in the reach closes it, whatever stands between the keyword and
-      # the reference: #n, gh-n, owner/name#n, or the issue URL or pull request URL of that number (http or https,
-      # with or without www). Leading zeros of the number count. Another repository, another number, and a reference
-      # that no keyword reaches do not.
-      ($repo | ascii_downcase | gsub("\\."; "\\.")) as $r
-      | "(?<![a-z0-9])(close[sd]?|fix(e[sd])?|resolve[sd]?)(?![a-z])" as $kw
-      | ("(?<![a-z0-9_./-])(#|gh-)0*\($n)(?![0-9])"
-          + "|(?<![a-z0-9_.-])\($r)#0*\($n)(?![0-9])"
-          + "|https?://(www\\.)?github\\.com/\($r)/(issues|pull)/0*\($n)(?![0-9])") as $ref
-      | # The lines of a text: a line break is CR LF, CR, LF, VT, FF, NEL, LS, or PS. Literal splits keep the cost linear,
-        # where a regex split of jq costs more than the square of the line count.
-        def lines: reduce ("\r\n", "\r", "\u000b", "\u000c", "\u0085", "\u2028", "\u2029") as $s (.; split($s) | join("\n"))
-          | split("\n");
-        # The next line with text of each line, computed once from the last line up.
-        def next_text($ls): reduce ($ls | to_entries | reverse)[] as $e ({n: "", out: []};
-            .out += [.n] | if ($e.value | test("\\S")) then .n = $e.value else . end) | .out | reverse;
-        def closing: lines as $ls
-          | next_text($ls) as $nt
-          | any(range(0; $ls | length); . as $i
-              | if ($ls[$i] | test($kw; "i") | not) then false
-                else (($ls[$i + 1] // "") | test($ref; "i")) as $imm
-                  | ($nt[$i] | test($ref; "i")) as $nxt
-                  | any($ls[$i] | match($kw; "gi");
-                      ($ls[$i][(.offset + .length):]) as $tail
-                      | ($tail | test($ref; "i"))
-                        or (if ($tail | test("[a-z0-9]"; "i")) then $imm else $nxt end)) end);
-        # The messages a commit can have had before the loader cut its headline: the plain one, and, behind a cut
-        # headline, the headline and the body joined with nothing, a space, or a line break between.
-        def messages: .messageHeadline as $h | .messageBody as $b
-          | [$h + "\n\n" + $b]
-            + (if ($h | endswith("\u2026"))
-               then ($h | rtrimstr("\u2026")) as $x | ($b | ltrimstr("\u2026")) as $y | [$x + $y, $x + " " + $y, $x + "\n" + $y]
-               else [] end);
-        def branch_closes: test($kw; "i") and test("(?<![0-9])0*\($n)(?![0-9])");
+      --argjson pr "$pr" --argjson page "$COMMIT_PAGE" --arg n "${issue##*/}" 'include "known-tracker";
       ($src[0] // null) as $t | ($lnk[0] // null) as $l | ($prq[0] // null) as $q
       | if ($t | type) != "object" or $t.kind != "issue" or $t.url != $source then "refused:the loader returned another item than the task"
+        elif $t.linkedIssuesComplete != true then "refused:the task link list is incomplete"
         elif ([($t.linkedIssues // [])[] | .url] | index([$issue])) == null then "refused:the issue is not in the link list of the task"
         elif ($l | type) != "object" or $l.kind != "issue" or $l.url != $issue then "refused:the loader returned another item than the linked issue"
         elif $l.state != "OPEN" then "refused:the linked issue is not open"
-        elif ($l.authorAssociation | write_access | not) then "refused:the author association \($l.authorAssociation // "null") of the linked issue is not trusted"
+        elif ($l | github_trusted_issue | not)
+        then "refused:the author or editor of the linked issue is not trusted"
         elif ($q | type) != "object" or $q.kind != "pr" or $q.number != $pr
              or ((($q.repo.nameWithOwner // "") | ascii_downcase) != ($repo | ascii_downcase))
              or ($q.closingIssues | type) != "array" or ($q.commits | type) != "array"
@@ -1101,52 +1086,113 @@ linked_issue_verdict() {
         then "refused:the pull request does not close the task"
         elif ([$q.closingIssues[] | (.url // "") | ascii_downcase] | index([$issue | ascii_downcase])) != null
         then "refused:the pull request closes the linked issue"
-        elif ($q.commits | length) >= $page
-        then "refused:the loader may have cut the commit list at its page size of \($page)"
-        elif ($q.commits | all(.[]; (.messageHeadline | type) == "string" and (.messageBody | type) == "string") | not)
-        then "refused:the loader returned a commit without its message headline and body"
-        elif ($q.title | type) != "string" or ($q.body | type) != "string"
-        then "refused:the loader returned a pull request without its title and body"
-        elif ($q.headRefName | type) != "string"
-        then "refused:the loader returned a pull request without its branch name"
-        elif ($q.commits | any(.[]; messages | any(.[]; closing)))
-        then "refused:a commit of the pull request closes the linked issue"
-        elif ($q.title | closing)
-        then "refused:the title of the pull request closes the linked issue"
-        elif ($q.body | closing)
-        then "refused:the body of the pull request closes the linked issue"
-        elif ($q.headRefName | branch_closes)
-        then "refused:the branch name of the pull request names a closing keyword and the linked issue"
-        else "ok" end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
+        else known_pr_closure($q; $repo; $n; $page) end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   elif [[ "$source" =~ $JIRA_KEY_RE ]]; then
     local project="${BASH_REMATCH[1]}" host key
+    tracker=jira
     [[ "$issue" =~ $JIRA_URL_RE ]] || { echo 'refused:a JIRA task links only a JIRA /browse/ URL'; return 0; }
     host="$(lower "${BASH_REMATCH[1]}")"
     key="${BASH_REMATCH[2]}"
+    scope="$host/$project"
     [[ "${BASH_REMATCH[3]}" == "$project" ]] || { echo 'refused:the linked issue is not an issue of the project of the task'; return 0; }
     set +e
-    "$JIRA_LOADER" "$source" </dev/null >"$TMP/source.json" 2>/dev/null && "$JIRA_LOADER" "$key" </dev/null >"$TMP/linked.json" 2>/dev/null
+    "$JIRA_LOADER" "$source" --known-proof </dev/null >"$TMP/source.json" 2>/dev/null &&
+      "$JIRA_LOADER" "$key" --known-proof </dev/null >"$TMP/linked.json" 2>/dev/null &&
+      "$LOADER" "https://github.com/$repo/pull/$pr" --known-proof </dev/null >"$TMP/closing.json" 2>/dev/null
     rc=$?
     set -e
     [[ "$rc" -eq 0 ]] || { echo 'refused:the task or the linked issue cannot be loaded'; return 0; }
-    verdict="$(jq -r -n --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
+    verdict="$(jq -r -n -L "$HERE" --slurpfile src "$TMP/source.json" --slurpfile lnk "$TMP/linked.json" \
+      --slurpfile prq "$TMP/closing.json" --arg repo "$repo" --argjson pr "$pr" --argjson page "$COMMIT_PAGE" \
       --arg source "$source" --arg key "$key" --arg issue "$issue" --arg host "$host" '
-      ($src[0] // null) as $t | ($lnk[0] // null) as $l
+      include "known-tracker";
+      ($src[0] // null) as $t | ($lnk[0] // null) as $l | ($prq[0] // null) as $q
       | if ($t | type) != "object" or $t.key != $source then "refused:the loader returned another item than the task"
-        elif (($t.url // "") | ascii_downcase | startswith("https://\($host)/browse/") | not) then "refused:the linked issue is not on the JIRA site of the task"
-        elif ([($t.parent.key // empty), ($t.subtasks // [])[].key, ($t.issueLinks // [])[].linkedKey, ($t.mentionedKeys // [])[]]
+        elif $t.sessionSite != $host or $l.sessionSite != $host or $t.url != "https://\($host)/browse/\($source)"
+        then "refused:the linked issue is not on the authenticated JIRA site of the task"
+        elif ([($t.parent.key // empty), ($t.subtasks // [])[].key, ($t.issueLinks // [])[].linkedKey,
+                 (if $t.mentionedKeysComplete == true then ($t.mentionedKeys // [])[] else empty end)]
               | index([$key])) == null then "refused:the issue is not in the link list of the task"
         elif ($l | type) != "object" or $l.key != $key or $l.url != $issue then "refused:the loader returned another item than the linked issue"
-        elif $l.resolution != null then "refused:the linked issue is not open"
+        elif $l.resolution != null or ($l.statusCategory | IN("new", "indeterminate") | not)
+        then "refused:the linked issue is not open"
         elif $l.descriptionTrusted != true then "refused:the description of the linked issue is not the text of the operator account alone"
-        else "ok" end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
+        elif $q.url != "https://github.com/\($repo)/pull/\($pr)" then "refused:the loader returned another pull request"
+        elif ([$q.title, $q.body, $q.headRefName, $q.commits[]? | if type == "object" then .messageHeadline, .messageBody else . end]
+          | any(type == "string" and test("(?<![a-z0-9_])" + $source + "(?![a-z0-9_])"; "i")) | not)
+          then "refused:the pull request does not name the JIRA task"
+        else known_pr_closure($q; $repo; $key; $page) end' 2>/dev/null)" || verdict='refused:the loader payload is not JSON'
   else
     verdict='refused:the task is neither a GitHub issue URL nor a JIRA key'
   fi
   case "$verdict" in
-  ok | refused:*) printf '%s\n' "$verdict" ;;
+  ok)
+    local snapshot
+    snapshot="$(known_snapshot "$tracker" "$scope" "$category" "$head" "$issue")" || {
+      echo 'refused:the current head, tracker evidence, or human owner could not be verified'
+      return 0
+    }
+    printf '%s\n' "$snapshot"
+    ;;
+  refused:*) printf '%s\n' "$verdict" ;;
   *) echo 'refused:the check returned no verdict' ;;
   esac
+}
+
+# Bind the exact content compared by the orchestrator to the live PR base and head. The output is private data.
+known_snapshot() {
+  local tracker="$1" scope="$2" category="$3" head="$4" issue="$5" target pr_data repo repo_id owners owner=null details digest
+  target="$(cat "$TMP/linked.json")" || return 1
+  pr_data="$(jq -ce --arg head "$head" '
+    select(.kind == "pr" and .state == "OPEN" and .headRefOid == $head and .knownProof.pullComplete == true
+      and (.baseRefOid | type == "string" and test("^[0-9a-f]{40}$"))
+      and (.knownProof.repositoryId | type == "string" and test("^[1-9][0-9]*$")))
+    | {repo: .repo.nameWithOwner, repoId: .knownProof.repositoryId, base: .baseRefOid, head: .headRefOid}' "$TMP/closing.json")" || return 1
+  repo="$(jq -r '.repo' <<<"$pr_data")"
+  repo_id="$(jq -r '.repoId' <<<"$pr_data")"
+  if [[ "$tracker" == jira ]]; then
+    details="$(jq -ce 'select((.issueId | type) == "string" and (.descriptionAssignmentText | type) == "string"
+      and (.updated | type) == "string")
+      | {id: .issueId, title: .summary, text: .descriptionAssignmentText, source: .descriptionAdf, updated,
+         state: .statusCategory, assigned: {id: .assigneeAccountId, type: .assigneeType, active: .assigneeActive}}' <<<"$target")" || return 1
+    owners="$(jq -c '[select(.assigned.type == "atlassian" and .assigned.active == true
+      and (.assigned.id | type) == "string") | .assigned.id]' <<<"$details")" || return 1
+  else
+    details="$(jq -ce --arg rid "$repo_id" 'select(.knownProof.repositoryId == $rid and (.knownProof.itemId | type) == "string"
+        and (.updatedAt | type) == "string" and (.body | type) == "string")
+      | {id: .knownProof.itemId, title, text: .body, updated: .updatedAt, state, assigned: .knownProof.assignees}' <<<"$target")" || return 1
+    owners="$(jq -c '[.assigned[]? | select(.__typename == "User" and (.databaseId | type) == "number") | .databaseId | tostring]' <<<"$details")" || return 1
+  fi
+  if [[ "$category" == owned-security ]]; then
+    owner="$(review_owner_proof "$repo" "$repo_id" "$tracker" "$scope" "$owners")" || return 1
+    owner="$(jq -cn --arg owner "$owner" '$owner')"
+  fi
+  digest="$(jq -cS --argjson item "$details" --argjson owner "$owner" --arg category "$category" --arg url "$issue" \
+    '. + {item: $item, owner: $owner, category: $category, url: $url}' <<<"$pr_data" | known_sha256)" || return 1
+  jq -c --arg digest "$digest" --argjson details "$details" --argjson owner "$owner" \
+    'del(.repo, .repoId) + {digest: $digest, text: $details.text, owner: $owner}' <<<"$pr_data"
+}
+
+known_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | cut -d ' ' -f 1
+  else
+    shasum -a 256 | cut -d ' ' -f 1
+  fi
+}
+
+# Verify the target and compare its live evidence with the evidence recorded at the round barrier.
+known_entry_verdict() {
+  local repo="$1" pr="$2" head="$3" entry="$4" result
+  result="$(linked_issue_verdict "$repo" "$pr" "$(jq -r .source <<<"$entry")" "$(jq -r .url <<<"$entry")" \
+    "$(jq -r .category <<<"$entry")" "$head")"
+  if [[ "$result" == refused:* ]]; then
+    printf '%s\n' "$result"
+  elif ! jq -e --argjson entry "$entry" '.digest == $entry.digest and .head == $entry.head and .base == $entry.base and .owner == $entry.owner' <<<"$result" >/dev/null; then
+    echo 'refused:the issue content, owner, head, or baseline changed'
+  else
+    echo ok
+  fi
 }
 
 # reverify_known <state-file> <cap> <threshold> <current-round> — check every known point of the state again, with
@@ -1154,17 +1200,19 @@ linked_issue_verdict() {
 # one is named on stderr. <current-round> is true when the check belongs to the round of the state's last entry (an
 # evaluation), so that entry shows the new verdict; a new round computes its own. Rewrites <state-file>.
 reverify_known() {
-  local file="$1" cap="$2" threshold="$3" current="$4" repo pr id source url verdict ids='[]'
+  local file="$1" cap="$2" threshold="$3" current="$4" repo pr head entry id verdict ids='[]'
   jq -e '(.known_points // []) | length > 0' "$file" >/dev/null || return 0
   repo="$(jq -r '.repo' "$file")"
   pr="$(jq -r '.pr' "$file")"
-  while IFS=$'\t' read -r id source url; do
-    verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$url")"
+  head="$(jq -r '.revision' "$file")"
+  while IFS= read -r entry; do
+    id="$(jq -r '.finding_id' <<<"$entry")"
+    verdict="$(known_entry_verdict "$repo" "$pr" "$head" "$entry")"
     if [[ "$verdict" != ok ]]; then
       ids="$(jq -c --arg id "$id" '. + [$id]' <<<"$ids")"
       echo "$PROG: known point $id is open again: $(state_path_display "${verdict#refused:}")" >&2
     fi
-  done < <(jq -r '.known_points[] | [.finding_id, .source, .url] | @tsv' "$file")
+  done < <(jq -c '.known_points[]' "$file")
   [[ "$ids" != '[]' ]] || return 0
   jq -c -L "$HERE" --argjson ids "$ids" --argjson cap "$cap" --arg threshold "$threshold" --argjson current "$current" "$JQ_STATE"'
     reopen_known($ids) | settle($cap; $threshold; false) | if $current then refresh_round($cap; $threshold) else . end' \
@@ -1178,7 +1226,7 @@ reverify_known() {
 # invalid, a state path that `check_writable` refuses, and a state whose repository or pull request is not <pr-url> exit
 # 3, so a caller that cannot read the right state does not pass either.
 verify_known() {
-  local repo pr id source url verdict refused='[]' urls='[]' checked=0 want_repo want_pr
+  local repo pr head id entry url verdict refused='[]' urls='[]' checked=0 want_repo want_pr digest='' published count
   [[ "$2" =~ $GH_PR_RE ]] || die_usage '--verify needs --pr, the https URL of the pull request that the merge loaded'
   want_repo="${BASH_REMATCH[1]}"
   want_pr="${BASH_REMATCH[2]}"
@@ -1189,19 +1237,36 @@ verify_known() {
   pr="$(jq -r '.pr' "$TMP/state.json")"
   [[ "$(lower "$repo")" == "$(lower "$want_repo")" && "$pr" == "$want_pr" ]] \
     || fail 3 'the review state belongs to another pull request than the one being merged'
-  while IFS=$'\t' read -r id source url; do
+  head="$(jq -r '.revision' "$TMP/state.json")"
+  count="$(jq '(.known_points // []) | length' "$TMP/state.json")"
+  if [[ "$count" -gt 0 ]]; then
+    [[ -z "$3" || "$head" == "$3" ]] || fail 4 'the review decisions belong to another head'
+    digest="$(jq -cS '{repo, pr, revision, iteration, known_points: (.known_points | sort_by(.finding_id))}' "$TMP/state.json" | known_sha256)" \
+      || fail 4 'the review decisions could not be digested'
+  fi
+  if [[ -n "$4" ]]; then
+    # shellcheck source=known-record.sh
+    . "$HERE/known-record.sh"
+    published="$(known_record_read "$4")" || fail 4 'the review decision record is malformed'
+    [[ "$published" == "$digest" ]] || fail 4 'the review decision record differs from the state'
+    known_record_rows_match "$4" "$TMP/state.json" || fail 4 'the published decisions differ from the state'
+  fi
+  while IFS= read -r entry; do
+    id="$(jq -r '.finding_id' <<<"$entry")"
+    url="$(jq -r '.url' <<<"$entry")"
     checked=$((checked + 1))
     urls="$(jq -c --arg url "$url" '. + [$url]' <<<"$urls")"
-    verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$url")"
+    verdict="$(known_entry_verdict "$repo" "$pr" "$head" "$entry")"
     [[ "$verdict" == ok ]] \
       || refused="$(jq -c --arg id "$id" --arg url "$url" --arg reason "${verdict#refused:}" '. + [{finding_id: $id, url: $url, reason: $reason}]' <<<"$refused")"
-  done < <(jq -r '(.known_points // [])[] | [.finding_id, .source, .url] | @tsv' "$TMP/state.json")
-  jq -n -c --argjson checked "$checked" --argjson urls "$urls" --argjson refused "$refused" '{checked: $checked, urls: $urls, refused: $refused}'
+  done < <(jq -c '(.known_points // [])[]' "$TMP/state.json")
+  jq -n -c --argjson checked "$checked" --argjson urls "$urls" --argjson refused "$refused" --arg digest "$digest" \
+    '{checked: $checked, urls: $urls, refused: $refused, digest: $digest}'
   [[ "$refused" == '[]' ]] || fail 4 'a known point no longer holds; the merge is refused'
 }
 
 cmd_known() {
-  local state='' id='' source='' issue='' covers='' pr_url='' reopen=0 verify=0
+  local state='' id='' source='' issue='' covers='' pr_url='' match_head='' record='' snapshot='' inspect=0 reopen=0 verify=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --state) [[ $# -ge 2 ]] || die_usage '--state needs a value'; state="$2"; shift 2 ;;
@@ -1209,26 +1274,37 @@ cmd_known() {
     --source) [[ $# -ge 2 ]] || die_usage '--source needs a value'; source="$2"; shift 2 ;;
     --issue) [[ $# -ge 2 ]] || die_usage '--issue needs a value'; issue="$2"; shift 2 ;;
     --covers) [[ $# -ge 2 ]] || die_usage '--covers needs a value'; covers="$2"; shift 2 ;;
+    --snapshot) [[ $# -ge 2 ]] || die_usage '--snapshot needs a value'; snapshot="$2"; shift 2 ;;
+    --inspect) inspect=1; shift ;;
     --reopen) reopen=1; shift ;;
     --verify) verify=1; shift ;;
     --pr) [[ $# -ge 2 ]] || die_usage '--pr needs a value'; pr_url="$2"; shift 2 ;;
+    --head) [[ $# -ge 2 ]] || die_usage '--head needs a value'; match_head="$2"; shift 2 ;;
+    --record) [[ $# -ge 2 ]] || die_usage '--record needs a value'; record="$2"; shift 2 ;;
     *) die_usage "unknown argument: $(state_path_display "$1")" ;;
     esac
   done
   [[ -n "$state" ]] || die_usage '--state is required'
-  [[ "$verify" -eq 1 || -z "$pr_url" ]] || die_usage '--pr belongs to --verify'
+  [[ "$verify" -eq 1 || -z "$pr_url$match_head$record" ]] || die_usage '--pr, --head, and --record belong to --verify'
   if [[ "$verify" -eq 1 ]]; then
-    [[ -z "$id$source$issue$covers" && "$reopen" -eq 0 ]] || die_usage '--verify takes only --state and --pr'
-    verify_known "$state" "$pr_url"
+    [[ -z "$id$source$issue$covers$snapshot" && "$reopen" -eq 0 && "$inspect" -eq 0 ]] || die_usage '--verify takes --state, --pr, --head, and --record'
+    [[ -z "$record" || -n "$match_head" ]] || die_usage '--record requires --head'
+    [[ -z "$match_head" || "$match_head" =~ ^[0-9a-f]{40}$ ]] || die_usage '--head must be a full commit SHA'
+    verify_known "$state" "$pr_url" "$match_head" "$record"
     return
   fi
   [[ "$id" =~ ^r-[0-9a-f]{16}$ ]] || die_usage "--finding must be a finding_id, got: $(state_path_display "$id")"
   if [[ "$reopen" -eq 1 ]]; then
-    [[ -z "$source$issue$covers" ]] || die_usage '--reopen takes only --state and --finding'
+    [[ -z "$source$issue$covers$snapshot" && "$inspect" -eq 0 ]] || die_usage '--reopen takes only --state and --finding'
   else
     [[ "$source" =~ $GH_ISSUE_RE || "$source" =~ $JIRA_KEY_RE ]] || die_usage '--source must be the task: a GitHub issue URL or a JIRA key'
     [[ "$issue" =~ ^https://[^[:space:]]+$ && ${#issue} -le 500 ]] || die_usage '--issue must be the https URL of the linked issue'
-    [[ ${#covers} -ge 1 && ${#covers} -le 300 && ! "$covers" =~ [[:cntrl:]] ]] || die_usage '--covers must be one line of 1 to 300 characters'
+    if [[ "$inspect" -eq 1 ]]; then
+      [[ -z "$covers$snapshot" ]] || die_usage '--inspect does not take a decision'
+    else
+      [[ ${#covers} -ge 1 && ${#covers} -le 300 && ! "$covers" =~ [[:cntrl:]] ]] || die_usage '--covers must be one line of 1 to 300 characters'
+      [[ "$snapshot" =~ ^[a-f0-9]{64}$ ]] || die_usage '--snapshot needs the digest returned by --inspect'
+    fi
   fi
   check_writable "$state"
   new_tmp
@@ -1237,7 +1313,7 @@ cmd_known() {
   # the comparison of that round runs after its barrier, so a known point it marks settles the verdict again.
   local cap_round=false
   case "$(jq -r '"\(.status) \(.escalation_reason)"' "$TMP/state.json")" in
-  'escalated cap-reached-hard-blockers')
+  'escalated cap-reached-hard-blockers' | 'escalated security-rounds-spent')
     [[ "$reopen" -eq 0 ]] || fail 5 "the loop escalated; the state is closed"
     cap_round=true
     ;;
@@ -1262,17 +1338,33 @@ cmd_known() {
     # One record can merge several findings of one identity, and a comparison sees only the text of the first.
     jq -e '.reports == 1' <<<"$finding" >/dev/null \
       || fail 4 "finding $id merges more than one reported finding, or does not say how many; the state is unchanged"
-    local verdict
-    verdict="$(linked_issue_verdict "$(jq -r '.repo' "$TMP/state.json")" "$(jq -r '.pr' "$TMP/state.json")" "$source" "$issue")"
-    [[ "$verdict" == ok ]] \
+    local verdict category=linked repo pr head
+    if jq -e '.security' <<<"$finding" >/dev/null; then
+      jq -e '.severity != "critical"' <<<"$finding" >/dev/null || fail 4 'a Critical security finding always blocks'
+      category=owned-security
+    fi
+    repo="$(jq -r '.repo' "$TMP/state.json")"
+    pr="$(jq -r '.pr' "$TMP/state.json")"
+    head="$(jq -r '.revision' "$TMP/state.json")"
+    [[ "$head" =~ ^[0-9a-f]{40}$ ]] || fail 4 'the review round needs an exact head SHA'
+    verdict="$(linked_issue_verdict "$repo" "$pr" "$source" "$issue" "$category" "$head")"
+    [[ "$verdict" != refused:* ]] \
       || fail 4 "the link is not a trusted linked issue: $(state_path_display "${verdict#refused:}"); the state is unchanged"
+    if [[ "$inspect" -eq 1 ]]; then
+      jq -c --arg category "$category" '. + {category: $category}' <<<"$verdict"
+      return
+    fi
+    jq -e --arg snapshot "$snapshot" '.digest == $snapshot' <<<"$verdict" >/dev/null \
+      || fail 4 'the tracker evidence changed since inspection; compare the current text again'
     jq -c -L "$HERE" --arg id "$id" --arg source "$source" --arg url "$issue" --arg covers "$covers" \
+      --arg category "$category" --argjson proof "$verdict" \
       --argjson cap_round "$cap_round" --argjson cap "$cap" --arg threshold "$threshold" "$JQ_STATE"'
       (.findings[] | select(.finding_id == $id)) as $f
       | .transitions += [{iteration: .iteration, finding_id: $id, from: $f.status, to: "known", actor: "orchestrator"}]
       | .findings = (.findings | map(if .finding_id == $id then .status = "known" else . end))
       | .known_points = (((.known_points // []) | map(select(.finding_id != $id)))
-          + [{finding_id: $id, source: $source, url: $url, covers: $covers, marked: ($f | marked_view)}])
+          + [{finding_id: $id, source: $source, url: $url, covers: $covers, marked: ($f | marked_view),
+               category: $category, iteration: .iteration, digest: $proof.digest, head: $proof.head, base: $proof.base, owner: $proof.owner}])
       | (if $cap_round then .status = "open" | .escalation_reason = null else . end)
       | settle($cap; $threshold; false) | refresh_round($cap; $threshold)' "$TMP/state.json" >"$TMP/next.json"
   fi
@@ -1290,7 +1382,8 @@ self_test() {
 
   # The scripts are copied into a temporary tree, so the GitHub loader is a fixture and not the network.
   mkdir -p "$tmp/pkg/skills/_shared" "$tmp/pkg/skills/code-review-github/scripts" "$tmp/pkg/skills/code-review-jira/scripts"
-  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary}.sh "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$tmp/pkg/skills/_shared/"
+  cp "$HERE"/{review-state,state-path,extract-findings,cr-header,read-manifest,classify-risk,domain-vocabulary,review-owner-proof,known-record}.sh \
+    "$HERE/finding-defs.jq" "$HERE/review-trust.jq" "$HERE/known-tracker.jq" "$tmp/pkg/skills/_shared/"
   script="$tmp/pkg/skills/_shared/$PROG"
   cat >"$tmp/pkg/skills/code-review-github/scripts/load-issue.sh" <<EOF
 #!/usr/bin/env bash
@@ -1320,7 +1413,10 @@ EOF
     n="${ref##*#}"
     jq -n -c --arg nwo "$nwo" --argjson n "$n" --arg a "$a" --arg st "$st" --arg au "$au" \
       '{kind: "issue", number: $n, url: "https://github.com/\($nwo)/issues/\($n)", state: $st, author: $au,
-        authorAssociation: $a,
+        authorAssociation: $a, updatedAt: "2026-10-01T10:00:00Z", body: "The copied step is already reported.",
+        knownProof: {repositoryId: "765", itemId: ("fixture-" + ($n | tostring)), association: $a,
+          authorType: "User", bodyTrusted: true, assignees: [{__typename: "User", databaseId: 543}]},
+        linkedIssuesComplete: true,
         linkedIssues: [{relation: "sub-issue", number: 12, title: "Known", url: "https://github.com/acme/shop/issues/12", state: "OPEN"},
                        {relation: "mentioned", number: 13, title: null, url: "https://github.com/acme/shop/issues/13", state: null},
                        {relation: "mentioned", number: 14, title: null, url: "https://github.com/acme/shop/issues/14", state: null},
@@ -1340,10 +1436,12 @@ EOF
     local commits="$1"
     shift
     jq -n -c --argjson commits "$commits" --arg title "${PR_TITLE-feat(orders): add the export (#10)}" --arg body "${PR_BODY-Adds the export.}" \
-      --arg branch "${PR_BRANCH-feat/orders-export}" \
+      --arg branch "${PR_BRANCH-feat/ACME-1-orders-export}" --arg head "${FIXED_KNOWN_HEAD:-}" \
       '{kind: "pr", number: 7, url: "https://github.com/acme/shop/pull/7",
       repo: {owner: "acme", name: "shop", nameWithOwner: "acme/shop"}, comments: [],
-      title: $title, body: $body, headRefName: $branch,
+      title: $title, body: $body, headRefName: $branch, state: "OPEN", headRefOid: $head,
+      baseRefOid: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      knownProof: {repositoryId: "765", pullComplete: true},
       closingIssues: [$ARGS.positional[] | {url: .}], commits: $commits}' --args "$@" >"$tmp/pr.json"
   }
   # pr_page <count> <issue-url> — the loader payload of pull request acme/shop#7 with <count> commits that close nothing.
@@ -1366,12 +1464,33 @@ EOF
     fi
   }
 
+  # The fixtures compare the inspected version. Refusal cases pass an invalid digest if inspection already refused.
+  known_action() {
+    if [[ "${1:-}" != known ]]; then "$script" "$@"; return; fi
+    local part covers=0 supplied=0 skip=0 digest
+    local -a inspect_args=()
+    for part in "$@"; do
+      if [[ "$skip" -eq 1 ]]; then skip=0; continue; fi
+      case "$part" in
+      --covers) covers=1; skip=1 ;;
+      --snapshot) supplied=1 ;;
+      *) inspect_args+=("$part") ;;
+      esac
+    done
+    if [[ "$covers" -eq 1 && "$supplied" -eq 0 ]]; then
+      digest="$("$script" "${inspect_args[@]}" --inspect 2>/dev/null | jq -r .digest || true)"
+      "$script" "$@" --snapshot "${digest:-0000000000000000000000000000000000000000000000000000000000000000}"
+    else
+      "$script" "$@"
+    fi
+  }
+
   # run_case <label> <expected-exit> -- <args...>   (runs in the project repository; output in $tmp/out, $tmp/err)
   run_case() {
     local label="$1" expected="$2" rc=0
     shift 3
     set +e
-    (cd "$repo" && "$script" "$@") >"$tmp/out" 2>"$tmp/err"
+    (cd "$repo" && known_action "$@") >"$tmp/out" 2>"$tmp/err"
     rc=$?
     set -e
     if [[ "$rc" -eq "$expected" ]]; then
@@ -1407,7 +1526,7 @@ EOF
     shift 2
     {
       printf '# Code Review\n\n**Status:** needs-fix\n**Counts:** Critical 0 · Moderate 0\n'
-      printf '**Reviewed revision:** %s\n' "$(printf '%040d' "$n" | tr '0' 'a')"
+      printf '**Reviewed revision:** %s\n' "${FIXED_KNOWN_HEAD:-$(printf '%040d' "$n" | tr '0' 'a')}"
       printf '**Last updated:** 2026-10-0%sT10:00:00Z\n\n## Findings\n\n' "$n"
       [[ $# -eq 0 ]] || printf '%s\n\n' "$@"
     } >"$file"
@@ -1597,6 +1716,14 @@ EOF
   # The task is acme/shop#10. It links #12 (a trusted author), #13 (an untrusted author), and #14 (closed, otherwise
   # like #12). #15 is a trusted, open issue that the task does not link. JIRA task ACME-1 links ACME-2 and
   # names ACME-3, whose reporter is not the operator account. ACME-9 is trusted and open, and ACME-1 does not link it.
+  local FIXED_KNOWN_HEAD=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  local XDG_STATE_HOME="$tmp/state-home"
+  export XDG_STATE_HOME
+  mkdir -m 700 -p "$XDG_STATE_HOME/ai-olympus"
+  (umask 077; cat >"$XDG_STATE_HOME/ai-olympus/person-matches.json" <<'EOF'
+{"matches":[{"scope":{"repository":"acme/shop","repository_id":"765","site":"acme.atlassian.net","project":"ACME"},"github":{"id":"543"},"jira":{"account_id":"acct-human"},"confirmed_at":"2026-10-01T10:00:00Z"}]}
+EOF
+  )
   gh_issue 10 OWNER OPEN maintainer
   gh_issue 12 OWNER OPEN maintainer
   gh_issue 13 NONE OPEN stranger
@@ -1615,6 +1742,14 @@ EOF
   jq -n -c '{key: "ACME-2", url: "https://acme.atlassian.net/browse/ACME-2", resolution: null, descriptionTrusted: true}' >"$tmp/jira-ACME-2.json"
   jq -n -c '{key: "ACME-3", url: "https://acme.atlassian.net/browse/ACME-3", resolution: null, descriptionTrusted: false}' >"$tmp/jira-ACME-3.json"
   jq -n -c '{key: "ACME-9", url: "https://acme.atlassian.net/browse/ACME-9", resolution: null, descriptionTrusted: true}' >"$tmp/jira-ACME-9.json"
+  local jira_fixture
+  for jira_fixture in "$tmp"/jira-*.json; do
+    jq -c '. + {sessionSite: "acme.atlassian.net", statusCategory: "new", issueId: "101", summary: "The copied step",
+      updated: "2026-10-01T10:00:00Z", descriptionAssignmentText: "The copied step is already reported.",
+      assigneeType: "atlassian", assigneeActive: true, assigneeAccountId: "acct-human", mentionedKeysComplete: true}' \
+      "$jira_fixture" >"$jira_fixture.tmp"
+    mv "$jira_fixture.tmp" "$jira_fixture"
+  done
   local task=https://github.com/acme/shop/issues/10 known_issue=https://github.com/acme/shop/issues/12
   # The pull request closes the task, and its one commit names the task with a closing keyword.
   local closes_task='[{"oid":"a1","messageHeadline":"feat(orders): add the export (#10)","messageBody":"Closes #10"}]'
@@ -1623,14 +1758,14 @@ EOF
   (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
   report "$tmp/n1.md" 1 "$F_STRUCT" "$F_SQL"
   (cd "$repo" && "$script" record --state "$S" --input "$tmp/n1.md" >/dev/null)
-  # A security finding that a trusted, open linked issue already reports is a known point too (owner decision of
-  # 2026-11-25): the trust of the link decides, never the kind of the finding. A finding no linked issue reports blocks.
+  # A confirmed human owner can own a linked non-Critical security finding. Critical always blocks.
   local SURF=".claude/run/review-state-surface.json" sec_id spl_id kiss
   raised() { printf '%s\n' "$2" | awk -v o="$1" '/^- \*\*Provenance:\*\*/ { print "- **Raised by:** " o } { print }'; }
-  local F_SPL
+  local F_SPL F_OWNED
   F_SPL="$(raised splinter "$(finding Critical 'Merge gate reads a stale head' 'src/Gate/Spl.php:3' "$STRUCT" 'rule-violation — the head is read once')")"
+  F_OWNED="$(finding Moderate 'Raw query' 'app/Http/Orders.php:42' "$SQL" 'synthetic evidence')"
   (cd "$repo" && "$script" init --state "$SURF" --repo acme/shop --pr 7 >/dev/null)
-  report "$tmp/n0.md" 1 "$F_SQL" "$F_SPL"
+  report "$tmp/n0.md" 1 "$F_OWNED" "$F_SPL"
   (cd "$repo" && "$script" record --state "$SURF" --input "$tmp/n0.md" >/dev/null)
   sec_id="$(jq -r '.findings[] | select(.file == "app/Http/Orders.php") | .finding_id' "$repo/$SURF")"
   spl_id="$(jq -r '.findings[] | select(.file == "src/Gate/Spl.php") | .finding_id' "$repo/$SURF")"
@@ -1643,16 +1778,24 @@ EOF
     run_case "a security finding is no known point from the untrusted link ${kiss#https://github.com/}" 4 -- known --state "$SURF" --finding "$sec_id" --source "$task" --issue "$kiss" --covers 'The issue describes it.'
   done
   check 'every refused link leaves the state unchanged' "$(cmp -s "$tmp/surface-before" "$repo/$SURF" && echo 0 || echo 1)"
-  run_case 'a security finding that a trusted open linked issue reports is marked known' 0 -- known --state "$SURF" --finding "$sec_id" --source "$task" --issue "$known_issue" --covers 'The issue describes it.'
+  run_case 'a Critical security finding stays open even with a confirmed owner' 4 -- known --state "$SURF" --finding "$spl_id" --source "$task" --issue "$known_issue" --covers 'x'
+  local target_fixture="$tmp/gh-issue-acme-shop-12.json"
+  cp "$target_fixture" "$tmp/active-owner"
+  jq -c '.knownProof.assignees = []' "$tmp/active-owner" >"$target_fixture"
+  run_case 'an unassigned security issue does not qualify' 4 -- known --state "$SURF" --finding "$sec_id" --source "$task" --issue "$known_issue" --covers 'x'
+  jq -c '.knownProof.assignees[0].__typename = "Bot"' "$tmp/active-owner" >"$target_fixture"
+  run_case 'an assigned bot does not qualify' 4 -- known --state "$SURF" --finding "$sec_id" --source "$task" --issue "$known_issue" --covers 'x'
+  cp "$tmp/active-owner" "$target_fixture"
+  run_case 'a security finding with a confirmed current human owner is marked known' 0 -- known --state "$SURF" --finding "$sec_id" --source "$task" --issue "$known_issue" --covers 'The issue describes it.'
   check 'the security known point leaves the counts, and the security finding no linked issue reports still blocks' \
     "$(q --arg s "$spl_id" '.counts.known == 1 and .counts.remaining_blocking == 1 and (.blocking | length) == 1 and .blocking[0].finding_id == $s and .blocking[0].security == true')"
   check 'the state keeps the security flag of the marked finding' "$(jq -e '.known_points[0].marked.security == true' "$repo/$SURF" >/dev/null && echo 0 || echo 1)"
   run_case 'the state with a security known point is valid' 0 -- evaluate --state "$SURF"
   # The same security finding reported again, unchanged, stays known; reported changed, it is a finding again.
-  report "$tmp/n0b.md" 2 "$F_SQL" "$F_SPL"
+  report "$tmp/n0b.md" 2 "$F_OWNED" "$F_SPL"
   run_case 'the security known point is reported again unchanged' 0 -- record --state "$SURF" --input "$tmp/n0b.md" --changed-files "$tmp/changed-both"
   check 'an unchanged report keeps the security known point known' "$(jq -e --arg id "$sec_id" '(.findings[] | select(.finding_id == $id) | .status) == "known" and [.known_points[].finding_id] == [$id]' "$repo/$SURF" >/dev/null && echo 0 || echo 1)"
-  report "$tmp/n0c.md" 3 "$(finding Critical 'Raw query' 'app/Http/Orders.php:42' "$SQL" 'exploit-path — sort=1;DROP now also reaches the export')" "$F_SPL"
+  report "$tmp/n0c.md" 3 "$(finding Moderate 'Raw query' 'app/Http/Orders.php:42' "$SQL" 'exploit-path — sort=1;DROP now also reaches the export')" "$F_SPL"
   run_case 'the security known point is reported again wider than it was marked' 0 -- record --state "$SURF" --input "$tmp/n0c.md" --changed-files "$tmp/changed-both"
   check 'a report that differs from the marked finding opens it as a blocking security finding' \
     "$(jq -e --arg id "$sec_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed" and ((.known_points // []) == [])' "$repo/$SURF" >/dev/null && echo 0 || echo 1)"
@@ -1663,7 +1806,7 @@ EOF
   run_case 'a finding the linked issue reports is marked known' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.'
   check 'a known point is not blocking and is counted on its own' "$(q '.counts.known == 1 and .counts.remaining_blocking == 1 and (.blocking | length) == 1 and .blocking[0].file == "app/Http/Orders.php"')"
   check 'the state keeps the task, the issue, the sentence, and an orchestrator transition' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "known"
-      and (.known_points | map(del(.marked))) == [{finding_id: $id, source: "https://github.com/acme/shop/issues/10", url: "https://github.com/acme/shop/issues/12",
+      and (.known_points | map({finding_id, source, url, covers})) == [{finding_id: $id, source: "https://github.com/acme/shop/issues/10", url: "https://github.com/acme/shop/issues/12",
         covers: "The issue describes the copied step."}]
       and .known_points[0].marked == {severity: "medium", security: false, file: "src/Foo/Bar.php", line: 10, description: "Copied step",
         impact: "Copied step impact.", evidence: "rule-violation — the step is copied"}
@@ -1699,7 +1842,7 @@ EOF
     IFS='|' read -r label src iss <<<"$case_args"
     run_case "a known point is refused for $label" 4 -- known --state "$S" --finding "$struct_id" --source "$src" --issue "$iss" --covers 'x'
     # A row that got through reopens, so the next row starts from the same open finding.
-    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+    (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   done
   check 'the refused finding stays open' "$(jq -e --arg id "$struct_id" '(.findings[] | select(.finding_id == $id) | .status) == "confirmed"' "$repo/$S" >/dev/null && echo 0 || echo 1)"
   # An issue that the pull request closes makes no known point: the merge closes it. The pull request is read from the
@@ -1719,13 +1862,13 @@ EOF
     cp "$repo/$S" "$tmp/pr-before"
     run_case "a known point is refused for $label" 4 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
     check "the state is unchanged for $label" "$(cmp -s "$repo/$S" "$tmp/pr-before" && echo 0 || echo 1)"
-    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+    (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   done
   # A closing keyword for another number, a word that only ends in a keyword, and a reference without a keyword close
   # nothing, so the link is a known point.
   pr_closes '[{"oid":"c8","messageHeadline":"fix: the total (#10)","messageBody":"Closes #123.\n\nPrefix #12.\n\nSee #12."}]' "$task"
   run_case 'a known point is marked when no commit closes the linked issue' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
-  (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+  (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   # known_row <accept|refuse> <label> <pr title> <commit headline> <commit body> <pr body> [branch] — the pull request
   # closes the task and carries this title, one commit with this headline and body, this body, and this branch name; `known` for the linked issue
   # (#12) must refuse it (exit 4, state unchanged) or mark it (exit 0).
@@ -1737,7 +1880,7 @@ EOF
     cp "$repo/$S" "$tmp/row-before"
     run_case "a known point is $([[ "$want" == accept ]] && echo marked || echo refused) for $label" "$rc" -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
     [[ "$rc" -eq 0 ]] || check "the state is unchanged for $label" "$(cmp -s "$repo/$S" "$tmp/row-before" && echo 0 || echo 1)"
-    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+    (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   }
   # The pull request title reaches the merge commit and the squash commit, and the body the squash commit.
   known_row refuse 'a pull request title that closes the linked issue' 'fix(orders): the total, fixes #12' 'fix: z' '' ''
@@ -1823,7 +1966,7 @@ EOF
   check 'the state is unchanged for a commit list of 100 entries' "$(cmp -s "$repo/$S" "$tmp/row-before" && echo 0 || echo 1)"
   pr_page 99 "$task"
   run_case 'a known point is marked for a commit list of 99 entries' 0 -- known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'x'
-  (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
+  (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null 2>&1) || true
   # A payload without a branch name is not the pull request of the state.
   pr_closes "$closes_task" "$task"
   jq -c 'del(.headRefName)' "$tmp/pr.json" >"$tmp/pr-cut" && mv "$tmp/pr-cut" "$tmp/pr.json"
@@ -1965,8 +2108,8 @@ EOF
     rm -f "$repo/$S"
     (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
     (cd "$repo" && "$script" record --state "$S" --input "$tmp/p1.md" >/dev/null)
-    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.' >/dev/null)
-    (cd "$repo" && "$script" known --state "$S" --finding "$mod2_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the long method.' >/dev/null)
+    (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the copied step.' >/dev/null)
+    (cd "$repo" && known_action known --state "$S" --finding "$mod2_id" --source "$task" --issue "$known_issue" --covers 'The issue describes the long method.' >/dev/null)
   }
   # shellcheck disable=SC2329  # invoked through the eval of the table below
   unlink_task() { jq -c '.linkedIssues = []' "$tmp/gh-issue-acme-shop-10.json" >"$tmp/unlinked" && mv "$tmp/unlinked" "$tmp/gh-issue-acme-shop-10.json"; }
@@ -2004,8 +2147,8 @@ EOF
   run_case 'an evaluation with verified known points changes nothing' 0 -- evaluate --state "$S"
   check 'the verified points stay known' "$([[ "$(pair_status)" == 'known known' ]] && echo 0 || echo 1)"
   # A JIRA known point is checked again the same way.
-  (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --reopen >/dev/null)
-  (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --source ACME-1 --issue https://acme.atlassian.net/browse/ACME-2 --covers 'ACME-2 describes the copied step.' >/dev/null)
+  (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --reopen >/dev/null)
+  (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --source ACME-1 --issue https://acme.atlassian.net/browse/ACME-2 --covers 'ACME-2 describes the copied step.' >/dev/null)
   jq -c '.resolution = "Done"' "$tmp/jira-ACME-2.json" >"$tmp/jira-done" && mv "$tmp/jira-done" "$tmp/jira-ACME-2.json"
   run_case 'an evaluation checks a JIRA known point again' 0 -- evaluate --state "$S"
   check 'a JIRA known point whose issue is resolved is open again' "$([[ "$(pair_status)" == 'confirmed known' ]] && echo 0 || echo 1)"
@@ -2024,7 +2167,7 @@ EOF
     (cd "$repo" && "$script" init --state "$S" --repo acme/shop --pr 7 >/dev/null)
     report "$tmp/m1.md" 1 "$F_STRUCT"
     (cd "$repo" && "$script" record --state "$S" --input "$tmp/m1.md" >/dev/null)
-    (cd "$repo" && "$script" known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes it.' >/dev/null)
+    (cd "$repo" && known_action known --state "$S" --finding "$struct_id" --source "$task" --issue "$known_issue" --covers 'The issue describes it.' >/dev/null)
   }
   marked_alone
   report "$tmp/m2.md" 2 "$F_STRUCT" "$F_STRUCT_OTHER"
@@ -2069,8 +2212,16 @@ EOF
   run_case 'a known point with a malformed marked finding makes the state invalid' 3 -- evaluate --state "$S"
   jq -c 'del(.known_points[].marked)' "$tmp/marked-good" >"$repo/$S"
   report "$tmp/m8.md" 2 "$F_STRUCT"
-  run_case 'a known point that an older version marked is recorded' 0 -- record --state "$S" --input "$tmp/m8.md" --changed-files "$tmp/changed-both"
-  check 'a known point with no marked finding opens on the next report of its identity' "$(q '.verdict == "continue" and .counts.known == 0 and .counts.remaining_blocking == 1')"
+  run_case 'a legacy point with no decision evidence cannot be trusted' 3 -- record --state "$S" --input "$tmp/m8.md" --changed-files "$tmp/changed-both"
+  cp "$tmp/marked-good" "$repo/$S"
+  run_case 'a changed tested head invalidates the merge decision' 4 -- known --state "$S" --verify --pr "$pr7" --head bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  local changed_snapshot
+  changed_snapshot="$(cd "$repo" && "$script" known --state "$S" --verify --pr "$pr7" | jq -r .digest)"
+  printf '**Review decisions:** %s\n\n## Known points\n\n1. A copied step\n   **Linked issue:** %s\n' "$changed_snapshot" "$known_issue" >"$tmp/known-record.md"
+  run_case 'a fresh record agrees with the full state' 0 -- known --state "$S" --verify --pr "$pr7" --head "$FIXED_KNOWN_HEAD" --record "$tmp/known-record.md"
+  printf '\n2. **Security point** — **Linked issue:** %s\n' "$known_issue" >>"$tmp/known-record.md"
+  run_case 'a hand-added decision with the same URL is refused' 4 -- known --state "$S" --verify --pr "$pr7" --head "$FIXED_KNOWN_HEAD" --record "$tmp/known-record.md"
+  unset FIXED_KNOWN_HEAD
 
   # --- the cap and the threshold: default branch only, range-checked ---------------------------------------
   manifest '{ "review": { "max-iterations": 2, "blocking-threshold": "medium" } }'
