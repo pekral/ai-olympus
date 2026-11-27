@@ -46,8 +46,17 @@ function jiraLegacyPreviewAdf(string $text, bool $quoted = false): array
         $marker = ['type' => 'text', 'text' => 'See details', 'marks' => [['type' => 'link', 'attrs' => ['href' => $text]]]];
     }
 
-    return ['type' => 'doc', 'version' => 1, 'content' => [['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'],
-        'content' => [['type' => 'paragraph', 'content' => [$marker]]]]]];
+    return ['content' => ,
+        'type' => 'doc',
+        'version' => 1,
+        [
+            ['attrs' => ['title' => 'Technical marker for AI agents'],
+                'content' => ,
+                'type' => 'expand',
+                [['type' => 'paragraph', 'content' => [$marker]]],
+            ],
+        ],
+    ];
 }
 
 /**
@@ -78,6 +87,7 @@ SH);
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
     file_put_contents($dir . '/audit', '');
     $arguments = ['--create', '--screenshots', $dir . '/unused', '--slug', 'preview'];
+
     if ($prior !== null) {
         file_put_contents($dir . '/prior', json_encode($prior, JSON_THROW_ON_ERROR));
         $arguments = ['--comment-id', '17', '--previous-adf', $dir . '/prior'];
@@ -87,15 +97,21 @@ SH);
     $body = ($malformed ? 'Broken byline' : "\n🤖 AI Olympus · Modelový výsledek.") . "\n{expand:✅ Findings from the code review}\n"
         . "* Save !example.png|thumbnail!\n{screenshot:f-0123456789abcdef:head}\n{expand}";
     $process = new Process([$entry, '--summary', ...$arguments, 'TEST-1', '-'], $dir, [
-        ...$environment, 'REAL_JQ' => trim($jq->getOutput()), 'FIXTURE' => $dir, 'AUDIT_TRAIL_FILE' => $dir . '/audit', 'AUDIT_TRAIL_ROLE' => 'april',
+        ...$environment,
+        'AUDIT_TRAIL_FILE' => $dir . '/audit',
+        'AUDIT_TRAIL_ROLE' => 'april',
+        'FIXTURE' => $dir,
         'PATH' => $dir . PATH_SEPARATOR . (string) getenv('PATH'),
+        'REAL_JQ' => trim($jq->getOutput()),
     ], $body);
+
     try {
         $process->run();
         expect(is_file($dir . '/leaked'))->toBeFalse();
 
         return [$process->getExitCode(), $process->getErrorOutput(), (string) file_get_contents($dir . '/calls'),
-            is_file($dir . '/sent') ? (string) file_get_contents($dir . '/sent') : ''];
+            is_file($dir . '/sent') ? (string) file_get_contents($dir . '/sent') : '',
+        ];
     } finally {
         (new Process(['rm', '-rf', $dir]))->mustRun();
     }
@@ -127,7 +143,11 @@ test('migration requires the original exact marker, account and unchanged body',
     $body = jiraLegacyPreviewAdf($marker, $case === 'quoted');
     $prior = $case === 'edited' ? jiraLegacyPreviewAdf($marker . ',cafefeed') : $body;
     $author = ['accountId' => match ($case) {'another account' => 'stranger', 'missing account' => '', default => 'qa'}, 'emailAddress' => $case === 'another email' ? 'other@example.test' : 'qa@example.test'];
-    [$rc, , $calls] = jiraPreviewPublish(jiraSummaryPage([['id' => '17', 'author' => $author, 'body' => $body]]), $prior, ['NO_ACTOR' => $case === 'missing authenticated account' ? '1' : '0']);
+    [$rc, , $calls] = jiraPreviewPublish(
+        jiraSummaryPage([['id' => '17', 'author' => $author, 'body' => $body]]),
+        $prior,
+        ['NO_ACTOR' => $case === 'missing authenticated account' ? '1' : '0'],
+    );
 
     expect($rc)->toBe($case === 'owned' ? 0 : 3)
         ->and(substr_count($calls, 'comment update'))->toBe($case === 'owned' ? 1 : 0)

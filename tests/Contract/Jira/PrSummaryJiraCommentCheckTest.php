@@ -159,7 +159,11 @@ function jiraSummaryVerdict(): string
 
 function jiraSummaryWithCriteria(): string
 {
-    return str_replace('# ℹ️ Zadání nemá výslovná kritéria.', '# ⚠️ Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?', jiraSummaryWithoutCriteria());
+    return str_replace(
+        '# ℹ️ Zadání nemá výslovná kritéria.',
+        '# ⚠️ Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
+        jiraSummaryWithoutCriteria(),
+    );
 }
 
 function jiraSummaryForTwoPullRequests(): string
@@ -203,19 +207,26 @@ test('a general pull request link is refused inside the impact summary', functio
 })->with(['', '/files']);
 
 test('an explicitly nonblocking question uses the pending title', function (): void {
-    $source = str_replace(['{expand:❌ Nálezy z kontroly kódu}', '* *(bug):* '],
-        ['{expand:⚠️ Nálezy z kontroly kódu}', '* *(bug):* ⚠️ '], jiraSummaryWithoutCriteria());
+    $source = str_replace(
+        ['{expand:❌ Nálezy z kontroly kódu}', '* *(bug):* '],
+        ['{expand:⚠️ Nálezy z kontroly kódu}', '* *(bug):* ⚠️ '],
+        jiraSummaryWithoutCriteria(),
+    );
 
     expect(runJiraSummaryCheck($source, 'none')->getExitCode())->toBe(0);
 });
 
 test('a shared blocker reaches its group without duplicating the finding', function (): void {
-    $source = str_replace("h2. PR #11", "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
+    $source = str_replace('h2. PR #11', "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
         . jiraSummaryCodeLink() . "\nPR #12 — {{Synchronizace}} čeká na samostatnou kontrolu.\n{expand}\nh2. PR #11", jiraSummaryForTwoPullRequests());
     $source = str_replace('{expand:✅ Nálezy z kontroly kódu}', '{expand:❌ Nálezy z kontroly kódu}', $source);
 
     expect(runJiraSummaryCheck($source, 'present')->getExitCode())->toBe(0)
-        ->and(runJiraSummaryCheck(str_replace('PR #12 — {{Synchronizace}} čeká', 'PR #999 — {{Synchronizace}} čeká', $source), 'present')->getExitCode())->toBe(2);
+        ->and(
+            runJiraSummaryCheck(str_replace('PR #12 — {{Synchronizace}} čeká', 'PR #999 — {{Synchronizace}} čeká', $source), 'present')->getExitCode(),
+        )->toBe(
+            2,
+        );
 });
 
 test('a JIRA summary in the shape of the template passes the check', function (string $source, string $criteria): void {
@@ -538,7 +549,9 @@ test(
 
 test('a file link at a commit other than the reviewed one is refused', function (string $revision): void {
     $href = jiraSummaryBlobLink(revision: $revision);
-    $source = jiraSummaryWithoutCriteria(['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . $href . ']']);
+    $source = jiraSummaryWithoutCriteria(
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . $href . ']'],
+    );
 
     $process = runJiraSummaryCheck($source, 'none');
 
@@ -666,7 +679,9 @@ test(
 ]);
 
 test('a section outside a collapsed block is refused', function (): void {
-    $source = jiraSummaryWithoutCriteria(['{expand:ℹ️ Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"]);
+    $source = jiraSummaryWithoutCriteria(
+        ['{expand:ℹ️ Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"],
+    );
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
@@ -752,10 +767,10 @@ test('technical footers and duplicate navigation are refused even after the last
 
     expect($process->getExitCode())->toBe(2);
 })->with([
-    'technical marker' => [jiraSummaryMarkerBlock()],
     'automatic footer' => ["----\n_Tento komentář je generovaný automaticky._"],
     'issue self-link' => ['[ACME-6720|https://example.atlassian.net/browse/ACME-6720]'],
     'standalone pull request' => ['[PR #27625|https://github.com/acme/app/pull/27625]'],
+    'technical marker' => [jiraSummaryMarkerBlock()],
 ]);
 
 test('the check refuses a wrong call and a missing source file', function (string $arguments, string $error): void {

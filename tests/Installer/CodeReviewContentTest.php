@@ -85,8 +85,12 @@ test('the JIRA template keeps only actionable requirements and one combined summ
     $jiraTemplate = (string) file_get_contents($packageDir . '/skills/pr-summary/templates/pr-summary-jira.md');
     $body = jiraPublishedBody($jiraTemplate);
 
-    expect($body)->toContain('{expand:⚠️ Acceptance criteria}', '{expand:✅ Findings from the code review}',
-        '{expand:⚠️ Test scenarios}', '{expand:ℹ️ What changed and what it affects}');
+    expect($body)->toContain(
+        '{expand:⚠️ Acceptance criteria}',
+        '{expand:✅ Findings from the code review}',
+        '{expand:⚠️ Test scenarios}',
+        '{expand:ℹ️ What changed and what it affects}',
+    );
     expect($body)->not->toContain('{agent-marker}', 'PR_URL', 'ISSUE_URL', 'Technical marker for AI agents');
 
     foreach (['github', 'bugsnag'] as $target) {
