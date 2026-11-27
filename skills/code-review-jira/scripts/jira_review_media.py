@@ -37,13 +37,14 @@ def checked_item(item, name, size, actor):
             and item["author"]["accountId"] == actor, "Jira attachment metadata does not match the approved capture")
 
 
-def upload(site, key, header, name, data):
+def upload(site, issue_id, header, name, data):
+    require(isinstance(issue_id, str) and re.fullmatch(r"[1-9][0-9]*", issue_id), "invalid Jira issue ID")
     boundary = secrets.token_hex(24)
     part = ('--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="' + name
             + '"\r\nContent-Type: image/png\r\n\r\n').encode() + data + ('\r\n--' + boundary + '--\r\n').encode()
     connection = http.client.HTTPSConnection(site, timeout=30)
     try:
-        connection.request("POST", "/rest/api/3/issue/" + key + "/attachments", body=part, headers={
+        connection.request("POST", "/rest/api/3/issue/" + issue_id + "/attachments", body=part, headers={
             "Authorization": header, "Content-Type": "multipart/form-data; boundary=" + boundary,
             "X-Atlassian-Token": "no-check", "Accept": "application/json",
         })
@@ -130,7 +131,7 @@ def confirmed_file(key, slug, name, data, expected, binding, issue_id, *, sessio
                 check_api_actor(site, actor, header)
                 durable_intent(file, ledger, target, "upload intent; no automatic retry")
                 attempted = True
-                created = upload(site, key, header, name, data)
+                created = upload(site, issue_id, header, name, data)
                 checked_item(created, name, len(data), actor)
                 audit_record(file, target, 0, "upload acknowledged, attachment ID " + str(created["id"]))
                 items = inventory()

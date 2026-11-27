@@ -468,7 +468,22 @@ with tempfile.TemporaryDirectory() as temp:
                     raise AssertionError('unconfirmed upload succeeded')
                 except media.UncertainWrite:
                     pass
-        assert upload.call_count == 1
+        upload.assert_called_once_with('example.atlassian.net', '123', 'fixture', 'approved.png', data)
+
+with patch.object(media.http.client, 'HTTPSConnection') as connection:
+    for invalid in ('TEST-1', '', '0', None):
+        try:
+            media.upload('example.atlassian.net', invalid, 'fixture', 'approved.png', b'crop')
+            raise AssertionError('invalid issue ID reached the transport')
+        except Unconfirmed:
+            pass
+    connection.assert_not_called()
+    connection.return_value.request.side_effect = TimeoutError
+    try:
+        media.upload('example.atlassian.net', '123', 'fixture', 'approved.png', b'crop')
+    except TimeoutError:
+        pass
+    assert connection.return_value.request.call_args.args == ('POST', '/rest/api/3/issue/123/attachments')
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();
