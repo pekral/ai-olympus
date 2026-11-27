@@ -153,7 +153,9 @@ test('every skill that reads the comments of a JIRA issue names the fetch trigge
         'verify-merge-readiness/SKILL.md',
     ];
 
-    expect(packageSource('skills/code-review-jira/SKILL.md'))->toContain('For an acli-only run, read its description, comments and attachment inventory through acli');
+    expect(packageSource('skills/code-review-jira/SKILL.md'))->toContain(
+        'For an acli-only run, read its description, comments and attachment inventory through acli',
+    );
 
     foreach ($files as $file) {
         $content = (string) preg_replace('/\s+/', ' ', (string) file_get_contents($packageDir . '/skills/' . $file));
