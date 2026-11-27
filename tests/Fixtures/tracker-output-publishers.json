@@ -67,10 +67,12 @@
         "skills/composer-update-pr/templates/pull-request-body.md"
     ],
     "skills/create-issue/SKILL.md": [
-        "skills/create-issue/templates/issue-body.md"
+        "skills/create-issue/templates/issue-body.md",
+        "skills/create-issues-from-text/templates/issue-structure-jira.md"
     ],
     "skills/create-issues-from-text/SKILL.md": [
-        "skills/create-issues-from-text/templates/issue-structure.md"
+        "skills/create-issues-from-text/templates/issue-structure.md",
+        "skills/create-issues-from-text/templates/issue-structure-jira.md"
     ],
     "skills/github-issue-triage/SKILL.md": [
         "skills/github-issue-triage/templates/needs-info-comment.md"
@@ -83,6 +85,11 @@
     ],
     "skills/github-release-roadmap/references/github-cli-workflow.md": [
         "skills/create-issues-from-text/templates/issue-structure.md"
+    ],
+    "skills/merge-review-comments/SKILL.md": [
+        "skills/merge-review-comments/templates/merged-review-comment-github.md",
+        "skills/merge-review-comments/templates/merged-review-comment-jira.md",
+        "skills/merge-review-comments/templates/merged-review-comment-bugsnag.md"
     ],
     "skills/publish-github-release/SKILL.md": [
         "skills/resolve-issue/templates/pull-request-body.md"

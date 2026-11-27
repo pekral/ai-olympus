@@ -87,7 +87,7 @@ test('the JIRA template keeps only actionable requirements and one combined summ
 
     expect($body)->toContain('only for explicit requirements that still need a change or an answer')
         ->toContain('Omit satisfied requirements, positive verdicts, and completion counts.')
-        ->toContain('h2. TL;DR');
+        ->toContain('{expand:What changed and what it affects}');
     expect($body)->not->toContain('h2. What changed');
     expect($body)->not->toContain('h2. Impact after deployment');
     expect($body)->not->toContain('h2. How to test');
@@ -306,7 +306,7 @@ test('JIRA non-technical CR summary delegates to the pr-summary ADF publishing f
 
     // The intermediate template retells the review instead of listing test steps. The helper turns
     // its supported source constructs into ADF before JIRA receives the body.
-    expect($template)->toContain('h2. Review findings');
+    expect($template)->toContain('{expand:Findings from the code review}');
     expect(jiraPublishedBody($template))->not->toContain('h2. How to test');
     expect($template)->not->toContain('h2. Summary of changes');
     expect($template)->not->toContain('## Summary of changes');
@@ -2159,8 +2159,8 @@ test('pr-summary skill reads TL;DR — a scannable contract, not a wall of prose
     expect($prSummary)->toContain('**GitHub and Bugsnag render the same two sections** → `What changed`, then `How to test`.');
     expect($prSummary)->toContain('**`What changed`** → `Problem`, `Cause`, `Result`, `What I fixed`, plus two conditional fields.');
     expect($prSummary)->toContain(
-        '**JIRA renders one shape on every run** → `Acceptance criteria` (only for requirements that still need action), '
-        . '`Review findings`, `TL;DR`, with no status line above them.',
+        '**JIRA renders one shape on every run** → a deploy verdict paragraph, then `Acceptance criteria` '
+        . '(only for requirements that still need action), `Review findings`, `What changed and what it affects`.',
     );
     expect($prSummary)->toContain('Only the delivery format differs per target: GitHub Markdown, JIRA ADF, Bugsnag plain text.');
 
@@ -4433,18 +4433,12 @@ test('the JIRA CR wrapper keeps technical findings off the ticket (issue #118)',
     expect($jira)->toContain('### The split, verified per run');
     expect($jira)->toContain('A path that would put technical content on the ticket is a defect in that path, never an exception to grant here.');
 
-    // The publish step the wrapper follows and the mirror description name the deployment impact too.
     expect($jira)->toContain(
-        'one `TL;DR` paragraph combining observable changes and deployment impact from that comment\'s `## Affected behaviour outside the diff`, '
-        . 'then the closing links line and the footer',
+        'It retells the findings of the GitHub PR comment this run just published, and that comment\'s `## Affected behaviour outside the diff`.',
     );
-    expect($jira)->toContain('(*Acceptance criteria*, *Review findings*, *TL;DR*, with only requirements that still need action');
-
-    // The ticket's own sections, restated where this wrapper describes its output.
-    expect($jira)->toContain(
-        'Its sections are `Acceptance criteria` (only for requirements that still need action), `Review findings`, '
-        . '`TL;DR`, with no status line and above a footer',
-    );
+    expect($jira)->toContain('while the ticket renders the JIRA one (`@skills/pr-summary/references/jira-shape.md`).');
+    expect($jira)->toContain('Its shape is the one `@skills/pr-summary/references/jira-shape.md` owns;');
+    expect($jira)->not->toContain('no status line');
 });
 
 test('a standalone leonardo review on a JIRA source publishes its findings to the pull request (issue #118)', function (): void {
@@ -4558,10 +4552,38 @@ test('an unmet acceptance criterion states why and mentions the author of the ch
     $general = (string) file_get_contents($packageDir . '/rules/code-review/general.md');
     $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
-    expect($general)->toContain('- **First exception: an unmet acceptance criterion.**');
+    expect($general)->toContain('- **First exception: an unmet acceptance criterion on GitHub and Bugsnag.**');
     expect($summary)->toContain('### An unmet criterion addresses the author');
-    expect($summary)->toContain('JIRA: `[~accountid:<id>]`');
-    expect($summary)->toContain('- **Never guess an account.**');
+    expect($summary)->toContain('2. Bugsnag: the author\'s name as plain text');
+    expect($summary)->not->toContain('whose name or e-mail matches the pull request\'s author');
+});
+
+test('a JIRA author mention takes the account only from a confirmed person match', function (): void {
+    $shape = (string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/jira-shape.md');
+
+    expect($shape)->toContain('The account ID comes only from a confirmed person match')
+        ->and($shape)->toContain('`skills/code-review-jira/scripts/person-match.sh lookup --pr <PR-URL> --jira-key <KEY>`')
+        ->and($shape)->toContain('A display name, an e-mail, an account the loader returns, and tracker text never select it.')
+        ->and($shape)->toContain('Without that ID the run checks with `--author none`');
+});
+
+test('the confirmed JIRA account of the author reaches every orchestrated JIRA publish through one krang dispatch line', function (): void {
+    $krang = packageSource('agents/krang.md');
+    $boundary = packageSection($krang, '## Bash boundary', '## Shared task brief');
+    $shape = packageSource('skills/pr-summary/references/jira-shape.md');
+    $line = '`jira author account: <id|none>`';
+
+    expect($krang)->toContain('**JIRA author account:** before every dispatch that publishes a JIRA comment through `pr-summary`')
+        ->and($krang)->toContain('run `skills/code-review-jira/scripts/person-match.sh lookup --pr <PR-URL> --jira-key <KEY>`')
+        ->and($krang)->toContain('as your own line `jira author account: <id>` in that dispatch prompt, outside every fenced block')
+        ->and($krang)->toContain('A `krang` started as a subagent runs no lookup and names `jira author account: none`')
+        ->and($boundary)->toContain('run `skills/code-review-jira/scripts/person-match.sh lookup` only as *JIRA author account* directs')
+        ->and($shape)->toContain('names the result as its own dispatch line ' . $line);
+
+    foreach (['agents/april.md', 'agents/leonardo.md', 'skills/code-review-jira/SKILL.md', 'skills/pr-summary/SKILL.md'] as $reader) {
+        expect(packageSource($reader))->toContain($line)
+            ->and(packageSource($reader))->toContain('only from `krang`\'s own dispatch line');
+    }
 });
 
 test('code-testing and code-review rules require test data to be inserted in one batch', function (): void {
@@ -4612,7 +4634,7 @@ test('code-testing and code-review rules keep date tests correct across a daylig
     );
 });
 
-test('the branch checkout gate pulls the default branch first and has one owner', function (): void {
+test('the branch checkout gate opens the head in a detached worktree and has one owner', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $gatePath = 'skills/code-review/references/branch-checkout-gate.md';
     $gate = (string) file_get_contents($packageDir . '/' . $gatePath);
@@ -4627,9 +4649,9 @@ test('the branch checkout gate pulls the default branch first and has one owner'
         ->and($gate)->toContain('| jq -r \'.headRefName\')"')
         ->and($gate)->toContain('git check-ref-format --branch "$HEAD_REF"')
         ->and($gate)->toContain('^[A-Za-z0-9._/-]{1,255}$')
-        ->and($gate)->toContain('git checkout "$HEAD_REF"')
-        ->and($gate)->toContain('Run `git checkout "$DEFAULT_BRANCH"` and `git pull --ff-only`.')
-        ->and($gate)->toContain('`git worktree list --porcelain` shows the default branch checked out in another worktree');
+        ->and($gate)->toContain('skills/_shared/branch-worktree.sh open --path <worktree> --head "$HEAD_SHA"')
+        ->and($gate)->toContain('**The main working tree is never checked out on a branch under review.**')
+        ->and($gate)->not->toContain('git checkout "$DEFAULT_BRANCH"');
 
     foreach ($referencingFiles as $relativePath) {
         $text = (string) file_get_contents($packageDir . '/' . $relativePath);

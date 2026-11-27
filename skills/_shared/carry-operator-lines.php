@@ -55,6 +55,31 @@ function carryAdfText(array $node): string
 }
 
 /**
+ * @return array<mixed>
+ */
+function carryAdfSectionNodes(mixed $node): array
+{
+    return is_array($node) && ($node['type'] ?? null) === 'expand' && is_array($node['content'] ?? null) ? $node['content'] : [$node];
+}
+
+/**
+ * @param array<mixed> $content
+ * @return list<array{text: string, unit: mixed}>
+ */
+function carryAdfUnits(array $content): array
+{
+    $units = [];
+
+    foreach ($content as $node) {
+        foreach (carryAdfSectionNodes($node) as $unit) {
+            $units[] = ['text' => is_array($unit) ? carryAdfText($unit) : '', 'unit' => $unit];
+        }
+    }
+
+    return $units;
+}
+
+/**
  * @param list<string> $carried
  */
 function carryReport(array $carried, ?string $reason = null): void
@@ -188,16 +213,12 @@ function carryAdf(string $namespace, array $document, mixed $previousBody): arra
 {
     $needle = $namespace . ':actor=';
     $content = is_array($document['content'] ?? null) ? array_values($document['content']) : [];
-    $markerIndex = null;
+    $markerIndex = array_key_last(array_filter($content, static fn (mixed $node): bool => is_array($node) && str_contains(carryAdfText($node), $needle)));
     $agentTexts = [];
 
-    foreach ($content as $index => $node) {
-        $text = is_array($node) ? carryAdfText($node) : '';
-
-        if (str_contains($text, $needle)) {
-            $markerIndex = $index;
-        } elseif (carryNormalize($text) !== '') {
-            $agentTexts[] = carryNormalize($text);
+    foreach (carryAdfUnits($content) as $unit) {
+        if (!str_contains($unit['text'], $needle) && carryNormalize($unit['text']) !== '') {
+            $agentTexts[] = carryNormalize($unit['text']);
         }
     }
 
@@ -212,13 +233,11 @@ function carryAdf(string $namespace, array $document, mixed $previousBody): arra
             $known = null;
             $previousUnits = [];
 
-            foreach ($previousContent as $node) {
-                $text = is_array($node) ? carryAdfText($node) : '';
-
-                if (str_contains($text, $needle)) {
-                    $known = carryParseFingerprints('/ lines=([0-9a-f,]*)/', $text);
-                } elseif (carryNormalize($text) !== '') {
-                    $previousUnits[] = ['text' => $text, 'unit' => $node];
+            foreach (carryAdfUnits($previousContent) as $unit) {
+                if (str_contains($unit['text'], $needle)) {
+                    $known = carryParseFingerprints('/ lines=([0-9a-f,]*)/', $unit['text']);
+                } elseif (carryNormalize($unit['text']) !== '') {
+                    $previousUnits[] = $unit;
                 }
             }
 

@@ -18,7 +18,7 @@ Durable solutions of resolved Critical code-review findings live in a per-user, 
 
 ## Tracker workflow — the companion file
 
-The sections that govern a run taking its assignment from a tracker item live in `@rules/compound-engineering/tracker.md`, not in this file: *Analyze every comment before you act on a tracker assignment*, *Fix the cause first, then repair the data it already wrote*, *Claim a tracker issue before working on it*, *Tracker status tracks the phase of work*, *Every pull request links back to its tracker issue*, *File deferred points as follow-up tracker issues*, *Label tracker issues, and keep the labels true*, and *Triage every GitHub issue an agent creates, right after it is created*. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
+The sections that govern a run taking its assignment from a tracker item live in `@rules/compound-engineering/tracker.md`, not in this file: *Analyze every comment before you act on a tracker assignment*, *Fix the cause first, then repair the data it already wrote*, *Claim a tracker issue before working on it*, *Tracker status tracks the phase of work*, *Ready to deploy on the operator's word*, *Every pull request links back to its tracker issue*, *File deferred points as follow-up tracker issues*, *Label tracker issues, and keep the labels true*, and *Triage every GitHub issue an agent creates, right after it is created*. That file loads on demand, so this file stays inside the total instruction budget Claude Code enforces across every always-on file.
 
 - **A run that reads, claims, updates, links, labels, or files a tracker item reads and applies `@rules/compound-engineering/tracker.md` first.** Every skill and agent that performs one of those steps names the file.
 
@@ -71,6 +71,8 @@ An agent never generates documentation into `docs/` — no new file and no new s
 
 When an orchestrator delegates a step (analysis, implementation, review) and the delegate returns a blocker it cannot resolve — most commonly a write-capable implementer (e.g. `donatello`) whose `Write` / `Edit` is refused by the harness sandbox / permission layer even though the agent declares those tools, but equally an unresolvable merge conflict or a non-converging review loop — the run **stops and reports the blocker with its remediation**, never a silent bypass. Do **not** silently complete the blocked agent's work in the main thread (or in another agent's context): that bypasses the delegated, reviewed pipeline (no implementer→reviewer loop, no quality gates), hides the failure from the human, and breaks the compounding loop.
 Surface *what was blocked*, *why* (the denied capability), and *how to unblock it* (the environment change the human must make), then halt.
+
+- **Helper agents forbidden is not a fallback.** While helper agents are allowed, every failed, denied, or unregistered dispatch stays this stop. The session runs a stage itself only when the project forbids helper agents (`skills/_shared/orchestration/helper-agents.md`).
 
 ## Code Review Application
 

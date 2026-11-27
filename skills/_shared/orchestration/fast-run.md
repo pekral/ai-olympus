@@ -21,3 +21,5 @@ You close it instead, and only in this exact shape:
 4. Record `stage|skipped|leonardo|tier FAST — <the classifier's score and signals>` in the routing ledger, so the skipped review is visible in the record rather than inferred from its absence.
 
 The pull request still carries no code-review report, which is why `@skills/merge-github-pr/SKILL.md` has its own, independently verified `FAST`-tier exemption: it re-runs the classifier over the PR's own changed files rather than trusting anything this run wrote. Your promotion is not evidence for that gate, and it was never meant to be.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

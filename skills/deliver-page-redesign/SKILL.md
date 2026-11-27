@@ -72,6 +72,7 @@ The invoking session performs this step itself, before it delegates anything:
 The invoking session dispatches `michelangelo` with @skills/page-redesign/SKILL.md, the resolved
 route and files, the screenshots, and the acceptance criteria from *Acceptance criteria* below.
 
+- When the project forbids helper agents, run the `michelangelo` stage in this session, in the role of `michelangelo` (`skills/_shared/orchestration/helper-agents.md`).
 - On Claude Code, dispatch the `michelangelo` subagent. On Codex, ask the registered `michelangelo`
   agent. When the client has no such agent, run @skills/page-redesign/SKILL.md in the invoking
   session instead.
@@ -112,20 +113,25 @@ local base URL, and the acceptance criteria from *Acceptance criteria* below. `k
 1. passes `--runtime-acceptance`, `--thorough`, and `--tracker no` to
    `skills/_shared/plan-route.sh`. It does not pass `--redesign`, because the approved proposal is
    already the specification. The run has no tracker. `--thorough` gives the full pipeline on
-   every tier, so the review and the `raphael` stage are always in the plan,
+   every tier, so the review and the `raphael` stage are always in the plan. When the project
+   switched interactive testing off (@skills/interactive-testing/SKILL.md, Project setting), it
+   passes no `--runtime-acceptance`, and the plan carries no `raphael` stage,
 2. dispatches `donatello` to implement the approved proposal and open the pull request,
 3. drives the `leonardo` review-and-fix loop to convergence,
-4. dispatches `raphael`, which runs @skills/interactive-testing/SKILL.md against the path on the
-   local instance of the pull-request head, and compares the result with the approved previews.
+4. dispatches `raphael`, unless the project switched interactive testing off, to run
+   @skills/interactive-testing/SKILL.md against the path on the local instance of the pull-request
+   head and compare the result with the approved previews.
 
 `donatello` builds the approved layout. When the implementation cannot follow the approved layout,
 the run stops with `Blocked` and returns the conflict to the user for a new approval round. It never
 improvises a different layout.
 
-The redesign changes a UI surface, so the `raphael` pass is never skipped. A `Not met` or `Blocked`
-criterion returns to `donatello`. After the fix, `raphael` repeats the affected scenario and checks
-for a regression. When no interactive browser is available, the run reports `Blocked` and never
-claims the walkthrough.
+The redesign changes a UI surface, so the `raphael` pass is never skipped, unless the project
+switched interactive testing off (@skills/interactive-testing/SKILL.md, Project setting). A
+`Not met` or `Blocked` criterion returns to `donatello`. After the fix, `raphael` repeats the
+affected scenario and checks for a regression.
+When no interactive browser is available, the run reports `Blocked` and never claims the
+walkthrough, as long as interactive testing is on.
 
 ### 5. Report
 
@@ -197,7 +203,9 @@ Write the report in the language of the request:
 - **Approval** — the number of design rounds and the user's approval text.
 - **State coverage** — the states designed and the states verified.
 - **Interactive testing** — a table with the columns `Scenario`, `Viewport`, and `Result`
-  (`Passed`, `Failed`, or `Blocked`).
+  (`Passed`, `Failed`, or `Blocked`). When the project switched interactive testing off
+  (@skills/interactive-testing/SKILL.md, Project setting), `krang` dispatches no `raphael`, and this
+  line is the sentence `Interactive testing is switched off for this project.` in place of the table.
 - **Remaining issues** — only unresolved problems or blockers. When there are none, write
   `No known remaining UI/UX issues.`
 

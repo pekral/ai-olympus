@@ -16,7 +16,7 @@ issue carries no pull request yet, `krang` resolves the task first, and this wor
 converged review when the effective PR diff is content-identical; review again only when content or
 actionable feedback changed. Then dispatch `april` to publish one current TL;DR on the source
 issue — a GitHub issue or a JIRA ticket — and remove only superseded, actor-owned preparation
-comments.
+comments. When the project forbids helper agents, the session performs every step itself and starts no agent (`skills/_shared/orchestration/helper-agents.md`).
 
 The preparation changes only what the assignment and the merge gate require. Every optimization,
 refactoring, pre-existing problem outside the security floor, or nice-to-have point is reported on
@@ -238,7 +238,7 @@ The PR is merge-ready only when all of these hold at the same head:
 - the exact-head project quality gate is green;
 - required CI checks are green or explicitly absent;
 - the PR is non-Draft, mergeable, and neither `BEHIND` nor `DIRTY`;
-- `reviewDecision` is not `CHANGES_REQUESTED`. A GitHub approval is not required on a same-repository PR (`isCrossRepository == false`): the converged review meets the approval check. A fork PR needs a GitHub approval (`@rules/git/pull-requests.md` *Merging*).
+- `reviewDecision` is not `CHANGES_REQUESTED`. A GitHub approval is not required on a same-repository PR (`isCrossRepository == false`): the converged review meets the approval check only when the helper-agents check of `skills/merge-github-pr/references/trusted-record-parser.md` keeps Source 2: the trusted report carries no `Review independence:` line, and the resolver answers `helper-agents=allowed` with `source=manifest` or `source=default`. Otherwise report the unmet check as "approval needs a GitHub approval or the operator's instruction (the review was not independent)". A fork PR needs a GitHub approval (`@rules/git/pull-requests.md` *Merging*).
 
 Promote the PR out of Draft and label it `ready to merge` only through
 `@skills/process-code-review/SKILL.md`. Never change the status of the source tracker item. Stop here with `Blocked` when any item fails. Never weaken a
@@ -258,6 +258,7 @@ tracker** — `@skills/pr-summary/templates/pr-summary-github.md` for a GitHub i
 - the current acceptance-compliance block supplied by
   `@skills/assignment-compliance-check/SKILL.md`;
 - the exact head SHA, effective diff fingerprint, quality-gate result, PR link, and issue link.
+- when the project forbids helper agents, the line `Review independence: not independent — helper agents are forbidden for this project` (`skills/_shared/orchestration/helper-agents.md` *Report lines*).
 
 The `## Decisions before merge` section is written for a human who reads it once and answers. Write
 it in the assignment language, and translate its heading. Render it from
@@ -273,11 +274,8 @@ this TL;DR like on every other. The evidence is not lost: the merge gate reads t
 GitHub pull-request comment, which is the surface that consumes them. On a JIRA source publish two
 comments:
 
-1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/SKILL.md` *The JIRA shape* defines: the
-   `Acceptance criteria` only for requirements that still need action, `Review findings` with the
-   exact blocker first, `TL;DR`, the closing links line, and the
-   footer, within that rule's
-   3 000-character cap. An open question about the assignment closes the bullet of the criterion
+1. **The JIRA TL;DR** in the one shape `@skills/pr-summary/references/jira-shape.md` defines, with
+   the exact blocker named in the deploy verdict, within that rule's 3 000-character cap. An open question about the assignment closes the bullet of the criterion
    it concerns. An open decision that is **Critical** is a `Review findings` bullet that closes
    with its question and its recommendation in one sentence. A decision outside the assignment that is not
    Critical never reaches JIRA, neither as a finding nor as a question.

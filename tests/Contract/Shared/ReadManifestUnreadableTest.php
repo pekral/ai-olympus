@@ -4,14 +4,6 @@ declare(strict_types = 1);
 
 use Symfony\Component\Process\Process;
 
-function manifestRepositoryGit(string $dir, string ...$arguments): string
-{
-    $process = new Process(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', ...$arguments], $dir);
-    $process->mustRun();
-
-    return trim($process->getOutput());
-}
-
 /**
  * Builds a repository whose default branch carries a composer.json in one of four states: `readable`, `unreadable`
  * (its blob is deleted, so git cannot read it), `invalid` (not JSON), or `absent` (no composer.json at all).
@@ -107,6 +99,8 @@ function manifestCallers(): array
             'not-verified: default-branch manifest',
         ],
         'plan-parallel' => ['skills/_shared/plan-parallel.sh', '', "a|STANDARD||f\n", 'stderr', 'read-manifest.sh'],
+        'resolve-interactive-testing' => ['skills/_shared/resolve-interactive-testing.sh', '', '', 'stderr', 'read-manifest.sh'],
+        'resolve-project-switch helper-agents' => ['skills/_shared/resolve-project-switch.sh', '--key helper-agents', '', 'stderr', 'read-manifest.sh'],
         'resolve-voice' => ['skills/agent-voice/scripts/resolve-voice.sh', '', '', 'stderr', 'read-manifest.sh'],
         'run-fast-checks' => ['skills/_shared/run-fast-checks.sh', '', '', 'stdout', 'cannot be read as a manifest'],
         'run-validation (project-commands)' => [

@@ -12,9 +12,12 @@
 # explicit request from the same owner; the older CHANGELOG entry stays as
 # history.
 #
-# JIRA has no hidden-comment mechanism, so the marker is a visible but
-# unobtrusive italic line at the bottom of the body:
+# JIRA has no hidden-comment mechanism, so the marker is an italic line:
 #   _cr-comment:actor=<actor-digest>_
+# A source that carries the slot line `{agent-marker}` gets the marker in place of
+# that slot, which the code-review template puts inside a collapsed block, so a
+# reader sees it only on purpose. Any other source gets the marker as the last
+# line of the body.
 #
 # The actor half is the first 16 hex characters of the SHA-256 digest of the
 # authenticated account e-mail, never the address itself. The marker is readable
@@ -24,10 +27,16 @@
 # is stable across runs, which is all the lookup needs.
 #
 # Usage:
-#   upsert-comment.sh [--create] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
-#   <body-producer> | upsert-comment.sh [--create] <KEY|URL> - [<MARKER_KEY>]
+#   upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
+#   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
 #
 # Inputs:
+#   --comment-id <ID>
+#               Optional. Update exactly that comment instead of the newest one of this actor and
+#               namespace. The comment must be authored by this actor and carry this actor's marker of the
+#               namespace; otherwise nothing is written and the script exits 3. `skills/merge-review-comments`
+#               uses it to put merged text into the comment that has a reply. It never combines with
+#               `--create` or with the `agent-note` namespace.
 #   --create    Optional. Always create a new comment in the given namespace and
 #               never update an existing one, so nothing is carried over from an
 #               earlier comment. The before-create snapshot still runs, because
@@ -58,9 +67,10 @@
 #      That status output carries no account ID, and no `acli` subcommand
 #      returns one for the current user, so the account ID is resolved through
 #      JQL `currentUser()` (`jira_actor_account_id` in jira-actor.sh).
-#   2. Derive the actor digest from that e-mail and append the marker line
-#      `_<namespace>:actor=<actor-digest>_` to the Wiki Markup source (only when
-#      the source does not already carry it). The raw address never leaves this
+#   2. Derive the actor digest from that e-mail and write the marker line
+#      `_<namespace>:actor=<actor-digest>_` into the Wiki Markup source (only when
+#      the source does not already carry it): in place of the last `{agent-marker}`
+#      slot line, or appended as the last line when the source has no slot. The raw address never leaves this
 #      process: it is used only for the local author comparison in step 4.
 #   3. Convert the Wiki Markup source to Atlassian Document Format (ADF).
 #   4. Read the issue's comments through `acli jira workitem view <KEY>
@@ -75,7 +85,8 @@
 #      own comment, so the author
 #      must match too, and the marker is matched against the comment body alone
 #      rather than against the whole comment object.
-#   5. Carry every top-level ADF node the operator added to the matched comment
+#   5. Carry every top-level ADF node (every child of a collapsed `expand`
+#      section) the operator added to the matched comment
 #      into the new body verbatim (`skills/_shared/carry-operator-lines.php`),
 #      mentions and formatting included. The operator posts under the same
 #      account, so a node counts as the operator's when the fingerprint of
@@ -90,10 +101,18 @@
 #      through the same `--body-adf` path. Passing ADF to both calls ensures a
 #      failed update never leaves Wiki Markup behind. `comment create --json`
 #      reports a per-work-item status and no comment ID on acli 1.3.x, so the
-#      new ID is resolved by re-reading the comments and taking the comment that
-#      was absent before the create, carries the marker, and has this author.
-#      The re-read runs up to three times, one second apart, because Jira Cloud
-#      can answer the first read after a create without the new comment.
+#      new ID is resolved by re-reading the comments. The target is the one
+#      comment that was absent before the create, has this author, and whose
+#      stored visible text equals the visible text of the ADF this run sent, the
+#      marker text left out on both sides. One such comment that carries the
+#      marker ends the re-reads; any other result waits for all three re-reads,
+#      one second apart, because Jira Cloud can answer a read after a create
+#      without the new comment. No single match leaves every comment untouched.
+#   7. Read the comment back, up to three times, and require this actor's marker
+#      in the stored body and this account as its author. A created comment that
+#      fails the read-back is deleted; an updated one is reported with its ID.
+#      Either way the helper exits 3, so no agent comment stays on the issue
+#      without a marker unannounced.
 #
 # One result is one comment, for every call without `--create`. The helper never
 # creates a comment it cannot prove is the first one, so a rerun — including a
@@ -142,9 +161,11 @@ set -euo pipefail
 
 usage() {
   cat >&2 <<'EOF'
-Usage: upsert-comment.sh [--create] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
+Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> [<MARKER_KEY>]
 
   --create    always create a new comment; never update an existing one
+  --comment-id <ID>
+              update exactly this comment of this actor and namespace; never create
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -155,9 +176,30 @@ EOF
 }
 
 CREATE_ONLY=0
-if [[ "${1:-}" == "--create" ]]; then
-  CREATE_ONLY=1
-  shift
+TARGET_COMMENT_ID=""
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --create)
+      CREATE_ONLY=1
+      shift
+      ;;
+    --comment-id)
+      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        usage
+        exit 1
+      fi
+      TARGET_COMMENT_ID="$2"
+      shift 2
+      ;;
+    *)
+      usage
+      exit 1
+      ;;
+  esac
+done
+if [[ "$CREATE_ONLY" -eq 1 && -n "$TARGET_COMMENT_ID" ]]; then
+  usage
+  exit 1
 fi
 
 if [[ $# -lt 2 || $# -gt 3 || -z "${1:-}" || -z "${2:-}" ]]; then
@@ -173,6 +215,11 @@ MODE="${3:-cr-comment}"
 
 if [[ ! "$MODE" =~ ^[a-z][a-z0-9-]*$ ]]; then
   echo "upsert-comment.sh: MARKER_KEY must match [a-z][a-z0-9-]* — got: $MODE" >&2
+  exit 1
+fi
+
+if [[ -n "$TARGET_COMMENT_ID" && "$MODE" == "agent-note" ]]; then
+  echo "upsert-comment.sh: --comment-id never combines with the create-only agent-note namespace" >&2
   exit 1
 fi
 
@@ -231,8 +278,8 @@ fi
 
 # The same status output carries the authenticated account e-mail. The marker
 # publishes a digest of it rather than the address: JIRA has no hidden-comment
-# syntax, so the marker is a visible italic line at the bottom of the body that
-# every reader of the issue can see. `php` computes the digest because this
+# syntax, so every reader of the issue can open the marker line, even when it
+# sits in a collapsed block. `php` computes the digest because this
 # script already requires it for the ADF conversion, so no further tool has to
 # be present for the publisher to work.
 EMAIL="$(jira_auth_status_field "$AUTH_STATUS" email)"
@@ -248,10 +295,17 @@ if [[ -z "$ACTOR_ID" ]]; then
 fi
 
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
+MARKER_SLOT='{agent-marker}'
 if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
-  BODY="${BODY}
+  if grep -Fxq "$MARKER_SLOT" <<<"$BODY"; then
+    BODY="$(printf '%s\n' "$BODY" | awk -v slot="$MARKER_SLOT" -v marker="_${MARKER_TEXT}_" '
+      { lines[NR] = $0; if ($0 == slot) { last = NR } }
+      END { for (i = 1; i <= NR; i++) { print (i == last ? marker : lines[i]) } }')"
+  else
+    BODY="${BODY}
 
 _${MARKER_TEXT}_"
+  fi
 fi
 
 # Build valid ADF before the external write. The create call has no dedicated
@@ -264,7 +318,8 @@ LIST_STDERR="$(mktemp)"
 UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
-trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP"' EXIT
+SENT_TEXT_TMP="$(mktemp)"
+trap 'rm -f "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -315,6 +370,8 @@ AUTHOR_JQ="$(cat <<'JQ'
   def decidable: author_of as $a
     | ($a.emailAddress // "") != "" or ($account != "" and ($a.accountId // "") != "");
   def marked: (.body | tojson) | test("(^|[^a-z0-9-])" + $marker);
+  def visible_text: [.. | objects | select(.type? == "text") | .text? | strings
+    | select(test("(^|[^a-z0-9-])" + $marker) | not)] | join("");
 JQ
 )"
 
@@ -341,12 +398,18 @@ fi
 # skips the match for the same reason, in any namespace.
 if [[ "$MODE" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   EXISTING_ID="$(printf '%s' "$COMMENTS_JSON" \
-    | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+    | jq -r --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" --arg target "$TARGET_COMMENT_ID" "${AUTHOR_JQ}"'
         map(select(marked and owned))
+        | map(select($target == "" or ((.id? // "") | tostring) == $target))
         | sort_by((.updated? // .created? // "") | tostring)
         | last
         | (.id? // empty)
         | tostring' 2>/dev/null || true)"
+
+  if [[ -n "$TARGET_COMMENT_ID" && "$EXISTING_ID" != "$TARGET_COMMENT_ID" ]]; then
+    echo "upsert-comment.sh: comment $TARGET_COMMENT_ID is not this actor's ${MODE} comment on $KEY, nothing was published" >&2
+    exit 3
+  fi
 
   if [[ ! "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
     UNDECIDABLE_ID="$(printf '%s' "$COMMENTS_JSON" \
@@ -400,31 +463,55 @@ else
       // empty
     ) | tostring' 2>/dev/null || true)"
 
-  # acli 1.3.x reports no comment ID here. Identify the new comment by what only
-  # it can carry: absent before the create, this account's marker in the body,
-  # and this account as its author. The highest ID wins, since JIRA assigns them
-  # in ascending order. This is what keeps `agent-note` mode from resolving to
-  # an older note of this actor's: the snapshot above was taken before the
-  # create in every mode, so an older note is always "before" and never
-  # matches "absent before the create".
-  # Jira Cloud can answer the first read after a create without the new comment, so the re-read
-  # is tried three times before the ID counts as missing.
+  # acli 1.3.x reports no comment ID here. The account is shared with the operator, so a new
+  # comment of this account is the created one only when its stored visible text equals the visible
+  # text of the ADF this run sent, the marker text left out on both sides: JIRA may store the comment
+  # without the marker, and a comment that only quotes the marker must not pass. A matching comment
+  # that carries the marker wins and ends the re-reads. Any other result waits for all three
+  # re-reads, because Jira Cloud can answer a read after a create without the new comment, and the
+  # last successful read decides. No single match leaves every new comment untouched and exits 3.
+  # The snapshot above was taken before the create in every mode, so an older `agent-note` comment
+  # is always "before" and never a candidate.
+  CANDIDATE_IDS=""
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
+    jq -j --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"' visible_text' \
+      "$ADF_FILE_TMP" > "$SENT_TEXT_TMP" 2>/dev/null || : > "$SENT_TEXT_TMP"
     BEFORE_IDS="$(printf '%s' "${COMMENTS_JSON:-[]}" | jq -c '[.[] | (.id? // empty) | tostring]' 2>/dev/null || echo '[]')"
+    SENT_MATCH=""
     for attempt in 1 2 3; do
-      AFTER_JSON="$(read_comments || true)"
-      TARGET_ID="$(printf '%s' "${AFTER_JSON:-[]}" \
-        | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
-            map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
-                | select(marked and owned))
-            | map((.id | tostring) | select(test("^[0-9]+$")) | tonumber)
-            | max // empty
-            | tostring' 2>/dev/null || true)"
-      if [[ "$TARGET_ID" =~ ^[0-9]+$ ]]; then
-        break
+      if AFTER_JSON="$(read_comments)" && [[ -n "$AFTER_JSON" ]]; then
+        NEW_OWNED="$(printf '%s' "$AFTER_JSON" \
+          | jq -r --argjson before "$BEFORE_IDS" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" \
+              --rawfile sent "$SENT_TEXT_TMP" "${AUTHOR_JQ}"'
+              map(select(((.id? // "") | tostring) as $id | ($before | index($id)) == null)
+                  | select(owned)
+                  | {id: (.id | tostring), marked: marked, sent: ($sent != "" and (.body | visible_text) == $sent)}
+                  | select(.id | test("^[0-9]+$")))
+              | (map(select(.sent and .marked) | .id)) as $marked
+              | (map(select(.sent) | .id)) as $matched
+              | if ($marked | length) == 1 then "marked " + $marked[0]
+                elif ($marked | length) == 0 and ($matched | length) == 1 then "matched " + $matched[0]
+                else "none " + (map(.id | tonumber) | sort | map(tostring) | join(" ")) end' 2>/dev/null || true)"
+        case "$NEW_OWNED" in
+          "marked "*) TARGET_ID="${NEW_OWNED#marked }"; break ;;
+          "matched "*) SENT_MATCH="${NEW_OWNED#matched }"; CANDIDATE_IDS="" ;;
+          "none "*) SENT_MATCH=""; CANDIDATE_IDS="${NEW_OWNED#none }" ;;
+        esac
       fi
       [[ $attempt -lt 3 ]] && sleep 1
     done
+    if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && "$SENT_MATCH" =~ ^[0-9]+$ ]]; then
+      TARGET_ID="$SENT_MATCH"
+    fi
+  fi
+
+  if [[ ! "$TARGET_ID" =~ ^[0-9]+$ && -n "$CANDIDATE_IDS" ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment create on $KEY" --status 0 --detail "created, ID not resolved, ADF update aborted" || true
+    echo "upsert-comment.sh: created a comment on $KEY but its ID is missing; ADF update aborted" >&2
+    echo "upsert-comment.sh: new comments ${CANDIDATE_IDS} of this account on $KEY do not show exactly one stored body that matches the body this run sent, so none of them was updated or deleted" >&2
+    echo "upsert-comment.sh: check them and remove the created comment by hand when it shows no agent marker; a comment the operator wrote stays as it is" >&2
+    echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+    exit 3
   fi
 
   if [[ ! "$TARGET_ID" =~ ^[0-9]+$ ]]; then
@@ -433,7 +520,7 @@ else
     if [[ -s "$LIST_STDERR" ]]; then
       echo "upsert-comment.sh: the last of 3 re-reads failed: $(<"$LIST_STDERR")" >&2
     fi
-    echo "upsert-comment.sh: do not publish this result again — the created comment carries this actor's marker; a rerun without --create updates it or refuses, and a rerun with --create adds a second comment" >&2
+    echo "upsert-comment.sh: do not publish this result again — the created comment was not found, so its marker is not confirmed; check $KEY for it and remove it by hand when it shows no agent marker" >&2
     echo "upsert-comment.sh: do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
     exit 3
   fi
@@ -465,6 +552,71 @@ if [[ "$UPDATE_RC" -ne 0 ]]; then
   else
     echo "upsert-comment.sh: ADF update failed on $KEY comment $TARGET_ID: $(<"$UPDATE_STDERR")" >&2
     echo "upsert-comment.sh: the existing comment was left unchanged; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload" >&2
+  fi
+  exit 3
+fi
+
+# Print "marked", "unmarked", or "missing" for the stored body of comment
+# $TARGET_ID, after up to three reads.
+read_back_marker() {
+  local state="missing"
+  for attempt in 1 2 3; do
+    state="$(read_comments | jq -r --arg id "$TARGET_ID" --arg marker "$MARKER_TEXT" --arg email "$EMAIL" --arg account "$ACCOUNT_ID" "${AUTHOR_JQ}"'
+        [.[] | select(((.id? // "") | tostring) == $id)] | last
+        | if . == null then "missing" elif (marked and owned) then "marked" else "unmarked" end' 2>/dev/null || true)"
+    if [[ "$state" == "marked" || "$state" == "unmarked" ]]; then
+      break
+    fi
+    [[ $attempt -lt 3 ]] && sleep 1
+  done
+  printf '%s' "$state"
+}
+
+# An updated comment that lost the marker reads as the operator's own, so put
+# the previous body back: it carried the marker, because the update target is
+# always a marked comment of this account. The restore counts only when the
+# stored body shows the marker again.
+restore_previous_body() {
+  local restore_rc=0
+  if jq -e 'type == "object" and .type == "doc" and (.content | type == "array")' "$PREVIOUS_BODY_TMP" >/dev/null 2>&1; then
+    acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$PREVIOUS_BODY_TMP" >/dev/null 2>"$UPDATE_STDERR" || restore_rc=$?
+  else
+    restore_rc=65
+  fi
+  if [[ "$restore_rc" -eq 0 && "$(read_back_marker)" == "marked" ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID restore on $KEY" --status 0 --detail "previous body put back after the marker read-back failed" || true
+    echo "upsert-comment.sh: comment $TARGET_ID on $KEY has its previous body back, and that body carries the agent marker; the new body was not published" >&2
+    return
+  fi
+  bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID restore on $KEY" --status "$(( restore_rc == 0 ? 1 : restore_rc ))" || true
+  echo "upsert-comment.sh: comment $TARGET_ID stays on $KEY without the agent marker and reads as the operator's own: putting its previous body back failed; restore the marker or remove the comment by hand" >&2
+}
+
+# Read the stored comment back. The marker sits inside a collapsed block of the
+# body, and an agent comment whose stored body lost it reads as the operator's
+# own (rules/code-review/general.md *Authorship trust*), so the publish counts
+# only when the stored body carries the marker and the author is this account.
+STORED="$(read_back_marker)"
+
+if [[ "$STORED" != "marked" ]]; then
+  if [[ "$STORED" == "unmarked" ]]; then
+    echo "upsert-comment.sh: comment $TARGET_ID on $KEY does not carry the agent marker in its stored body" >&2
+  else
+    echo "upsert-comment.sh: comment $TARGET_ID on $KEY could not be read back to confirm the agent marker" >&2
+  fi
+  if [[ "$ACTION" == "created" ]]; then
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID on $KEY" --status 0 --detail "created, its marker read-back failed next" || true
+    DELETE_RC=0
+    acli jira workitem comment delete --key "$KEY" --id "$TARGET_ID" >/dev/null 2>&1 || DELETE_RC=$?
+    bash "$AUDIT_TRAIL" record --target "jira comment $TARGET_ID delete on $KEY" --status "$DELETE_RC" --detail "removed after the marker read-back failed" || true
+    if [[ "$DELETE_RC" -eq 0 ]]; then
+      echo "upsert-comment.sh: the created comment was removed; do not fall back to a raw acli write — use the JIRA MCP server with an ADF payload and read it back" >&2
+    else
+      echo "upsert-comment.sh: comment $TARGET_ID stays on $KEY without the agent marker and reads as the operator's own; remove it by hand (acli exit $DELETE_RC)" >&2
+    fi
+  else
+    bash "$AUDIT_TRAIL" record --target "https://${SITE}/browse/${KEY}?focusedCommentId=${TARGET_ID}" --status 0 --detail "updated, its marker read-back failed next" || true
+    restore_previous_body
   fi
   exit 3
 fi

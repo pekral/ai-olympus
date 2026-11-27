@@ -71,13 +71,13 @@ test('every target template carries the TL;DR and lists only the points to resol
     expect($bugsnag)->not->toContain('"Not verified"');
     expect($jira)
         ->toContain(
-            '* [One point that must be resolved before the merge, per bullet, as a TL;DR of its solution: '
+            'then one point that must be resolved before the merge, per bullet, as a TL;DR of its solution: '
                 . 'what is wrong, what the fix is, and what the fix changes for the user or the business.',
         )
         ->toContain('for example "an order created without a customer fails"')
         ->toContain('never an assumption, a hypothesis, or a point that needs no action.')
         ->toContain('Every such point of the technical')
-        ->toContain('"h2. Nálezy z kontroly');
+        ->toContain('"{expand:Nálezy z kontroly kódu}"');
     expect($jira)->not->toContain('h3. Not verified');
     expect($jira)->not->toContain('Neověřeno');
 });
@@ -105,10 +105,12 @@ test('an open decision keeps the caller shape and the TL;DR rule covers code-rev
     $packageDir = dirname(__DIR__, 2);
     $skill = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
 
+    $jiraShape = (string) file_get_contents($packageDir . '/skills/pr-summary/references/jira-shape.md');
+
+    expect($jiraShape)->toContain(
+        '- An open decision that `verify-merge-readiness` or `april` passes keeps the question-and-recommendation shape its caller defines',
+    );
     expect($skill)
-        ->toContain(
-            '- An open decision that `verify-merge-readiness` or `april` passes keeps the question-and-recommendation shape its caller defines',
-        )
         ->toContain('7. **The rule covers the findings of a code review only.**')
         ->toContain('keeps the question-and-recommendation shape its caller defines. It carries no `Evidence`, and it is listed as an open question.');
 });
@@ -151,6 +153,7 @@ test('review findings list only what must be resolved and every such point (issu
         )
         ->toContain(
             'Such a point stays in the technical report, under `## Needs verification` and on the `Not verified:` line.',
-        )
+        );
+    expect((string) file_get_contents(dirname(__DIR__, 2) . '/skills/pr-summary/references/jira-shape.md'))
         ->toContain('3. **`Review findings` lists only the points that still need a change or an answer before the merge**');
 });

@@ -10,7 +10,7 @@
 
 </div>
 
-AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 75 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
+AI Olympus is a Composer plugin that gives PHP and Laravel teams shared coding-standard rules, 77 reusable skills, and nine specialist agents for Claude Code and Codex. Its workflows cover issue implementation, Pest tests, code and security review, acceptance testing, and tracker reporting. The skills, agents, and commands are also published as a Claude Code plugin for projects without Composer, without the rules.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ The installer writes, for Claude Code and Codex:
 /plugin install ai-olympus@ai-olympus
 ```
 
-This loads all 75 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
+This loads all 77 skills, the nine agents, and the five commands into Claude Code only. It does **not** load the rules: Claude Code reads neither `rules/` nor a `CLAUDE.md` out of a plugin directory. The opt-in security switches stay bound to the Composer installer, and a plugin install writes nothing to `.claude/settings.local.json`. See [which path to choose](docs/installation.md#which-path-to-choose).
 
 ## Configuration
 
@@ -64,6 +64,10 @@ The installer never generates a `CLAUDE.md`, and it keeps an existing `CLAUDE.md
 Automatic installation on `composer install` and `composer update` is off by default; [`extra.ai-olympus.auto-install`](docs/installation.md#automatic-installation-via-composer-plugin) turns it on, and then every install and update runs `install --force`. The same `extra.ai-olympus` object is the [project manifest](docs/installation.md#project-manifest), which tells the workflows how your project runs its quality gate and coverage; every key is optional, and an absent key keeps the built-in behaviour. Your own `CLAUDE.md`, `AGENTS.md`, `.ai/rules/**`, and the manifest take precedence over the packaged rules; only the security floor stays fixed.
 
 The manifest key `parallel.max-units` (1 to 3) caps how many units of a batch run at the same time; without it the planner uses 2 and the batch cap is 3 (see *Project manifest* in [`rules/general/general.md`](rules/general/general.md)).
+
+Interactive testing is on by default. The manifest key `interactive-testing` set to `false` switches it off for the project; every report that would carry its result then says it is switched off, and the review, the tests, and CI stay as they are (see [Project manifest](docs/installation.md#project-manifest)).
+
+Helper agents are allowed by default, and the installer adds `"helper-agents": true` to your `composer.json` when the key is missing. The manifest key `helper-agents` set to `false` forbids them for the project: the session you talk to does every step itself, every check stays, the review is then not independent and never counts as merge approval, and every final report says whether helper agents were allowed (see [Project manifest](docs/installation.md#project-manifest)).
 
 Agents talk to you in a relaxed, straight-to-the-point voice, in the chat and in the tracker comments people read. The `voice` key of the project manifest switches it to `technical`, and your own instruction in the session overrides it; commit messages, handoffs, and machine-parsed text stay technical either way (see the [`agent-voice`](skills/agent-voice/SKILL.md) skill). Before a tracker comment is published, the [`unslop`](skills/unslop/SKILL.md) skill cuts AI writing patterns from its prose.
 
@@ -91,7 +95,7 @@ In Codex, invoke the matching skill with `$`:
 $verify-merge-readiness https://github.com/owner/repo/issues/123
 ```
 
-The installer puts the same 75 skills, including their scripts and references, in `.claude/skills` and `.agents/skills`. Select the installed name offered by Codex if it includes a namespace. If newly installed skills do not appear, restart Codex.
+The installer puts the same 77 skills, including their scripts and references, in `.claude/skills` and `.agents/skills`. Select the installed name offered by Codex if it includes a namespace. If newly installed skills do not appear, restart Codex.
 
 To resolve an issue through the full pipeline, ask the root session to take the `krang` role and spawn the specialists itself:
 
@@ -192,7 +196,7 @@ vendor/bin/ai-olympus memory migrate
 - [`docs/installation.md`](docs/installation.md) — installer flow, every CLI switch, auto-install, the project manifest, and where skills are installed
 - [`docs/agents.md`](docs/agents.md) — the agent roster, capability model, handoff contract, and troubleshooting
 - [`docs/workflows.md`](docs/workflows.md) — command workflows, adaptive routing, metrics, the repository graph, and the code-review memory
-- [`docs/skills.md`](docs/skills.md) — the catalog of all 75 skills
+- [`docs/skills.md`](docs/skills.md) — the catalog of all 77 skills
 - [`docs/rules.md`](docs/rules.md) — the 39 rule files, grouped by scope
 
 ## Testing

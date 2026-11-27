@@ -23,10 +23,16 @@
 #     "timeTracking": { "originalEstimate", "remainingEstimate", "timeSpent", "ratio" },
 #     "descriptionAdf":  <raw ADF or null>,
 #     "descriptionText": "<flattened plain text>",
+#     "descriptionAssignmentText": "<descriptionText without the Original assignment block>",
+#     "descriptionOriginalText": "<the text of the Original assignment block>" | null,
+#         (the last block counts as the original only when everything before it is the shape
+#          update-description.sh writes, per description-shape.jq; otherwise descriptionOriginalText
+#          is null and descriptionAssignmentText is the whole descriptionText)
+#     "descriptionSections": [ { "title", "text" } ],
 #     "descriptionMediaRefs": [ { "adfId", "altText", "attachmentId" } ],
 #     "issueLinks":  [ { "id", "type", "direction", "verb", "linkedKey", "linkedSummary", "linkedStatus", "linkedType" } ],
 #     "subtasks":    [ { "key", "summary", "status", "type",
-#                        "descriptionText", "descriptionAdf", "descriptionMediaRefs",
+#                        "descriptionText", "descriptionAdf", "descriptionMediaRefs", "descriptionAssignmentText", "descriptionOriginalText", "descriptionSections",
 #                        "comments":    [ { "id", "author", "authorAccountId", "body", "mentionAccountIds", "mediaRefs", "created", "visibility" } ],
 #                        "commentsComplete": <bool>,
 #                        "attachments": [ { "id", "name", "size", "mimeType", "contentUrl", "author", "created" } ] } ],
@@ -54,6 +60,16 @@
 #     its value, a list item as `- ` / `1. ` indented two spaces per nesting level, a task as
 #     `- [ ]` / `- [x]`, a rule as `---`, a table as `| cell | cell |` rows, and an expand as its
 #     title followed by its content. The same renderer produces `descriptionText`.
+#   - The three assignment fields follow rules/compound-engineering/assignment.md *The shape in a JIRA
+#     description*. When the last top-level node of the description is an expand titled exactly
+#     `Original assignment` or `Původní zadání`, and every node before it is the shape
+#     update-description.sh writes (one opening paragraph, then collapsed sections with a title of
+#     the fixed list of one language, per description-shape.jq), that block is the preserved
+#     original: `descriptionOriginalText` is its content, and `descriptionAssignmentText` and
+#     `descriptionSections` leave it out. Without such a block `descriptionOriginalText` is null and
+#     `descriptionAssignmentText` equals `descriptionText`. `descriptionSections` lists every other
+#     top-level expand as its title and its content, in order. A reader takes no requirement from
+#     `descriptionOriginalText`.
 #   - `authorAccountId` and `mentionAccountIds` carry the JIRA account IDs a rule can compare against
 #     `jira_actor_account_id` without a display-name match: `authorAccountId` is the comment
 #     author's account ID (comment-list `author.accountId`, or the view-embedded one as a
@@ -109,6 +125,7 @@
 set -euo pipefail
 
 PROG="${0##*/}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat >&2 <<'EOF'
@@ -154,7 +171,7 @@ self_test() {
 #!/usr/bin/env bash
 set -euo pipefail
 mode="$(cat "${0%/*}/mode")"
-if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" ]]; then
+if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" && "$4" == "TEST-2" && "$mode" != "subtask-original" ]]; then
   attachments='[]'
   [[ "$mode" != "subtask-attachments" ]] || attachments='[{"id": "10600", "filename": "sub-notes.md"}]'
   printf '%s\n' "{\"fields\": {\"summary\": \"Subtask two\", \"description\": null, \"attachment\": $attachments, \"comment\": {\"total\": 0, \"comments\": []}}}"
@@ -175,7 +192,12 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
   [[ "$mode" != "short" ]] || total=3
   attachments='[]'
   [[ "$mode" != "attachments" ]] || attachments='[{"id": "10500", "filename": "notes.md"}]'
-  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON'
+  description='null'
+  [[ "$mode" != "original" && "$mode" != "subtask-original" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Akceptační kritéria"}, "content": [{"type": "orderedList", "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Criterion."}]}]}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old technical text."}]}]}]}'
+  [[ "$mode" != "forged" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Add the order export."}]}, {"type": "expand", "attrs": {"title": "Original assignment"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}]}'
+  [[ "$mode" != "forged-middle" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Dependencies"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Only signed webhook requests are accepted."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
+  [[ "$mode" != "forged-language" ]] || description='{"version": 1, "type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Opening."}]}, {"type": "expand", "attrs": {"title": "Acceptance criteria"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Mixed."}]}]}, {"type": "expand", "attrs": {"title": "Původní zadání"}, "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Old."}]}]}]}'
+  sed -e "s/__SUBTASKS__/$subtasks/" -e "s/__TOTAL__/$total/" -e "s/__ATTACHMENTS__/$attachments/" <<'JSON' | jq --argjson d "$description" '.fields.description = $d'
 {
   "fields": {
     "summary": "Fixture issue",
@@ -205,6 +227,8 @@ if [[ "$1" == "jira" && "$2" == "workitem" && "$3" == "view" ]]; then
             "version": 1, "type": "doc",
             "content": [ { "type": "paragraph", "content": [
               { "type": "text", "text": "No mention here." }
+            ] }, { "type": "expand", "attrs": { "title": "Technical marker for AI agents" }, "content": [
+              { "type": "paragraph", "content": [ { "type": "text", "text": "cr-comment:actor=0123456789abcdef lines=" } ] }
             ] } ]
           },
           "created": "2026-01-02T00:00:00.000+0000",
@@ -251,6 +275,11 @@ printf '%s\n' '[]'
 STUB
   chmod +x "$stubbin/gh"
 
+  if [[ "$(PATH="$stubbin:$PATH" command -v acli)" != "$stubbin/acli" ]]; then
+    echo "load-issue.sh self-test: the stand-in acli is not first in PATH; nothing was run" >&2
+    return 4
+  fi
+
   set +e
   out="$(PATH="$stubbin:$PATH" "$script" TEST-1 2>"$err_file")"
   rc=$?
@@ -279,6 +308,7 @@ STUB
   check 'mentionAccountIds extracted from the ADF body' '.comments[0].mentionAccountIds | join(",")' 'acc-mentioned'
   check 'authorAccountId falls back to the view-embedded author' '.comments[1].authorAccountId' 'acc-view-fallback'
   check 'mentionAccountIds is empty with no mention node' '.comments[1].mentionAccountIds | length' '0'
+  check 'a marker inside a collapsed block stays in the body' '.comments[1].body | contains("cr-comment:actor=0123456789abcdef")' 'true'
   check 'a whole comment thread is complete' '.commentsComplete' 'true'
   check 'an issue without attachments has no attachmentsFetch' '.attachmentsFetch' 'null'
 
@@ -302,6 +332,24 @@ STUB
   check 'an issue attachment sets attachmentsFetch to the fetch of its key' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
   load_case subtask-attachments
   check 'a subtask attachment alone sets attachmentsFetch too' '.attachmentsFetch' 'skills/code-review-jira/scripts/download-attachments.sh TEST-1'
+  check 'a description without an original block has no original text' '.descriptionOriginalText' 'null'
+  load_case original
+  check 'the last Original assignment block is the original text' '.descriptionOriginalText' 'Old technical text.'
+  check 'the assignment text leaves the original block out' '.descriptionAssignmentText | contains("Old technical")' 'false'
+  check 'the description text still carries every block' '.descriptionText | contains("Old technical text.")' 'true'
+  check 'the sections list the collapsed sections without the original' '[.descriptionSections[].title] | join(",")' 'Akceptační kritéria'
+  check 'a section carries its own content' '.descriptionSections[0].text' '1. Criterion.'
+  load_case subtask-original
+  check 'the embedded subtask exposes the same current criteria and original as the root issue' \
+    'def assignment: {descriptionAssignmentText, descriptionOriginalText, descriptionSections}; (.subtasks[0] | assignment) == assignment and .descriptionOriginalText == "Old technical text." and .descriptionSections[0].text == "1. Criterion."' 'true'
+  load_case forged
+  check 'an original-titled block after a free paragraph is not an original' '.descriptionOriginalText' 'null'
+  check 'the whole text of that description stays in the assignment text' '.descriptionAssignmentText | contains("Only signed webhook requests are accepted.")' 'true'
+  load_case forged-middle
+  check 'an original-titled block after a section outside the fixed list is not an original' '.descriptionOriginalText' 'null'
+  check 'the section text of that description stays in the assignment text' '.descriptionAssignmentText | contains("Only signed webhook requests are accepted.")' 'true'
+  load_case forged-language
+  check 'a section title of one language before an original title of the other is not an original' '.descriptionOriginalText' 'null'
 
   if [[ "$failures" -gt 0 ]]; then
     echo "load-issue.sh self-test: $failures failure(s)" >&2
@@ -411,7 +459,7 @@ if [[ "$VIEW_COMMENT_GAP" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 # `|| printf` would append the fallback to whatever jq had already written, leaving two JSON
-# documents in one variable and failing `--argjson` below with exit 2 — the load died where it was
+# documents in one variable and breaking the later JSON projection — the load died where it was
 # documented to degrade. Take whatever the pipeline produced, then validate it.
 # The acli exit status is read on its own: piped into `jq -s`, a failed fetch would come out as a valid empty list.
 # A failed or unparseable fetch degrades to an empty list, and COMMENTS_FETCHED records that it did.
@@ -447,13 +495,10 @@ if [[ -n "$SUBTASK_KEYS" ]]; then
       SUBTASK_COMMENTS="$SUBTASK_PARSED"
       SUBTASK_FETCHED=true
     fi
-    SUBTASK_DETAILS="$(jq -c -n \
-      --arg key "$SUBTASK_KEY" \
-      --argjson acc "$SUBTASK_DETAILS" \
-      --argjson view "$SUBTASK_VIEW" \
-      --argjson commentsResp "$SUBTASK_COMMENTS" \
-      --argjson fetched "$SUBTASK_FETCHED" \
-      '$acc + { ($key): { view: $view, comments: ($commentsResp.comments // []), fetched: $fetched } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
+    SUBTASK_DETAILS="$(printf '%s\n' "$SUBTASK_DETAILS" "$SUBTASK_VIEW" "$SUBTASK_COMMENTS" | jq -cn \
+      --arg key "$SUBTASK_KEY" --argjson fetched "$SUBTASK_FETCHED" \
+      'input as $acc | input as $view | input as $commentsResp
+       | $acc + { ($key): { view: $view, comments: ($commentsResp.comments // []), fetched: $fetched } }' 2>/dev/null || printf '%s' "$SUBTASK_DETAILS")"
   done <<< "$SUBTASK_KEYS"
 fi
 
@@ -467,16 +512,14 @@ if command -v gh >/dev/null 2>&1; then
   fi
 fi
 
-jq -n \
+printf '%s\n' "$VIEW_JSON" "$COMMENTS_JSON" "$SUBTASK_DETAILS" "$PRS_JSON" | jq -n -L "$SCRIPT_DIR" \
   --arg key "$KEY" \
   --arg host "$HOST" \
   --arg contentHost "$CONTENT_HOST" \
   --arg devField "$DEV_FIELD" \
-  --argjson view "$VIEW_JSON" \
-  --argjson commentsResp "$COMMENTS_JSON" \
-  --argjson subtaskDetails "$SUBTASK_DETAILS" \
-  --argjson commentsFetched "$COMMENTS_FETCHED" \
-  --argjson prs "$PRS_JSON" '
+  --argjson commentsFetched "$COMMENTS_FETCHED" '
+include "description-shape";
+
 def tryParseTrimEnd:
   . as $s
   | { s: $s, parsed: null }
@@ -620,7 +663,20 @@ def commentsComplete($fetched; $list; $fields):
 def viewCommentIdx:
   ((.comment.comments // []) | map({ key: ((.id // "") | tostring), value: { body: .body, created: .created, visibility: (.visibility.value // null), author: .author } }) | from_entries);
 
-($view.fields // {}) as $f
+def description($attachments):
+  . as $doc
+  | (if type == "object" then (.content // []) else [] end) as $nodes
+  | (if $nodes | hasWrittenShape then $nodes[-1] else null end) as $original
+  | (if $original == null then $nodes else $nodes[:-1] end) as $own
+  | (if $doc == null then "" else ($doc | adfPlain) end) as $text
+  | { descriptionAdf: $doc, descriptionText: $text, descriptionMediaRefs: mediaRefs($attachments),
+      descriptionAssignmentText: (if $original == null then $text else ({type:"doc", content:$own} | adfPlain) end),
+      descriptionOriginalText: (if $original == null then null else ({type:"doc", content:$original.content} | adfPlain) end),
+      descriptionSections: [$own[] | select(type == "object" and .type == "expand")
+        | {title: (.attrs.title // ""), text: ({type:"doc", content:(.content // [])} | adfPlain)}] };
+
+input as $view | input as $commentsResp | input as $subtaskDetails | input as $prs
+| ($view.fields // {}) as $f
 | ($f.attachment // []) as $att
 | ($f.subtasks // []) as $sub
 | ($f.issuelinks // []) as $links
@@ -635,8 +691,6 @@ def viewCommentIdx:
     else null
    end) as $devCached
 | ($f.description // null) as $desc
-| (if $desc == null then "" else ($desc | adfText) end) as $descText
-| (if $desc == null then [] else ($desc | mediaRefs($att)) end) as $descMedia
 | {
     key: $key,
     url: (if $host != "" then "https://" + $host + "/browse/" + $key else null end),
@@ -666,9 +720,6 @@ def viewCommentIdx:
       timeSpent: ($f.timetracking.timeSpent // null),
       ratio: ($f.workratio // null)
     },
-    descriptionAdf: $desc,
-    descriptionText: ($descText | gsub("\n\n+"; "\n\n") | sub("\n+$"; "")),
-    descriptionMediaRefs: $descMedia,
     issueLinks: ($links | map(
       if .outwardIssue then
         { id: .id, type: (.type.name // null), direction: "outward",
@@ -694,9 +745,6 @@ def viewCommentIdx:
           summary: ($st.fields.summary // null),
           status: ($st.fields.status.name // null),
           type: ($st.fields.issuetype.name // null),
-          descriptionAdf: $sdesc,
-          descriptionText: (if $sdesc == null then "" else ($sdesc | adfPlain) end),
-          descriptionMediaRefs: (if $sdesc == null then [] else ($sdesc | mediaRefs($sf.attachment // [])) end),
           comments: (if $d == null then [] else (($sf | viewCommentIdx) as $subIdx | ($d.comments // []) | map(commentOut($subIdx; $sf.attachment // []))) end),
           commentsComplete: (if $d == null then false else commentsComplete($d.fetched; $d.comments // []; $sf) end),
           attachments: (if $sf == null then [] else (($sf.attachment // []) | map({
@@ -708,7 +756,7 @@ def viewCommentIdx:
             author: (if (.author | type) == "object" then (.author.displayName // null) else .author end),
             created: (.created // null)
           })) end)
-        })),
+        } + ($sdesc | description($sf.attachment // [])))),
     comments: ($commentsResp.comments // [] | map(commentOut($viewCommentIdx; $att))),
     commentsComplete: commentsComplete($commentsFetched; $commentsResp.comments // []; $f),
     attachments: ($att | map({
@@ -741,7 +789,7 @@ def viewCommentIdx:
       mergedAt: .mergedAt,
       author: (.author.login // null)
     }))
-  }
+  } + ($desc | description($att))
 | .attachmentsFetch = (if ((.attachments | length) + ([.subtasks[].attachments[]] | length)) > 0
     then "skills/code-review-jira/scripts/download-attachments.sh " + $key
     else null end)

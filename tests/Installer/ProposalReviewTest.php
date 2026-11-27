@@ -61,7 +61,7 @@ test('krang runs the proposal review before donatello in the merge-preparation d
     expect($krang)->toContain('**Merge-preparation delivery path → proposal review, before the implementation.**')
         ->and($krang)->toContain('whatever the task type')
         ->and($krang)->toContain('follow it before dispatching `donatello`')
-        ->and($krang)->toContain('**Three named exceptions to that rule, and no others.**')
+        ->and($krang)->toContain('**Four named exceptions to that rule, and no others.**')
         ->and($krang)->toContain('This exception ends when the roster gains an agent dedicated to the analysis of an issue.');
 
     expect(normalizedPackageSource('skills/_shared/orchestration/merge-preparation.md'))
@@ -151,7 +151,7 @@ test('krang no longer claims it never analyses and the general analysis request 
         ->and($krang)->not->toContain('you never analyse, implement, or review yourself')
         ->and($krang)->not->toContain('which no agent in the roster serves')
         ->and($krang)->toContain('its one inline analysis is the issue analysis')
-        ->and($krang)->toContain('(*Delegation model*, three named exceptions)')
+        ->and($krang)->toContain('(*Delegation model*, four named exceptions)')
         ->and($krang)->toContain('`Analysis done` when the run was a general analysis-only request')
         ->and($krang)->toContain('`krang + leonardo (proposal review)` (general analysis-only)');
 

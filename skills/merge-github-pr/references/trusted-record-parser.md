@@ -11,6 +11,8 @@ These steps read the record:
 - the `Quality gate:` record of step 3 *Pre-merge quality gate*;
 - the review record of `@skills/verify-merge-readiness/SKILL.md` step 1, and the HOTFIX rule of `@rules/git/pull-requests.md`.
 
+The approval check of step 2 also runs *The trusted helper-agents check* below, because a converged review counts as an approval only when the project allowed helper agents.
+
 These steps read the loader document of the procedure, and no other loader document: every field of step 1 that step 2 reads (`isDraft`, `isCrossRepository`, `mergeable`, `mergeStateStatus`, `reviewDecision`, `reviews[]`, `statusCheckRollup[]`), the `files[]` list of the trusted classifier and of the dependency-only exemption, and the base ref of `references/low-risk-path.md`.
 
 ## The procedure
@@ -61,6 +63,20 @@ Step 1 confirms that the pull request belongs to the current checkout. The check
 1. Its load is item 3 of the procedure with two changes: the path the verifier checks is `skills/code-review-github/scripts/load-issue.sh`, and the command that runs after the verdict is `"<clone>/skills/code-review-github/scripts/load-issue.sh" "<PR-URL>" > "<loader-file>"`. The installed paths follow item 3.
 2. Every read of its steps 1 to 3 takes that loader document. A reload after the wait for CI runs the whole call again. A step after its fallback gate runs no copy again.
 3. No verified copy, no document: the run stops and merges nothing.
+
+## The trusted helper-agents check
+
+Source 2 of the approval check (`@rules/git/pull-requests.md` *Merging*) counts only when helper agents were allowed, because otherwise the session that wrote the change also wrote the review (`skills/_shared/orchestration/helper-agents.md`). The merge step resolves the switch itself, with the trusted copy of the resolver. A `Review independence:` line of the record can only withhold Source 2, never grant it, and the brief and a comment never decide it. `@skills/verify-merge-readiness/SKILL.md` runs it the same way.
+
+1. Use the clone and the copies of items 1 and 2 of the procedure, and run the check before step 3 runs any code from the head.
+2. Run the shell call of *The trusted classifier* item 4, with its two `export` lines, its ref check, and its `TIP` check, and change two points of it:
+   1. The paths the verifier checks are `skills/_shared/resolve-project-switch.sh skills/_shared/read-manifest.sh`.
+   2. The command that runs after the verdict `installed-copy-verdict=verified` is `"<clone>/skills/_shared/resolve-project-switch.sh" --key helper-agents`. It runs in the clone, so `read-manifest.sh` reads the manifest of `TIP`.
+   - The installed paths follow item 3 of the procedure. With `--installed-reference`, the list ends with the installed `verify-installed-copy.sh`.
+3. Source 2 counts only when both hold:
+   1. The output of the trusted `skills/_shared/cr-header.sh --report <loader-file>` carries no `Review independence:` header line, bold or not, with any value. Such a line says the review ran while helper agents were forbidden, so it withholds Source 2 whatever the setting reads at merge time.
+   2. The first output line is `helper-agents=allowed` and the second is `source=manifest` or `source=default`. `source=invalid` and `source=unreadable` withhold it.
+   - `helper-agents=forbidden`, any other output, a non-zero exit, and no verified copy withhold it too. The approval check then needs Source 1 or the operator's own instruction in this run that names the review as not independent. The merge report names the answer.
 
 ## The trusted gate-record check
 

@@ -148,6 +148,7 @@ final class Installer
 
         self::reportProjectLocalSettings($subagentWritesEnabled, $networkBashDenied, $orphanedHandlersRemoved);
         echo $agentGuard->installMessage();
+        echo InstallerHelperAgentsDefault::apply($root)->message(lockFileExists: is_file($root . '/composer.lock'));
         self::reportGlobalInstall($options->global);
         self::pruneGlobalSkillsIfRequested($options->pruneGlobal, $root);
 

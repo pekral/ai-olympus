@@ -1,6 +1,6 @@
 # Skill Catalog
 
-All 75 skills this package ships, grouped by what you reach for them for. Each description is the
+All 77 skills this package ships, grouped by what you reach for them for. Each description is the
 skill's own `description:` front-matter, trimmed to one line — nothing here claims a capability the
 skill does not declare.
 
@@ -9,17 +9,17 @@ link to read the skill itself.
 
 | Group | Skills |
 |---|---|
-| [Issue → PR workflow](#issue--pr-workflow) | 13 |
+| [Issue → PR workflow](#issue--pr-workflow) | 16 |
 | [Code review](#code-review) | 7 |
 | [Security](#security) | 8 |
 | [Testing](#testing) | 10 |
-| [Databases](#databases) | 5 |
+| [Databases](#databases) | 6 |
 | [Frontend & UI](#frontend--ui) | 9 |
 | [Content & writing](#content--writing) | 4 |
 | [Infrastructure & performance](#infrastructure--performance) | 4 |
 | [Refactoring & code quality](#refactoring--code-quality) | 6 |
-| [Analysis & planning](#analysis--planning) | 5 |
-| [Meta & tooling](#meta--tooling) | 2 |
+| [Analysis & planning](#analysis--planning) | 6 |
+| [Meta & tooling](#meta--tooling) | 1 |
 
 ## Issue → PR workflow
 
@@ -28,10 +28,12 @@ link to read the skill itself.
 | [`resolve-issue`](../skills/resolve-issue/) | Resolving an issue from any supported tracker (GitHub, JIRA, Bugsnag) |
 | [`prepare-issue-context`](../skills/prepare-issue-context/) | Preparing data and context before /resolve-issue, TDD, or CR runs |
 | [`verify-merge-readiness`](../skills/verify-merge-readiness/) | A GitHub issue, a GitHub pull request, or a JIRA issue must have its pull request brought to a merge-ready state without merging, then summarized in one source-issue TL;DR while superseded preparation comments are removed safely |
+| [`merge-review-comments`](../skills/merge-review-comments/) | The operator explicitly asks to merge the latest review comments of one tracker item (a GitHub issue, a JIRA issue, or a Bugsnag error) into one complete comment; only the operator can start it |
 | [`do-it`](../skills/do-it/) | Free-form instructions with several tasks must become a prioritised queue of issues and be executed to converged pull requests: an existing issue is reused, the order comes from priority, difficulty, and duration, and the parallel batches come from `plan-parallel.sh` |
 | [`process-code-review`](../skills/process-code-review/) | Processing pull request code review feedback |
 | [`merge-github-pr`](../skills/merge-github-pr/) | Safely merge GitHub pull requests that are ready |
 | [`merge-github-pr-fast`](../skills/merge-github-pr-fast/) | Land a hotfix pull request now, only on the user's explicit `/merge-github-pr-fast`: one security-only check of the diff, then green CI or a passing gate on the head commit |
+| [`mark-ready-to-deploy`](../skills/mark-ready-to-deploy/) | The operator's own chat message says a task or a pull request is ready to deploy: marks the pull request, its closing issues, and the named JIRA issues ready to deploy and assigns each back to the pull-request author |
 | [`pr-summary`](../skills/pr-summary/) | Summarizing current PR changes for the development and product team |
 | [`create-issue`](../skills/create-issue/) | Create a single issue from provided text without modifying its content |
 | [`create-issues-from-text`](../skills/create-issues-from-text/) | Break down assignment into multiple structured issues |
@@ -75,7 +77,7 @@ link to read the skill itself.
 | [`create-missing-tests-in-pr`](../skills/create-missing-tests-in-pr/) | A PR review already exists and its missing tests — only for a missing behavioural contract — must be completed |
 | [`rewrite-tests-pest`](../skills/rewrite-tests-pest/) | Rewriting existing tests to Pest syntax |
 | [`e2e-testing`](../skills/e2e-testing/) | Writing or stabilizing Playwright end-to-end browser tests against a Laravel app |
-| [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser |
+| [`interactive-testing`](../skills/interactive-testing/) | Verifying user-visible project changes against an assignment and the actual code diff in an interactive browser; a project switches it off with the manifest key `interactive-testing` set to `false` |
 | [`auto-interactive-testing`](../skills/auto-interactive-testing/) | Working through every open `interactive-testing` issue as one unattended batch: fix the linked defects, run the scenarios, resolve and merge new defects, re-test, clean up, then report and close each issue |
 | [`test-assignment`](../skills/test-assignment/) | A task's pull request must be tested against its assignment and the test must prove that nothing else broke |
 | [`tester-cookbook`](../skills/tester-cookbook/) | Preparing a concise QA report for an internal tester from a JIRA task and its linked pull requests |

@@ -2,6 +2,8 @@
 
 declare(strict_types = 1);
 
+use Symfony\Component\Process\Process;
+
 function installerEnsureDirectory(string $directory): void
 {
     if (is_dir($directory)) {
@@ -301,6 +303,14 @@ function auditLedgerRows(array $ledger): array
 function auditLedgerRemove(array $ledger): void
 {
     installerRemoveDirectory($ledger['directory']);
+}
+
+function manifestRepositoryGit(string $dir, string ...$arguments): string
+{
+    $process = new Process(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', ...$arguments], $dir);
+    $process->mustRun();
+
+    return trim($process->getOutput());
 }
 
 /**

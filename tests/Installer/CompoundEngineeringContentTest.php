@@ -172,7 +172,7 @@ test('the pull request body states the merge danger from the merge-risk script a
         'A revert does not run `down()`: when the diff carries a migration, roll it back with `php artisan migrate:rollback` before the revert.',
     );
     expect($pullRequest)->not->toContain('<(git diff');
-    expect($pullRequest)->toContain('the `Evidence:` line is the name of the regression test that failed before the fix and passes after it');
+    expect($pullRequest)->toContain('the `Evidence:` line comes from the output of `skills/_shared/test-integrity.sh prove`');
 
     // One owner: the rule and the second PR-creation path point at the file and do not restate the section.
     expect($rule)->toContain('`@skills/resolve-issue/references/pull-request.md` owns the section');
@@ -1358,10 +1358,11 @@ test('no agent writes a tracker status once the code review has started, on JIRA
     expect($rule)->not->toContain('**A reopened review reverts phase 3.**');
 
     expect($orchestration)->toContain('| `leonardo` | Add the `ready to merge` label to the pull request when the review converges');
-    expect($orchestration)->toContain('every JIRA status transition outside the two sanctioned helper-driven ones');
+    expect($orchestration)->toContain('every JIRA status transition outside the three sanctioned helper-driven ones');
     expect($orchestration)->toContain('the two sanctioned helper scripts, `@rules/jira/general.md`');
 
-    expect($jira)->toContain('- Never change JIRA issue status, with two exceptions:');
+    expect($jira)->toContain('- Never change JIRA issue status, with three exceptions:');
+    expect($jira)->toContain('The one exception is the third transition above, on the operator\'s own word.');
     expect($jira)->toContain('**No status change once the code review has started.**');
     expect($jira)->not->toContain('transition-to-ready-to-merge.sh');
     expect($jira)->toContain('acli jira workitem assign --key <KEY> --assignee "@me" --yes');
@@ -1737,7 +1738,7 @@ test('every comment an agent publishes on GitHub or JIRA carries a marker, and n
         ->and($jira)->not->toContain('A replacement TL;DR published through the JIRA MCP fallback carries none');
 
     expect($prSummary)->toContain('Append the same `<!-- cr-comment:actor=<gh-login> -->` marker to the body on either fallback call')
-        ->and($prSummary)->toContain('append the same `_cr-comment:actor=<actor-digest>_` marker line to that ADF');
+        ->and($prSummary)->toContain('put the same `_cr-comment:actor=<actor-digest>_` marker line into the marker block of that ADF');
 });
 
 test('a JIRA comment addressed to another account is compared by account ID, never by display name (issue #156)', function (): void {

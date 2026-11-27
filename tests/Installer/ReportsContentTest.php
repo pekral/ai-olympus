@@ -143,16 +143,19 @@ test('reports/general.md bans developer content from a JIRA comment and names it
     // Exactly three exceptions, written as exceptions rather than as room for interpretation.
     expect($content)->toContain('### Three exceptions, and there is no fourth');
     expect($content)->toContain('**A string the end user sees is quoted verbatim.**');
-    expect($content)->toContain('**One pull-request link at the end.**');
+    expect($content)->toContain('**Links into the pull request.**');
+    expect($content)->toContain('The label of such a link is fixed text, never a path or a line number');
     expect($content)->toContain('**Links to related tracker items and to the product documentation.**');
-    expect($content)->toContain('A link to code, a commit, a CI run, or a log stays banned.');
+    expect($content)->toContain('Any other link to code, a commit, a CI run, or a log stays banned.');
 
     // The sentence without which the next agent reads the rule as a loss of information.
     expect($content)->toContain('### The technical evidence moves to the pull request; it does not disappear');
     expect($content)->toContain('which is where `@skills/merge-github-pr/SKILL.md` reads it');
 
     // The cap, and the bullets that are never the ones dropped. A JIRA comment has no How to test.
-    expect($content)->toContain('A JIRA comment fits within **3 000 characters**, counted over the published body.');
+    expect($content)->toContain(
+        'A JIRA comment fits within **3 000 characters**, counted over the visible text of the published body: a link counts its label, never its address.',
+    );
     expect($content)->toContain('**Never drop an *Acceptance criteria* bullet or a *Review findings* bullet**');
     expect($content)->not->toContain('**Never shorten *How to test***');
 
@@ -197,4 +200,32 @@ test('every remaining JIRA publish path renders the JIRA shape rather than anoth
     expect($trackerFollowUp)->toContain('**The non-technical report on a JIRA issue takes the JIRA shape.**');
     expect($trackerFollowUp)->not->toContain('travel **inside** the `How to test` steps they belong to');
     expect($trackerFollowUp)->toContain('Before the code review runs, `Review findings` is one sentence stating that the review has not run yet.');
+});
+
+test('every restatement of the JIRA shape names what changed and what it affects with no TL;DR label (#709)', function (): void {
+    $packageDir = dirname(__DIR__, 2);
+    $reports = (string) file_get_contents($packageDir . '/rules/reports/general.md');
+    $summary = (string) file_get_contents($packageDir . '/skills/pr-summary/SKILL.md');
+
+    expect($reports)->toContain('*Nálezy z kontroly kódu*, and *Co se změnilo a co to ovlivní*, never an English heading')
+        ->and($summary)->toContain('`Nálezy z kontroly kódu` / `Co se změnilo a co to ovlivní`.')
+        ->and($summary)->toContain('a few bullets with no TL;DR label combine observable changes with what to watch after the release')
+        ->and($summary)->not->toContain('one TL;DR paragraph');
+});
+
+test('exception 2 keeps the link of a finding outside the pull request at the reviewed head commit, and every publisher keeps it', function (): void {
+    $rule = packageSource('rules/reports/general.md');
+    $april = packageSource('agents/april.md');
+    $wrapper = packageSource('skills/code-review-jira/SKILL.md');
+
+    expect(packageSection($rule, '2. **Links into the pull request.**', '3. **Links to related tracker items'))->toContain(
+        'A finding about code outside the pull request that no pull request fixes ends with the link to its file and line in the task repository '
+        . 'at the reviewed head commit, the `Reviewed revision:` of the code-review report (owner decision of 2026-11-25).',
+    )
+        ->and($april)->toContain(
+            'every link that exception 2 of that rule allows — the links into the pull request, and the link of a finding outside the pull request '
+            . 'to its file and line at the reviewed head commit.',
+        )
+        ->and($april)->not->toContain('and the links into the pull request that exception 2 of that rule allows.')
+        ->and($wrapper)->toContain('the link of a finding outside the pull request to its file and line at the reviewed head commit are the exceptions');
 });

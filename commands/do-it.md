@@ -20,5 +20,7 @@ with its pull request, its status, and its blocker. Do not merge.
 Change only what the assignment of each item requires. Do not implement an optimization, a
 refactoring, a pre-existing problem, or a nice-to-have point.
 
+When the project forbids helper agents, this session starts no agent of any type. It performs every step itself, or stops and names a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states, and its report says whether helper agents were allowed.
+
 For Codex, invoke `$do-it` with the same instructions.
 The root session holds the `krang` role under the same section and spawns the registered specialists itself.

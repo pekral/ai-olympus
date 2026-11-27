@@ -208,7 +208,7 @@ test('april runs three publication checks before a JIRA comment counts as publis
     expect($april)->toContain('**Walk the body against the banned list before the write, and remove what you find.**');
     expect($april)->toContain('**Remove each hit — never annotate it**');
     expect($april)->toContain(
-        'shorten the combined `TL;DR` paragraph first, never an `Acceptance criteria` or a `Review findings` bullet',
+        'shorten the wording of `What changed and what it affects` first, never an `Acceptance criteria` or a `Review findings` bullet',
     );
 
     // 2. ADF publication.
@@ -232,14 +232,37 @@ test('the reporting headline opens the Problem field on GitHub and Bugsnag and n
     $april = (string) file_get_contents($packageDir . '/agents/april.md');
     $krang = krangContractText();
 
-    // Both files instructed the headline into the `Problem` field on every target. The JIRA
-    // template has no such field and no status line: the comment opens with its first heading.
     expect($april)->not->toContain('the same position on every target, because every target renders the same structure');
     expect($april)->not->toContain('the **status sentence above `h2. Acceptance criteria`** — so the headline goes there');
-    expect($april)->toContain('On **JIRA** there is no headline and no status line: the comment opens with its first heading');
+    expect($april)->toContain('On **JIRA** there is no headline: the comment opens with the deploy verdict paragraph');
     expect($krang)->not->toContain('the opening sentence of the `Problem` field is');
     expect($krang)->toContain('on JIRA it takes the JIRA shape with no headline and no How to test');
 });
+
+test('an expand block becomes a collapsed ADF expand node that keeps its content', function (): void {
+    $document = jiraAdfConvert("Verdict.\n\n{expand:Findings from the code review}\nIntro line.\n\n* One finding.\n{expand}\n");
+    $children = jiraAdfChildren($document);
+    $expand = $children[1] ?? null;
+
+    expect(array_column($children, 'type'))->toBe(['paragraph', 'expand'])
+        ->and(is_array($expand) ? $expand['attrs'] : null)->toBe(['title' => 'Findings from the code review'])
+        ->and(array_column(jiraAdfChildren($expand), 'type'))->toBe(['paragraph', 'bulletList'])
+        ->and(json_encode($document, JSON_THROW_ON_ERROR))->not->toContain('{expand');
+});
+
+test(
+    'an expand block never nests, never stays empty, and stays text without its closing line',
+    function (string $source, array $types, string $text): void {
+        $document = jiraAdfConvert($source);
+    
+        expect(array_column(jiraAdfChildren($document), 'type'))->toBe($types)
+            ->and(json_encode($document, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE))->toContain($text);
+    },
+)->with([
+    'an empty block' => ["{expand:Empty}\n{expand}\n", ['expand'], '{"type":"paragraph"}'],
+    'an inner opening line' => ["{expand:Outer}\n{expand:Inner}\n{expand}\n", ['expand'], '{expand:Inner}'],
+    'no closing line' => ["{expand:Open}\ntext\n", ['paragraph', 'paragraph'], '{expand:Open}'],
+]);
 
 test('a JIRA account mention becomes an ADF mention node', function (): void {
     $document = jiraAdfConvert('Please confirm, [~accountid:5b10ac8d82e05b22cc7d4ef5].');
@@ -249,12 +272,26 @@ test('a JIRA account mention becomes an ADF mention node', function (): void {
     expect($mention)->toBe(['type' => 'mention', 'attrs' => ['id' => '5b10ac8d82e05b22cc7d4ef5']]);
 });
 
-test('the merge-preparation consolidation opens a JIRA comment with its first heading, never with a verdict sentence', function (): void {
+test('the merge-preparation consolidation opens a JIRA comment with the deploy verdict paragraph', function (): void {
     $april = normalizedPackageSource('agents/april.md');
     $skill = normalizedPackageSource('skills/verify-merge-readiness/SKILL.md');
 
     expect($april)->toContain('On a GitHub issue its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($april)->toContain('On a JIRA ticket the comment opens with its first heading, and the exact blocker is the first `Review findings` bullet.')
+        ->and($april)->toContain(
+            'On a JIRA ticket the comment opens with the deploy verdict paragraph, which names the exact blocker, '
+                . 'and the `Review findings` follow the type order of the JIRA shape.',
+        )
         ->and($april)->not->toContain('Its first sentence is a TL;DR with the verified merge-readiness verdict.')
-        ->and($skill)->toContain('`Review findings` with the exact blocker first');
+        ->and($skill)->toContain('the exact blocker named in the deploy verdict');
+});
+
+test('the JIRA MCP fallback reads the stored comment back for the agent marker (#709)', function (): void {
+    $rule = normalizedPackageSource('rules/jira/general.md');
+    $summary = normalizedPackageSource('skills/pr-summary/SKILL.md');
+
+    expect($rule)->toContain(
+        'After the MCP write, read the comment back and require that marker line in its stored body, as the helper does after its own write.',
+    )
+        ->and($rule)->toContain('stop as blocked, name its ID, and leave its removal to a human')
+        ->and($summary)->toContain('and read the stored comment back for that marker as `@rules/jira/general.md` states.');
 });

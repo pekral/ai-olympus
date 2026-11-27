@@ -96,16 +96,34 @@ function jiraWikiMarkupToAdf(string $wikiMarkup): array
 {
     $lines = preg_split('/\R/u', $wikiMarkup);
 
-    if (!is_array($lines)) {
-        $lines = [$wikiMarkup];
-    }
+    return [
+        'content' => jiraWikiBlockNodes(is_array($lines) ? $lines : [$wikiMarkup], allowExpand: true),
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
 
+/**
+ * @param list<string> $lines
+ * @return list<array<string, mixed>>
+ */
+function jiraWikiBlockNodes(array $lines, bool $allowExpand): array
+{
     $content = [];
 
     for ($index = 0, $lineCount = count($lines); $index < $lineCount; $index++) {
         $line = $lines[$index];
 
         if (trim($line) === '') {
+            continue;
+        }
+
+        $expand = jiraWikiExpandBlock($lines, $index, $allowExpand);
+
+        if ($expand !== null) {
+            $content[] = $expand['node'];
+            $index = $expand['end'];
+
             continue;
         }
 
@@ -203,10 +221,30 @@ function jiraWikiMarkupToAdf(string $wikiMarkup): array
         ];
     }
 
+    return $content;
+}
+
+/**
+ * @param list<string> $lines
+ * @return array{end: int, node: array<string, mixed>}|null
+ */
+function jiraWikiExpandBlock(array $lines, int $start, bool $allowed): ?array
+{
+    $end = array_search('{expand}', array_slice($lines, $start + 1), true);
+
+    if (!$allowed || $end === false || preg_match('/^\{expand:(?<title>[^{}]+)\}$/u', $lines[$start], $opening) !== 1) {
+        return null;
+    }
+
+    $inner = jiraWikiBlockNodes(array_slice($lines, $start + 1, $end), allowExpand: false);
+
     return [
-        'version' => 1,
-        'type' => 'doc',
-        'content' => $content,
+        'end' => $start + 1 + $end,
+        'node' => [
+            'attrs' => ['title' => trim($opening['title'])],
+            'content' => $inner === [] ? [['type' => 'paragraph']] : $inner,
+            'type' => 'expand',
+        ],
     ];
 }
 

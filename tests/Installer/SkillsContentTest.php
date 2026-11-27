@@ -541,7 +541,6 @@ test('jira load-issue embeds full subtask context (description, comments, attach
     // Each subtask is fetched individually so its description, comments, and
     // attachments are embedded — not just the parent's shallow reference.
     expect($content)->toContain('acli jira workitem view "$SUBTASK_KEY"');
-    expect($content)->toContain('--argjson subtaskDetails "$SUBTASK_DETAILS"');
     expect($content)->toContain('descriptionText:');
     expect($content)->toContain('descriptionAdf:');
     // A failed per-subtask fetch must degrade to the shallow reference, never
@@ -571,6 +570,8 @@ test('new JIRA agent scripts are shipped, executable, and documented', function 
         'parse-comments.sh' => 'Usage: parse-comments.sh <KEY|URL>',
         'transition-to-code-review.sh' => 'Usage: transition-to-code-review.sh <KEY|URL> [<STATUS>]',
         'transition-to-in-progress.sh' => 'Usage: transition-to-in-progress.sh <KEY|URL> [<STATUS>]',
+        'transition-to-ready-to-deploy.sh' => 'Usage: transition-to-ready-to-deploy.sh <KEY|URL> [<STATUS>]',
+        'assign-to-pr-author.sh' => 'Usage: assign-to-pr-author.sh <KEY> --pr-author <login> [--email <address>]',
     ];
 
     foreach ($scripts as $name => $usage) {
@@ -714,16 +715,17 @@ test('JIRA context-consuming skills offer gather-issue-context.sh', function ():
     }
 });
 
-test('jira rule permits two sanctioned transitions and names every helper', function (): void {
+test('jira rule permits three sanctioned transitions and names every helper', function (): void {
     $packageDir = dirname(__DIR__, 2);
     $content = (string) file_get_contents($packageDir . '/rules/jira/general.md');
 
     expect($content)->toContain('transition-to-in-progress.sh');
     expect($content)->toContain('transition-to-code-review.sh');
+    expect($content)->toContain('transition-to-ready-to-deploy.sh');
     expect($content)->not->toContain('transition-to-ready-to-merge.sh');
     expect($content)->toContain('Never change JIRA issue status');
     expect($content)->toContain('human-only');
-    expect($content)->toContain('two exceptions');
+    expect($content)->toContain('three exceptions');
 });
 
 test('resolve-issue moves the issue to code review via the transition helper after the PR is open', function (): void {

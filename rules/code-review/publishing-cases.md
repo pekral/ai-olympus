@@ -25,8 +25,8 @@ The run may still edit text that already exists: the pull-request body (for exam
 
 **A line the operator added survives the rewrite.** The operator posts under the agents' account and sometimes adds a line to an agent comment, for example `Rozhodnuto: …`; every helper that rewrites a comment in place keeps it. A code-review report is never rewritten: it is published with `--create`, so it carries no line over from an earlier comment, and the operator's line stays in the earlier comment where the operator wrote it.
 
-1. Each published version records a fingerprint of the lines the agent wrote: a hidden `<!-- <namespace>:lines=… -->` line on GitHub, a ` lines=…` suffix inside the visible marker on JIRA.
-2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, so a mention and its formatting survive too.
+1. Each published version records a fingerprint of the lines the agent wrote: a hidden `<!-- <namespace>:lines=… -->` line on GitHub, a ` lines=…` suffix inside the marker on JIRA.
+2. On a rewrite, a line of the previous version whose fingerprint is unknown was added by a person. The helper carries it into the new version verbatim, above the marker. On JIRA the unit is one top-level ADF node, or one child of a collapsed `expand` section, so a mention and its formatting survive too.
 3. The helper prints `carried_lines=<n>` and one `carried: <line>` per carried line on stderr.
 4. The run that called the helper states every carried line, verbatim, in its report and its handoff.
 
@@ -61,3 +61,5 @@ A `### leonardo — CR published` section of the brief is a report a person read
 **The orchestrator keeps what the gate decides.** *Finalization* of `@skills/process-code-review/SKILL.md` has not run when the round publishes. The review therefore carries no `Quality gate:` line, and the merge accepts the gate run of *Finalization* only through the machine gate record; without that record it runs the gate itself (`@skills/merge-github-pr/SKILL.md` *Pre-merge quality gate*). The promotion out of Draft and the `ready to merge` label stay with `krang`, after *Finalization* (`agents/krang.md` *Parallel CR round* step 5). As on a `FAST` run, the `## Merge risk` heading of the pull-request body keeps the value it opened with.
 
 **A commit after the early publish** follows *When another review round runs at all — changed business logic, or a changed assignment* in `@rules/code-review/review-rounds.md`. A round that a business-logic change opens publishes its own review under this section, and the earlier review stays unchanged.
+
+**Helper agents forbidden.** When the project forbids helper agents, no step of this file starts an agent: the session performs each dispatch named here itself, in the role of that agent, or stops on a step it cannot perform, as `skills/_shared/orchestration/helper-agents.md` states.

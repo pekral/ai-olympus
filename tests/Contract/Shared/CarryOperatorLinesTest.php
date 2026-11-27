@@ -116,6 +116,72 @@ test('an operator node added to the previous ADF version is carried verbatim, me
         ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: @u1\n");
 });
 
+/**
+ * @return array{type: string, content: list<array{type: string, text: string}>}
+ */
+function carryTestParagraph(string $text): array
+{
+    return ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => $text]]];
+}
+
+/**
+ * @param list<array<string, mixed>> $findings
+ * @param list<array<string, mixed>> $outside
+ * @return array<string, mixed>
+ */
+function carryTestCollapsedComment(array $findings, string $marker, array $outside = []): array
+{
+    return carryTestAdfDocument(
+        carryTestParagraph('It cannot be deployed yet.'),
+        ...$outside,
+        ...[
+            ['type' => 'expand', 'attrs' => ['title' => 'Findings from the code review'], 'content' => $findings],
+            ['type' => 'expand', 'attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [carryTestAdfMarker($marker)]],
+        ],
+    );
+}
+
+function carryTestFirstRoundMarker(): string
+{
+    return 'cr-comment:actor=abc lines=' . carryTestFingerprint('It cannot be deployed yet.') . ',' . carryTestFingerprint('Round one finding');
+}
+
+test('an operator paragraph inside a collapsed section is carried alone, never the whole section', function (): void {
+    $previous = carryTestCollapsedComment(
+        [carryTestParagraph('Round one finding'), carryTestParagraph('Rozhodnuto: ponechat.')],
+        carryTestFirstRoundMarker(),
+    );
+
+    $process = runCarryOperatorLines(
+        'adf',
+        json_encode(carryTestCollapsedComment([carryTestParagraph('Round two finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        json_encode($previous, JSON_THROW_ON_ERROR),
+    );
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: ponechat.\n")
+        ->and($process->getOutput())->not->toContain('Round one finding')
+        ->and(substr_count($process->getOutput(), 'Rozhodnuto: ponechat.'))->toBe(1);
+});
+
+test('an operator paragraph outside the collapsed sections is carried, and the marker block never is', function (): void {
+    $previous = carryTestCollapsedComment(
+        [carryTestParagraph('Round one finding')],
+        carryTestFirstRoundMarker(),
+        [carryTestParagraph('Rozhodnuto: limit zůstává.')],
+    );
+
+    $process = runCarryOperatorLines(
+        'adf',
+        json_encode(carryTestCollapsedComment([carryTestParagraph('Round two finding')], 'cr-comment:actor=abc'), JSON_THROW_ON_ERROR),
+        json_encode($previous, JSON_THROW_ON_ERROR),
+    );
+
+    expect($process->getExitCode())->toBe(0)
+        ->and($process->getErrorOutput())->toBe("carried_lines=1\ncarried: Rozhodnuto: limit zůstává.\n")
+        ->and(substr_count($process->getOutput(), 'cr-comment:actor=abc'))->toBe(1);
+});
+
 test('an agent paragraph with a mention is not carried once JIRA stored the display name on the mention', function (): void {
     $agentParagraph = static fn (array $mention): array => ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Question for '], $mention]];
     $publishedMention = ['type' => 'mention', 'attrs' => ['id' => 'u1']];

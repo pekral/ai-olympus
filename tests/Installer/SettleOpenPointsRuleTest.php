@@ -102,8 +102,8 @@ test('every settle git argument has a fixed shape and every pathspec keeps the e
 test('the settle step states what its closed git lists do not cover', function (): void {
     expect(settleOpenPointsOwner())
         ->toContain(
-            'The review\'s own `git worktree add` and `git checkout` still run the program that a repository-relative '
-            . '`core.hooksPath` or `core.fsmonitor` in the reviewer\'s configuration names.',
+            'The review creates and moves its worktree only through `skills/_shared/branch-worktree.sh` '
+            . '(`@skills/code-review/references/branch-checkout-gate.md`), which runs no program of the branch.',
         );
 });
 

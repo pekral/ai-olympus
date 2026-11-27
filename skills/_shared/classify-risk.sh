@@ -268,8 +268,7 @@ EOF
 # so every pattern here is written in lower case and needs no case folding of
 # its own.
 
-DOC_RE='(^|/)(docs?|documentation)/|\.(md|mdx|markdown|rst|txt|adoc)$|(^|/)(readme|changelog|license|contributing|code_of_conduct)([.-][a-z0-9]+)?$'
-FORMAT_RE='(^|/)\.(editorconfig|gitignore|gitattributes|prettierrc|eslintrc|styleci)([.-][a-z0-9]+)*$|(^|/)(pint|\.php-cs-fixer)\.[a-z.]+$|(^|/)(ruleset|phpcs)\.xml(\.dist)?$|(^|/)rector\.php$|(^|/)phpstan\.neon(\.dist)?$'
+# DOC_RE and FORMAT_RE come from domain-vocabulary.sh, which test-integrity.sh reads too.
 
 PAY_RE='payment|billing|invoice|subscription|checkout|stripe|paypal|braintree|adyen|gopay|refund|pricing|currency'
 API_RE='(^|/)routes/api|(^|/)api/|api[a-z0-9_-]*controller|openapi|swagger|graphql|\.proto$'
@@ -496,7 +495,9 @@ classify() {
     [[ -n "$path" ]] || continue
     all+=("$path")
     lowered="$(lower "$path")"
-    if [[ "$lowered" =~ $DOC_RE ]]; then
+    # A file a test runner collects by default (RUNNER_COLLECTED_RE) and a list of tests or of dependencies
+    # (TOOL_LIST_RE) are never documentation.
+    if [[ "$lowered" =~ $DOC_RE && ! "$lowered" =~ $TOOL_LIST_RE && ! "$lowered" =~ $RUNNER_COLLECTED_RE ]]; then
       docs+=("$path")
       continue
     fi
@@ -1428,6 +1429,57 @@ TEXT
     --files "$(writefiles 'src/Formatter.php' 'tests/Unit/FormatterTest.php')" --assignment "$tmp/clear.txt"
   expect_line 'every point is attributable to a signal line' 'signal=-2|documentation-only' \
     --files "$(writefiles 'README.md' 'docs/agents.md')" --assignment "$tmp/clear.txt"
+  # pytest runs test*.txt as doctests and loads conftest.py, so neither is documentation.
+  expect_line 'a pytest doctest file is a test, never documentation' 'signal=-2|tests-only' \
+    --files "$(writefiles 'app/test_add.txt')" --assignment "$tmp/clear.txt"
+  expect_line 'a conftest.py under docs/ is a test, never documentation' 'signal=-2|tests-only' \
+    --files "$(writefiles 'docs/conftest.py')" --assignment "$tmp/clear.txt"
+  # Cucumber collects `features/**/*.feature.md` by default, at any depth of a project root.
+  local feature_md
+  for feature_md in 'src/features/login.feature.md' 'app/features/a/b.feature.md' 'Src/Features/Login.Feature.MD'; do
+    expect_line "$feature_md is a test, never documentation" 'signal=-2|tests-only' \
+      --files "$(writefiles "$feature_md")" --assignment "$tmp/clear.txt"
+  done
+  # CTest runs the add_test() calls of a CMakeLists.txt, and pip installs a requirements file.
+  expect_no_line 'a CMakeLists.txt is never documentation' 'documentation-only' \
+    --files "$(writefiles 'src/CMakeLists.txt')" --assignment "$tmp/clear.txt"
+  expect_no_line 'a requirements file is never documentation' 'documentation-only' \
+    --files "$(writefiles 'app/requirements-dev.txt')" --assignment "$tmp/clear.txt"
+  # A documentation directory makes no file documentation: a configuration, a build file, or a script there is
+  # material, in any case and at any depth. A git-quoted path stays material too.
+  local docs_material
+  for docs_material in 'src/docs/conf.py' 'docs/conf.py' 'docs/Makefile' 'resources/docs/playwright.config.ts' \
+    'app/doc/.mocharc.yml' 'app/doc/.flake8' 'app/docs/.coveragerc' 'app/documentation/noxfile.py' 'Docs/API/Conf.PY' \
+    '"docs/caf\303\251/conf.py"'; do
+    expect_tier "$docs_material is never documentation" STANDARD \
+      --files "$(writefiles "$docs_material")" --assignment "$tmp/clear.txt"
+  done
+  expect_line 'a guide and a readme stay documentation' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'docs/guide.md' 'DOCS/Setup/Guide.MD' 'README.md' 'docs/images/README')" --assignment "$tmp/clear.txt"
+  # A .txt file is documentation only by a documentation name, and a code file is never documentation for its
+  # name: a dependency list, the expected output of a test, and a build option file are material, in any case and
+  # when git quotes the path.
+  local txt_material
+  for txt_material in 'app/reqs/base.txt' 'app/deps.txt' 'app/requirements/dev/extra.txt' 'App/Deps.TXT' \
+    'src/App.Tests/Calc.verified.txt' 'src/App.Tests/Calc.approved.txt' 'meson_options.txt' 'docs/requirements.txt' \
+    'app/Models/License.php' 'src/Notice.php' 'src/readme.js' '"app/d\303\251ps.txt"'; do
+    expect_tier "$txt_material is never documentation" STANDARD \
+      --files "$(writefiles "$txt_material")" --assignment "$tmp/clear.txt"
+  done
+  # A documentation directory makes no .txt file documentation, and a `-<word>` suffix keeps a documentation name
+  # only with a documentation extension: a checker word list, a dependency list, or a plain-text guide under a docs
+  # directory, an extensionless script, and a name outside the documentation names are material.
+  local named_material
+  for named_material in 'src/docs/spelling_wordlist.txt' 'src/docs/styles/config/vocabularies/Base/accept.txt' \
+    'src/docs/deps.txt' 'app/docs/requirements/dev/extra.txt' 'src/bin/license-check' 'src/notice-handler' \
+    'app/Authors' 'docs/guide.txt' 'user-docs/notes.txt' 'Docs/Guide/Setup.TXT' 'LICENSE-MIT' 'NOTICE.txt' \
+    'AUTHORS.txt'; do
+    expect_no_line "$named_material is never documentation" 'documentation-only' \
+      --files "$(writefiles "$named_material")" --assignment "$tmp/clear.txt"
+  done
+  expect_line 'a documentation name stays documentation' 'signal=-2|documentation-only' \
+    --files "$(writefiles 'LICENSE' 'LICENSE.txt' 'LICENSE-MIT.md' 'README.txt' 'README.md' 'docs/guide.md' \
+      'skills/unslop/LICENSE' 'CHANGELOG.md')" --assignment "$tmp/clear.txt"
 
   # --- Project-declared critical paths ---------------------------------------
   manifest_repo() {

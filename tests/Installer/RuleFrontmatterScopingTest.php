@@ -494,7 +494,10 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: the Exclusion Gate sees only the Moderate findings that the findings verification kept.
         // Re-baselined: *Bulk Data & Batch Processing* gains a fourth check, in-memory work that grows faster than the data (issue #680).
         // Re-baselined: the offset-paging check also covers a growing set that the loop only reads, and the gating gives that call to this section alone (issue #696).
-        'rules/code-review/general.md' => 'd39f50fe41dfa08ae75ff3d4d9df2c7d1ab20c3fc134bfbe151c1c9bff33946c',
+        // Re-baselined: a project that switched interactive testing off gets the one switched-off sentence in the review (issue #666).
+        // Re-baselined: floor item 1 of *Conflict resolution* points at its one exception, the switched-off walkthrough (issue #666).
+        // Re-baselined: a review that the session wrote itself because the project forbids helper agents says so in its header (issue #667).
+        'rules/code-review/general.md' => '381f4ceabaafd0890c77ea12373ef536b430212f4fe0a5b97bb5b89377eb7e69',
         // Re-baselined: `## Jobs` gained the preferred invocation for a job's own test —
         // `app()->call([$job, 'handle'])`, so the container resolves the `handle()` dependencies
         // and the test builds no double just to satisfy the signature. Nothing else in the file
@@ -573,7 +576,12 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // the printed setup step; `## Code Review Application` gained the matching entry (issue #640).
         // Re-baselined: the fetch takes the loader's `key` of the assigned issue, creates its folder below the
         // physical toplevel after the symbolic-link check, and audits the site host (issue #640, review round 1).
-        'rules/jira/general.md' => 'bd5fb92ec0e8f042c56b969f88813370a9d08d47c743306a16315a8e47e64b64',
+        // Re-baselined: a third sanctioned transition, to the ready-to-deploy status on the operator's own word,
+        // through `transition-to-ready-to-deploy.sh`, with its deny list and the re-read of the resolution (issue #688).
+        // Re-baselined: the sentence on the duties of every transition helper takes singular verbs (issue #688, review round 1).
+        // Re-baselined: *Issue Description Format* points an assignment to the JIRA shape and a rewrite to
+        // `update-description.sh`, never a raw `acli jira workitem edit` (issue #713).
+        'rules/jira/general.md' => 'b556a29d4f0f2fa351631e1b5d2dabb2458e26f3d81a0e81c86293a856cd9e96',
         // Re-baselined: the prompt audit removed history narration and stale references and resolved contradictions.
         'rules/php/dependency-selection.md' => 'ecfcb332242c0faad4dc895124ca7ead1f24ccb120cc98c1bff65d8765de72fa',
         // Re-baselined: the review stopped walking commit history, so the two commit-history
@@ -621,7 +629,7 @@ test('every rule renamed in issue #277 keeps a byte-identical body below the fro
         // Re-baselined: a JIRA comment has no status line, renders *Acceptance criteria* only for explicit criteria,
         // and writes *What changed* and *Impact after deployment* as a TL;DR each.
         // Re-baselined: the prose of a tracker report goes through `unslop` before the publish.
-        'rules/reports/general.md' => 'e08225a3b9d2622d4df173884035befa39521364b2298c4f1435e311c31f5aca',
+        'rules/reports/general.md' => '5f4d9fab82d4e826fc86b3ecbcc6a22cf8db93f6dd0d77979c24d155e491d505',
     ];
 
     foreach ($expectedBodyHashes as $relativePath => $expectedHash) {

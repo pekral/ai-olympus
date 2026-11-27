@@ -8,7 +8,7 @@ metadata:
 
 ## TL;DR
 
-The invoking session holds the `krang` role itself, per `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*. A `krang` started as a subagent cannot perform blocking dispatches, so the root session drives the whole queue.
+The invoking session holds the `krang` role itself, per `@rules/compound-engineering/orchestration.md` *Starting the orchestrator — the top-level role and the nested hand-over*. A `krang` started as a subagent cannot perform blocking dispatches, so the root session drives the whole queue. When the project forbids helper agents, it starts no dispatch and runs every unit itself, one after another (`skills/_shared/orchestration/helper-agents.md`).
 
 The skill builds the queue and executes it in one run. No approval stop sits between the two. The execution is the operator batch of `skills/_shared/orchestration/batch-preparation.md`: this skill adds no second mechanism and no second concurrency limit.
 

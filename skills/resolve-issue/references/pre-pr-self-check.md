@@ -8,7 +8,7 @@ Referenced from `skills/resolve-issue/SKILL.md` *Pre-PR self-check*. Extracted t
 
 ## Procedure
 
-1. **Walk the items in order** (the seven listed in the skill body) against the working tree and the diff that is about to become the pull request.
+1. **Walk the items in order** (the eight listed in the skill body) against the working tree and the diff that is about to become the pull request.
 2. **Fix what an item surfaces**, directly — a stray `dd()`, an uncommitted scratch file, a criterion with no test. These are defects with one obvious correction, not findings that need a severity.
 3. **Record each item's result in the handoff**, so the orchestrator and the reviewer see what was verified rather than assuming it. A self-check whose result nobody can read is indistinguishable from one that did not run.
 4. **Stop as `Blocked` when an item cannot be satisfied.** A failing test on the changed surface, a red static-analysis run, or an acceptance criterion with no implementation is a stop — never a PR opened knowingly carrying it.
