@@ -24,7 +24,10 @@ test('the dispatching session prepares the review worktree and a confined review
     expect(agentGuardPackageFile($file))->toContain($needle);
 })->with([
     'a confined krang' => ['agents/krang.md', 'The top-level session prepares the review worktrees and fetches their head commits.'],
-    'krang' => ['agents/krang.md', 'Before the `leonardo` and `splinter` dispatches, record their runtime protection verdicts and prepare their review worktrees'],
+    'krang' => [
+        'agents/krang.md',
+        'Before the `leonardo` and `splinter` dispatches, record their runtime protection verdicts and prepare their review worktrees',
+    ],
     'leonardo' => [
         'agents/leonardo.md',
         '**The dispatching session prepares the worktree, never you, when the dispatch names a prepared worktree.**',

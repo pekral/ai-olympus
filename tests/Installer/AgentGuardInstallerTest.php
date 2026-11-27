@@ -27,17 +27,23 @@ function agentGuardUserPermissions(): array
 
 /**
  * @param list<array<string, mixed>> $userGroupExtraHandlers
- * @param list<array<string, mixed>> $appendedGroups
  * @return array<string, mixed>
  */
-function agentGuardUserSettings(bool $asWritten = true, array $userGroupExtraHandlers = [], array $appendedGroups = []): array
+function agentGuardUserSettings(bool $asWritten = true, array $userGroupExtraHandlers = [], bool $guardRegistered = false): array
 {
+    $hooks = [
+        'PostToolUse' => [['matcher' => 'Write', 'hooks' => [['type' => 'command', 'command' => 'bin/format']]]],
+        'PreToolUse' => [['matcher' => 'Bash', 'hooks' => [AGENT_GUARD_USER_HANDLER, ...$userGroupExtraHandlers]]],
+    ];
+
+    if ($guardRegistered) {
+        $hooks['PreToolUse'][] = agentGuardPackageGroup();
+        $hooks['SessionEnd'] = [agentGuardPackageGroup()];
+    }
+
     return [
         'attribution' => $asWritten ? new stdClass() : [],
-        'hooks' => [
-            'PostToolUse' => [['matcher' => 'Write', 'hooks' => [['type' => 'command', 'command' => 'bin/format']]]],
-            'PreToolUse' => [['matcher' => 'Bash', 'hooks' => [AGENT_GUARD_USER_HANDLER, ...$userGroupExtraHandlers]], ...$appendedGroups],
-        ],
+        'hooks' => $hooks,
         'permissions' => agentGuardUserPermissions(),
         'theme' => 'dark',
     ];
@@ -94,8 +100,7 @@ test('register writes one package handler per event and keeps every other key an
 
     try {
         $registered = InstallerAgentGuard::register($root);
-        $expected = agentGuardUserSettings(asWritten: false, appendedGroups: [agentGuardPackageGroup()]);
-        $expected['hooks']['SessionEnd'] = [agentGuardPackageGroup()];
+        $expected = agentGuardUserSettings(asWritten: false, guardRegistered: true);
 
         expect($registered)->toBeTrue()
             ->and(agentGuardReadProjectSettings($root))->toBe($expected)
