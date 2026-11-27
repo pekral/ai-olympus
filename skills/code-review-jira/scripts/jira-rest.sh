@@ -3,13 +3,15 @@
 jira_rest_resolve_auth() {
   local token_file="${1:-}" raw="" default
   default="${HOME}/.config/acli/jira_api_token"
-  if [[ -n "$token_file" ]]; then
-    [[ -r "$token_file" ]] || { echo "${PROG:-jira-rest.sh}: --token-file not readable: $token_file" >&2; return 2; }
-    raw="$(head -n1 "$token_file")"
-  elif [[ -n "${JIRA_API_TOKEN:-}" ]]; then
+  if [[ -z "$token_file" && -n "${JIRA_API_TOKEN:-}" ]]; then
     raw="$JIRA_API_TOKEN"
-  elif [[ -r "$default" ]]; then
-    raw="$(head -n1 "$default")"
+  else
+    token_file="${token_file:-$default}"
+    if [[ -e "$token_file" || -L "$token_file" ]]; then
+      local reader
+      reader="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/read-attachment-token.py"
+      raw="$(python3 -B "$reader" "$token_file")" || return 2
+    fi
   fi
   if [[ -z "$raw" ]]; then
     echo "${PROG:-jira-rest.sh}: no JIRA API token found." >&2

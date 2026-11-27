@@ -81,18 +81,28 @@ def authenticated_identity():
     site = re.findall(r"^\s*Site:\s*([a-z0-9-]+\.atlassian\.net)\s*$", auth, re.M)
     email = re.findall(r"^\s*Email:\s*(\S+@\S+)\s*$", auth, re.M)
     require(len(site) == len(email) == 1, "cannot establish the authenticated Jira Cloud site and account")
-    header = authorization_for(email[0])
     actor_file = Path(__file__).resolve().with_name("jira-actor.sh")
     account = run_cli("bash", "-c", 'source "$1"; jira_actor_account_id', "jira-attachment-media", str(actor_file)).strip()
+    require(account and not any(c.isspace() for c in account), "cannot establish the acli account ID")
+    header = authorization_for(email[0])
     code, locations, payload = public_get(site[0], "/rest/api/3/myself", header, 65536)
     require(code == 200 and not locations and account and json.loads(payload)["accountId"] == account, "mismatch: the attachment credential did not confirm the acli account")
     return site[0], account, header
 
 
-def attachment_inventory(key):
+def attachment_inventory(key, site):
     target_key(key)
     view = json.loads(run_cli("acli", "jira", "workitem", "view", key, "--fields", "attachment", "--json"))
-    require(view["key"] == key and isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory")
+    issue_id = str(view["id"])
+    require(re.fullmatch(r"[1-9][0-9]*", issue_id) and view["key"] == key
+            and view["self"] in [f"https://{site}{prefix}/rest/api/{version}/issue/{issue_id}"
+                                for prefix in ("", "/jira") for version in ("2", "3")]
+            and isinstance(view["fields"]["attachment"], list), "cannot confirm target attachment inventory")
+    for item in view["fields"]["attachment"]:
+        number = str(item["id"])
+        require(re.fullmatch(r"[1-9][0-9]*", number) and item["content"] in [
+            f"https://{site}{prefix}/rest/api/3/attachment/content/{number}" for prefix in ("", "/jira")
+        ], "attachment inventory does not belong to the authenticated site")
     return view["fields"]["attachment"]
 
 
@@ -100,7 +110,7 @@ def resolve(key, attachment_id, expected, filename):
     require(re.fullmatch(r"[1-9][0-9]*", attachment_id), "invalid attachment ID")
     require(re.fullmatch(r"[0-9a-f]{64}", expected) and re.fullmatch(r"[a-z0-9-]{1,140}\.png", filename), "expected the reviewed PNG digest and filename")
     site, account, header = authenticated_identity()
-    items = [a for a in attachment_inventory(key) if str(a["id"]) == attachment_id]
+    items = [a for a in attachment_inventory(key, site) if str(a["id"]) == attachment_id]
     require(len(items) == 1, "attachment is absent or ambiguous on this ticket")
     item = items[0]
     require(account and item["author"]["accountId"] == account, "attachment author differs from the authenticated account")

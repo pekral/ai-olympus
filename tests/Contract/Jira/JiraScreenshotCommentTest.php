@@ -221,6 +221,57 @@ for content, code, targets, accepted in cases:
         except probe.Unconfirmed:
             assert not accepted
         assert all(call.args[0] == 'example.atlassian.net' and call.args[1].startswith('/rest/api/3/attachment/content/24?') for call in get.call_args_list)
+
+with patch.object(probe, 'run_cli', side_effect=['Site: example.atlassian.net\nEmail: qa@example.test\n', '']), patch.object(probe, 'authorization_for') as credentials:
+    try:
+        probe.authenticated_identity()
+        raise AssertionError('missing acli identity was accepted')
+    except probe.Unconfirmed:
+        credentials.assert_not_called()
+
+view = {'key': 'TEST-1', 'id': '7', 'self': 'https://example.atlassian.net/rest/api/3/issue/7', 'fields': {'attachment': [
+    {'id': '24', 'content': 'https://other.atlassian.net/rest/api/3/attachment/content/24'}
+]}}
+with patch.object(probe, 'run_cli', return_value=probe.json.dumps(view)):
+    try:
+        probe.attachment_inventory('TEST-1', 'example.atlassian.net')
+        raise AssertionError('foreign attachment inventory was accepted')
+    except probe.Unconfirmed:
+        pass
+
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
+    $process->run();
+
+    expect($process->getErrorOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
+
+test('attachment credential files reject exposed permissions and symbolic links before reading', function (): void {
+    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
+    $fixture = <<<'PY'
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+with tempfile.TemporaryDirectory() as temp:
+    base = Path(temp).resolve()
+    private = base / 'profile'
+    private.mkdir(mode=0o700)
+    token = private / 'credential'
+    token.write_bytes(b'mock-token\n')
+    token.chmod(0o600)
+    link = base / 'link'
+    link.symlink_to(token)
+    linked_dir = base / 'linked-dir'
+    linked_dir.symlink_to(private, target_is_directory=True)
+    for path, mode, allowed in [(token, 0o600, True), (token, 0o640, False), (link, 0o600, False), (linked_dir / token.name, 0o600, False)]:
+        token.chmod(mode)
+        result = subprocess.run([sys.executable, '-B', 'read-attachment-token.py', str(path)], capture_output=True)
+        assert (result.returncode == 0) == allowed and result.stdout == (b'mock-token' if allowed else b'')
+        assert b'mock-token' not in result.stderr
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();
