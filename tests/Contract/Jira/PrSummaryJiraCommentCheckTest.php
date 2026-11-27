@@ -885,7 +885,6 @@ test('known points of every change type pass the check in the order of their typ
         ->and($process->getExitCode())->toBe(0);
 });
 
-
 test('a tracked security gap preserves its severity and accepts only the verified fix PR', function (): void {
     $fix = 'https://github.com/acme/app/pull/42';
     $source = jiraSummaryWithKnownPoints(
