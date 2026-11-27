@@ -42,4 +42,4 @@ metadata:
 
 ## Output Format
 
-Render the issue body from `skills/create-issue/templates/issue-body.md`. Every section of the body is a collapsed block, as `@rules/compound-engineering/assignment.md` *The shape in a GitHub issue body — the opening text, open blocks, and a collapsed original* states for the preserved-text body. A preserved text that is already business-only takes the blocks of `@skills/create-issues-from-text/templates/issue-structure.md` instead.
+Render the issue body from `skills/create-issue/templates/issue-body.md`. Every section of the body is a collapsed block, as `@rules/compound-engineering/assignment.md` *The shape in a GitHub issue body — the opening text, open blocks, and a collapsed original* states for the preserved-text body. A preserved text that is already business-only takes the blocks of `@skills/create-issues-from-text/templates/issue-structure.md` instead, or on JIRA the sections of `@skills/create-issues-from-text/templates/issue-structure-jira.md` (*The shape in a JIRA description*).

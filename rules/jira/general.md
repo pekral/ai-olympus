@@ -84,6 +84,7 @@ A finished issue (Done, Closed, Resolved, Cancelled, Canceled, Merged, Hotovo, a
 - An issue description follows the same format as a comment. JIRA Cloud stores the description as ADF and shows Wiki Markup sent as plain text verbatim, so `h2.`, `*`, and `{{code}}` appear as literal text.
 - Author the description in the Wiki Markup subset of *Comments Format*. Convert it with `php skills/code-review-jira/scripts/wiki-markup-to-adf.php < <source> > <adf-file>` and pass the ADF file to `acli jira workitem create --description-file <adf-file>`. Never pass the Wiki Markup source to `--description`, `--description-file`, or the JIRA MCP server.
 - A cap-round deferred subtask goes through `skills/process-code-review/scripts/file-deferred-moderate.sh`, which performs the conversion itself.
+- An assignment takes the shape of `@rules/compound-engineering/assignment.md` *The shape in a JIRA description*. A rewrite of an existing description goes through `skills/code-review-jira/scripts/update-description.sh`, which converts the text, keeps the previous description in its *Original assignment* block, and reads the issue back. Never edit a description with a raw `acli jira workitem edit`.
 
 ## Code Review Application
 
