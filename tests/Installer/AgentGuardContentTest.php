@@ -14,29 +14,29 @@ test('every confined agent runs the probe first and reports its protection in th
     $definition = agentGuardPackageFile('agents/' . $agent . '.md');
     $section = installerDocsSection($definition, '## Runtime protection');
 
-    expect($section)->toContain('Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command')
-        ->and($section)->toContain('`**Protection:** active` or `**Protection:** inactive (<reason>)`')
-        ->and($section)->toContain('While the protection is active, write a temporary file only to `$TMPDIR`')
+    expect($section)->toContain('Run `skills/_shared/agent-guard.sh probe claude` before any other command')
+        ->and($section)->toContain('`**Protection:** inactive (<reason>)`')
+        ->and($section)->toContain('keep temporary files in `$TMPDIR`')
         ->and(strpos($definition, '## Runtime protection'))->toBeLessThan((int) strpos($definition, '## Bash boundary'));
 })->with(['leonardo', 'splinter', 'april', 'casey', 'shredder', 'krang']);
 
 test('the dispatching session prepares the review worktree and a confined reviewer only reads in it', function (string $file, string $needle): void {
     expect(agentGuardPackageFile($file))->toContain($needle);
 })->with([
-    'a confined krang' => ['agents/krang.md', 'you cannot prepare a review worktree or fetch a head commit: return the nested hand-over'],
-    'krang' => ['agents/krang.md', 'Before the `leonardo` and `splinter` dispatches, prepare their review worktrees for the round head'],
+    'a confined krang' => ['agents/krang.md', 'The top-level session prepares the review worktrees and fetches their head commits.'],
+    'krang' => ['agents/krang.md', 'Before the `leonardo` and `splinter` dispatches, record their runtime protection verdicts and prepare their review worktrees'],
     'leonardo' => [
         'agents/leonardo.md',
-        '**The dispatching session prepares the worktree, never you, while your protection is active.**',
+        '**The dispatching session prepares the worktree, never you, when the dispatch names a prepared worktree.**',
     ],
-    'splinter' => ['agents/splinter.md', 'Under an active protection the dispatching session prepares it and you only read in it.'],
+    'splinter' => ['agents/splinter.md', 'When the dispatch names a prepared worktree, the dispatching session maintains it and you only read in it.'],
     'the batch' => [
         'skills/_shared/orchestration/batch-preparation.md',
         'The root session prepares them before each round and removes them in *Run cleanup*.',
     ],
     'the checkout gate' => [
         'skills/code-review/references/branch-checkout-gate.md',
-        '**Under an active runtime agent guard the reviewer runs steps 1 and 5 only.**',
+        '**When the dispatch names a prepared review worktree, the reviewer runs steps 1 and 5 only.**',
     ],
     'the cleanup' => ['skills/_shared/orchestration/stale-run-recovery.md', '**A worktree this session prepared is its own.**'],
 ]);
@@ -44,8 +44,8 @@ test('the dispatching session prepares the review worktree and a confined review
 test('every confined Codex adapter runs the probe and reports its protection', function (string $agent): void {
     $adapter = agentGuardPackageFile('codex/agents/' . $agent . '.toml');
 
-    expect($adapter)->toContain('runs `.agents/skills/_shared/agent-guard.sh probe` and reports `**Protection:**`')
-        ->and($adapter)->toContain('only in a session started with `--sandbox read-only`');
+    expect($adapter)->toContain('runs `.agents/skills/_shared/agent-guard.sh probe codex` and reports `**Protection:**`')
+        ->and($adapter)->toContain('The mixed Codex session has no verified all-tool protection.');
 })->with(['leonardo', 'splinter', 'april', 'casey', 'shredder', 'krang']);
 
 test('every confined agent stops when strict mode meets an inactive protection', function (string $file): void {
@@ -85,8 +85,8 @@ test('krang renders one runtime protection line per dispatched confined role', f
         'summary' => 'Reviewed and merged.',
         'runtime_protection' => [
             ['role' => 'leonardo', 'protection' => 'active'],
-            ['role' => 'splinter', 'protection' => 'active'],
-            ['role' => 'april', 'protection' => 'inactive (bwrap is not installed)'],
+            ['role' => 'splinter', 'platform' => 'codex', 'protection' => 'Blocked (session isolation unverified)'],
+            ['role' => 'april', 'platform' => 'claude', 'protection' => 'inactive (tool isolation unverified)'],
         ],
     ], JSON_THROW_ON_ERROR);
     $process = new Process(['bash', dirname(__DIR__, 2) . '/skills/_shared/render-report.sh', '--data', '-']);
@@ -99,8 +99,8 @@ test('krang renders one runtime protection line per dispatched confined role', f
 
     expect($lines)->toBe([
         '- Runtime protection: leonardo — active',
-        '- Runtime protection: splinter — active',
-        '- Runtime protection: april — inactive (bwrap is not installed)',
+        '- Runtime protection: splinter (Codex) — Blocked (session isolation unverified)',
+        '- Runtime protection: april (Claude Code) — inactive (tool isolation unverified)',
     ])->and(agentGuardPackageFile('agents/krang.md'))->toContain('so the completion report carries one `Runtime protection:` line per role');
 });
 
@@ -108,10 +108,10 @@ test('SECURITY.md carries one section per platform and every residual of the gua
     $guard = installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard');
 
     expect($guard)->toContain('### Claude Code — what is enforced')
-        ->and($guard)->toContain('### Codex — what is not enforced')
+        ->and($guard)->toContain('### Codex — a mixed session')
         ->and($guard)->toContain('### Strict mode')
         ->and($guard)->toContain('### What stays outside the guard')
-        ->and($guard)->toContain('On Codex the read-only limit of a role inside a writing session stays **advisory**.')
+        ->and($guard)->toContain('A mixed Codex dispatch reports `inactive`')
         ->and($guard)->toContain('Run `vendor/bin/ai-olympus install --no-agent-guard`.')
         ->and($guard)->toContain('**The hook never allows a command only because no deny rule matched it.**')
         ->and($guard)->toContain('**The cost:** a confined role asks the user for every command that no allow rule of the settings files covers')
@@ -121,14 +121,14 @@ test('SECURITY.md carries one section per platform and every residual of the gua
             'also a read-only command that Claude Code itself would run without a prompt, and in `dontAsk` mode such a command is refused',
         )
         ->and($guard)->not->toContain('as the same command would without the guard')
-        ->and($guard)->toContain('Not verified: that the probe reports a `--sandbox read-only` session as `active`')
+        ->and($guard)->toContain('No all-tool host integration is verified by those fixtures.')
         ->and($guard)->not->toContain('hooks are read at session start');
 
     $residuals = [
         '1. **Codex**',
         '2. **The main session without `--agent`**',
         '3. **A hook that does not run:**',
-        '4. **A host without confinement:**',
+        '4. **A host without Bash confinement:**',
         '5. **A nested sandbox:**',
         '6. **The network.**',
         '7. **Inter-process channels',
@@ -185,7 +185,7 @@ test(
         'keeps its security-audit run directory under `.claude/run/security-audit/<slug>-<role>/` of the project, outside the worktree',
     ],
     'splinter' => ['agents/splinter.md', '`.claude/run/security-audit/<slug>-splinter/<run-id>/` of the checkout that holds the shared brief'],
-    'the clean check' => ['agents/krang.md', '-C <path> status --porcelain --ignore-submodules=all` prints nothing'],
+    'the clean check' => ['agents/krang.md', 'skills/_shared/branch-worktree.sh remove'],
     'the head check' => ['agents/leonardo.md', 'It checks the head with `skills/_shared/agent-guard.sh review-head <head-sha>`.'],
     'the skill' => ['skills/security-audit/SKILL.md', 'every `scripts/audit-artifacts.sh` call names the worktree with `--tree <path>`'],
 ]);
@@ -212,18 +212,18 @@ test('SECURITY.md names the settings sources the hook reads and the ones it does
         ->and($guard)->toContain('and no managed setting outside the two `managed-settings.json` files above');
 });
 
-test('under an active guard the dispatching session refreshes the default-branch ref in every round', function (string $file, string $needle): void {
+test('the dispatching session refreshes the default-branch ref with a prepared review worktree', function (string $file, string $needle): void {
     expect(agentGuardPackageFile($file))->toContain($needle);
 })->with([
-    'krang' => ['agents/krang.md', 'the `git fetch origin` and the head fetch of *Review worktree*'],
-    'leonardo' => ['agents/leonardo.md', '2. It runs `git fetch origin` in every round, which refreshes `origin/<default branch>` for the review.'],
+    'krang' => ['agents/krang.md', 'The top-level session prepares the review worktrees and fetches their head commits.'],
+    'leonardo' => ['agents/leonardo.md', 'It runs `git fetch origin` in every round, which refreshes `origin/<default branch>` for the review.'],
     'the checkout gate' => [
         'skills/code-review/references/branch-checkout-gate.md',
         'The dispatching session has already run `git fetch origin` in this round, which refreshes `origin/$DEFAULT_BRANCH`',
     ],
 ]);
 
-test('SECURITY.md states that a read-only Codex session cannot prepare a review worktree', function (): void {
+test('SECURITY.md distinguishes the native Codex shell policy from whole-role isolation', function (): void {
     expect(installerDocsSection(agentGuardPackageFile('SECURITY.md'), '## Runtime agent guard'))
-        ->toContain('A `--sandbox read-only` session cannot prepare a review worktree or fetch a head commit either');
+        ->toContain('The native `--sandbox read-only` option governs shell execution.');
 });

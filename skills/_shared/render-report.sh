@@ -36,7 +36,7 @@
 #     "pr_url": "https://github.com/owner/repo/pull/42",
 #     "source_url": "https://github.com/owner/repo/issues/7",
 #     "how_to_test": ["Post an empty payload to /api/import", "Expect 422 and no rows created"],
-#     "runtime_protection": [{"role": "leonardo", "protection": "active"}]
+#     "runtime_protection": [{"role": "leonardo", "platform": "codex", "protection": "inactive (session isolation unverified)"}]
 #   }
 #
 #   `status` and `summary` are required; everything else renders only when
@@ -191,11 +191,17 @@ render() {
   [[ -n "$pr" ]] && printf -- '- %s: %s\n' "$(label pr)" "$pr"
   [[ -n "$source" ]] && printf -- '- %s: %s\n' "$(label source)" "$source"
 
-  local protection_role protection_value
-  while IFS=$'\t' read -r protection_role protection_value; do
+  local protection_role protection_value protection_platform
+  while IFS=$'\t' read -r protection_role protection_value protection_platform; do
     [[ -n "$protection_role" ]] || continue
+    case "$protection_platform" in
+      claude) protection_role+=' (Claude Code)' ;;
+      codex) protection_role+=' (Codex)' ;;
+    esac
     printf -- '- %s: %s — %s\n' "$(label protection)" "$(safe_display "$protection_role")" "$(safe_display "$protection_value")"
-  done < <(printf '%s' "$data" | jq -r '.runtime_protection // [] | .[] | [(.role // "" | tostring), (.protection // "" | tostring)] | @tsv')
+  done < <(printf '%s' "$data" | jq -r '.runtime_protection // [] | .[]
+    | select((.role // "") != "" and (.protection // "") != "")
+    | [(.role | tostring), (.protection | tostring), (.platform // "" | tostring)] | @tsv')
 
   local steps
   steps="$(printf '%s' "$data" | jq -r '.how_to_test // [] | .[]')"

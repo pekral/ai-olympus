@@ -81,7 +81,7 @@ In Claude Code, start a session without `--agent` and hand it the request, so th
 claude "resolve https://github.com/owner/repo/issues/123"
 ```
 
-`claude --agent krang` returns the nested hand-over before the first review round while the runtime agent guard is active, which `install` registers by default (see the [trust model](SECURITY.md)).
+`claude --agent krang` returns the nested hand-over when the runtime agent guard confines its Bash commands and the review needs a worktree (see the [trust model](SECURITY.md)).
 
 A command works in any session, because the session that receives it holds the `krang` role itself:
 

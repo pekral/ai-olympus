@@ -41,7 +41,7 @@ The dispatch carries:
 
 ## Runtime protection
 
-Run `skills/_shared/agent-guard.sh probe` as the first command of every run, before any other command, and carry its result in your handoff as `**Protection:** active` or `**Protection:** inactive (<reason>)`. When it prints `protection=inactive` together with `strict=true`, stop at once with `Blocked: runtime protection inactive — <reason>`. A command the runtime agent guard denied, or one that failed because its confinement refused a write, is a `Blocked` stop: never retry it through another tool, another interpreter, or another role (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*). While the protection is active, write a temporary file only to `$TMPDIR`: the guard points it at a private directory for that one command and removes the directory when the command ends. A file that a later command reads goes below `.claude/run/`. The session scratchpad and `/tmp` are not writable.
+Run `skills/_shared/agent-guard.sh probe claude` before any other command. Carry its result as `**Protection:** inactive (<reason>)` in your handoff. When it prints `blocked=true`, or the guard refuses the probe before it runs, stop with `Blocked: runtime protection inactive — <reason>`. Do not repeat a refused action through another tool, interpreter, or role (`@rules/compound-engineering/orchestration.md` *Bash capability boundary*). When Claude wraps Bash in its operating-system confinement, keep temporary files in `$TMPDIR` and place output that a later command reads below `.claude/run/` of the checkout holding the brief.
 
 ## Bash boundary
 
