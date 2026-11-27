@@ -348,8 +348,8 @@ SHIM
     "$(jq -e '.branch == "cr-assets"' "$stub/put.json" >/dev/null && jq -r '.content' "$stub/put.json" | base64 -d | { ! grep -aq 'secret-value\|tEXt'; } && echo yes || echo no)"
   check 'every gh call targets the base repository of the pull request URL' "$(grep -qv 'repos/o/r' "$stub/calls.log" && echo no || echo yes)"
   check 'the wrapper runs no git write command' "$(grep -Eq '^(push|commit|checkout|fetch|switch|branch|update-ref|hash-object|mktree|commit-tree)' "$stub/git.log" 2>/dev/null && echo no || echo yes)"
-  check 'the upload leaves an external-write audit line with the URL, and one for the new branch' \
-    "$([[ "$(grep -c '|external-write|' "$audit")" -eq 2 ]] && grep -q "$want_url" "$audit" && grep -q '^leonardo|' "$audit" && echo yes || echo no)"
+  check 'the upload records the branch, accepted bytes, and verified URL' \
+    "$([[ "$(grep -c '|external-write|' "$audit")" -eq 3 ]] && grep -Fq 'GitHub accepted the content write' "$audit" && grep -Fq "$want_url" "$audit" && grep -q '^leonardo|' "$audit" && echo yes || echo no)"
 
   reset; printf '%s' "$MARKER_TEXT" >"$stub/marker"; touch "$stub/branch"; printf '%040d' 5 >"$stub/tip"
   out="$(upload)" && rc=0 || rc=$?
