@@ -36,15 +36,26 @@ final class InstallerHookHandlers
 
     /**
      * @param \Closure(mixed): bool $isTarget
-     * @return list<mixed>
+     * @return list<array{event: string, matcher: mixed, handler: mixed}>
      */
-    public static function find(stdClass $settings, string $event, Closure $isTarget): array
+    public static function find(stdClass $settings, Closure $isTarget): array
     {
         $hooks = $settings->hooks ?? null;
-        $groups = $hooks instanceof stdClass ? $hooks->{$event} ?? null : null;
-        $handlers = array_merge(...array_map(self::groupHandlers(...), is_array($groups) ? array_values($groups) : []));
+        $matches = [];
 
-        return array_values(array_filter($handlers, $isTarget));
+        if (!$hooks instanceof stdClass) {
+            return $matches;
+        }
+
+        foreach (get_object_vars($hooks) as $event => $groups) {
+            foreach (is_array($groups) ? $groups : [] as $group) {
+                foreach (array_filter(self::groupHandlers($group), $isTarget) as $handler) {
+                    $matches[] = ['event' => (string) $event, 'matcher' => $group->matcher ?? null, 'handler' => $handler];
+                }
+            }
+        }
+
+        return $matches;
     }
 
     public static function appendGroup(stdClass $settings, string $event, stdClass $group): void

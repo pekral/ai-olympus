@@ -13,7 +13,9 @@ final class InstallerAgentGuard
 
     public const INSTALLED_SCRIPT = '.claude/skills/_shared/agent-guard.sh';
 
-    private const HOOK_EVENT = 'PreToolUse';
+    private const HOOK_EVENTS = ['PreToolUse', 'SessionEnd'];
+
+    private const HOOK_MATCHER = '*';
 
     private const HOOK_TIMEOUT_SECONDS = 10;
 
@@ -48,14 +50,15 @@ final class InstallerAgentGuard
     {
         $settingsPath = InstallerProjectSettings::resolveProjectLocalSettingsPath($projectRoot);
         $existing = InstallerSettingsFile::read($settingsPath);
-        $own = InstallerHookHandlers::find($existing, self::HOOK_EVENT, self::isOwnHandler(...));
-
-        if (count($own) === 1 && self::isCurrent($own[0])) {
+        if (self::isCurrent($existing)) {
             return false;
         }
 
         InstallerHookHandlers::strip($existing, self::isOwnHandler(...));
-        InstallerHookHandlers::appendGroup($existing, self::HOOK_EVENT, self::group());
+
+        foreach (self::HOOK_EVENTS as $event) {
+            InstallerHookHandlers::appendGroup($existing, $event, self::group());
+        }
         InstallerPath::ensureDirectory(dirname($settingsPath));
         InstallerSettingsFile::write($settingsPath, $existing);
 
@@ -66,9 +69,7 @@ final class InstallerAgentGuard
 
     public static function validateRegistered(stdClass $settings, string $path): void
     {
-        $written = InstallerHookHandlers::find($settings, self::HOOK_EVENT, self::isOwnHandler(...));
-
-        if (count($written) !== 1 || !self::isCurrent($written[0])) {
+        if (!self::isCurrent($settings)) {
             throw InstallerFailure::settingsAgentGuardInvalid($path);
         }
     }
@@ -100,15 +101,30 @@ final class InstallerAgentGuard
     private static function group(): stdClass
     {
         $group = new stdClass();
-        $group->matcher = 'Bash';
+        $group->matcher = self::HOOK_MATCHER;
         $group->hooks = [self::handler()];
 
         return $group;
     }
 
-    private static function isCurrent(mixed $handler): bool
+    private static function isCurrent(stdClass $settings): bool
     {
-        return json_encode($handler, JSON_THROW_ON_ERROR) === json_encode(self::handler(), JSON_THROW_ON_ERROR);
+        $events = [];
+
+        foreach (InstallerHookHandlers::find($settings, self::isOwnHandler(...)) as $entry) {
+            if (
+                $entry['matcher'] !== self::HOOK_MATCHER
+                || json_encode($entry['handler'], JSON_THROW_ON_ERROR) !== json_encode(self::handler(), JSON_THROW_ON_ERROR)
+            ) {
+                return false;
+            }
+
+            $events[] = $entry['event'];
+        }
+
+        sort($events);
+
+        return $events === self::HOOK_EVENTS;
     }
 
     private static function isOwnHandler(mixed $handler): bool

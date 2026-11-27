@@ -48,7 +48,7 @@ function agentGuardUserSettings(bool $asWritten = true, array $userGroupExtraHan
  */
 function agentGuardPackageGroup(): array
 {
-    return ['matcher' => 'Bash', 'hooks' => [agentGuardPackageHandler()]];
+    return ['matcher' => '*', 'hooks' => [agentGuardPackageHandler()]];
 }
 
 function agentGuardSettingsPath(string $root): string
@@ -88,13 +88,14 @@ function agentGuardInstallPackageScripts(string $root): void
     installerWriteFile($root . '/.claude/skills/_shared/read-manifest.sh', (string) file_get_contents($shared . 'read-manifest.sh'));
 }
 
-test('register writes exactly one package handler and keeps every other key and handler', function (): void {
+test('register writes one package handler per event and keeps every other key and handler', function (): void {
     $root = installerCreateProjectRoot();
     agentGuardWriteProjectSettings($root, agentGuardUserSettings());
 
     try {
         $registered = InstallerAgentGuard::register($root);
         $expected = agentGuardUserSettings(asWritten: false, appendedGroups: [agentGuardPackageGroup()]);
+        $expected['hooks']['SessionEnd'] = [agentGuardPackageGroup()];
 
         expect($registered)->toBeTrue()
             ->and(agentGuardReadProjectSettings($root))->toBe($expected)
@@ -112,12 +113,13 @@ test('register replaces an outdated package handler instead of adding a second o
     try {
         InstallerAgentGuard::register($root);
 
-        expect(agentGuardReadProjectSettings($root))->toBe(['hooks' => ['PreToolUse' => [
-            ['matcher' => 'Bash', 'hooks' => [AGENT_GUARD_USER_HANDLER]],
-            agentGuardPackageGroup(),
-        ],
-        ],
-        ]);
+        expect(agentGuardReadProjectSettings($root))->toBe(['hooks' => [
+            'PreToolUse' => [
+                ['matcher' => 'Bash', 'hooks' => [AGENT_GUARD_USER_HANDLER]],
+                agentGuardPackageGroup(),
+            ],
+            'SessionEnd' => [agentGuardPackageGroup()],
+        ]]);
     } finally {
         installerRemoveDirectory($root);
     }
@@ -179,7 +181,10 @@ test('apply registers the handler once the self-test of the installed guard pass
 
         expect($first)->toBe(AgentGuardOutcome::Registered)
             ->and($second)->toBe(AgentGuardOutcome::Unchanged)
-            ->and(agentGuardReadProjectSettings($root))->toBe(['hooks' => ['PreToolUse' => [agentGuardPackageGroup()]]]);
+            ->and(agentGuardReadProjectSettings($root))->toBe(['hooks' => [
+                'PreToolUse' => [agentGuardPackageGroup()],
+                'SessionEnd' => [agentGuardPackageGroup()],
+            ]]);
     } finally {
         installerRemoveDirectory($root);
     }
@@ -280,7 +285,7 @@ test('install reports an unregistered guard when the self-test of the installed 
     }
 });
 
-test('the read-back check refuses a settings file without exactly one current package handler', function (string $settings): void {
+test('the read-back check refuses settings without one current handler per event', function (string $settings): void {
     $decoded = json_decode($settings, associative: false, flags: JSON_THROW_ON_ERROR);
     assert($decoded instanceof stdClass);
 

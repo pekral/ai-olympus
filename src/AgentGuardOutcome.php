@@ -17,7 +17,7 @@ enum AgentGuardOutcome: string
     {
         return match ($this) {
             self::Registered => 'Registered the runtime agent guard (PreToolUse hook) in .claude/settings.local.json. '
-                . 'Undo with --no-agent-guard.' . PHP_EOL,
+                . 'Installed session cleanup. Whole-role isolation is unverified in mixed sessions. Undo with --no-agent-guard.' . PHP_EOL,
             self::SelfTestFailed => 'The runtime agent guard was not registered: its self-test failed. '
                 . 'Read-only agents run without runtime protection - see SECURITY.md.' . PHP_EOL,
             self::Removed => 'Removed the runtime agent guard hook from .claude/settings.local.json (--no-agent-guard).' . PHP_EOL,
