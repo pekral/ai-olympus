@@ -373,8 +373,8 @@ test('the hook denies further actions of a role invocation after a native guard 
         $first = agentGuardHookDecision($root, json_encode([...$session, 'tool_name' => 'Write'], JSON_THROW_ON_ERROR));
         $next = agentGuardHookDecision($root, json_encode([
             ...$session,
-            'tool_name' => 'Bash',
             'tool_input' => ['command' => 'true'],
+            'tool_name' => 'Bash',
         ], JSON_THROW_ON_ERROR));
         $after = AgentGuardRun::run($root, ['hook'], json_encode([
             ...$session,
@@ -396,8 +396,8 @@ test('a strict Claude hook blocks dispatch of a read-only role before it starts'
 
     try {
         $decision = agentGuardHookDecision($root, json_encode([
-            'tool_name' => 'Agent',
             'tool_input' => ['subagent_type' => 'leonardo'],
+            'tool_name' => 'Agent',
         ], JSON_THROW_ON_ERROR));
 
         expect($decision->permissionDecision)->toBe('deny')

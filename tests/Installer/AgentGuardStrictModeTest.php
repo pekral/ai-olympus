@@ -174,6 +174,7 @@ test('unreadable or invalid default-branch policy cannot start an unprotected co
             AgentGuardRun::git($root, 'commit', '-qam', 'set policy');
             AgentGuardRun::git($root, 'update-ref', 'refs/remotes/origin/master', 'HEAD');
         }
+
         $process = AgentGuardRun::exec($root, 'leonardo', 'touch target');
 
         expect($process->getExitCode())->toBe(5)
@@ -183,7 +184,7 @@ test('unreadable or invalid default-branch policy cannot start an unprotected co
         AgentGuardRun::remove($root);
     }
 })->with([
-    'missing default ref' => [''],
     'invalid JSON' => ['{'],
+    'missing default ref' => [''],
     'non-boolean policy' => ['{"extra":{"ai-olympus":{"security":{"strict-agent-guard":"false"}}}}'],
 ]);

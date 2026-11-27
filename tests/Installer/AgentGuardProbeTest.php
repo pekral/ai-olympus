@@ -69,10 +69,10 @@ test('verify checks the installed files and both exact hook configurations', fun
         AgentGuardRun::remove($root);
     }
 })->with([
-    'guard hash changed' => ['guard', 'agent-guard=refused reason=unverified-installed-copies'],
     'dependency hash changed' => ['reader', 'agent-guard=refused reason=unverified-installed-copies'],
-    'matcher changed' => ['matcher', 'agent-guard=refused reason=unverified-hook-settings'],
     'fail mode changed' => ['fail mode', 'agent-guard=refused reason=unverified-hook-settings'],
+    'guard hash changed' => ['guard', 'agent-guard=refused reason=unverified-installed-copies'],
     'handler removed' => ['removed', 'agent-guard=refused reason=unverified-hook-settings'],
+    'matcher changed' => ['matcher', 'agent-guard=refused reason=unverified-hook-settings'],
     'verified' => ['', 'agent-guard=verified'],
 ]);

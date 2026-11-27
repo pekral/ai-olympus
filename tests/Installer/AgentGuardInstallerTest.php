@@ -119,7 +119,8 @@ test('register replaces an outdated package handler instead of adding a second o
                 agentGuardPackageGroup(),
             ],
             'SessionEnd' => [agentGuardPackageGroup()],
-        ]]);
+        ],
+        ]);
     } finally {
         installerRemoveDirectory($root);
     }
@@ -184,7 +185,8 @@ test('apply registers the handler once the self-test of the installed guard pass
             ->and(agentGuardReadProjectSettings($root))->toBe(['hooks' => [
                 'PreToolUse' => [agentGuardPackageGroup()],
                 'SessionEnd' => [agentGuardPackageGroup()],
-            ]]);
+            ],
+            ]);
     } finally {
         installerRemoveDirectory($root);
     }

@@ -50,6 +50,7 @@ final class InstallerAgentGuard
     {
         $settingsPath = InstallerProjectSettings::resolveProjectLocalSettingsPath($projectRoot);
         $existing = InstallerSettingsFile::read($settingsPath);
+
         if (self::isCurrent($existing)) {
             return false;
         }
@@ -59,6 +60,7 @@ final class InstallerAgentGuard
         foreach (self::HOOK_EVENTS as $event) {
             InstallerHookHandlers::appendGroup($existing, $event, self::group());
         }
+
         InstallerPath::ensureDirectory(dirname($settingsPath));
         InstallerSettingsFile::write($settingsPath, $existing);
 
@@ -112,8 +114,7 @@ final class InstallerAgentGuard
         $events = [];
 
         foreach (InstallerHookHandlers::find($settings, self::isOwnHandler(...)) as $entry) {
-            if (
-                $entry['matcher'] !== self::HOOK_MATCHER
+            if ($entry['matcher'] !== self::HOOK_MATCHER
                 || json_encode($entry['handler'], JSON_THROW_ON_ERROR) !== json_encode(self::handler(), JSON_THROW_ON_ERROR)
             ) {
                 return false;
