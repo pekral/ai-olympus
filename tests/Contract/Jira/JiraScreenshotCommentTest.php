@@ -186,3 +186,45 @@ test('only an explicit operator edit updates the named unchanged attributed comm
         ->and(substr_count($calls, 'comment update'))->toBe(in_array($case, ['explicit', 'historical'], strict: true) ? 1 : 0)
         ->and($calls)->not->toContain('comment create', 'comment delete');
 })->with(['explicit', 'historical', 'implicit', 'edited', 'foreign']);
+
+test('the Jira media probe binds the public attachment bytes and accepts only the exact media redirect', function (): void {
+    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
+    $fixture = <<<'PY'
+import hashlib
+import struct
+import zlib
+from unittest.mock import patch
+import jira_attachment_media as probe
+
+def chunk(kind, data):
+    return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+image = (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 32, 16, 8, 2, 0, 0, 0))
+         + chunk(b'IDAT', zlib.compress(bytes((1 + 32 * 3) * 16))) + chunk(b'IEND', b''))
+digest = hashlib.sha256(image).hexdigest()
+item = {'id': '24', 'size': len(image)}
+identity = 'da9acf8d-e3cf-468f-9910-0da5385562ed'
+location = 'https://api.media.atlassian.com/file/' + identity + '/binary?token=private'
+cases = [
+    (image, 303, [location], True),
+    (image[:-1], 303, [location], False),
+    (image, 200, [location], False),
+    (image, 303, [location, location], False),
+    (image, 303, [location.replace('api.media.atlassian.com', 'outside.example')], False),
+    (image, 303, [location.replace(identity, '24')], False),
+]
+for content, code, targets, accepted in cases:
+    with patch.object(probe, 'public_get', side_effect=[(200, [], content), (code, targets, b'')]) as get:
+        try:
+            proof = probe.attachment_identity('example.atlassian.net', 'fake', item, digest)
+            assert accepted and proof == {'id': identity, 'width': 32, 'height': 16}
+        except probe.Unconfirmed:
+            assert not accepted
+        assert all(call.args[0] == 'example.atlassian.net' and call.args[1].startswith('/rest/api/3/attachment/content/24?') for call in get.call_args_list)
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
+    $process->run();
+
+    expect($process->getErrorOutput())->toBe('')
+        ->and($process->getExitCode())->toBe(0);
+});
