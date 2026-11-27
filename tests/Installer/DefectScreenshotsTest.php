@@ -39,7 +39,8 @@ test('an error or debug page is never captured, and the detection list is pinned
     $reference = defectShotRead('skills/interactive-testing/references/defect-screenshots.md');
 
     expect($reference)->toContain(
-        'A framework error page (Ignition, Whoops, a Symfony or Django or Rails exception page) and a page with a debug toolbar (`phpdebugbar`, `sf-toolbar`, `sf-wdt`, a debug panel) are never captured and never published.',
+        'A framework error page (Ignition, Whoops, a Symfony or Django or Rails exception page) and a page with a debug toolbar '
+        . '(`phpdebugbar`, `sf-toolbar`, `sf-wdt`, a debug panel) are never captured and never published.',
     )
         ->and($reference)->toContain('`Whoops`, `Ignition`, `Stack trace`, `Request headers`, `Environment`');
 });

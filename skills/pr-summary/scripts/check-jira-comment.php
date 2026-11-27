@@ -3,6 +3,7 @@
 declare(strict_types = 1);
 
 require __DIR__ . '/../../_shared/report-check-common.php';
+require __DIR__ . '/jira-section-status.php';
 
 const JIRA_SUMMARY_MAX_CHARACTERS = 3_000;
 
@@ -17,8 +18,6 @@ const JIRA_SUMMARY_BLOCK_OPEN = '/^\{expand:(?<title>[^{}]+)\}$/u';
 const JIRA_SUMMARY_BLOCK_CLOSE = '{expand}';
 
 const JIRA_SUMMARY_STATUS = '(?:✅|⚠️|❌)';
-
-
 
 const JIRA_SUMMARY_FINDING_TYPE = '/^\* \*\((?<type>security|bug|tests|refactor|performance|documentation)\):\* \S/u';
 
@@ -578,6 +577,20 @@ function jiraSummaryShapeViolations(array $layout, bool $criteriaUnmet): array
 }
 
 /**
+ * @param list<string> $shared
+ */
+function jiraSummarySharedPartReason(string $line, array $shared, JiraSummaryTask $task): string
+{
+    $pattern = '/^PR #([1-9][0-9]*) — \{\{[^{}\p{C}]+\}\} (?<reason>[^{}]+)$/uD';
+
+    if (in_array($line, $shared, true) && preg_match($pattern, $line, $part) === 1 && in_array($part[1], $task->pullRequests, true)) {
+        return $part['reason'];
+    }
+
+    return $line;
+}
+
+/**
  * @param list<string> $lines
  * @return list<string>
  */
@@ -587,6 +600,7 @@ function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
 
     $layout = jiraSummaryLayout($lines);
     $shared = $layout['groups'] > 0 ? jiraSummaryGroupBlocks($layout['blocks'], 0)[1]['body'] ?? [] : [];
+
     foreach ($lines as $line) {
         if ($line !== '----') {
             $violations = [...$violations, ...reportCheckMarkdownViolations($line, JIRA_SUMMARY_MARKDOWN)];
@@ -600,10 +614,7 @@ function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
             continue;
         }
 
-        if (in_array($line, $shared, true) && preg_match('/^PR #([1-9][0-9]*) — \{\{[^{}\p{C}]+\}\} (?<reason>[^{}]+)$/uD', $line, $part) === 1
-            && in_array($part[1], $task->pullRequests, true)) {
-            $line = $part['reason'];
-        }
+        $line = jiraSummarySharedPartReason($line, $shared, $task);
 
         $withoutLinks = (string) preg_replace('/\[~accountid:[^\]]+\]|\[[^|\]]+\|[^\]]+\]/u', '', $line);
         $violations = [...$violations, ...reportCheckDeveloperTokenViolations($withoutLinks, JIRA_SUMMARY_DEVELOPER_TOKEN)];
@@ -627,73 +638,6 @@ function jiraSummaryVerdictViolations(array $lines): array
     }
 
     return ['verdict: the comment must open with one deploy-verdict paragraph above the first section'];
-}
-
-/**
- * @param list<string> $lines
- * @return list<string>
- */
-function jiraSummaryTitleViolations(array $lines): array
-{
-    $layout = jiraSummaryLayout($lines);
-    $violations = [];
-
-    $shared = $layout['groups'] > 0 ? jiraSummaryGroupBlocks($layout['blocks'], 0)[1] ?? null : null;
-    $groupNumbers = [];
-    foreach ($lines as $line) {
-        if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line, $heading) === 1) {
-            $groupNumbers[] = $heading['number'];
-        }
-    }
-    for ($group = 0; $group <= $layout['groups']; $group++) {
-        $blocks = jiraSummaryGroupBlocks($layout['blocks'], $group);
-        $sections = $group === 0 ? ['Acceptance criteria|Akceptační kritéria'] : [];
-        if ($group !== 0 || $layout['groups'] === 0 || count($blocks) > 1) {
-            $sections[] = 'Findings from the code review|Nálezy z kontroly kódu';
-        }
-        if ($group !== 0 || $layout['groups'] === 0) {
-            $sections[] = 'Test scenarios|Testovací scénáře';
-            $sections[] = 'What changed and what it affects|Co se změnilo a co to ovlivní';
-        }
-        foreach ($sections as $index => $section) {
-            $block = $blocks[$index] ?? null;
-            $changes = str_starts_with($section, 'What changed');
-            $prefix = $changes ? 'ℹ️' : JIRA_SUMMARY_STATUS;
-            if ($block === null || preg_match("/^{$prefix} (?:{$section})$/uD", $block['title']) !== 1 || $block['body'] === []) {
-                $violations[] = 'sections: expected a populated section with a status icon: ' . $section;
-                continue;
-            }
-            if (str_starts_with($section, 'Findings')) {
-                $actionable = array_filter($block['body'], static fn (string $line): bool => preg_match(JIRA_SUMMARY_FINDING_TYPE, $line) === 1);
-                $blockers = array_filter($actionable, static fn (string $line): bool =>
-                    preg_match('/^\* \*\([a-z]+\):\* (?:\[~accountid:[^\]]+\] )?⚠️ /u', $line) !== 1);
-                $groupNumber = $groupNumbers[$group - 1] ?? null;
-                $sharedBlocker = $groupNumber !== null && $shared !== null && str_starts_with($shared['title'], '❌ ')
-                    && preg_match('/\bPR #' . $groupNumber . '(?![0-9])/u', implode(' ', $shared['body'])) === 1;
-                $icon = explode(' ', $block['title'], 2)[0];
-                if ($blockers !== [] && $icon !== '❌' || $blockers === [] && $actionable !== [] && !$sharedBlocker && $icon !== '⚠️'
-                    || $icon === '❌' && $blockers === [] && !$sharedBlocker || $icon === '✅' && $sharedBlocker) {
-                    $violations[] = 'findings: show a red title for an open blocking finding, amber for a pending question, or inherit its shared blocker';
-                }
-            }
-            if (str_starts_with($section, 'Acceptance') || str_starts_with($section, 'Test scenarios')) {
-                $icons = [];
-                foreach ($block['body'] as $line) {
-                    if (preg_match('/^# (✅|⚠️|❌|ℹ️) \S/u', $line, $match) === 1) {
-                        $icons[] = $match[1];
-                    } else {
-                        $violations[] = 'sections: number each criterion or scenario and give it a status';
-                    }
-                }
-                $status = in_array('❌', $icons, true) ? '❌' : (in_array('⚠️', $icons, true) || !in_array('✅', $icons, true) ? '⚠️' : '✅');
-                if (!str_starts_with($block['title'], $status . ' ')) {
-                    $violations[] = 'sections: the title must show the most urgent item status';
-                }
-            }
-        }
-    }
-
-    return $violations;
 }
 
 /**
@@ -768,7 +712,13 @@ function jiraSummaryCall(array $arguments): ?array
     return [
         'criteria' => $options['--criteria'],
         'source' => $parsed['rest'][0],
-        'task' => new JiraSummaryTask($options['--author'], $options['--repository'], $parsed['pullRequests'], $options['--jira-issue'], $options['--revision']),
+        'task' => new JiraSummaryTask(
+            $options['--author'],
+            $options['--repository'],
+            $parsed['pullRequests'],
+            $options['--jira-issue'],
+            $options['--revision'],
+        ),
     ];
 }
 

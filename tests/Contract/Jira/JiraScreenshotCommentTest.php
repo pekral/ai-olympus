@@ -46,26 +46,16 @@ function jiraLegacyPreviewAdf(string $text, bool $quoted = false): array
         $marker = ['type' => 'text', 'text' => 'See details', 'marks' => [['type' => 'link', 'attrs' => ['href' => $text]]]];
     }
 
-    return ['content' => ,
-        'type' => 'doc',
-        'version' => 1,
-        [
-            ['attrs' => ['title' => 'Technical marker for AI agents'],
-                'content' => ,
-                'type' => 'expand',
-                [['type' => 'paragraph', 'content' => [$marker]]],
-            ],
-        ],
-    ];
+    $paragraph = ['content' => [$marker], 'type' => 'paragraph'];
+    $expand = ['attrs' => ['title' => 'Technical marker for AI agents'], 'content' => [$paragraph], 'type' => 'expand'];
+
+    return ['content' => [$expand], 'type' => 'doc', 'version' => 1];
 }
 
 /**
- * @param array<string,mixed> $page
- * @param array<string,mixed>|null $prior
- * @param array<string,string> $environment
- * @return array{int|null,string,string,string}
+ * @return array{string, Process}
  */
-function jiraPreviewPublish(array $page, ?array $prior = null, array $environment = [], bool $malformed = false): array
+function jiraPreviewCommands(): array
 {
     $dir = sys_get_temp_dir() . '/jira-summary-' . bin2hex(random_bytes(8));
     mkdir($dir, 0o700);
@@ -84,6 +74,19 @@ SH);
     $jq = new Process(['sh', '-c', 'command -v jq']);
     $jq->mustRun();
     chmod($dir . '/acli', 0o700);
+
+    return [$dir, $jq];
+}
+
+/**
+ * @param array<string,mixed> $page
+ * @param array<string,mixed>|null $prior
+ * @param array<string,string> $environment
+ * @return array{int|null,string,string,string}
+ */
+function jiraPreviewPublish(array $page, ?array $prior = null, array $environment = [], bool $malformed = false): array
+{
+    [$dir, $jq] = jiraPreviewCommands();
     file_put_contents($dir . '/before', json_encode($page, JSON_THROW_ON_ERROR));
     file_put_contents($dir . '/audit', '');
     $arguments = ['--create', '--screenshots', $dir . '/unused', '--slug', 'preview'];
@@ -142,7 +145,12 @@ test('migration requires the original exact marker, account and unchanged body',
     $marker = 'cr-comment:actor=' . substr(hash('sha256', 'qa@example.test'), 0, 16) . ' lines=1234abcd';
     $body = jiraLegacyPreviewAdf($marker, $case === 'quoted');
     $prior = $case === 'edited' ? jiraLegacyPreviewAdf($marker . ',cafefeed') : $body;
-    $author = ['accountId' => match ($case) {'another account' => 'stranger', 'missing account' => '', default => 'qa'}, 'emailAddress' => $case === 'another email' ? 'other@example.test' : 'qa@example.test'];
+    $account = match ($case) {
+        'another account' => 'stranger',
+        'missing account' => '',
+        default => 'qa',
+    };
+    $author = ['accountId' => $account, 'emailAddress' => $case === 'another email' ? 'other@example.test' : 'qa@example.test'];
     [$rc, , $calls] = jiraPreviewPublish(
         jiraSummaryPage([['id' => '17', 'author' => $author, 'body' => $body]]),
         $prior,

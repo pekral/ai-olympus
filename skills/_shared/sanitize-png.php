@@ -69,74 +69,103 @@ function parsePngChunks(string $bytes): ?array
 }
 
 /**
- * @return array{0: string, 1: int}|null the sanitized bytes and the number of dropped chunks, or null for a malformed PNG
+ * @param list<string> $types
  */
-function sanitizePng(string $bytes): ?array
+function staticPngChunks(array $types): bool
 {
-    $chunks = str_starts_with($bytes, PNG_SIGNATURE) ? parsePngChunks($bytes) : null;
+    $critical = array_filter($types, static fn (string $type): bool => ctype_upper($type[0]));
 
-    if ($chunks === null) {
-        return null;
-    }
+    return array_diff($critical, ['IHDR', 'IDAT', 'IEND']) === []
+        && array_intersect($types, ['acTL', 'fcTL', 'fdAT', 'tRNS']) === []
+        && count(array_keys($types, 'IHDR', true)) === 1 && in_array('IDAT', $types, true);
+}
 
-    $types = array_column($chunks, 'type');
-    foreach ($chunks as $chunk) {
-        if (ctype_upper($chunk['type'][0]) && !in_array($chunk['type'], ['IHDR', 'IDAT', 'IEND'], true)) {
-            return null;
-        }
-    }
-    if (strlen($chunks[array_key_last($chunks)]['raw']) !== 12) {
-        return null;
-    }
-    $header = substr($chunks[0]['raw'], 8, -4);
-    if (strlen($header) !== 13 || count(array_keys($types, 'IHDR', true)) !== 1 || !in_array('IDAT', $types, true)
-        || array_intersect($types, ['acTL', 'fcTL', 'fdAT', 'tRNS', 'PLTE']) !== [] || !function_exists('imagecreatefromstring')
-        || substr($header, 8) !== "\x08\x02\x00\x00\x00" && substr($header, 8) !== "\x08\x06\x00\x00\x00") {
+/**
+ * @return array{int, int, int}|null
+ */
+function pngDimensions(string $header): ?array
+{
+    if (strlen($header) !== 13 || !in_array(substr($header, 8), ["\x08\x02\x00\x00\x00", "\x08\x06\x00\x00\x00"], true)) {
         return null;
     }
 
     $width = readUint32(substr($header, 0, 4));
     $height = readUint32(substr($header, 4, 4));
-    if ($width < 1 || $height < 1 || $width > 4_096 || $height > 4_096 || $width * $height > MAX_PNG_PIXELS) {
+
+    if (min($width, $height) < 1 || max($width, $height) > 4_096 || $width * $height > MAX_PNG_PIXELS) {
         return null;
     }
 
-    $stride = 1 + $width * (ord($header[9]) === 2 ? 3 : 4);
-    $compressed = '';
-    foreach ($chunks as $chunk) {
-        if ($chunk['type'] === 'IDAT') {
-            $compressed .= substr($chunk['raw'], 8, -4);
-        }
-    }
+    return [$width, $height, 1 + $width * (ord($header[9]) === 2 ? 3 : 4)];
+}
+
+function validPngScanlines(string $compressed, int $height, int $stride): bool
+{
     $pixels = @gzuncompress($compressed, $height * $stride);
+
     if ($pixels === false || strlen($pixels) !== $height * $stride) {
-        return null;
+        return false;
     }
+
     for ($row = 0; $row < $height; $row++) {
         if (ord($pixels[$row * $stride]) > 4) {
-            return null;
+            return false;
         }
     }
 
-    // Never pass ancillary chunks (including compressed metadata) to the image decoder.
-    $raster = PNG_SIGNATURE . $chunks[0]['raw']
+    return true;
+}
+
+function canonicalPng(string $header, string $compressed, int $width, int $height): ?string
+{
+    // Feed the decoder raster chunks only, then draw onto an opaque white background.
+    $raster = PNG_SIGNATURE . $header
         . pack('N', strlen($compressed)) . 'IDAT' . $compressed . pack('N', crc32('IDAT' . $compressed))
         . "\x00\x00\x00\x00IEND\xae\x42\x60\x82";
     $decoded = @imagecreatefromstring($raster);
     $opaque = imagecreatetruecolor($width, $height);
-    if ($decoded === false || $opaque === false) {
-        return null;
-    }
-    imagefill($opaque, 0, 0, 0xffffff);
-    imagecopy($opaque, $decoded, 0, 0, 0, 0, $width, $height);
-    ob_start();
-    $written = imagepng($opaque, null, 9);
-    $canonical = ob_get_clean();
-    if (!$written || !is_string($canonical) || strlen($canonical) > MAX_PNG_BYTES) {
+
+    if ($decoded === false || $opaque === false || !imagefill($opaque, 0, 0, 0xffffff) || !imagecopy($opaque, $decoded, 0, 0, 0, 0, $width, $height)) {
         return null;
     }
 
-    return [$canonical, count(array_diff($types, ['IHDR', 'IDAT', 'IEND']))];
+    ob_start();
+    $written = imagepng($opaque, null, 9);
+    $canonical = ob_get_clean();
+
+    return $written && is_string($canonical) && strlen($canonical) <= MAX_PNG_BYTES ? $canonical : null;
+}
+
+/**
+ * @return array{string, int}|null
+ */
+function sanitizePng(string $bytes): ?array
+{
+    $chunks = str_starts_with($bytes, PNG_SIGNATURE) ? parsePngChunks($bytes) : null;
+
+    if ($chunks === null || !function_exists('imagecreatefromstring')) {
+        return null;
+    }
+
+    $types = array_column($chunks, 'type');
+    $header = $chunks[0]['raw'];
+    $dimensions = pngDimensions(substr($header, 8, -4));
+
+    if ($dimensions === null || !staticPngChunks($types) || strlen($chunks[array_key_last($chunks)]['raw']) !== 12) {
+        return null;
+    }
+
+    [$width, $height, $stride] = $dimensions;
+    $data = array_filter($chunks, static fn (array $chunk): bool => $chunk['type'] === 'IDAT');
+    $compressed = implode('', array_map(static fn (array $chunk): string => substr($chunk['raw'], 8, -4), $data));
+
+    if (!validPngScanlines($compressed, $height, $stride)) {
+        return null;
+    }
+
+    $canonical = canonicalPng($header, $compressed, $width, $height);
+
+    return $canonical === null ? null : [$canonical, count(array_diff($types, ['IHDR', 'IDAT', 'IEND']))];
 }
 
 $arguments = array_slice($argv ?? [], 1);
@@ -155,10 +184,13 @@ if ($result === null) {
 }
 
 $output = @fopen($arguments[1], 'xb');
+
 if ($output === false) {
     exit(1);
 }
+
 $written = fwrite($output, $result[0]);
+
 if (!fclose($output) || $written !== strlen($result[0])) {
     unlink($arguments[1]);
     exit(1);

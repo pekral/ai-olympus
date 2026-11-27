@@ -239,7 +239,8 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'a stack with a shared point above the groups' => [
         str_replace(
             "{expand:❌ Akceptační kritéria}\n# ❌ Hromadné odeslání vyžaduje opravu.\n{expand}",
-            "{expand:❌ Akceptační kritéria}\n# ❌ Objednávka selže.\n{expand}\n{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
+            "{expand:❌ Akceptační kritéria}\n# ❌ Objednávka selže.\n{expand}\n"
+                . "{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
             jiraSummaryForTwoPullRequests(),
         ),
         'none',
@@ -432,7 +433,8 @@ function jiraSummaryBlobLink(string $repository = 'acme/app', string $path = 'sr
 
 test('a finding outside the pull request may link its file and line at the reviewed commit of the task repository', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat('c', 64) . 'R4]'
+            => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
     );
 
     $process = runJiraSummaryCheck($source, 'none');
@@ -550,7 +552,7 @@ test(
 test('a file link at a commit other than the reviewed one is refused', function (string $revision): void {
     $href = jiraSummaryBlobLink(revision: $revision);
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . $href . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat('c', 64) . 'R4]' => '[Zobrazit v kódu →|' . $href . ']'],
     );
 
     $process = runJiraSummaryCheck($source, 'none');
@@ -569,7 +571,8 @@ test('a file link at a commit other than the reviewed one is refused', function 
 
 test('a file link is refused when the check names no reviewed commit', function (): void {
     $source = jiraSummaryWithoutCriteria(
-        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccR4]' => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
+        ['[Zobrazit v kódu →|https://github.com/acme/app/pull/27600/files#diff-' . str_repeat('c', 64) . 'R4]'
+            => '[Zobrazit v kódu →|' . jiraSummaryBlobLink() . ']'],
     );
 
     $process = ReportCheckRun::over(
@@ -675,7 +678,9 @@ test(
     ],
     'a TL;DR label' => ['{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
     'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
-    'the label written with a space' => ['{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
+    'the label written with a space' => [
+        '{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label',
+    ],
 ]);
 
 test('a section outside a collapsed block is refused', function (): void {
