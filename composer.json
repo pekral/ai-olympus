@@ -115,8 +115,8 @@
       "history-exposure": {
         "allow": [
           {
-            "rule": "error-tracker-url",
-            "path": "skills/code-review-jira/scripts/upload-attachment.sh"
+            "path": "skills/code-review-jira/scripts/upload-attachment.sh",
+            "rule": "error-tracker-url"
           }
         ]
       },
