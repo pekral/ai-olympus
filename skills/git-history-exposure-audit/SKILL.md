@@ -85,6 +85,10 @@ The rule ids of each class are listed in the header of `scripts/history-scan.sh`
 4. **The texts.** Pipe the loader output of the pull request into `history-scan.sh text`. It scans the title, the body, the comments, the review comments, and the reviews.
 5. **Read the result.** Neither scan command makes a network request or writes a file. Exit `0` is a clean lens, exit `5` carries findings, and any other exit is a failed scan.
 
+### Tracked findings from the default branch
+
+Review range and text findings never qualify for a tracked old gap. When a previously identified, redacted infrastructure finding may already exist outside the change, verify its exact commit with `history-scan.sh baseline --base <default SHA> --witness <commit SHA>` from the verified scanner copy. It is read-only and scans the named reachable commit. The special report uses rule anchor `whole-project-<rule>` and private evidence `history-baseline: <commit> <rule> <line|message|path> <location-or-dash>`. The verifier refuses an ambiguous witness and checks the current PR range separately. Apply `@rules/code-review/review-process.md` *Tracked security gaps on the default branch (#711)*.
+
 ### Findings, severity, and the published shape
 - **Severity.** A credential or sensitive-file finding is **Critical**. An infrastructure finding is **Moderate**. Every finding is a security finding: it blocks convergence, and it is never excluded or deferred (the S1 test of `@rules/code-review/general.md` *Assignment-Declared Test-Only Conditions — Exclusion Gate (issue #17)*).
 - **The published finding names the class, the rule id, the short commit SHA, and the path,** or the URL for a text. It never names the value, a code excerpt of the line, the line number, or the fingerprint. No other lens quotes a line that carries a finding.

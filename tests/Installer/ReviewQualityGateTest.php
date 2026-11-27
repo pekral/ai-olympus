@@ -123,7 +123,11 @@ test('the extractor and the review state load one shared jq module for the findi
         expect($script)
             ->toContain('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"')
             ->toContain("include \"finding-defs\";\n")
-            ->and(substr_count($script, '-L "$HERE"'))->toBe(substr_count($script, $program) + substr_count($script, 'include "review-trust";'));
+            ->and(substr_count($script, '-L "$HERE"'))->toBe(
+                substr_count($script, $program)
+                + substr_count($script, 'include "review-trust";')
+                + substr_count($script, 'include "known-tracker";'),
+            );
         expect($script)->not->toContain('def isstr(');
         expect($script)->not->toContain('def severity_rank:');
         expect($script)->not->toContain('def status_rank:');
@@ -142,7 +146,7 @@ test('a blocking finding outside the delta widens the round, and a change after 
 
     expect(reviewQualityGateFile('skills/_shared/extract-findings.sh'))
         ->toContain('Evidence is required; move an unproven point under ## Needs verification: finding')
-        ->toContain('status: (if $f.verify then "needs-verification" else "new" end)} ]')
+        ->toContain('status: (if $f.verify then "needs-verification" else "new" end), reports: 1} ]')
         ->toContain('run_case \'round: a finding under Findings without Evidence is refused\' 3 yes')
         ->toContain('run_case \'store mode still reads a finding without Evidence\' 0 no');
 

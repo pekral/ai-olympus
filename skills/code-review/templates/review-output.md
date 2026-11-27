@@ -1,6 +1,6 @@
 # Code Review
 
-> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
+> **One comment, and on a converged run a TL;DR rather than a systematic report.** A review run publishes exactly one comment per destination, in the `cr-comment` namespace. When the run converged, its body is the header block, `## Changed areas`, `## TL;DR`, `## Functional Review`, and the conditional `## Affected behaviour outside the diff` / `## Deferred to sub-issues` / `## Known points` / `## Tracked security gaps` / `## Pre-existing fixes` / `## Answers to reviewer questions` sections, plus the evidence sections `## Input consistency` and `## Reuse (DRY)` whenever their check applies — nothing else: no `## Technical Review` heading over an empty body, no per-walk confirmation, no restatement of a finding the loop already fixed.
 > The sections below describe the other shape — a run that still carries an outstanding finding, which is a standalone review a person invoked directly. Canonical contract: `@rules/code-review/general.md` *One published comment per review run — a TL;DR, not a systematic report*.
 >
 > **Subject — the four areas, nothing else.** The report covers functionality against the assignment, security, database optimisation, and code rules on the changed lines, and carries no out-of-scope observation and no follow-up proposal (`@rules/code-review/general.md` *What a code review checks, and nothing else*).
@@ -78,6 +78,7 @@ History exposure: not run — the repository is private.  *(render this one body
 - **Provenance:** `regression — introduced in this revision` | `pre-existing — carried from round {n}` | `pre-existing — untouched by this revision`
 - **Answered:** {comment URL} — `{login}`, {date}  *(render only on a carried-over finding whose answer `skills/_shared/review-carry-forward.sh answer … --after <time>` verified with `"github_allowed": true`; the finding keeps its severity and still blocks — `@rules/code-review/general.md` *An answered finding stays in the report — the answer is shown, never applied*. Never quote the answer.)*
 - **Raised by:** `splinter` | `leonardo` | `both` *(render it on every finding of a comment whose round carries a `splinter` report, and on none otherwise — `@rules/code-review/review-process.md` *Merging the `splinter` view into the one CR comment*)*
+- **Linked issue:** {URL of the linked issue} — {one sentence: what the change adds on top of the issue, the regression, or the behaviour that differs}  *(render only on a finding that a linked issue on the same topic did not make a known point — `@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*. Omit it on every other finding.)*
 - **Impact:** one sentence — what breaks or what risk this introduces.
 - **Evidence:** `failing-test` | `static-analysis` | `runtime-failure` | `exploit-path` | `logic-trace` | `rule-violation` — the evidence another reader can check without trusting this review: the failing test, the analyser error, the reproducible failure, the exploit path, the traced logic defect, or the explicit rule the line breaks. *(Required on every finding. A point that has none goes under `## Needs verification`, never here.)*
 - **Faulty Example:** one sentence that describes the input, the call, or the state that reproduces the issue, with no code and no runnable payload (no secrets / PII).
@@ -126,6 +127,25 @@ History exposure: not run — the repository is private.  *(render this one body
    **After:** {what it does after the diff}
    **Asked for by the assignment:** {yes — <criterion> | no — see finding <n>}
    **Test:** `{test that covers it}` | `no test`
+
+---
+
+## Known points
+
+> Render only when `krang` marked at least one finding of the round as a known point (`@rules/code-review/review-process.md` *Known points — a finding that a linked issue already reports (issue #682)*), on a converged run too. Omit the heading entirely otherwise. An entry is information, not a finding: it has no severity, it is in no `Counts:` slot, and it blocks nothing. The entries come from the `known_points` of the loop state. A security known point is entry 2 below and nothing more: no title, no place, and no sentence on what the issue covers.
+
+1. **Finding:** {the short title of the finding} — `path/to/file.php:42`
+   **Linked issue:** {URL of the linked issue}
+   **Covers:** {one sentence: what the issue covers and why it is the same problem as the finding}
+2. **Security point** — **Linked issue:** {URL of the linked issue}
+
+---
+
+## Tracked security gaps
+
+> Render only for verified `tracked-old` decisions, after the known points. Use the original severity and the approved fix URL. Include the `**Review decisions:** <digest>` and `**Security findings:** <total> total · <blocking> blocking` header lines when the review contains decisions. Never show a witness, location, secret or private URL outside its audience.
+
+1. **Moderate** — Already on the default branch. Fix tracked in {verified fix URL}
 
 ---
 

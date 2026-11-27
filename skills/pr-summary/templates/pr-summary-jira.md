@@ -15,6 +15,13 @@ You can go through the whole change here: [code in the pull request|PR_URL/files
 h3. Already reported in an earlier review
 
 * *(tests):* [Only when a finding was carried over from an earlier review. Same bullet shape. A finding with a recorded answer ends with one sentence that says when and where the answer was recorded, and that the point still blocks the merge when it does.] [View in code →|CODE_LINK]
+
+h3. Already reported in a linked issue
+
+* *(bug):* [Only when the review marked a finding as a known point. One bullet per point, opening with the change type of its finding like every bullet of Review findings (references/jira-shape.md, item 10), then what it is in plain language, what the linked issue covers, and a link to that issue. A known point of the type refactor or tests mentions the author right after its type, as any finding of those types does. Order the bullets by type. It is no point to resolve, so the group carries no count and no severity. A security known point is only the link and one neutral sentence that a linked issue already reports it. Its type is *(security):*. The group sits inside Review findings, after every new finding.]
+h3. Tracked security gaps
+
+* *(security):* *Moderate* — Already on the default branch. [Tracked fix|VERIFIED_FIX_URL]
 {expand}
 
 {expand:What changed and what it affects}

@@ -6,8 +6,8 @@
 #   - the full issue/PR: header, body, comments, labels, and (for PRs) the diff
 #     stat, files, commits, reviews, and CI status checks
 #   - recursive traversal of linked issues/PRs (closingIssues for a PR,
-#     closingPullRequests for an issue) up to GITHUB_CONTEXT_DEPTH, cycle-safe
-#     and capped
+#     closingPullRequests and linkedIssues for an issue) up to GITHUB_CONTEXT_DEPTH,
+#     cycle-safe and capped
 #   - an inventory of every external URL found in the body and comments
 #
 # The output is Markdown meant to be read by an AI agent as task context, not a
@@ -69,7 +69,9 @@ render_item() {
     "## \(.kind | ascii_upcase) #\(.number) — \(.title // "(no title)")",
     "",
     line("State"; .state),
+    line("State reason"; .stateReason),
     line("Author"; .author),
+    line("Author association"; (.authorAssociation // "unknown")),
     line("Labels"; (.labels // [] | join(", "))),
     line("Milestone"; .milestone),
     line("Created"; .createdAt),
@@ -147,7 +149,8 @@ seen() { local u; for u in "${SEEN[@]}"; do [[ "$u" == "$1" ]] && return 0; done
 related_urls() {
   printf '%s' "$1" | jq -r '
     [ (.closingIssues // [] | .[].url),
-      (.closingPullRequests // [] | .[].url) ] | .[] // empty'
+      (.closingPullRequests // [] | .[].url),
+      (.linkedIssues // [] | .[].url) ] | .[] // empty'
 }
 
 RELATED_JSON_FILE="$(mktemp)"

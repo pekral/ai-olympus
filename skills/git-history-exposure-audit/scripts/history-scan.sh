@@ -17,6 +17,7 @@
 #
 # Usage
 #   history-scan.sh range --base <sha> --head <sha>
+#   history-scan.sh baseline --base <sha> --witness <sha>
 #   history-scan.sh text  < <load-issue.sh JSON of a pull request>
 #   history-scan.sh full  --repo <owner>/<repo> [--terms-file <file>] [--run-root <dir>]
 #   history-scan.sh classify < <paths, one per line>
@@ -182,6 +183,7 @@ log-file *.log'
 usage() {
   cat >&2 <<'EOF'
 usage: history-scan.sh range --base <sha> --head <sha>
+       history-scan.sh baseline --base <sha> --witness <sha>
        history-scan.sh text  < <load-issue.sh JSON of a pull request>
        history-scan.sh full  --repo <owner>/<repo> [--terms-file <file>] [--run-root <dir>]
        history-scan.sh classify < <paths, one per line>
@@ -913,28 +915,32 @@ is_sha() {
 # content pass over .env.example. Failures become E records.
 produce_git() {
   local revs="$1" status
-  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" --format="$META_FMT" --raw --cc "${DIFF_OPTS[@]}" 2>/dev/null |
+  local -a limit=()
+  [[ "${2:-}" != baseline ]] || limit=(--max-count=1)
+  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" ${limit[@]+"${limit[@]}"} --format="$META_FMT" --raw --cc "${DIFF_OPTS[@]}" 2>/dev/null |
     awk "$AWK_META" 2>/dev/null
   status=("${PIPESTATUS[@]}")
   [[ "${status[1]}" == 0 && "${status[2]}" == 0 ]] || printf 'E\tcommit messages and added paths\tgit log failed; run the scan again\n'
 
-  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" --format='%x01C%x09%H%x09%P' -p --cc --unified=0 "${DIFF_OPTS[@]}" \
+  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" ${limit[@]+"${limit[@]}"} --format='%x01C%x09%H%x09%P' -p --cc --unified=0 "${DIFF_OPTS[@]}" \
     -- . "${SENS_PATHSPECS[@]}" 2>/dev/null | awk "$AWK_CONTENT" 2>/dev/null
   status=("${PIPESTATUS[@]}")
   [[ "${status[1]}" == 0 && "${status[2]}" == 0 ]] || printf 'E\tadded lines\tgit log failed; run the scan again\n'
 
-  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" --format='%x01C%x09%H%x09%P' -p --cc --unified=0 "${DIFF_OPTS[@]}" \
+  printf '%s' "$revs" | git_ro log "${LOG_OPTS[@]}" ${limit[@]+"${limit[@]}"} --format='%x01C%x09%H%x09%P' -p --cc --unified=0 "${DIFF_OPTS[@]}" \
     -- ':(glob)**/.env.example' 2>/dev/null | awk "$AWK_CONTENT" 2>/dev/null
   status=("${PIPESTATUS[@]}")
   [[ "${status[1]}" == 0 && "${status[2]}" == 0 ]] || printf 'E\tadded lines of .env.example\tgit log failed; run the scan again\n'
 }
 
 mode_range() {
-  local base='' head='' top status
+  local mode="$1" base='' head='' top status
+  shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --base) [[ $# -ge 2 ]] || usage; base="$2"; shift 2 ;;
-    --head) [[ $# -ge 2 ]] || usage; head="$2"; shift 2 ;;
+    --head) [[ "$mode" == range && $# -ge 2 ]] || usage; head="$2"; shift 2 ;;
+    --witness) [[ "$mode" == baseline && $# -ge 2 ]] || usage; head="$2"; shift 2 ;;
     *) usage ;;
     esac
   done
@@ -949,14 +955,22 @@ mode_range() {
   cd "$top" || die 1 'cannot enter the checkout'
   pin_empty_tree
 
-  printf 'history-scan: mode=range base=%s head=%s engine=history-scan.sh\n' "$base" "$head"
+  printf 'history-scan: mode=%s base=%s head=%s engine=history-scan.sh\n' "$mode" "$base" "$head"
   if ! git_ro cat-file -e "$base^{commit}" 2>/dev/null || ! git_ro cat-file -e "$head^{commit}" 2>/dev/null; then
     fail_scan 'commit range - the base or the head commit is not in this checkout; fetch the pull request head and base, then run the scan again'
   fi
 
   {
-    allow_records
-    produce_git "$head"$'\n'"^$base"$'\n'
+    if [[ "$mode" == baseline ]]; then
+      if git_ro merge-base --is-ancestor "$head" "$base" 2>/dev/null; then
+        produce_git "$head"$'\n' baseline
+      else
+        printf 'E\tbaseline history\tthe witness is not reachable from the baseline\n'
+      fi
+    else
+      allow_records
+      produce_git "$head"$'\n'"^$base"$'\n'
+    fi
   } | awk -v classes='credential,sensitive-file,infrastructure' -v sens="$SENS_ERE" -v cap_bytes="$LINE_CAP" \
     -v presence_on=0 "$AWK_LIB$AWK_MATCH" 2>/dev/null | emit_report
   status=("${PIPESTATUS[@]}")
@@ -1314,7 +1328,7 @@ mode_classify() {
 main() {
   [[ $# -ge 1 ]] || usage
   case "$1" in
-  range) shift; mode_range "$@" ;;
+  range | baseline) mode_range "$@" ;;
   text) shift; mode_text "$@" ;;
   full) shift; mode_full "$@" ;;
   classify) shift; mode_classify "$@" ;;

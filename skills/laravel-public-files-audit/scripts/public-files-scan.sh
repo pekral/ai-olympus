@@ -18,7 +18,7 @@
 #   skill, as the installer places every skill.
 #
 # Usage
-#   public-files-scan.sh static  --root <project> [--changed-from <base sha>]
+#   public-files-scan.sh static  --root <project> [--changed-from <base sha>] [--proof-scope]
 #   public-files-scan.sh runtime --root <project> --base-url <http(s)://local-host[:port]>
 #   public-files-scan.sh --self-test
 #
@@ -1836,7 +1836,7 @@ finish() {
 
 main() {
   [[ $# -ge 1 ]] || usage
-  local mode="$1" root='' base='' url=''
+  local mode="$1" root='' base='' url='' proof_scope=0 i
   shift
   case "$mode" in
   --self-test) self_test "$@" ;;
@@ -1846,6 +1846,7 @@ main() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --root) [[ $# -ge 2 ]] || usage; root="$2"; shift 2 ;;
+    --proof-scope) [[ "$mode" == static ]] || usage; proof_scope=1; shift ;;
     --changed-from) [[ "$mode" == static && $# -ge 2 ]] || usage; base="$2"; shift 2 ;;
     --base-url) [[ "$mode" == runtime && $# -ge 2 ]] || usage; url="$2"; shift 2 ;;
     *) usage ;;
@@ -1881,6 +1882,12 @@ main() {
     finish
   fi
   root_checks
+  if ((proof_scope)); then
+    for ((i = 0; i < ${#SCAN_ROOTS[@]}; i++)); do
+      proj_rel "${SCAN_PHYS[i]}"
+      printf 'scope\t%s\nscope\t%s\n' "$(esc "${SCAN_ROOTS[i]}")" "$(esc "$PROJ_REL")"
+    done
+  fi
   submodule_checks "$base"
   collect
   classify_shared

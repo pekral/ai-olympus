@@ -26,6 +26,13 @@ if [[ "$3" == "view" ]]; then
   exit 0
 fi
 
+# `jira_actor_account_id` resolves the operator account through a search; FAKE_ACLI_SEARCH_JSON answers it.
+if [[ "$3" == "search" ]]; then
+  [[ -n "${FAKE_ACLI_SEARCH_JSON:-}" ]] || exit 1
+  printf '%s\n' "$FAKE_ACLI_SEARCH_JSON"
+  exit 0
+fi
+
 if [[ "$3" == "comment" ]]; then
   if [[ "${FAKE_ACLI_COMMENTS_OK:-1}" != "1" ]]; then
     echo 'acli: comment list failed' >&2
@@ -242,6 +249,256 @@ test('an ADF description is flattened into plain text and the raw tree is preser
     expect(decodedJsonField($output, 'descriptionAdf.type'))->toBe('doc');
     expect(decodedJsonField($output, 'comments.0.author'))->toBe('Maintainer');
     expect(decodedJsonField($output, 'comments.0.body'))->toContain('Reproduced on staging.');
+});
+
+/**
+ * @return array<string, mixed>
+ */
+function jiraLoaderDocument(string $text): array
+{
+    return [
+        'content' => [['content' => [['text' => $text, 'type' => 'text']], 'type' => 'paragraph']],
+        'type' => 'doc',
+        'version' => 1,
+    ];
+}
+
+/**
+ * The answer of the operator-account search: the operator is the account `acc-operator`.
+ */
+function jiraLoaderOperatorSearchJson(): string
+{
+    return (string) json_encode([['fields' => ['assignee' => ['accountId' => 'acc-operator']], 'key' => 'ACME-2']]);
+}
+
+function jiraLoaderNamingViewJson(string $reporter = 'acc-operator', string $description = ''): string
+{
+    $description = $description !== ''
+        ? $description
+        : 'Related: ACME-77, ACME-78 and OTHER-9, again ACME-77, itself ACME-1234, parent ACME-1, and ACME-5 (linked).';
+    $linked = ['fields' => ['issuetype' => ['name' => 'Bug'], 'status' => ['name' => 'Open'], 'summary' => 'Linked'], 'key' => 'ACME-5'];
+
+    return (string) json_encode([
+        // The operator wrote the description and is the only account that changed it.
+        'changelog' => jiraLoaderChangelog([[$reporter, 'description']]),
+        'fields' => [
+            'assignee' => ['displayName' => 'Maintainer'],
+            'attachment' => [],
+            'created' => '2026-01-05T09:00:00.000+0100',
+            'creator' => ['accountId' => $reporter, 'displayName' => 'Reporter'],
+            'description' => jiraLoaderDocument($description),
+            'issuelinks' => [
+                [
+                    'id' => '1',
+                    'outwardIssue' => $linked,
+                    'type' => ['inward' => 'relates to', 'name' => 'Relates', 'outward' => 'relates to'],
+                ],
+            ],
+            'issuetype' => ['name' => 'Bug'],
+            'parent' => ['fields' => ['status' => ['name' => 'Open'], 'summary' => 'Epic'], 'key' => 'ACME-1'],
+            'reporter' => ['accountId' => $reporter, 'displayName' => 'Reporter'],
+            'status' => ['name' => 'In Progress'],
+            'subtasks' => [],
+            'summary' => 'Upload validation rejects valid PDFs',
+            'updated' => '2026-01-06T09:00:00.000+0100',
+        ],
+        'key' => 'ACME-1234',
+    ]);
+}
+
+/**
+ * The change log of an issue view: one history per [account, changed field] pair, every one of them returned.
+ *
+ * @param list<array{0: string, 1: string}> $changes
+ * @return array<string, mixed>
+ */
+function jiraLoaderChangelog(array $changes): array
+{
+    $histories = array_map(static fn (array $change, int $index): array => [
+        'author' => ['accountId' => $change[0]],
+        'created' => '2026-01-06T07:00:00.000+0100',
+        'id' => (string) ($index + 1),
+        'items' => [['field' => $change[1], 'fieldId' => $change[1]]],
+    ], $changes, array_keys($changes));
+
+    return ['histories' => $histories, 'maxResults' => 100, 'startAt' => 0, 'total' => count($histories)];
+}
+
+/**
+ * The naming view of `jiraLoaderNamingViewJson()` with the given top-level keys and fields replaced, and the keys
+ * listed in $remove left out.
+ *
+ * @param array<string, mixed> $replace
+ * @param array<string, mixed> $fields
+ * @param list<string> $remove
+ */
+function jiraLoaderTrustViewJson(array $replace = [], array $fields = [], array $remove = []): string
+{
+    $view = (array) json_decode(jiraLoaderNamingViewJson(), associative: true);
+    $view = array_replace($view, $replace);
+    $view['fields'] = array_replace((array) $view['fields'], $fields);
+
+    return (string) json_encode(array_diff_key($view, array_flip($remove)));
+}
+
+function jiraLoaderNamingCommentsJson(): string
+{
+    $comment = static fn (string $author, string $text, int $id): array => [
+        'author' => ['displayName' => $author],
+        'body' => jiraLoaderDocument($text),
+        'created' => '2026-01-06T08:00:00.000+0100',
+        'id' => (string) $id,
+    ];
+
+    return (string) json_encode(['comments' => [
+        $comment('Maintainer', 'Also ACME-80.', 10_001),
+        $comment('Stranger', 'Look at ACME-81.', 10_002),
+        $comment('Maintainer', 'Review of ACME-82. _cr-comment:actor=abc123_', 10_003),
+    ],
+    ]);
+}
+
+test('the issues of the same project that the description and the assignee comments name are listed once, without native links', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson(),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-77', 'ACME-78', 'ACME-80'])
+        ->and(decodedJsonField($output, 'reporterAccountId'))->toBe('acc-operator')
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeTrue()
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBeTrue();
+});
+
+test('the description of a reporter who is not the operator names no issue', function (string $reporter, ?string $search): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson($reporter),
+    ] + ($search === null ? [] : ['FAKE_ACLI_SEARCH_JSON' => $search]))->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    // Only the assignee's own comment names an issue; the description of another reporter is data, never task text.
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-80'])
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeFalse();
+})->with([
+    'an operator account that cannot be resolved' => ['acc-operator', null],
+    'another reporter' => ['acc-stranger', jiraLoaderOperatorSearchJson()],
+]);
+
+test('the description is trusted only when the operator wrote it and no other account changed it', function (string $view, bool $trusted): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => jiraLoaderNamingCommentsJson(),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => $view,
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    // An untrusted description names no issue; the assignee's own comment still does.
+    expect(decodedJsonField($output, 'descriptionTrusted'))->toBe($trusted)
+        ->and(decodedJsonField($output, 'mentionedKeys'))->toBe($trusted ? ['ACME-77', 'ACME-78', 'ACME-80'] : ['ACME-80']);
+})->with([
+    'another account changed another field' => [jiraLoaderTrustViewJson(
+        ['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'status']])],
+    ), true,
+    ],
+    'another account changed the reporter' => [jiraLoaderTrustViewJson(['changelog' => jiraLoaderChangelog([['acc-stranger', 'reporter']])]), false],
+    'another account created the issue' => [jiraLoaderTrustViewJson(
+        fields: ['creator' => ['accountId' => 'acc-stranger', 'displayName' => 'Stranger']],
+    ), false,
+    ],
+    'another account edited the description' => [jiraLoaderTrustViewJson(
+        ['changelog' => jiraLoaderChangelog([['acc-operator', 'description'], ['acc-stranger', 'description']])],
+    ), false,
+    ],
+    'the change log cannot be read' => [jiraLoaderTrustViewJson(['changelog' => ['histories' => 'unreadable']]), false],
+    'the change log is cut' => [jiraLoaderTrustViewJson(['changelog' => ['total' => 2] + jiraLoaderChangelog([['acc-operator', 'description']])]), false],
+    'the operator wrote it and changed it' => [jiraLoaderTrustViewJson(), true],
+    'the view carries no change log' => [jiraLoaderTrustViewJson(remove: ['changelog']), false],
+    'the view carries no creator' => [jiraLoaderTrustViewJson(fields: ['creator' => null]), false],
+]);
+
+test('a comment of the operator account names an issue even when the operator is not the assignee', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $comments = (string) json_encode(['comments' => [
+        [
+            'author' => ['accountId' => 'acc-operator', 'displayName' => 'Operator'],
+            'body' => jiraLoaderDocument('Also ACME-83.'),
+            'created' => '2026-01-06T08:00:00.000+0100',
+            'id' => '10004',
+        ],
+    ],
+    ]);
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => $comments,
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-stranger'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-83']);
+});
+
+test('a comment of the reporter names an issue, and a comment of another account or an agent does not', function (): void {
+    $fixture = createJiraLoaderFixture();
+    $comment = static fn (string $account, string $text, int $id): array => [
+        'author' => ['accountId' => $account, 'displayName' => $account],
+        'body' => jiraLoaderDocument($text),
+        'created' => '2026-01-06T08:00:00.000+0100',
+        'id' => (string) $id,
+    ];
+    $comments = (string) json_encode(['comments' => [
+        $comment('acc-reporter', 'Also ACME-84.', 10_005),
+        $comment('acc-stranger', 'Look at ACME-85.', 10_006),
+        $comment('acc-reporter', 'Review of ACME-86. _cr-comment:actor=abc123_', 10_007),
+    ],
+    ]);
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => $comments,
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-reporter'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe(['ACME-84'])
+        ->and(decodedJsonField($output, 'descriptionTrusted'))->toBeFalse();
+});
+
+test('a list that reaches the cap of 20 named keys says it is not complete', function (int $count, bool $complete): void {
+    $fixture = createJiraLoaderFixture();
+    $keys = implode(', ', array_map(static fn (int $n): string => 'ACME-' . (100 + $n), range(1, $count)));
+
+    $output = runJiraLoader($fixture, 'ACME-1234', [
+        'FAKE_ACLI_COMMENTS_JSON' => (string) json_encode(['comments' => []]),
+        'FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson(),
+        'FAKE_ACLI_VIEW_JSON' => jiraLoaderNamingViewJson('acc-operator', 'Related: ' . $keys . '.'),
+    ])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toHaveCount(min($count, 20))
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBe($complete);
+})->with([
+    'one over the limit' => [21, false],
+    'the limit' => [20, true],
+]);
+
+test('an issue whose text names no other issue has an empty list of named keys', function (): void {
+    $fixture = createJiraLoaderFixture();
+
+    $output = runJiraLoader($fixture, 'ACME-1234', ['FAKE_ACLI_SEARCH_JSON' => jiraLoaderOperatorSearchJson()])->getOutput();
+    removeJiraLoaderFixture($fixture);
+
+    expect(decodedJsonField($output, 'mentionedKeys'))->toBe([])
+        ->and(decodedJsonField($output, 'mentionedKeysComplete'))->toBeTrue();
 });
 
 test('an argument that is neither a key nor a URL is rejected before any acli call', function (): void {

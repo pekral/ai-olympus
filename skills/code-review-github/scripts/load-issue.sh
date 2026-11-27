@@ -38,6 +38,8 @@
 #         "comments": [ { "author", "body", "createdAt", "updatedAt", "url" } ]
 #     } ],
 #     "subIssuesComplete": <bool>,
+#     "linkedIssues": [ { "relation": "parent"|"sub-issue"|"blocked-by"|"blocks"|"mentioned", "number", "title", "url", "state" } ],
+#     "linkedIssuesComplete": <bool>,
 #
 #     # pr-only (null / [] when kind == "issue")
 #     "baseRefName", "headRefName", "baseRefOid", "headRefOid",
@@ -45,7 +47,7 @@
 #     "mergedAt", "mergedBy", "mergeCommit",
 #     "additions", "deletions", "changedFiles",
 #     "files":             [ { "path", "additions", "deletions" } ],
-#     "commits":           [ { "oid", "messageHeadline", "authoredDate", "authors" } ],
+#     "commits":           [ { "oid", "messageHeadline", "messageBody", "authoredDate", "authors" } ],
 #     "reviews":           [ { "author", "authorAssociation", "state", "body", "submittedAt", "url" } ],
 #     "reviewComments":    [ { "author", "authorAssociation", "body", "createdAt", "url" } ],
 #     "reviewCommentsComplete": <bool>,
@@ -72,6 +74,16 @@
 #     pull request with the repository. For an issue it is read by the same
 #     GraphQL call as `subIssues`; for a pull request by one GraphQL call of its
 #     own. It is null when that call fails, so a caller reads null as untrusted.
+#   - `linkedIssues` (for issues) lists every issue the task is linked to, once each, in this order: the parent, the
+#     sub-issues, the issues that block it, the issues it blocks (the GitHub-native relations, read by one more GraphQL
+#     call), and the issues of the same repository that the task text names as `#<N>` or as a link. The task text is
+#     the issue body when its author holds write access (`authorAssociation`), and the comments of a trusted author
+#     (rules/compound-engineering/tracker.md *Resolving trust per tracker*, `write_access` and `trusted_github_comment`
+#     in skills/_shared/review-trust.jq); at most 20 named issues are listed, and a named issue carries only its number
+#     and URL. The list is a pointer: the caller loads each issue through this script for its text and its author.
+#     `linkedIssuesComplete` is false when the relation read or the sub-issue read failed (`subIssuesComplete` false),
+#     or any list reached its cap (50 for a relation, 20 for the named issues), so an empty list reads as unverified
+#     unless the flag is true.
 #   - `subIssues` (for issues) is sourced from the GraphQL `subIssues` connection
 #     (the `gh` CLI `--json` projection does not expose it). Each entry carries
 #     the sub-issue's full body and comments so the assignment context is
@@ -108,12 +120,14 @@ Usage: load-issue.sh <URL>
 EOF
 }
 
-if [[ $# -ne 1 || -z "${1:-}" ]]; then
+if [[ $# -lt 1 || $# -gt 2 || -z "${1:-}" || ( $# -eq 2 && "$2" != --known-proof ) ]]; then
   usage
   exit 1
 fi
 
 INPUT="$1"
+KNOWN_PROOF="${2:-}"
+if [[ -n "$KNOWN_PROOF" ]]; then export GH_HOST=github.com; fi
 
 for bin in gh jq; do
   if ! command -v "$bin" >/dev/null 2>&1; then
@@ -195,6 +209,42 @@ if ! printf '%s' "$PAYLOAD" | jq -e . >/dev/null 2>&1; then
   exit 3
 fi
 
+# For review decisions, verify the mutable text and account identities against a single native snapshot.
+# The ordinary loader stays usable without the extra proof.
+PROOF='null'
+if [[ -n "$KNOWN_PROOF" ]]; then
+  # shellcheck disable=SC2016
+  if [[ "$KIND" == issue ]]; then
+    PROOF_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){databaseId item:issue(number:$n){id url number state title body updatedAt lastEditedAt authorAssociation author{__typename login} editor{__typename login} assignees(first:100){totalCount nodes{__typename databaseId login}} comments(first:100){totalCount nodes{body authorAssociation author{__typename login} editor{__typename login} lastEditedAt}}}}}'
+  else
+    PROOF_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){databaseId defaultBranchRef{name} item:pullRequest(number:$n){id url number state title body updatedAt lastEditedAt authorAssociation author{__typename login} editor{__typename login} headRefOid baseRefOid commits{totalCount} closingIssuesReferences(first:100){totalCount nodes{url}}}}}'
+  fi
+  RAW_PROOF="$(gh api graphql -f query="$PROOF_QUERY" -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" || exit 3
+  PROOF="$(printf '%s\n' "$RAW_PROOF" "$PAYLOAD" | jq -nce '
+    def same_author_edit: has("lastEditedAt") and has("editor")
+      and ((.lastEditedAt == null and .editor == null)
+        or (.editor.__typename == "User" and .author.__typename == "User" and .editor.login == .author.login));
+    input | select((.errors // []) == []) | .data.repository as $r
+    | $r.item as $i | input as $p
+    | select(($r.databaseId | type) == "number" and ($i.id | type) == "string"
+      and ($i.body | type) == "string" and ($i.title | type) == "string" and ($i.updatedAt | type) == "string"
+      and all("url", "number", "state", "title", "body", "updatedAt"; . as $field | $p[$field] == $i[$field]))
+    | {itemId: $i.id, repositoryId: ($r.databaseId | tostring), bodyTrusted: ($i | same_author_edit),
+       association: $i.authorAssociation, authorType: $i.author.__typename, defaultBranch: $r.defaultBranchRef.name,
+       comments: (if $i.comments.totalCount == ($i.comments.nodes | length)
+         then [$i.comments.nodes[]? | select(same_author_edit)] else [] end),
+       commentsComplete: ($i.comments.totalCount == ($i.comments.nodes | length)),
+       assignees: (if $i.assignees.totalCount == ($i.assignees.nodes | length)
+         then $i.assignees.nodes else null end),
+       pullComplete: (if $i | has("commits") then
+         $i.headRefOid == $p.headRefOid and $i.baseRefOid == $p.baseRefOid
+         and ($p.commits | type) == "array" and $i.commits.totalCount == ($p.commits | length)
+         and ($p.closingIssuesReferences | type) == "array"
+         and $i.closingIssuesReferences.totalCount == ($p.closingIssuesReferences | length)
+         and ([$i.closingIssuesReferences.nodes[].url] | sort) == ([$p.closingIssuesReferences[].url] | sort)
+         else null end)}' 2>/dev/null)" || exit 3
+fi
+
 # Sub-issues are a GitHub-native relation exposed only through GraphQL (the `gh`
 # CLI `--json` projection has no `subIssues` field). Only issues carry them; for
 # PRs and on any GraphQL failure we fall back to an empty array so the script
@@ -249,6 +299,69 @@ if [[ "$KIND" == "issue" && -n "${RAW_SUBISSUES:-}" ]] \
   SUBISSUES_COMPLETE=true
 fi
 
+# The issues the task is linked to: the GitHub-native relations the sub-issue read does not carry (parent, blocked-by,
+# blocking), the sub-issues, and the issues of this repository that the task text names. A failed read leaves a list
+# empty and linkedIssuesComplete false, so the caller never reads a short list as a whole one. Only issues carry them.
+# The list holds only issues of this repository, each once by its URL: the trust fact of an issue (its author
+# association) holds only in its own repository, and an issue of another repository can carry the number of an issue
+# of this one.
+LINKED_JSON='[]'
+LINKED_COMPLETE=false
+if [[ "$KIND" == "issue" ]]; then
+  # `$owner` / `$repo` / `$n` are GraphQL variables bound by the `-F` flags below, not shell ones.
+  # shellcheck disable=SC2016
+  RELATIONS_QUERY='query($owner:String!,$repo:String!,$n:Int!){repository(owner:$owner,name:$repo){issue(number:$n){parent{number title url state} blockedBy(first:50){nodes{number title url state}} blocking(first:50){nodes{number title url state}}}}}'
+  RAW_RELATIONS=''
+  if RAW_RELATIONS="$(gh api graphql -f query="$RELATIONS_QUERY" -F owner="$OWNER" -F repo="$REPO" -F n="$NUMBER" 2>/dev/null)" && [[ -n "$RAW_RELATIONS" ]]; then
+    :
+  else
+    RAW_RELATIONS=''
+  fi
+  SHARED_DIR="${BASH_SOURCE[0]%/*}/../../_shared"
+  if [[ -f "$SHARED_DIR/review-trust.jq" ]]; then
+    if LINKED_OUT="$(jq -n -c -L "$SHARED_DIR" --arg owner "$OWNER" --arg repo "$REPO" --argjson self "$NUMBER" \
+      --argjson payload "$PAYLOAD" --argjson sub "$SUBISSUES_JSON" --argjson subComplete "$SUBISSUES_COMPLETE" \
+      --argjson association "$AUTHOR_ASSOCIATION" --argjson proof "$PROOF" --arg rel "${RAW_RELATIONS:-null}" '
+      include "review-trust";
+      def ref($relation): {relation: $relation, number: (.number // null), title: (.title // null), url: (.url // null), state: (.state // null)};
+      def esc: gsub("\\."; "\\.");
+      def here: (.url | type) == "string"
+        and (.url | ascii_downcase | test("^https://github\\.com/\($owner | ascii_downcase | esc)/\($repo | ascii_downcase | esc)/issues/[1-9][0-9]{0,8}$"));
+      def named: [ scan("(?<![A-Za-z0-9_/&])#([1-9][0-9]{0,8})(?![0-9A-Za-z_])") | .[0] | tonumber ]
+        + [ scan("https://github\\.com/\($owner | esc)/\($repo | esc)/issues/([1-9][0-9]{0,8})(?![0-9])") | .[0] | tonumber ];
+      ($rel | fromjson? // null) as $r
+      | ($r.data.repository.issue // null) as $i
+      | ([ if ($association | write_access) and ($proof == null or ($proof.bodyTrusted and $proof.association == $association))
+           then ($payload.body // "") else empty end ]
+         + [ (if $proof == null then ($payload.comments // []) else $proof.comments end)[]
+             | select(trusted_github_comment) | .body ]
+         | map(select(type == "string") | named) | add // [] | unique | map(select(. != $self))) as $named_all
+      | ($named_all | .[0:20]) as $named
+      | ( [ ($i.parent // empty) | ref("parent") ]
+        + [ $sub[] | ref("sub-issue") ]
+        + [ ($i.blockedBy.nodes // [])[] | ref("blocked-by") ]
+        + [ ($i.blocking.nodes // [])[] | ref("blocks") ]
+        + [ $named[] | {relation: "mentioned", number: ., title: null, url: "https://github.com/\($owner)/\($repo)/issues/\(.)", state: null} ]
+        ) as $all
+      | ($all | map(select(here)) | reduce .[] as $e ([]; if any(.[]; (.url | ascii_downcase) == ($e.url | ascii_downcase)) then . else . + [$e] end)
+         | map(select(.number != $self))) as $linked
+      | {linked: $linked,
+         complete: (($i | type) == "object" and (($i.blockedBy.nodes // []) | length) < 50 and (($i.blocking.nodes // []) | length) < 50
+                    and ($named_all | length) <= 20 and $subComplete == true
+                    and ($proof == null or $proof.commentsComplete == true))}' 2>/dev/null)" \
+      && [[ -n "$LINKED_OUT" ]]; then
+      LINKED_JSON="$(printf '%s' "$LINKED_OUT" | jq -c '.linked' 2>/dev/null || printf '[]')"
+      LINKED_COMPLETE="$(printf '%s' "$LINKED_OUT" | jq -c '.complete' 2>/dev/null || printf 'false')"
+    fi
+  fi
+fi
+if ! printf '%s' "$LINKED_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
+  LINKED_JSON='[]'
+fi
+if [[ "$LINKED_COMPLETE" != true && "$LINKED_COMPLETE" != false ]]; then
+  LINKED_COMPLETE=false
+fi
+
 # The repository visibility. A failed read stays null, never a guessed value.
 REPO_PRIVATE='null'
 if RAW_PRIVATE="$(gh repo view "$NWO" --json isPrivate --jq '.isPrivate' 2>/dev/null)" && [[ "$RAW_PRIVATE" == true || "$RAW_PRIVATE" == false ]]; then
@@ -277,10 +390,13 @@ jq -n \
   --argjson payload "$PAYLOAD" \
   --argjson subIssues "$SUBISSUES_JSON" \
   --argjson subIssuesComplete "$SUBISSUES_COMPLETE" \
+  --argjson linkedIssues "$LINKED_JSON" \
+  --argjson linkedIssuesComplete "$LINKED_COMPLETE" \
   --argjson reviewComments "$REVIEW_COMMENTS_JSON" \
   --argjson reviewCommentsComplete "$REVIEW_COMMENTS_COMPLETE" \
   --argjson association "$AUTHOR_ASSOCIATION" \
-  --argjson repoPrivate "$REPO_PRIVATE" '
+  --argjson repoPrivate "$REPO_PRIVATE" \
+  --argjson proof "$PROOF" '
 def total_reactions:
   ([ (.reactionGroups // [])[] | (.users.totalCount // .reactors.totalCount // 0) ] | add) // 0;
 
@@ -301,6 +417,7 @@ def map_commits:
   [ (. // [])[] | {
       oid: (.oid // null),
       messageHeadline: (.messageHeadline // null),
+      messageBody: (.messageBody // null),
       authoredDate: (.authoredDate // null),
       authors: [ (.authors // [])[] | (.login // .name // null) ]
   } ];
@@ -349,11 +466,14 @@ $payload as $p
     reactionsCount: ($p | total_reactions),
 
     authorAssociation: $association,
+    knownProof: (if $proof == null then null else ($proof | del(.comments)) end),
     closingPullRequests: (if $kind == "issue"
       then ($p.closedByPullRequestsReferences | map_refs)
       else [] end),
     subIssues: (if $kind == "issue" then $subIssues else [] end),
     subIssuesComplete: (if $kind == "issue" then $subIssuesComplete else null end),
+    linkedIssues: (if $kind == "issue" then $linkedIssues else [] end),
+    linkedIssuesComplete: (if $kind == "issue" then $linkedIssuesComplete else null end),
 
     baseRefName: (if $kind == "pr" then ($p.baseRefName // null) else null end),
     headRefName: (if $kind == "pr" then ($p.headRefName // null) else null end),
