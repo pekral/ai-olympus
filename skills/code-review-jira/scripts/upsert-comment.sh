@@ -31,20 +31,10 @@
 #   <body-producer> | upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> - [<MARKER_KEY>]
 #   upsert-comment.sh --create --screenshots <MANIFEST> --slug <SLUG> <KEY|URL> <BODY_FILE> [<MARKER_KEY>]
 #
-# Screenshots (--screenshots, only with --create):
-#   The source may carry slot lines `{screenshot:<finding id>:<head|base>}`, one directly under the bullet of a finding.
-#   Every slot line is removed from a comment that shows no image, whatever the options say. With `--screenshots` the
-#   helper checks the manifest (skills/_shared/screenshot-guard.sh manifest), and after the lookup, the marker, and the
-#   conversion checks have passed it attaches each accepted file to THIS work item (upload-attachment.sh, the key of the
-#   comment is the key of the attachment). It then publishes the comment through REST API v2 as Wiki Markup, with each slot
-#   joined to its bullet as `\\ *<label>:* \\ !<attachment name>|thumbnail!`, because Jira converts that form to its
-#   own attachment media node and the REST attachment id cannot be put into an ADF media node. Every other `!` that could
-#   start an image is escaped. A screenshot that fails a check, an upload that fails, or a refusal of the REST write leaves
-#   the comment text only, the same comment the ADF path publishes; a refused write removes the attachments of this run.
-#   The comment is read back and carries the marker exactly as on the ADF path. The helper never updates an image comment:
-#   an update without `--create` replaces the body with ADF, which shows no image.
+# JIRA screenshots stay text-only: acli cannot upload an attachment or obtain its ADF media ID.
+# CR summaries begin with the AI Olympus byline and are create-only. A one-time migration of a marked
+# comment requires its exact ID plus --previous-adf with the previously verified, unmodified ADF.
 #
-# Inputs:
 #   --comment-id <ID>
 #               Optional. Update exactly that comment instead of the newest one of this actor and
 #               namespace. The comment must be authored by this actor and carry this actor's marker of the
@@ -182,7 +172,9 @@ Usage: upsert-comment.sh [--create | --comment-id <ID>] <KEY|URL> <BODY_FILE|-> 
   --comment-id <ID>
               update exactly this comment of this actor and namespace; never create
   --screenshots <MANIFEST> --slug <SLUG>
-              with --create: attach the accepted screenshots to the work item and show them under their findings
+              with --create: report the text-only fallback (acli has no attachment upload)
+  --previous-adf <file>
+              previously verified stored ADF for an exact-ID migration of a marked summary
   KEY         JIRA issue key (e.g. ACME-1234)
   URL         /browse/<KEY> URL or any URL containing ?selectedIssue=<KEY>
   BODY_FILE   path to a file containing the comment body, or `-` for stdin
@@ -194,6 +186,7 @@ EOF
 
 CREATE_ONLY=0
 TARGET_COMMENT_ID=""
+PREVIOUS_ADF=""
 SHOTS_MANIFEST=""
 SHOTS_SLUG=""
 while [[ "${1:-}" == --* ]]; do
@@ -212,6 +205,11 @@ while [[ "${1:-}" == --* ]]; do
         exit 1
       fi
       SHOTS_SLUG="$2"
+      shift 2
+      ;;
+    --previous-adf)
+      [[ $# -ge 2 && -f "$2" && -r "$2" ]] || { usage; exit 1; }
+      PREVIOUS_ADF="$2"
       shift 2
       ;;
     --create)
@@ -309,8 +307,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AUDIT_TRAIL="$SCRIPT_DIR/../../_shared/audit-trail.sh"
 # shellcheck source=jira-actor.sh
 source "$SCRIPT_DIR/jira-actor.sh"
-# shellcheck source=jira-rest.sh
-source "$SCRIPT_DIR/jira-rest.sh"
+
 
 AUTH_STATUS="$(acli jira auth status 2>/dev/null || true)"
 SITE="$(jira_auth_status_field "$AUTH_STATUS" site)"
@@ -339,7 +336,21 @@ fi
 
 MARKER_TEXT="${MARKER_NAMESPACE}:actor=${ACTOR_ID}"
 MARKER_SLOT='{agent-marker}'
-if ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
+SUMMARY=0
+if [[ "$BODY" == "🤖 AI Olympus · "* ]]; then
+  SUMMARY=1
+  if [[ "$MODE" != cr-comment || ( "$CREATE_ONLY" != 1 && ( -z "$TARGET_COMMENT_ID" || -z "$PREVIOUS_ADF" ) ) ]]; then
+    echo "upsert-comment.sh: summaries require --create or an exact legacy comment ID with --previous-adf" >&2
+    exit 1
+  fi
+  if [[ "$BODY" == *'{agent-marker}'* || "$BODY" == *':actor='* || "$BODY" == *'=== END OF COMMENT BODY'* || "$BODY" == *'<!--'* ]]; then
+    echo "upsert-comment.sh: summary contains technical template content" >&2
+    exit 1
+  fi
+elif [[ -n "$PREVIOUS_ADF" ]]; then
+  usage
+  exit 1
+elif ! grep -Fq "$MARKER_TEXT" <<<"$BODY"; then
   if grep -Fxq "$MARKER_SLOT" <<<"$BODY"; then
     BODY="$(printf '%s\n' "$BODY" | awk -v slot="$MARKER_SLOT" -v marker="_${MARKER_TEXT}_" '
       { lines[NR] = $0; if ($0 == slot) { last = NR } }
@@ -352,7 +363,6 @@ _${MARKER_TEXT}_"
 fi
 
 # The slot lines of the screenshots never reach the ADF path: a comment that shows no image carries none.
-WIKI_BODY="$BODY"
 BODY="$(printf '%s\n' "$BODY" | php "$SCRIPT_DIR/screenshot-slots.php" strip)"
 
 # Build valid ADF before the external write. The create call has no dedicated
@@ -366,8 +376,7 @@ UPDATE_STDERR="$(mktemp)"
 CARRIED_ADF_TMP="$(mktemp)"
 PREVIOUS_BODY_TMP="$(mktemp)"
 SENT_TEXT_TMP="$(mktemp)"
-SHOTS_DIR="$(mktemp -d)"
-trap 'rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP" "$SHOTS_DIR"' EXIT
+trap 'rm -rf "$ADF_FILE_TMP" "$CREATE_STDERR" "$LIST_STDERR" "$UPDATE_STDERR" "$CARRIED_ADF_TMP" "$PREVIOUS_BODY_TMP" "$SENT_TEXT_TMP"' EXIT
 
 if ! printf '%s' "$BODY" | php "$SCRIPT_DIR/wiki-markup-to-adf.php" > "$ADF_FILE_TMP"; then
   echo "upsert-comment.sh: failed to convert the JIRA comment to ADF" >&2
@@ -475,7 +484,7 @@ if [[ "$MODE" != "agent-note" && "$CREATE_ONLY" -eq 0 ]]; then
   fi
 fi
 
-if [[ "$MODE" != "agent-note" ]]; then
+if [[ "$SUMMARY" == 0 && "$MODE" != "agent-note" ]]; then
   CARRY_ARGS=(adf "$MARKER_NAMESPACE" "$ADF_FILE_TMP")
   if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
     printf '%s' "$COMMENTS_JSON" \
@@ -489,82 +498,19 @@ if [[ "$MODE" != "agent-note" ]]; then
   cp "$CARRIED_ADF_TMP" "$ADF_FILE_TMP"
 fi
 
-# Screenshots: attach the accepted files to this work item and publish the comment through REST API v2 as Wiki Markup (see
-# the header). It sets REST_COMMENT_ID only for a comment that the REST write created. Every refusal on the way leaves the
-# comment text only, and the ADF path below publishes it as before; an uncertain REST write (no answer, or a server error)
-# stops the helper instead, because the comment may exist.
-REST_COMMENT_ID=""
-remove_attachments() {
-  local id
-  for id in "$@"; do
-    DELETE_STATUS="$(jira_rest_call "$SHOTS_DIR/curl.cfg" "$SHOTS_DIR/delete.out" DELETE "https://${SITE}/rest/api/3/attachment/${id}")" || DELETE_STATUS=000
-    bash "$AUDIT_TRAIL" record --target "jira attachment ${id} delete on $KEY" --status "$([[ "$DELETE_STATUS" == 204 ]] && echo 0 || echo 1)" --detail "removed after the comment write was refused" || true
-  done
-}
-
-publish_with_screenshots() {
-  local guard_out entry count i state fid file label upload_json filename id status comment_id
-  local -a uploaded=()
-  if [[ ! -r "$SHOTS_MANIFEST" ]] || ! guard_out="$(bash "$SCRIPT_DIR/../../_shared/screenshot-guard.sh" manifest "$SHOTS_MANIFEST" 2>/dev/null)"; then
-    echo "upsert-comment.sh: screenshots skipped: the manifest cannot be read or is not valid; the comment shows text only" >&2
-    return 0
-  fi
-  jq -r '.skipped[] | "upsert-comment.sh: screenshot skipped for \(.finding_id): \(.reason); the finding stays text only"' <<<"$guard_out" >&2
-  count="$(jq '.accepted | length' <<<"$guard_out")"
-  [[ "$count" -gt 0 ]] || return 0
-  if ! jira_rest_site_is_plain "$SITE" || ! jira_rest_resolve_auth ""; then
-    echo "upsert-comment.sh: screenshots skipped: no usable site or API token for the attachment upload; the comment shows text only" >&2
-    return 0
-  fi
-  jira_rest_write_config "$SHOTS_DIR/curl.cfg"
-  printf '{}' >"$SHOTS_DIR/mapping.json"
-  for ((i = 0; i < count; i++)); do
-    entry="$(jq -c ".accepted[$i]" <<<"$guard_out")"
-    fid="$(jq -r '.finding_id' <<<"$entry")"
-    state="$(jq -r '.state' <<<"$entry")"
-    file="$(jq -r '.file' <<<"$entry")"
-    label="$(jq -r '.label' <<<"$entry")"
-    if ! upload_json="$(bash "$SCRIPT_DIR/upload-attachment.sh" "$KEY" "$file" --comment-key "$KEY" --slug "$SHOTS_SLUG" 2>"$SHOTS_DIR/upload.err")"; then
-      echo "upsert-comment.sh: screenshot of ${fid} (${state}) not attached: $(head -c 300 "$SHOTS_DIR/upload.err"); the finding stays text only" >&2
-      continue
-    fi
-    filename="$(jq -r '.filename' <<<"$upload_json")"
-    id="$(jq -r '.id' <<<"$upload_json")"
-    uploaded+=("$id")
-    jq -c --arg k "${fid}:${state}" --arg f "$filename" --arg l "$label" '. + {($k): {filename: $f, label: $l}}' "$SHOTS_DIR/mapping.json" >"$SHOTS_DIR/mapping.tmp"
-    mv "$SHOTS_DIR/mapping.tmp" "$SHOTS_DIR/mapping.json"
-  done
-  [[ ${#uploaded[@]} -gt 0 ]] || return 0
-  printf '%s\n' "$WIKI_BODY" | php "$SCRIPT_DIR/screenshot-slots.php" wiki "$SHOTS_DIR/mapping.json" >"$SHOTS_DIR/body.wiki"
-  jq -nc --rawfile body "$SHOTS_DIR/body.wiki" '{body: ($body | rtrimstr("\n"))}' >"$SHOTS_DIR/comment.json"
-  status="$(jira_rest_call "$SHOTS_DIR/curl.cfg" "$SHOTS_DIR/comment.out" POST "https://${SITE}/rest/api/2/issue/${KEY}/comment" \
-    --header 'Content-Type: application/json' --data "@$SHOTS_DIR/comment.json")" || status=000
-  comment_id="$(jq -r '.id // empty' "$SHOTS_DIR/comment.out" 2>/dev/null || true)"
-  if [[ "$status" == "201" && "$comment_id" =~ ^[0-9]+$ ]]; then
-    bash "$AUDIT_TRAIL" record --target "jira comment ${comment_id} on $KEY (REST v2, ${#uploaded[@]} screenshots)" --status 0 --detail "created" || true
-    REST_COMMENT_ID="$comment_id"
-    return 0
-  fi
-  bash "$AUDIT_TRAIL" record --target "jira comment create on $KEY (REST v2, screenshots)" --status 1 --detail "HTTP ${status}" || true
-  if [[ "$status" =~ ^4[0-9][0-9]$ ]]; then
-    remove_attachments "${uploaded[@]}"
-    echo "upsert-comment.sh: JIRA refused the comment with screenshots (HTTP ${status}); the attachments of this run were removed and the comment shows text only" >&2
-    return 0
-  fi
-  echo "upsert-comment.sh: the comment write with screenshots ended with HTTP ${status}; the comment may exist on $KEY, so nothing else was written and the attachments stay: check the issue before a retry" >&2
-  exit 3
-}
-
 if [[ -n "$SHOTS_MANIFEST" ]]; then
-  publish_with_screenshots
+  echo "upsert-comment.sh: screenshots skipped: acli has no attachment upload or stable media identity; the comment shows text only" >&2
+fi
+
+if [[ "$SUMMARY" == 1 ]]; then
+  source "$SCRIPT_DIR/publish-summary.sh"
+  publish_summary
+  exit $?
 fi
 
 if [[ "$EXISTING_ID" =~ ^[0-9]+$ ]]; then
   TARGET_ID="$EXISTING_ID"
   ACTION="updated"
-elif [[ -n "$REST_COMMENT_ID" ]]; then
-  TARGET_ID="$REST_COMMENT_ID"
-  ACTION="created"
 else
   CREATE_RC=0
   CREATE_JSON="$(acli jira workitem comment create --key "$KEY" --body-file "$ADF_FILE_TMP" --json 2>"$CREATE_STDERR")" || CREATE_RC=$?
@@ -649,7 +595,7 @@ else
   ACTION="created"
 fi
 
-if [[ -z "$REST_COMMENT_ID" ]]; then
+{
   UPDATE_RC=0
   acli jira workitem comment update --key "$KEY" --id "$TARGET_ID" --body-adf "$ADF_FILE_TMP" >/dev/null 2>"$UPDATE_STDERR" || UPDATE_RC=$?
   if [[ "$UPDATE_RC" -ne 0 ]]; then
@@ -677,7 +623,7 @@ if [[ -z "$REST_COMMENT_ID" ]]; then
     fi
     exit 3
   fi
-fi
+}
 
 # Print "marked", "unmarked", or "missing" for the stored body of comment
 # $TARGET_ID, after up to three reads.

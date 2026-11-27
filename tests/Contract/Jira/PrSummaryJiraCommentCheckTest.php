@@ -41,7 +41,7 @@ function jiraSummaryRevision(): string
 
 function jiraSummaryUsage(): string
 {
-    return 'Usage: check-jira-comment.php --criteria <unmet|none> [--author <account-id|none>] --repository <owner/name>';
+    return 'Usage: check-jira-comment.php --criteria <present|none> [--author <account-id|none>] --repository <owner/name>';
 }
 
 function jiraSummaryString(mixed $value): string
@@ -109,8 +109,10 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
     $source = implode("\n", [
         jiraSummaryVerdict(),
         '',
-        '{expand:Nálezy z kontroly kódu}',
-        'Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]',
+        '{expand:⚠️ Akceptační kritéria}',
+        '# ℹ️ Zadání nemá výslovná kritéria.',
+        '{expand}',
+        '{expand:❌ Nálezy z kontroly kódu}',
         '',
         '* *(bug):* Blokuje sloučení: synchronizace zařazená starou verzí po nasazení selže. '
             . 'Oprava: nová verze ji musí umět dokončit. ' . jiraSummaryCodeLink(),
@@ -121,18 +123,14 @@ function jiraSummaryWithoutCriteria(array $replace = []): string
             . '[Zobrazit v kódu →|https://github.com/acme/app/pull/27600]',
         '{expand}',
         '',
-        '{expand:Co se změnilo a co to ovlivní}',
+        '{expand:⚠️ Testovací scénáře}',
+        '# ⚠️ Po připojení obchodu spusťte synchronizaci a ověřte, že se nové objednávky zobrazí.',
+        '{expand}',
+        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
         jiraSummaryChangesLine(),
         '* Připojení obchodu a synchronizace objednávek i kontaktů zůstávají beze změny.',
         '{expand}',
         '',
-        '[PR #27625|https://github.com/acme/app/pull/27625] · [ACME-6720|https://example.atlassian.net/browse/ACME-6720]',
-        '',
-        '----',
-        '',
-        '_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._',
-        '',
-        jiraSummaryMarkerBlock(),
     ]);
 
     return str_replace(array_keys($replace), array_values($replace), $source);
@@ -155,21 +153,13 @@ function jiraSummaryMarkerBlock(): string
 
 function jiraSummaryVerdict(): string
 {
-    return 'Za mě je to skoro hotové, ale zatím to nejde nasadit. '
+    return '🤖 AI Olympus · Za mě je to skoro hotové, ale zatím to nejde nasadit. '
         . 'Sloučení blokuje jeden bod z kontroly kódu níž: synchronizace po nasazení selže. Nic není sloučené ani nasazené.';
 }
 
 function jiraSummaryWithCriteria(): string
 {
-    return implode("\n", [
-        jiraSummaryVerdict(),
-        '',
-        '{expand:Akceptační kritéria}',
-        '* Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?',
-        '{expand}',
-        '',
-        str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria()),
-    ]);
+    return str_replace('# ℹ️ Zadání nemá výslovná kritéria.', '# ⚠️ Hromadné odeslání nad 500 příjemců není ověřené. Kdo může takové odeslání spustit?', jiraSummaryWithoutCriteria());
 }
 
 function jiraSummaryForTwoPullRequests(): string
@@ -177,12 +167,14 @@ function jiraSummaryForTwoPullRequests(): string
     $group = static fn (int $number): string => implode("\n", [
         'h2. [PR #' . $number . '|https://github.com/acme/app/pull/' . $number . '] — Synchronizace',
         '',
-        '{expand:Nálezy z kontroly kódu}',
-        'Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/' . $number . '/files]',
+        '{expand:❌ Nálezy z kontroly kódu}',
         'Kontrola nenašla žádný bod k vyřešení.',
         '{expand}',
         '',
-        '{expand:Co se změnilo a co to ovlivní}',
+        '{expand:⚠️ Testovací scénáře}',
+        '# ⚠️ Po připojení obchodu spusťte synchronizaci a ověřte, že se nové objednávky zobrazí.',
+        '{expand}',
+        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
         '* Synchronizace obchodu nově zpracuje jen nové objednávky.',
         '{expand}',
 
@@ -190,12 +182,9 @@ function jiraSummaryForTwoPullRequests(): string
 
     return implode("\n\n", [
         jiraSummaryVerdict(),
-        "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
+        "{expand:❌ Akceptační kritéria}\n# ❌ Hromadné odeslání vyžaduje opravu.\n{expand}",
         $group(11),
         $group(12),
-        '[PR #11|https://github.com/acme/app/pull/11] · [PR #12|https://github.com/acme/app/pull/12]',
-        "----\n\n_Tento komentář je generovaný automaticky._",
-        jiraSummaryMarkerBlock(),
     ]);
 }
 
@@ -208,8 +197,8 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'all criteria met or no criteria stated' => [jiraSummaryWithoutCriteria(), 'none'],
     'a stack with a shared point above the groups' => [
         str_replace(
-            "{expand:Akceptační kritéria}\n* Hromadné odeslání vyžaduje opravu.\n{expand}",
-            "{expand:Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
+            "{expand:❌ Akceptační kritéria}\n# ❌ Hromadné odeslání vyžaduje opravu.\n{expand}",
+            "{expand:❌ Akceptační kritéria}\n# ❌ Objednávka selže.\n{expand}\n{expand:❌ Nálezy z kontroly kódu}\n* *(bug):* Obě části synchronizace (PR #11 a PR #12) po nasazení selžou.\n{expand}",
             jiraSummaryForTwoPullRequests(),
         ),
         'none',
@@ -218,7 +207,7 @@ test('a JIRA summary in the shape of the template passes the check', function (s
     'unmet criteria' => [jiraSummaryWithCriteria(), 'unmet'],
 ]);
 
-test('a screenshot slot line under a finding bullet does not change the verdict of the check', function (): void {
+test('technical screenshot slots never render in a JIRA summary', function (): void {
     $source = jiraSummaryWithoutCriteria();
     $withSlots = (string) preg_replace(
         '/^(\* \*\(bug\):\*.*)$/m',
@@ -228,10 +217,8 @@ test('a screenshot slot line under a finding bullet does not change the verdict 
     );
     $process = runJiraSummaryCheck($withSlots, 'none');
 
-    expect($withSlots)->not->toBe($source)
-        ->and($withSlots)->toContain('{screenshot:f-0123456789abcdef:head}')
-        ->and($process->getOutput())->toBe('')
-        ->and($process->getExitCode())->toBe(0);
+    expect($process->getExitCode())->toBe(2)
+        ->and($process->getOutput())->toContain('technical template content');
 });
 
 test('a summary that passes the check converts to ADF with no wiki markup left', function (): void {
@@ -393,7 +380,7 @@ test('every link and mention the converter publishes from a passing source belon
 
     expect($process->getOutput())->toBe('')
         ->and($process->getExitCode())->toBe(0)
-        ->and($targets)->toHaveCount(7)
+        ->and($targets)->toHaveCount(4)
         ->and(preg_grep($allowed, $targets, PREG_GREP_INVERT))->toBe([]);
 });
 
@@ -430,7 +417,6 @@ test('every code link the link builder prints passes the link check', function (
 })->with([
     'a line at the reviewed commit' => ['src/Sync/Order Sync.php', '42', str_repeat('0123456789', 4)],
     'a line in the changes' => ['src/Sync/Order Sync.php', '42'],
-    'the whole change' => [],
 ]);
 
 test(
@@ -509,7 +495,7 @@ test(
     ],
     'a link without https' => [jiraSummaryCodeLink(), '[Zobrazit v kódu →|http://other.example/a]', 'http://other.example/a'],
     'an issue of another JIRA site' => [
-        '[ACME-6720|https://example.atlassian.net/browse/ACME-6720]',
+        '[ACME-1|https://example.atlassian.net/browse/ACME-1]',
         '[ACME-6720|https://example.net/browse/ACME-6720]',
         'https://example.net/browse/ACME-6720',
     ],
@@ -587,16 +573,11 @@ test('a code link that does not end its finding is refused', function (string $l
     'a line in the changes' => [jiraSummaryCodeLink()],
 ]);
 
-test('a findings block without the line that links the whole change is refused', function (): void {
-    $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(["Celou změnu si můžeš projít tady: [kód v pull requestu|https://github.com/acme/app/pull/27625/files]\n" => '']),
-        'none',
-    );
+test('the duplicate whole-change navigation is refused', function (): void {
+    $source = jiraSummaryWithoutCriteria(['* *(bug):* Blokuje' => "[Celá změna|https://github.com/acme/app/pull/27625/files]\n* *(bug):* Blokuje"]);
+    $process = runJiraSummaryCheck($source, 'none');
 
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain(
-            'violation: links: the findings block opens with one line that links the whole change of the pull request',
-        );
+    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('omit the whole-change link');
 });
 
 test('a mention the converter publishes for another account is refused', function (string $author): void {
@@ -628,24 +609,12 @@ test('a comment must open with exactly one deploy-verdict paragraph', function (
     'no verdict above the first section' => [str_replace(jiraSummaryVerdict() . "\n\n", '', jiraSummaryWithoutCriteria())],
 ]);
 
-test('the criteria section must match whether any requirement still needs action', function (string $source, string $criteria, string $violation): void {
-    $process = runJiraSummaryCheck($source, $criteria);
+test('the title exposes the most urgent status for manual review', function (): void {
+    $source = str_replace('{expand:⚠️ Akceptační kritéria}', '{expand:✅ Akceptační kritéria}', jiraSummaryWithCriteria());
+    $process = runJiraSummaryCheck($source, 'present');
 
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: sections: ' . $violation);
-})->with([
-    'criteria section in a grouped comment when no requirement needs action' => [
-        jiraSummaryForTwoPullRequests(),
-        'none',
-        '1 issue-level blocks, expected 0',
-    ],
-    'criteria section when no requirement needs action' => [jiraSummaryWithCriteria(), 'none', '3 collapsed blocks, expected 2 without a criteria section'],
-    'missing criteria section for an unmet requirement' => [
-        jiraSummaryWithoutCriteria(),
-        'unmet',
-        '2 collapsed blocks, expected 3 with a criteria section',
-    ],
-]);
+    expect($process->getExitCode())->toBe(2)->and($process->getOutput())->toContain('most urgent item status');
+});
 
 test(
     'what changed and what it affects is a short summary of bullets with no TL;DR label',
@@ -661,13 +630,13 @@ test(
         '„Refresh products“ nyní aktualizuje jen produkty.',
         'write what changed and what it affects as a few bullets, one fact per bullet',
     ],
-    'a TL;DR label' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
+    'a TL;DR label' => ['{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:TL;DR}', 'the final section carries no TL;DR label: TL;DR'],
     'over 600 characters' => [jiraSummaryChangesLine(), '* ' . str_repeat('ž', 600), '682 characters, the limit is 600'],
-    'the label written with a space' => ['{expand:Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
+    'the label written with a space' => ['{expand:ℹ️ Co se změnilo a co to ovlivní}', '{expand:Shrnutí (tl dr)}', 'the final section carries no TL;DR label'],
 ]);
 
 test('a section outside a collapsed block is refused', function (): void {
-    $source = jiraSummaryWithoutCriteria(['{expand:Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"]);
+    $source = jiraSummaryWithoutCriteria(['{expand:ℹ️ Co se změnilo a co to ovlivní}' => "h2. Co se změnilo\n\n{expand:Co může změna ovlivnit po nasazení}"]);
     $process = runJiraSummaryCheck($source, 'none');
 
     expect($process->getExitCode())->toBe(2)
@@ -681,14 +650,14 @@ test('a collapsed block must close and never nests', function (string $search, s
         ->and($process->getOutput())->toContain('violation: blocks: ' . $violation);
 })->with([
     'a block inside another one' => [
-        '{expand:Co se změnilo a co to ovlivní}',
-        "{expand:Co se změnilo a co to ovlivní}\n{expand:Uvnitř}",
+        '{expand:ℹ️ Co se změnilo a co to ovlivní}',
+        "{expand:ℹ️ Co se změnilo a co to ovlivní}\n{expand:Uvnitř}",
         'a collapsed block inside another one: {expand:Uvnitř}',
     ],
     'a block without its closing line' => [
         "beze změny.\n{expand}",
         'beze změny.',
-        'a collapsed block without its closing line: Co se změnilo a co to ovlivní',
+        'a collapsed block without its closing line: ℹ️ Co se změnilo a co to ovlivní',
     ],
 ]);
 
@@ -748,30 +717,15 @@ test('the 3 000-character cap counts the label of a code link, never its address
         ->and($process->getExitCode())->toBe(0);
 });
 
-test('a summary without the footer fails the check', function (): void {
-    $process = runJiraSummaryCheck(
-        jiraSummaryWithoutCriteria(
-            ["\n----\n\n_Tento komentář je generovaný automaticky. Je psaný pro vlastníka ticketu, ne pro vývojáře._\n\n" . jiraSummaryMarkerBlock() => ''],
-        ),
-        'none',
-    );
+test('technical footers and duplicate navigation are refused even after the last block', function (string $footer): void {
+    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria() . "\n" . $footer, 'none');
 
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain('violation: footer: a ---- line followed by the italic footer line is missing');
-});
-
-test('the agent marker must sit alone in the last collapsed block', function (string $search, string $replacement): void {
-    $process = runJiraSummaryCheck(jiraSummaryWithoutCriteria([$search => $replacement]), 'none');
-
-    expect($process->getExitCode())->toBe(2)
-        ->and($process->getOutput())->toContain(
-            'violation: marker: the comment must end with one collapsed block that holds only the {agent-marker} line',
-        );
+    expect($process->getExitCode())->toBe(2);
 })->with([
-    'a marker slot in plain view' => [jiraSummaryMarkerBlock(), '{agent-marker}'],
-    'a second slot in a section' => ['* *(bug):* Blokuje sloučení:', "{agent-marker}\n* *(bug):* Blokuje sloučení:"],
-    'no marker block' => ["\n\n" . jiraSummaryMarkerBlock(), ''],
-    'text beside the slot' => ["{agent-marker}\n{expand}", "{agent-marker}\nPro agenty.\n{expand}"],
+    'technical marker' => [jiraSummaryMarkerBlock()],
+    'automatic footer' => ["----\n_Tento komentář je generovaný automaticky._"],
+    'issue self-link' => ['[ACME-6720|https://example.atlassian.net/browse/ACME-6720]'],
+    'standalone pull request' => ['[PR #27625|https://github.com/acme/app/pull/27625]'],
 ]);
 
 test('the check refuses a wrong call and a missing source file', function (string $arguments, string $error): void {

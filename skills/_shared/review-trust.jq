@@ -46,7 +46,10 @@ def trusted_github_comment:
 # trusted_jira_comment($actor; $assignee) — the input is one JIRA loader comment. True when it carries no agent
 # marker and its author is the operator's account ($actor, the account ID jira-actor.sh resolves) or the issue's
 # assignee ($assignee, a display name: the weaker fallback rules/compound-engineering/tracker.md names).
+def jira_summary: type == "string" and startswith("🤖 AI Olympus · ");
+
 def trusted_jira_comment($actor; $assignee):
+  (.body | jira_summary | not) and
   (.body | type) == "string" and (.body | agent_marker | not)
   and ((($actor | type) == "string" and $actor != "" and .authorAccountId == $actor)
     or (($assignee | type) == "string" and $assignee != "" and .author == $assignee));
