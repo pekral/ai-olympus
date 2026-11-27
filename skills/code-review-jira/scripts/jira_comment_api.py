@@ -40,13 +40,18 @@ def heading_change(plan, previous, wiki):
     result = subprocess.run(["php", str(HERE / "wiki-markup-to-adf.php")], input=wiki, check=True, capture_output=True, timeout=30, env=env)
     document = json.loads(result.stdout)
     prefix = "PR #" + plan["heading_pr"] + " — "
-    if plan.get("heading_level_only") is True:
+    if plan.get("plain_h3_heading") is True:
         expected = deepcopy(previous)
         headings = [node for node in expected["content"] if node["type"] == "heading"
                     and "".join(child.get("text", "") for child in node["content"]).startswith(prefix)]
         require(len(headings) == 1 and same_json(headings[0]["attrs"]["level"], 2), "expected one named H2")
-        headings[0]["attrs"]["level"] = 3
-        require(same_json(document, expected), "only the named PR heading level may change")
+        heading = headings[0]
+        require(all(node["type"] == "text" and isinstance(node["text"], str)
+                    and set(node) <= {"type", "text", "marks"} and node.get("marks", []) in ([], [{"type": "code"}])
+                    for node in heading["content"]), "expected a plain or code-marked PR title")
+        heading["attrs"]["level"] = 3
+        heading["content"] = [{"type": "text", "text": "".join(node["text"] for node in heading["content"])}]
+        require(same_json(document, expected), "only the level and code styling of the named PR heading may change")
         return document
     with tempfile.TemporaryDirectory() as work:
         source = Path(work) / "summary.wiki"
