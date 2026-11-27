@@ -11,7 +11,7 @@ const JIRA_SUMMARY_MAX_CHANGES_CHARACTERS = 600;
 
 const JIRA_SUMMARY_SECTIONS_WITHOUT_CRITERIA = 3;
 
-const JIRA_SUMMARY_GROUP_HEADING = '/^h2\. PR #(?<number>[1-9][0-9]*) — (?=\S)[^{}\p{C}]+$/uD';
+const JIRA_SUMMARY_GROUP_HEADING = '/^h3\. PR #(?<number>[1-9][0-9]*) — (?=\S)[^{}\p{C}]+$/uD';
 
 const JIRA_SUMMARY_BLOCK_OPEN = '/^\{expand:(?<title>[^{}]+)\}$/u';
 
@@ -370,7 +370,7 @@ function jiraSummaryAdfNodeViolations(array $node, JiraSummaryTask $task): array
         $violations[] = 'mention: every mention is the author of the changes: ' . jiraSummaryJson($mention);
     }
 
-    if (($node['type'] ?? null) === 'heading' && (jiraSummaryAdfAttributes($node)['level'] ?? null) === 2) {
+    if (($node['type'] ?? null) === 'heading' && (jiraSummaryAdfAttributes($node)['level'] ?? null) === 3) {
         $content = jiraSummaryAdfChildren($node);
         $plain = ['type' => 'text', 'text' => $content[0]['text'] ?? ''];
 
@@ -620,7 +620,7 @@ function jiraSummaryTextViolations(array $lines, JiraSummaryTask $task): array
         }
 
         if (preg_match(JIRA_SUMMARY_GROUP_HEADING, $line) === 1) {
-            $violations = [...$violations, ...reportCheckLengthViolations(substr($line, strlen('h2. ')), 255)];
+            $violations = [...$violations, ...reportCheckLengthViolations(substr($line, strlen('h3. ')), 255)];
         }
 
         $line = jiraSummarySharedPartReason($line, $shared, $task);

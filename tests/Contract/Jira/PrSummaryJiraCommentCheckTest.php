@@ -169,7 +169,7 @@ function jiraSummaryWithCriteria(): string
 function jiraSummaryForTwoPullRequests(): string
 {
     $group = static fn (int $number): string => implode("\n", [
-        'h2. PR #' . $number . ' — Synchronizuje nové objednávky a plní kritérium 1',
+        'h3. PR #' . $number . ' — Synchronizuje nové objednávky a plní kritérium 1',
         '',
         '{expand:✅ Nálezy z kontroly kódu}',
         'Kontrola nenašla žádný bod k vyřešení.',
@@ -225,8 +225,8 @@ test('the full visible group heading allows 255 Unicode characters in plain text
 })->with([['', 0], ['ě', 2], ['{{název}}', 2]]);
 
 test('a shared blocker reaches its group without duplicating the finding', function (): void {
-    $source = str_replace('h2. PR #11', "{expand:⚠️ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
-        . jiraSummaryCodeLink() . "\nPR #12 — {{Synchronizace}} čeká na samostatnou kontrolu.\n{expand}\nh2. PR #11", jiraSummaryForTwoPullRequests());
+    $source = str_replace('h3. PR #11', "{expand:⚠️ Nálezy z kontroly kódu}\n* *(bug):* PR #11 a PR #12 sdílejí chybu. "
+        . jiraSummaryCodeLink() . "\nPR #12 — {{Synchronizace}} čeká na samostatnou kontrolu.\n{expand}\nh3. PR #11", jiraSummaryForTwoPullRequests());
     $source = str_replace('{expand:✅ Nálezy z kontroly kódu}', '{expand:⚠️ Nálezy z kontroly kódu}', $source);
 
     expect(runJiraSummaryCheck($source, 'present')->getExitCode())->toBe(0)

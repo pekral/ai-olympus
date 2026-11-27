@@ -1,4 +1,5 @@
 """Explicit operator edit of one verified PR heading. No public CLI or raw-ADF write interface."""
+from copy import deepcopy
 import hashlib
 import http.client
 import json
@@ -33,6 +34,20 @@ def same_json(left, right):
 
 
 def heading_change(plan, previous, wiki):
+    require(previous["type"] == "doc" and same_json(previous["version"], 1)
+            and previous["content"][0]["content"][0]["text"].startswith("AI Olympus · "), "previous body is not an attributed summary")
+    env = {k: v for k, v in os.environ.items() if k not in ("JIRA_API_TOKEN", "JIRA_API_EMAIL")}
+    result = subprocess.run(["php", str(HERE / "wiki-markup-to-adf.php")], input=wiki, check=True, capture_output=True, timeout=30, env=env)
+    document = json.loads(result.stdout)
+    prefix = "PR #" + plan["heading_pr"] + " — "
+    if plan.get("heading_level_only") is True:
+        expected = deepcopy(previous)
+        headings = [node for node in expected["content"] if node["type"] == "heading"
+                    and "".join(child.get("text", "") for child in node["content"]).startswith(prefix)]
+        require(len(headings) == 1 and same_json(headings[0]["attrs"]["level"], 2), "expected one named H2")
+        headings[0]["attrs"]["level"] = 3
+        require(same_json(document, expected), "only the named PR heading level may change")
+        return document
     with tempfile.TemporaryDirectory() as work:
         source = Path(work) / "summary.wiki"
         source.write_bytes(wiki)
@@ -40,19 +55,13 @@ def heading_change(plan, previous, wiki):
                 "--author", "none", "--repository", plan["repository"], "--jira-issue", plan["url"], "--revision", plan["revision"]]
         for pr in plan["pulls"]:
             args.extend(("--pull-request", pr))
-        env = {k: v for k, v in os.environ.items() if k not in ("JIRA_API_TOKEN", "JIRA_API_EMAIL")}
         subprocess.run([*args, str(source)], check=True, capture_output=True, timeout=30, env=env)
-        result = subprocess.run(["php", str(HERE / "wiki-markup-to-adf.php")], input=wiki, check=True, capture_output=True, timeout=30, env=env)
-        document = json.loads(result.stdout)
-    require(previous["type"] == "doc" and same_json(previous["version"], 1)
-            and previous["content"][0]["content"][0]["text"].startswith("AI Olympus · "), "previous body is not an attributed summary")
     original, updated = previous["content"], document["content"]
     require(len(original) == len(updated), "the edit changes the document structure")
     changed = [(a, b) for a, b in zip(original, updated) if not same_json(a, b)]
     require(len(changed) == 1, "the edit must change one heading")
     old, new = changed[0]
-    prefix = "PR #" + plan["heading_pr"] + " — "
-    require(all(n["type"] == "heading" and n["attrs"] == {"level": 2} and n["content"][0]["text"].startswith(prefix) for n in (old, new))
+    require(all(n["type"] == "heading" and n["attrs"] == {"level": 3} and n["content"][0]["text"].startswith(prefix) for n in (old, new))
             and len(new["content"]) == 1 and set(new["content"][0]) == {"type", "text"}, "the requested PR heading changed scope")
     return document
 

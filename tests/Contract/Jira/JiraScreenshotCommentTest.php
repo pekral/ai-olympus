@@ -499,6 +499,33 @@ PY;
         ->and($process->getExitCode())->toBe(0);
 });
 
+test('a level-only edit preserves the marked title and all other content of a legacy summary', function (): void {
+    $fixture = <<<'PY'
+import json
+import subprocess
+from jira_attachment_media import Unconfirmed
+from jira_comment_api import heading_change
+
+wiki = 'AI Olympus · Review\n\nh2. PR #7 — {{Historical title}}\n\nh2. PR #8 — Other title\n'
+def convert(source):
+    return json.loads(subprocess.run(['php', 'wiki-markup-to-adf.php'], input=source.encode(), capture_output=True, check=True).stdout)
+original = convert(wiki)
+proposed = wiki.replace('h2. PR #7', 'h3. PR #7')
+plan = {'heading_pr': '7', 'heading_level_only': True}
+assert heading_change(plan, original, proposed.encode()) == convert(proposed)
+for other in (proposed.replace('{{Historical title}}', 'Historical title'), proposed.replace('h2. PR #8', 'h3. PR #8'), proposed + 'Additional text'):
+    try:
+        heading_change(plan, original, other.encode())
+        raise AssertionError('change beyond the single heading level accepted')
+    except Unconfirmed:
+        pass
+PY;
+    $process = new Process(['python3', '-B', '-c', $fixture], dirname(__DIR__, 3) . '/skills/code-review-jira/scripts');
+    $process->mustRun();
+
+    expect($process->getOutput())->toBe('');
+});
+
 test('an explicit Jira API edit verifies the same comment before and after its only write', function (): void {
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
     $fixture = <<<'PY'

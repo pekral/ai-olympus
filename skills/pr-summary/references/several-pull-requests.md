@@ -36,7 +36,7 @@ A question that no pull request owns stays at the issue level, as the closing se
 Build the group inventory, which lists every pull request that counts, in pull-request number order. Use the appropriate heading for each target:
 
 - **GitHub:** `## PR #<number> — <title>` with the number linked to the pull request.
-- **JIRA:** `h2. PR #<number> — <change and acceptance criteria>`. Describe what this part changes for the reader and which numbered or named criteria it delivers. If the assignment lists none, say so. Use the reviewed diff and the original assignment. Write plain text, omit markup and avoid copying the PR title. The full visible heading, including the PR number and separator, fits in 255 Unicode characters.
+- **JIRA:** `h3. PR #<number> — <change and acceptance criteria>`. Describe what this part changes for the reader and which numbered or named criteria it delivers. If the assignment lists none, say so. Use the reviewed diff and the original assignment. Write plain text, omit markup and avoid copying the PR title. The full visible heading, including the PR number and separator, fits in 255 Unicode characters.
 - **Bugsnag:** `PR #<number> — <title> (<url>)` as a plain-text line.
 
 The group heading sits at the level of the issue-level sections. Inside a group, keep the section order and the section names of the target's usual shape. On GitHub, drop every section heading one level (`###`), so the group heading stays above them. On JIRA the sections of a group are collapsed blocks under the group heading, as every JIRA section is (`jira-shape.md` item 8). Bugsnag has no headings: its group line stands above the plain-text section labels.
