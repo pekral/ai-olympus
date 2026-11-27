@@ -95,10 +95,12 @@ def edit_summary(plan):
     issue_origin(fetch(site, path + "?fields=key", header), site, key, plan["issue_id"])
     path += "/comment/" + number
     intent = "jira operator edit " + site + "/" + key + "/" + number + " " + plan["wiki_sha"]
-    with locked_ledger(plan["slug"]) as (file, ledger):
+    with locked_ledger(plan["slug"], writable=True) as (file, ledger):
         require(not any(line.split("|")[3:4] == [intent] for line in ledger), "a previous update requires read-only reconciliation")
         check_comment(fetch(site, path, header), number, actor, previous)
         audit_record(file, intent, 3, "operator edit intent; no automatic retry")
+        require(any(line.split("|")[3:4] == [intent] for line in ledger), "intent did not reach the locked audit file")
+        os.fsync(ledger.fileno())
         try:
             reply = put_comment(site, path, header, document)
             require(str(reply["id"]) == number, "update response did not identify the named comment")

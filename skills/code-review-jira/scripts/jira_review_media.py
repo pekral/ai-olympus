@@ -67,13 +67,14 @@ class UncertainWrite(Unconfirmed):
 
 
 @contextmanager
-def locked_ledger(slug):
+def locked_ledger(slug, *, writable=False):
     root = Path(run_cli("git", "rev-parse", "--show-toplevel").strip()).resolve()
     file = Path(os.environ.get("AUDIT_TRAIL_FILE", ""))
     require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", slug)
             and file in [root / r / "run" / (slug + ".audit") for r in (".codex", ".claude")]
             and file.resolve() == file, "the existing audit ledger for this run is required")
-    fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    access = os.O_RDWR if writable else os.O_RDONLY
+    fd = os.open(file, access | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd) as ledger:
         require(stat.S_ISREG(os.fstat(fd).st_mode) and os.fstat(fd).st_nlink == 1, "invalid run ledger")
         fcntl.flock(fd, fcntl.LOCK_EX)

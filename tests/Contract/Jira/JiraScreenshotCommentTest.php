@@ -481,8 +481,10 @@ test('an explicit Jira API edit verifies the same comment before and after its o
     $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
     $fixture = <<<'PY'
 from contextlib import contextmanager, ExitStack
-from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
+import os
 import jira_comment_api as api
 
 site, key, actor, issue, number = 'example.atlassian.net', 'TEST-1', 'fixture-actor', '123', '17'
@@ -493,12 +495,27 @@ source = dict(id=number,author={'accountId':actor},jsdPublic=True,body=old)
 stored = dict(source,body=new)
 issue_result = dict(id=issue,key=key,self=f'https://{site}/rest/api/3/issue/{issue}')
 
-for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertain','unconfirmed','prior intent'):
-    calls = []
+write_audit, sync_file = api.audit_record, os.fsync
+os.environ['AUDIT_TRAIL_ROLE']='april'
+for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertain','unconfirmed','prior intent','sync failure'):
+    calls, events = [], []
     @contextmanager
-    def ledger(slug):
+    def ledger(slug, *, writable):
+        assert writable
         previous = f'april|stamp|note|jira operator edit {site}/{key}/{number} '+plan['wiki_sha']+'|unknown\n'
-        yield 'audit', StringIO(previous if scenario=='prior intent' else '')
+        with TemporaryDirectory() as work:
+            path = Path(work)/'fixture.audit'
+            path.write_text(previous if scenario=='prior intent' else '')
+            with path.open('r+') as stream:
+                yield path, stream
+    def audit(*args):
+        write_audit(*args)
+        events.append('append')
+    def sync(fd):
+        assert b'operator edit intent; no automatic retry' in os.pread(fd,4096,0)
+        events.append('sync')
+        if scenario=='sync failure': raise OSError
+        sync_file(fd)
     before = dict(source)
     if scenario=='private': before['visibility']={'type':'role','value':'internal'}
     if scenario=='changed': before['body']=new
@@ -512,6 +529,7 @@ for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertai
     def put(host,path,header,document):
         assert host==site and path==f'/rest/api/3/issue/{issue}/comment/{number}' and header=='fixture-secret' and document==new
         calls.append(('PUT',path))
+        events.append('put')
         if scenario=='uncertain': raise TimeoutError
         return stored
     with ExitStack() as stack:
@@ -520,7 +538,8 @@ for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertai
         mock('heading_change',return_value=new)
         mock('authenticated_identity',return_value=(site,'foreign' if scenario=='wrong actor' else actor,'fixture-secret'))
         mock('locked_ledger',side_effect=ledger)
-        audit=mock('audit_record')
+        audit_calls=mock('audit_record',side_effect=audit)
+        stack.enter_context(patch.object(api.os,'fsync',side_effect=sync))
         mock('fetch',side_effect=get)
         mock('put_comment',side_effect=put)
         try:
@@ -530,7 +549,9 @@ for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertai
         else:
             assert scenario=='ok' and result==plan['url']+'?focusedCommentId='+number
         assert sum(m=='PUT' for m,_ in calls)==int(scenario in ('ok','uncertain','unconfirmed'))
-        assert 'fixture-secret' not in str(audit.call_args_list)
+        if scenario in ('ok','uncertain','unconfirmed'): assert events[:3]==['append','sync','put']
+        if scenario=='sync failure': assert events==['append','sync']
+        assert 'fixture-secret' not in str(audit_calls.call_args_list)
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();
