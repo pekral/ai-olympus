@@ -25,10 +25,10 @@ def current_head(pr, key, head):
 
 def current_review(repo, number, head, work):
     # The GitHub CLI returns review bodies via stdout. Only a private file, never jq argv, contains those bodies.
-    pages = json.loads(run_cli("gh", "api", "--paginate", "--slurp", f"repos/{repo}/pulls/{number}/reviews?per_page=100"))
+    pages = json.loads(run_cli("gh", "api", "--hostname", "github.com", "--paginate", "--slurp", f"repos/{repo}/pulls/{number}/reviews?per_page=100"))
     reviews = [{"id": r["id"], "body": r["body"], "state": r["state"], "commit": r["commit_id"], "submittedAt": r["submitted_at"],
                 "author": r["user"]["login"], "authorAssociation": r["author_association"]} for page in pages for r in page]
-    pages = json.loads(run_cli("gh", "api", "--paginate", "--slurp", f"repos/{repo}/issues/{number}/comments?per_page=100"))
+    pages = json.loads(run_cli("gh", "api", "--hostname", "github.com", "--paginate", "--slurp", f"repos/{repo}/issues/{number}/comments?per_page=100"))
     comments = [{"id": c["id"], "body": c["body"], "createdAt": c["created_at"], "author": c["user"]["login"],
                  "authorAssociation": c["author_association"]} for page in pages for c in page]
     source = work / "pull.json"
@@ -76,9 +76,9 @@ def reviewed_asset(body, pr, repo, number, head, entry, data):
     url, commit = urls[0]
     run_cli("bash", str(GITHUB / "upload-review-asset.sh"), "verify", pr, url)
     endpoint = f"repos/{repo}/contents/{path}?ref={commit}"
-    size = run_cli("gh", "api", endpoint, "--jq", 'select(.type=="file")|.size').strip()
+    size = run_cli("gh", "api", "--hostname", "github.com", endpoint, "--jq", 'select(.type=="file")|.size').strip()
     require(size == str(len(data)), "GitHub asset size differs from the approved crop")
-    raw = run_bytes("gh", "api", endpoint, "-H", "Accept: application/vnd.github.raw+json")
+    raw = run_bytes("gh", "api", "--hostname", "github.com", endpoint, "-H", "Accept: application/vnd.github.raw+json")
     require(hashlib.sha256(raw).digest() == hashlib.sha256(data).digest(), "GitHub asset bytes differ from the approved crop")
 
 
@@ -105,19 +105,17 @@ def source_review(pr, key, head, work):
 
 
 def default_branch(repo):
-    return run_cli("gh", "api", "repos/" + repo, "--jq", ".default_branch").strip()
+    return run_cli("gh", "api", "--hostname", "github.com", "repos/" + repo, "--jq", ".default_branch").strip()
 
 
 def baseline_revision(repo, branch):
-    return run_cli("gh", "api", f"repos/{repo}/branches/{branch}", "--jq", ".commit.sha").strip()
+    return run_cli("gh", "api", "--hostname", "github.com", f"repos/{repo}/branches/{branch}", "--jq", ".commit.sha").strip()
 
 
-def selection(binding, slug, manifest, document, work, *, source=None):
+def selection(binding, slug, manifest, document, work, *, approval, source=None):
     key = binding["key"]
-    root = run_cli("git", "rev-parse", "--show-toplevel").strip()
     qa_path = str(Path(manifest).with_name(slug + ".screenshot-evidence.json"))
-    qa = json.loads(run_cli("python3", "-B", str(SHARED / "read-screenshot-artifact.py"), root, slug, "screenshot-evidence", qa_path))
-    require(not run_cli("git", "ls-files", "--", qa_path).strip(), "capture evidence is tracked")
+    qa = json.loads(run_cli("bash", str(SHARED / "screenshot-guard.sh"), "evidence", qa_path, slug, approval))
     require(qa.get("jira_source") == f'https://{binding["site"]}/browse/{key}',
             "Jira target differs from the original QA assignment", DestinationChanged)
     if source is None:
@@ -139,6 +137,9 @@ def selection(binding, slug, manifest, document, work, *, source=None):
             failed.add((cells[1], cells[2]))
     pairs = []
     default = default_branch(repo)
+    regression_text = re.compile(r"(?:regression|regrese|regresi|regresí)", re.I)
+    regressions = {c["finding_id"] for c in qa["captures"] if c.get("regression") is True or c["state"] == "base"}
+    regressions.update(r["finding_id"] for r in records if regression_text.search(r.get("description", "")))
 
     def approved(entry):
         fid, state, kind = entry["finding_id"], entry["state"], entry["finding_type"]
@@ -161,17 +162,29 @@ def selection(binding, slug, manifest, document, work, *, source=None):
                     and re.fullmatch(r"[0-9a-f]{40}", capture["revision"]) and capture["revision"] == baseline_revision(repo, default),
                     "baseline has changed")
         item = finding_item(document, pr, head, candidates[0], kind)
+        regression = fid in regressions
+        require(capture.get("regression") is regression, "capture comparison status is ambiguous")
+        if regression:
+            paragraph = item["content"][0]
+            require(regression_text.search("".join(node.get("text", "") for node in paragraph["content"])),
+                    "the published finding does not explain the regression")
         data = canonical_png(slug, entry["file"], capture["sha256"])
         reviewed_asset(visible, pr, repo, number, head, entry, data)
-        return fid, state, step, item, data, capture["sha256"], capture["revision"]
+        return fid, state, step, item, data, capture["sha256"], capture["revision"], regression
 
     for entry in entries:
         try:
             pairs.append(approved(entry))
         except (Unconfirmed, KeyError, TypeError, ValueError, OSError, subprocess.SubprocessError):
             print("Jira media: a finding lacks a unique verified capture", file=sys.stderr)
-    pairs = [p for p in pairs if p[1] == "head" or any(t[0] == p[0] and t[1] == "head" and t[2] == p[2] for t in pairs)]
-    require(pairs and all(any(t[0] == fid and t[1] == "head" and t[2] == step for t in pairs) for fid, _, step, *_ in pairs),
-            "no matching approved HEAD capture for the tested step")
+    complete = []
+    for fid in dict.fromkeys(p[0] for p in pairs):
+        group = [p for p in pairs if p[0] == fid]
+        expected = ["base", "head"] if fid in regressions else ["head"]
+        if sorted(p[1] for p in group) != expected or len({p[2] for p in group}) != 1:
+            print("Jira media: the complete regression pair did not verify; text only", file=sys.stderr)
+            continue
+        complete.extend(group)
+    pairs = complete
     require(len({p[0] for p in pairs}) == len({id(p[3]) for p in pairs}), "two findings point to the same summary item")
     return pr, head, repo, number, review, default, pairs

@@ -225,7 +225,8 @@ test('the public Jira publisher requires a bound dispatch and confirms its sole 
 })->with([
     'edit', 'historical', 'edit-lost', 'mismatched-readback', 'target', 'actor', 'issue', 'previous', 'foreign-comment', 'visibility',
     'no-context', 'wiki-change', 'manual', 'media', 'legacy-review', 'text', 'partial', 'head-moved', 'review-moved', 'review-before-comment',
-    'sync', 'create-lost', 'upload-lost', 'concurrent',
+    'sync', 'create-lost', 'upload-lost', 'concurrent', 'platform', 'platform-edit', 'jsm-unknown', 'unknown-project', 'sync-edit',
+    'qa-flip', 'no-base', 'late-base',
 ]);
 
 test('the Jira media probe binds the public attachment bytes and accepts only the exact media redirect', function (): void {
@@ -317,7 +318,7 @@ spec.loader.exec_module(prepare)
 pr, head = 'https://github.com/example/project/pull/7', 'a' * 40
 binding = {'site': 'example.atlassian.net', 'key': 'TEST-1', 'account': 'qa'}
 entries = [{'finding_id': fid, 'finding_type': 'bug', 'state': 'head', 'file': fid + '.png'} for fid in ('unique', 'ambiguous', 'unverified')]
-captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True, secret_free=True,
+captures = [dict(entry, do_not_file_publicly=False, step='Save', viewport='desktop', verdict='failed', kind='ui', own_pixels=True, secret_free=True, regression=False,
                  visually_verified=entry['finding_id'] != 'unverified', revision=head, sha256='1' * 64) for entry in entries]
 records = [dict(finding_id=fid, revision=head, status='new', security=False, file='orders.php', line=line)
            for fid, line in [('unique', 2), ('ambiguous', 3), ('other', 3), ('unverified', 4)]]
@@ -325,7 +326,7 @@ qa = dict(jira_source='https://example.atlassian.net/browse/TEST-1', target=pr, 
 report = '## Interactive testing\n| Save | desktop | Failed | error |\n'
 def read(*args):
     if args[:2] == ('git', 'rev-parse'): return '/repo'
-    if args[0] == 'python3': return json.dumps(qa)
+    if args[0] == 'bash' and 'evidence' in args: return json.dumps(qa)
     if args[0] == 'bash' and 'manifest' in args: return json.dumps({'accepted': entries})
     if args[:2] == ('gh', 'api'): return 'release'
     return ''
@@ -340,7 +341,7 @@ with tempfile.TemporaryDirectory() as work, ExitStack() as patching:
     mock('finding_item', return_value={})
     mock('canonical_png', return_value=b'crop')
     asset = mock('reviewed_asset')
-    *_, default, pairs = prepare.selection(binding, 'run', 'run.screenshots.json', {}, Path(work))
+    *_, default, pairs = prepare.selection(binding, 'run', 'run.screenshots.json', {}, Path(work), approval='2' * 64)
     assert default == 'release' and [p[0] for p in pairs] == ['unique'] and asset.call_count == 1
 # A later trusted comment can supersede an otherwise valid, current native review.
 from subprocess import check_output
@@ -469,119 +470,6 @@ with patch.object(media.http.client, 'HTTPSConnection') as connection:
     except TimeoutError:
         pass
     assert connection.return_value.request.call_args.args == ('POST', '/rest/api/3/issue/123/attachments')
-PY;
-    $process = new Process(['python3', '-B', '-c', $fixture], $dir);
-    $process->run();
-
-    expect($process->getErrorOutput())->toBe('')
-        ->and($process->getExitCode())->toBe(0);
-});
-
-test('a plain H3 preserves the title text and every other node of a legacy summary', function (): void {
-    $fixture = <<<'PY'
-import json
-import subprocess
-from jira_attachment_media import Unconfirmed
-from jira_comment_api import heading_change
-
-wiki = 'AI Olympus · Review\n\nh2. PR #7 — {{Historical title}}\n\nh2. PR #8 — Other title\n'
-def convert(source):
-    return json.loads(subprocess.run(['php', 'wiki-markup-to-adf.php'], input=source.encode(), capture_output=True, check=True).stdout)
-original = convert(wiki)
-proposed = wiki.replace('h2. PR #7', 'h3. PR #7').replace('{{Historical title}}', 'Historical title')
-plan = {'heading_pr': '7', 'plain_h3_heading': True}
-assert heading_change(plan, original, proposed.encode()) == convert(proposed)
-for other in (proposed.replace('Historical title', '{{Historical title}}'), proposed.replace('Historical title', 'Rewritten title'),
-              proposed.replace('h2. PR #8', 'h3. PR #8'), proposed + 'Additional text'):
-    try:
-        heading_change(plan, original, other.encode())
-        raise AssertionError('unapproved heading or body change accepted')
-    except Unconfirmed:
-        pass
-PY;
-    $process = new Process(['python3', '-B', '-c', $fixture], dirname(__DIR__, 3) . '/skills/code-review-jira/scripts');
-    $process->mustRun();
-
-    expect($process->getOutput())->toBe('');
-});
-
-test('an explicit Jira API edit verifies the same comment before and after its only write', function (): void {
-    $dir = dirname(__DIR__, 3) . '/skills/code-review-jira/scripts';
-    $fixture = <<<'PY'
-from contextlib import contextmanager, ExitStack
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import patch
-import os
-import jira_comment_api as api
-
-site, key, actor, issue, number = 'example.atlassian.net', 'TEST-1', 'fixture-actor', '123', '17'
-plan = dict(url=f'https://{site}/browse/{key}',mode='operator-edit',actor=actor,issue_id=issue,comment_id=number,heading_pr='7',
-            previous='private-original',previous_sha='a'*64,wiki='summary',wiki_sha='b'*64,slug='fixture')
-old, new = {'private':'before'}, {'private':'after'}
-source = dict(id=number,author={'accountId':actor},jsdPublic=True,body=old)
-stored = dict(source,body=new)
-issue_result = dict(id=issue,key=key,self=f'https://{site}/rest/api/3/issue/{issue}')
-
-write_audit, sync_file = api.audit_record, os.fsync
-os.environ['AUDIT_TRAIL_ROLE']='april'
-for scenario in ('ok','wrong actor','wrong ticket','changed','private','uncertain','unconfirmed','prior intent','sync failure'):
-    calls, events = [], []
-    @contextmanager
-    def ledger(slug, *, writable):
-        assert writable
-        previous = f'april|stamp|note|jira operator edit {site}/{key}/{number} '+plan['wiki_sha']+'|unknown\n'
-        with TemporaryDirectory() as work:
-            path = Path(work)/'fixture.audit'
-            path.write_text(previous if scenario=='prior intent' else '')
-            with path.open('r+') as stream:
-                yield path, stream
-    def audit(*args):
-        write_audit(*args)
-        events.append('append')
-    def sync(fd):
-        assert b'operator edit intent; no automatic retry' in os.pread(fd,4096,0)
-        events.append('sync')
-        if scenario=='sync failure': raise OSError
-        sync_file(fd)
-    before = dict(source)
-    if scenario=='private': before['visibility']={'type':'role','value':'internal'}
-    if scenario=='changed': before['body']=new
-    def get(host,path,header):
-        assert host==site and header=='fixture-secret'
-        calls.append(('GET',path))
-        if path.endswith('?fields=key'):
-            return dict(issue_result,key='OTHER-1') if scenario=='wrong ticket' else issue_result
-        assert path==f'/rest/api/3/issue/{issue}/comment/{number}'
-        return before if len(calls)==2 or scenario=='unconfirmed' else stored
-    def put(host,path,header,document):
-        assert host==site and path==f'/rest/api/3/issue/{issue}/comment/{number}' and header=='fixture-secret' and document==new
-        calls.append(('PUT',path))
-        events.append('put')
-        if scenario=='uncertain': raise TimeoutError
-        return stored
-    with ExitStack() as stack:
-        def mock(name,**options): return stack.enter_context(patch.object(api,name,**options))
-        mock('read_pinned',side_effect=[api.json.dumps(old).encode(),b'private-wiki'])
-        mock('heading_change',return_value=new)
-        mock('authenticated_identity',return_value=(site,'foreign' if scenario=='wrong actor' else actor,'fixture-secret'))
-        mock('locked_ledger',side_effect=ledger)
-        audit_calls=mock('audit_record',side_effect=audit)
-        stack.enter_context(patch.object(api.os,'fsync',side_effect=sync))
-        mock('fetch',side_effect=get)
-        mock('public_get',side_effect=lambda host,path,header,limit: (200, [], api.json.dumps(get(host,path,header)).encode()))
-        stack.enter_context(patch.object(api.time,'sleep'))
-        mock('put_comment',side_effect=put)
-        try:
-            result=api.edit_summary(plan)
-        except Exception as refused:
-            assert scenario!='ok' and 'fixture-secret' not in str(refused)
-        else:
-            assert scenario=='ok' and result==plan['url']+'?focusedCommentId='+number
-        assert sum(m=='PUT' for m,_ in calls)==int(scenario in ('ok','uncertain','unconfirmed'))
-        if scenario in ('ok','uncertain','unconfirmed'): assert events[:3]==['append','sync','put']
-        if scenario=='sync failure': assert events==['append','sync']
-        assert 'fixture-secret' not in str(audit_calls.call_args_list)
 PY;
     $process = new Process(['python3', '-B', '-c', $fixture], $dir);
     $process->run();

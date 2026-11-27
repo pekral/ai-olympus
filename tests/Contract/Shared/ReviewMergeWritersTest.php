@@ -542,6 +542,11 @@ test(
                 [['attrs' => ['id' => 'acc-agent', 'text' => '@Agent'], 'type' => 'mention']],
             ),
             'a quoted line' => reviewMergeJiraComment('10002', 'acc-other', 'Round 1: the limit is 2 MB. Why?'),
+            'a human reply with the byline' => reviewMergeJiraComment(
+                '10002',
+                'acc-agent',
+                'AI Olympus · My reply to https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001',
+            ),
             default => reviewMergeJiraComment('10002', 'acc-other', 'Fine.'),
         };
         $target = $kind === 'another marker'
@@ -558,7 +563,7 @@ test(
         expect($result['process']->getExitCode())->toBe(4)
             ->and($result['deleted'])->toBeFalse();
     },
-)->with(['a mention of the account', 'a quoted line', 'another marker']);
+)->with(['a mention of the account', 'a quoted line', 'a human reply with the byline', 'another marker']);
 
 test('the JIRA delete helper refuses a comment of another account and the merged comment itself', function (array $arguments): void {
     $marker = reviewMergeJiraMarker();

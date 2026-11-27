@@ -1,11 +1,17 @@
 """Copy a bounded run artifact through descriptors rooted at the physical checkout."""
+import hashlib
 import os
 import re
 import stat
 import sys
 
-root, slug, kind, source = sys.argv[1:]
+root, slug, kind, source, *approval = sys.argv[1:]
 if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", slug):
+    sys.exit(1)
+if kind == "screenshot-evidence":
+    if len(approval) != 1 or not re.fullmatch(r"[0-9a-f]{64}", approval[0]):
+        sys.exit(1)
+elif approval:
     sys.exit(1)
 
 limit = 2 * 1024 * 1024 if kind == "png" else 65536
@@ -36,6 +42,8 @@ for runtime in (".claude", ".codex"):
                 sys.exit(1)
             data = artifact.read(limit + 1)
             if len(data) != info.st_size or os.fstat(artifact.fileno()).st_ctime_ns != info.st_ctime_ns:
+                sys.exit(1)
+            if approval and hashlib.sha256(data).hexdigest() != approval[0]:
                 sys.exit(1)
             sys.stdout.buffer.write(data)
         sys.exit(0)

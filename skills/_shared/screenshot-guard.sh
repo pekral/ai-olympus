@@ -7,6 +7,7 @@
 # Usage
 #   screenshot-guard.sh file --slug <source-slug> --out <dir> <png>
 #   screenshot-guard.sh manifest <manifest.json> <slug>
+#   screenshot-guard.sh evidence <screenshot-evidence.json> <slug> <approved-sha256>
 #   screenshot-guard.sh --self-test
 #
 # file
@@ -122,6 +123,11 @@ cmd_manifest() {
   [[ $# -eq 2 ]] || die 2 "usage: screenshot-guard.sh manifest <manifest.json> <slug>"
   require_tools
   read_artifact "$2" screenshots "$1" | jq -ce --argjson max "$MAX_ENTRIES" "$JQ_MANIFEST" || die 1 "the manifest is not a valid run artifact"
+}
+
+cmd_evidence() {
+  [[ $# -eq 3 ]] || die 2 "usage: screenshot-guard.sh evidence <screenshot-evidence.json> <slug> <approved-sha256>"
+  read_artifact "$2" screenshot-evidence "$1" "$3" || die 1 "the independent QA evidence does not match the authorized digest"
 }
 
 # --- self-test ------------------------------------------------------------------------------------------------
@@ -259,7 +265,8 @@ main() {
     --self-test) self_test ;;
     file) shift; cmd_file "$@" ;;
     manifest) shift; cmd_manifest "$@" ;;
-    *) die 2 "usage: screenshot-guard.sh file|manifest|--self-test" ;;
+    evidence) shift; cmd_evidence "$@" ;;
+    *) die 2 "usage: screenshot-guard.sh file|manifest|evidence|--self-test" ;;
   esac
 }
 

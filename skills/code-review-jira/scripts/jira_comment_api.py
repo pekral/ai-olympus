@@ -1,5 +1,4 @@
 """Publish authorized Wiki summaries on one fixed Jira Cloud site."""
-from copy import deepcopy
 import hashlib
 import http.client
 import json
@@ -13,7 +12,7 @@ import time
 from pathlib import Path
 
 from jira_attachment_media import DestinationChanged, Unconfirmed, attachment_inventory, authenticated_identity, public_get, require, run_bytes
-from jira_review_media import (HERE, UncertainWrite, attachment_proof, attach_media, audit_record, confirmed_file,
+from jira_review_media import (HERE, UncertainWrite, attachment_proof, attach_media, confirmed_file,
                                durable_intent, durable_record, locked_ledger, pending_uploads)
 from jira_review_selection import StaleReview, baseline_revision, default_branch, revalidate, selection, source_review
 from jira_target import issue_origin
@@ -43,63 +42,25 @@ def same_json(left, right):
     return json.dumps(left, sort_keys=True, allow_nan=False) == json.dumps(right, sort_keys=True, allow_nan=False)
 
 
-def heading_change(plan, previous, wiki):
-    require(previous["type"] == "doc" and same_json(previous["version"], 1)
-            and previous["content"][0]["content"][0]["text"].startswith("AI Olympus · "), "previous body is not an attributed summary")
-    env = {k: v for k, v in os.environ.items() if k not in ("JIRA_API_TOKEN", "JIRA_API_EMAIL")}
-    result = subprocess.run(["php", str(HERE / "wiki-markup-to-adf.php")], input=wiki, check=True, capture_output=True, timeout=30, env=env)
-    document = json.loads(result.stdout)
-    prefix = "PR #" + plan["heading_pr"] + " — "
-    if plan.get("plain_h3_heading") is True:
-        expected = deepcopy(previous)
-        headings = [node for node in expected["content"] if node["type"] == "heading"
-                    and "".join(child.get("text", "") for child in node["content"]).startswith(prefix)]
-        require(len(headings) == 1 and same_json(headings[0]["attrs"]["level"], 2), "expected one named H2")
-        heading = headings[0]
-        require(all(node["type"] == "text" and isinstance(node["text"], str)
-                    and set(node) <= {"type", "text", "marks"} and node.get("marks", []) in ([], [{"type": "code"}])
-                    for node in heading["content"]), "expected a plain or code-marked PR title")
-        heading["attrs"]["level"] = 3
-        heading["content"] = [{"type": "text", "text": "".join(node["text"] for node in heading["content"])}]
-        require(same_json(document, expected), "only the level and code styling of the named PR heading may change")
-        return document
-    with tempfile.TemporaryDirectory() as work:
-        source = Path(work) / "summary.wiki"
-        source.write_bytes(wiki)
-        args = ["php", str(HERE.parent.parent / "pr-summary/scripts/check-jira-comment.php"), "--criteria", "present",
-                "--author", "none", "--repository", plan["repository"], "--jira-issue", plan["url"], "--revision", plan["revision"]]
-        for pr in plan["pulls"]:
-            args.extend(("--pull-request", pr))
-        subprocess.run([*args, str(source)], check=True, capture_output=True, timeout=30, env=env)
-    original, updated = previous["content"], document["content"]
-    require(len(original) == len(updated), "the edit changes the document structure")
-    changed = [(a, b) for a, b in zip(original, updated) if not same_json(a, b)]
-    require(len(changed) == 1, "the edit must change one heading")
-    old, new = changed[0]
-    require(all(n["type"] == "heading" and n["attrs"] == {"level": 3} and n["content"][0]["text"].startswith(prefix) for n in (old, new))
-            and len(new["content"]) == 1 and set(new["content"][0]) == {"type", "text"}, "the requested PR heading changed scope")
-    return document
-
-
 def fetch(site, path, header, *, limit=131072):
     status, redirect, body = public_get(site, path, header, limit)
     require(status == 200 and not redirect, "Jira did not return the expected resource")
     return json.loads(body)
 
 
-def comment_mismatch(comment, number, actor, document):
+def comment_mismatch(comment, number, actor, document, *, service_desk):
     if str(comment["id"]) != number or comment["author"]["accountId"] != actor:
         return "readback-identity"
-    if comment.get("jsdPublic") is not True or comment.get("visibility") is not None:
+    if comment.get("jsdPublic", not service_desk) is not True or comment.get("visibility") is not None:
         return "readback-visibility"
     return None if same_json(comment["body"], document) else "readback-body"
 
 
-def check_comment(comment, number, actor, body):
-    require(comment_mismatch(comment, number, actor, body) is None, "comment identity, visibility or body changed")
+def check_comment(comment, number, actor, body, *, service_desk):
+    require(comment_mismatch(comment, number, actor, body, service_desk=service_desk) is None, "comment identity, visibility or body changed")
 
 
-def readback_comment(site, path, header, number, actor, document):
+def readback_comment(site, path, header, number, actor, document, *, service_desk):
     """Retry only a bounded GET of the known comment. Reasons contain no response data."""
     reason = "readback-transport"
     for delay in (0, 1, 2):
@@ -109,7 +70,7 @@ def readback_comment(site, path, header, number, actor, document):
             code, redirect, data = public_get(site, path, header, 131072)
             reason = "readback-http-" + str(code)
             if code == 200 and not redirect:
-                reason = comment_mismatch(json.loads(data), number, actor, document)
+                reason = comment_mismatch(json.loads(data), number, actor, document, service_desk=service_desk)
                 if reason is None:
                     return
         except (OSError, http.client.HTTPException):
@@ -148,39 +109,6 @@ def send_comment(site, path, header, document, method, status):
 
 def put_comment(site, path, header, document):
     return send_comment(site, path, header, document, "PUT", 200)
-
-
-def edit_summary(plan):
-    target = re.fullmatch(r"https://([a-z0-9-]+\.atlassian\.net)/browse/([A-Z][A-Z0-9_]+-[1-9][0-9]*)", plan["url"])
-    require(target and plan["mode"] == "operator-edit" and plan["actor"]
-            and all(re.fullmatch(r"[1-9][0-9]*", plan[k]) for k in ("issue_id", "comment_id", "heading_pr")), "invalid operator edit")
-    site, key = target.groups()
-    actor, number = plan["actor"], plan["comment_id"]
-    previous = json.loads(read_pinned(plan["previous"], plan["previous_sha"], private=True))
-    document = heading_change(plan, previous, read_pinned(plan["wiki"], plan["wiki_sha"]))
-    authenticated_site, authenticated_actor, header = authenticated_identity(site, actor)
-    require((site, actor) == (authenticated_site, authenticated_actor), "Jira identity changed")
-    path = "/rest/api/3/issue/" + plan["issue_id"]
-    issue_origin(fetch(site, path + "?fields=key", header), site, key, plan["issue_id"])
-    path += "/comment/" + number
-    intent = "jira operator edit " + site + "/" + key + "/" + number + " " + plan["wiki_sha"]
-    with locked_ledger(plan["slug"], writable=True) as (file, ledger):
-        require(not any(line.split("|")[3:4] == [intent] for line in ledger), "a previous update requires read-only reconciliation")
-        check_comment(fetch(site, path, header), number, actor, previous)
-        audit_record(file, intent, 3, "operator edit intent; no automatic retry")
-        require(any(line.split("|")[3:4] == [intent] for line in ledger), "intent did not reach the locked audit file")
-        os.fsync(ledger.fileno())
-        try:
-            reply = put_comment(site, path, header, document)
-            require(str(reply["id"]) == number, "update response did not identify the named comment")
-            audit_record(file, intent, 0, "update response identified comment " + number)
-            readback_comment(site, path, header, number, actor, document)
-            audit_record(file, intent, 0, "named comment and whole ADF verified")
-        except UncertainWrite:
-            raise
-        except Exception:
-            raise UncertainWrite("operator edit unconfirmed; inspect the named comment before any further write") from None
-    return plan["url"] + "?focusedCommentId=" + number
 
 
 ISSUE = r"https://([a-z0-9-]+\.atlassian\.net)/browse/([A-Z][A-Z0-9_]+-[1-9][0-9]*)"
@@ -296,31 +224,32 @@ def reject_duplicate(comments, document):
               data=json.dumps({"comments": comments, "document": document}).encode())
 
 
-def check_baseline(repo, branch, revision):
+def baseline_current(repo, branch, revision):
     try:
-        require(default_branch(repo) == branch and baseline_revision(repo, branch) == revision, "baseline changed")
-    except FAILED_READ as error:
-        raise StaleReview("the regression baseline could not be reconfirmed") from error
+        return default_branch(repo) == branch and baseline_revision(repo, branch) == revision
+    except FAILED_READ:
+        return False
 
 
-def prepare_media(binding, slug, manifest, document, work, source, session, issue_id, locked, before_upload):
+def prepare_media(binding, slug, manifest, approval, document, work, source, session, issue_id, locked, before_upload):
     pr, head, repo, number, review = source
     try:
-        *_, default, pairs = selection(binding, slug, manifest, document, work, source=source)
+        *_, default, pairs = selection(binding, slug, manifest, document, work, source=source, approval=approval)
     except (StaleReview, DestinationChanged):
         raise
     except FAILED_READ:
         print("jira-summary: no eligible verified images", file=sys.stderr)
-        return None
+        return
 
     site, actor, header = session
     prepared = []
-    baseline = None
-    for fid, state, _, item, data, digest, revision in sorted(pairs, key=lambda pair: pair[1] != "head"):
-        if state == "base" and not any(f == fid for f, _, *_ in prepared):
+    for fid, state, _, item, data, digest, revision, regression in sorted(pairs, key=lambda pair: pair[1] == "head"):
+        if state == "head" and regression and not any(f == fid and s == "base" for f, s, *_ in prepared):
+            print("jira-summary: regression baseline was not confirmed; text only", file=sys.stderr)
             continue
-        if state == "base":
-            check_baseline(repo, default, revision)
+        if state == "base" and not baseline_current(repo, default, revision):
+            print("jira-summary: regression baseline changed; text only", file=sys.stderr)
+            continue
         name = f"review-{fid}-{state}-{digest}.png"
         try:
             media = confirmed_file(binding["key"], slug, name, data, digest, (site, actor), issue_id,
@@ -330,22 +259,37 @@ def prepare_media(binding, slug, manifest, document, work, source, session, issu
         except FAILED_READ:
             print("jira-summary: capture verification unavailable before upload", file=sys.stderr)
             continue
-        if state == "base":
-            baseline = (repo, default, revision)
-        prepared.append((fid, state, item, name, data, digest, media))
+        prepared.append((fid, state, item, name, data, digest, media, revision, regression))
 
     if prepared:
         inventory = attachment_inventory(binding["key"], site, issue_id, header=header)
         czech = any(n.get("attrs", {}).get("title") == "⚠️ Nálezy z kontroly kódu" for n in document["content"])
-        for _, state, item, name, data, digest, media in sorted(prepared, key=lambda pair: pair[1] == "head"):
+        confirmed = []
+        for pair in prepared:
+            _, _, _, name, data, digest, media, _, _ = pair
             matches = [entry for entry in inventory if entry["filename"] == name]
-            require(len(matches) == 1 and attachment_proof(site, actor, header, matches[0], name, data, digest) == media,
-                    "attachment proof changed")
+            try:
+                require(len(matches) == 1 and attachment_proof(site, actor, header, matches[0], name, data, digest) == media,
+                        "attachment proof changed")
+            except DestinationChanged:
+                raise
+            except FAILED_READ:
+                print("jira-summary: stored attachment could not be reconfirmed; text only", file=sys.stderr)
+            else:
+                confirmed.append(pair)
+        complete = set()
+        for fid, state, _, _, _, _, _, revision, _ in confirmed:
+            if state == "base" and any(row[0] == fid and row[1] == "head" for row in confirmed):
+                if baseline_current(repo, default, revision):
+                    complete.add(fid)
+        for fid, state, item, _, _, _, media, _, regression in confirmed:
+            if regression and fid not in complete:
+                print("jira-summary: regression pair incomplete after readback; text only", file=sys.stderr)
+                continue
             label = (("Výchozí větev" if czech else "Default branch") + " (" + default + ")"
                      if state == "base" else ("Tato změna" if czech else "This change"))
             attach_media(item, media, label)
     revalidate(pr, binding["key"], head, repo, number, review, work)
-    return baseline
 
 
 def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
@@ -361,7 +305,7 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
             plan = publication_context(context_file(file))
             common = {"mode", "issue", "issue_id", "actor", "wiki_sha256", "repository", "pull_requests", "revision", "criteria", "review_author"}
             edit = {"comment_id", "previous_sha256"}
-            create = {"review_pr", "review_home", "review_id", "review_body_sha256"}
+            create = {"review_pr", "review_home", "review_id", "review_body_sha256", "qa_sha256"}
             require(set(plan) == common | (edit if comment_id else create), "unexpected publication context fields")
             destination = re.fullmatch(ISSUE, plan["issue"])
             issue_id, actor = plan["issue_id"], plan["actor"]
@@ -372,7 +316,8 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
                 require(re.fullmatch(ID, comment_id) and re.fullmatch(DIGEST, plan["previous_sha256"]), "invalid edit binding")
                 operation = f'edit/{comment_id}/{plan["previous_sha256"]}'
             else:
-                require(plan["review_home"] in ("review", "comment") and re.fullmatch(ID, plan["review_id"]),
+                require(plan["review_home"] in ("review", "comment") and re.fullmatch(ID, plan["review_id"])
+                        and re.fullmatch(DIGEST, plan["qa_sha256"]),
                         "invalid create binding")
                 operation = f'create/{plan["review_home"]}/{plan["review_id"]}'
             site, key = destination.groups()
@@ -395,7 +340,11 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
             _, _, header = session
             stage = "issue"
             issue_path = "/rest/api/3/issue/" + issue_id
-            issue_origin(fetch(site, issue_path + "?fields=key", header), site, key, issue_id)
+            issue = fetch(site, issue_path + "?fields=project", header)
+            issue_origin(issue, site, key, issue_id)
+            project_type = issue["fields"]["project"]["projectTypeKey"]
+            require(project_type in ("software", "business", "service_desk"), "unknown Jira visibility contract")
+            service_desk = project_type == "service_desk"
             path = issue_path + "/comment"
             reserved = False
             evidence = "wiki SHA-256 " + plan["wiki_sha256"]
@@ -416,7 +365,7 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
                 path += "/" + comment_id
                 previous = json.loads(read_pinned(Path(previous_path).absolute(), plan["previous_sha256"], True))
                 require(expected_summary(previous) and not same_json(previous, document), "prior body is not a changed summary")
-                check_comment(fetch(site, path, header), comment_id, actor, previous)
+                check_comment(fetch(site, path, header), comment_id, actor, previous, service_desk=service_desk)
                 evidence += " prior SHA-256 " + plan["previous_sha256"]
             else:
                 stage = "review"
@@ -440,15 +389,13 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
                     revalidate(pr, key, head, repo, number, original, work)
                     reserve()
 
-                baseline = prepare_media({"site": site, "key": key, "account": actor}, slug, manifest, document, work,
-                                         source, session, issue_id, locked, before_upload)
+                prepare_media({"site": site, "key": key, "account": actor}, slug, manifest, plan["qa_sha256"], document, work,
+                              source, session, issue_id, locked, before_upload)
                 stage = "comment-snapshot"
                 comments, before = comment_snapshot(site, path, header)
                 reject_duplicate(comments, document)
                 stage = "review"
                 pr, head, repo, number, original = source
-                if baseline is not None:
-                    check_baseline(*baseline)
                 revalidate(pr, key, head, repo, number, original, work)
 
             stage = "comment-intent"
@@ -456,7 +403,7 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
             durable_intent(file, ledger, target, action + " comment intent; no automatic retry")
             if comment_id:
                 stage = "previous-comment"
-                check_comment(fetch(site, path, header), comment_id, actor, previous)
+                check_comment(fetch(site, path, header), comment_id, actor, previous, service_desk=service_desk)
                 known = comment_id
             stage = "comment-response"
             try:
@@ -480,7 +427,7 @@ def publish(input_target, wiki_path, comment_id, previous_path, manifest, slug):
             if not comment_id:
                 path += "/" + known
             stage = "comment-readback"
-            readback_comment(site, path, header, known, actor, document)
+            readback_comment(site, path, header, known, actor, document, service_desk=service_desk)
             link = plan["issue"] + "?focusedCommentId=" + known
             durable_record(file, ledger, link, 0, action + ", exact ADF verified")
             durable_record(file, ledger, target, 0, "publication verified")

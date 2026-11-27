@@ -747,6 +747,20 @@ test('attributed Jira summaries from the shared account never become operator or
         ->and($result['plan']['delete'])->not->toContain('10002');
 })->with(['', '🤖 ']);
 
+test('an attributed human reply protects its linked Jira review from deletion', function (): void {
+    $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
+    $comments = [
+        mergePlanJiraComment('10001', 'acc-agent', 'First review. ' . $marker),
+        mergePlanJiraComment('10002', 'acc-agent', 'Second review. ' . $marker),
+        mergePlanJiraComment('10003', 'acc-agent', 'AI Olympus · My reply to https://example.atlassian.net/browse/ACME-1234?focusedCommentId=10001'),
+    ];
+    $result = mergePlanJira(array_column($comments, 'view'), array_column($comments, 'list'));
+
+    expect(mergePlanClasses($result['plan'])['10003'])->toBe('other')
+        ->and(mergePlanCommentById($result['plan'], '10001')['reply'])->toBeTrue()
+        ->and($result['plan']['delete'])->not->toContain('10001');
+});
+
 test('the JIRA plan stops when the comment list may be shorter than the thread', function (): void {
     $marker = '_cr-comment:actor=' . substr(hash('sha256', 'agent@example.com'), 0, 16) . '_';
     $comments = [

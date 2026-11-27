@@ -71,11 +71,15 @@ github_target_resolve() {
 
 github_actor_resolve() {
   local attempt err_file err=""
+  local -a host=()
+  if [[ -n "${1:-}" ]]; then
+    host=(--hostname "$1")
+  fi
   ACTOR=""
   err_file="$(mktemp)"
   for attempt in 1 2 3; do
     : >"$err_file"
-    if ACTOR="$(gh api user --jq .login 2>"$err_file")" && [[ -n "$ACTOR" ]]; then
+    if ACTOR="$(gh api ${host[@]+"${host[@]}"} user --jq .login 2>"$err_file")" && [[ -n "$ACTOR" ]]; then
       rm -f "$err_file"
       return 0
     fi

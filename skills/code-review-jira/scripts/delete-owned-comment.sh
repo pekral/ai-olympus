@@ -234,9 +234,9 @@ fi
 require_owned "$COMMENT_ID" "comment" "$MARKER"
 
 if [[ "$REVIEW_MERGE" -eq 1 ]]; then
-  REVIEW_VERDICT="$(printf '%s' "$COMMENTS" | jq -L "$SCRIPT_DIR/../../_shared" -r --arg actor "$ANCHOR_ACCOUNT" --arg id "$COMMENT_ID" '
+  REVIEW_VERDICT="$(printf '%s' "$COMMENTS" | jq -L "$SCRIPT_DIR/../../_shared" -r --arg actor "$ANCHOR_ACCOUNT" --arg digest "$DIGEST" --arg id "$COMMENT_ID" '
     include "comment-reply";
-    jira_acli_normalised($actor) as $all
+    jira_acli_normalised($actor; $digest) as $all
     | ($all | map(select(.id == $id)) | first) as $original
     | if $original == null then "unknown"
       elif ($original.body | other_agent_marker) then "other-marker"

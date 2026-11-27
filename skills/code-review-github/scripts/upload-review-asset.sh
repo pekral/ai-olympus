@@ -10,7 +10,7 @@
 #   skills/interactive-testing/references/defect-screenshots.md owns the rules behind it.
 #
 # Usage
-#   upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <source-slug> --finding <finding-id> --state head|base --sha256 <canonical-digest> <png>
+#   upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <source-slug> --finding <finding-id> --state head|base --evidence <QA-json> --qa-sha256 <approved-sha256> <png>
 #   upload-review-asset.sh verify <PR-URL> <image-URL>
 #   upload-review-asset.sh --self-test
 #
@@ -76,10 +76,10 @@ gh_api() {
   shift
   if [[ "${1:-}" == "-X" && ( "${2:-}" == "POST" || "${2:-}" == "PUT" ) ]]; then
     local current
-    current="$(gh api "repos/${NWO}/pulls/${NUMBER}" --jq '.head.sha' 2>/dev/null)" || die 3 "could not confirm the review head before an asset write"
+    current="$(gh api --hostname github.com "repos/${NWO}/pulls/${NUMBER}" --jq '.head.sha' 2>/dev/null)" || die 3 "could not confirm the review head before an asset write"
     [[ "$current" == "$UPLOAD_HEAD" ]] || die 4 "the reviewed head moved; stopped before the next asset write"
   fi
-  gh api "$@" >"$prefix.out" 2>"$prefix.err" || rc=$?
+  gh api --hostname github.com "$@" >"$prefix.out" 2>"$prefix.err" || rc=$?
   return "$rc"
 }
 
@@ -167,15 +167,17 @@ ensure_branch() {
 }
 
 cmd_upload() {
-  local digest="" pr="" head="" slug="" finding="" state="" file="" safe name path b64 size local_sha remote_sha commit="" url attempt put_rc
-  [[ $# -ge 1 ]] || die 1 "usage: upload-review-asset.sh upload <PR-URL> --head-sha <SHA> --slug <slug> --finding <id> --state head|base --sha256 <canonical-digest> <png>"
+  local evidence="" approval="" pr="" head="" slug="" finding="" state="" file=""
+  local digest safe name path b64 size local_sha remote_sha capture commit="" url attempt put_rc
+  [[ $# -ge 1 ]] || die 1 "usage: upload-review-asset.sh upload <PR-URL> with approved QA evidence and its digest"
   pr="$1"
   shift
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --head-sha) [[ $# -ge 2 ]] || die 1 "--head-sha needs a value"; head="$2"; shift 2 ;;
       --slug) [[ $# -ge 2 ]] || die 1 "--slug needs a value"; slug="$2"; shift 2 ;;
-      --sha256) [[ $# -ge 2 ]] || die 1 "--sha256 needs a value"; digest="$2"; shift 2 ;;
+      --evidence) [[ $# -ge 2 && -z "$evidence" ]] || die 1 "--evidence needs a single value"; evidence="$2"; shift 2 ;;
+      --qa-sha256) [[ $# -ge 2 && -z "$approval" ]] || die 1 "--qa-sha256 needs a single value"; approval="$2"; shift 2 ;;
       --finding) [[ $# -ge 2 ]] || die 1 "--finding needs a value"; finding="$2"; shift 2 ;;
       --state) [[ $# -ge 2 ]] || die 1 "--state needs a value"; state="$2"; shift 2 ;;
       *) [[ -z "$file" ]] || die 1 "unexpected argument: $1"; file="$1"; shift ;;
@@ -185,9 +187,34 @@ cmd_upload() {
   [[ "$finding" =~ ^[rf]-[0-9a-f]{16}$ ]] || die 1 "--finding must be a finding id (r- or f- and 16 hex digits)"
   [[ "$state" == "head" || "$state" == "base" ]] || die 1 "--state must be head or base"
   [[ -n "$slug" && -n "$file" ]] || die 1 "--slug and a file are required"
+  [[ -n "$evidence" && "$approval" =~ ^[0-9a-f]{64}$ ]] || die 1 "an independently authorized QA digest is required"
   require_tools
   resolve_pull_request "$pr"
+  [[ "$pr" == "https://github.com/${NWO}/pull/${NUMBER}" ]] || die 1 "use the canonical GitHub.com pull request URL"
   UPLOAD_HEAD="$head"
+  bash "$GUARD" evidence "$evidence" "$slug" "$approval" >"$TMP_ROOT/evidence.json" || exit 1
+  capture="$(jq -ce --arg pr "$pr" --arg head "$head" --arg id "$finding" --arg state "$state" --arg file "$file" '
+    def approved:
+      .kind == "ui" and .own_pixels == true and .visually_verified == true and .secret_free == true and .do_not_file_publicly == false
+      and (.finding_type | IN("bug","tests","refactor","performance","documentation"))
+      and (.sha256 | test("^[0-9a-f]{64}$")) and (.viewport | IN("desktop","mobile")) and (.step | type == "string" and length > 0)
+      and (if .state == "head" then .verdict == "failed" and .revision == $head
+           elif .state == "base" then .verdict == "passed" and .revision != $head and (.revision | test("^[0-9a-f]{40}$"))
+           else false end);
+    select(.target == $pr and .reviewed_head == $head)
+    | [.captures[] | select(.finding_id == $id)] as $group
+    | ($group | map(select(.state == $state))) as $candidates
+    | select(($candidates | length) == 1)
+    | $candidates[0] as $c
+    | select($c.file == $file and ($c | approved))
+    | if $c.regression == false then select($state == "head" and ($group | length) == 1)
+      elif $c.regression == true then select(($group | map(.state) | sort) == ["base","head"]
+        and all($group[]; .regression == true and .step == $c.step and .viewport == $c.viewport
+          and .finding_type == $c.finding_type and approved))
+      else empty end
+    | $c + {baseline: ($group | map(select(.state == "base")) | .[0].revision)}' "$TMP_ROOT/evidence.json" 2>/dev/null)" ||
+    die 1 "the authorized proof does not allow this capture"
+  digest="$(jq -er '.sha256' <<<"$capture")"
   mkdir -p "$TMP_ROOT/safe"
   safe="$(bash "$GUARD" file --slug "$slug" --out "$TMP_ROOT/safe" "$file")" || exit 1
   [[ "$digest" =~ ^[0-9a-f]{64}$ && "$(shasum -a 256 <"$safe" | cut -d' ' -f1)" == "$digest" ]] || die 1 "the reviewed image digest does not match"
@@ -196,6 +223,12 @@ cmd_upload() {
 
   gh_api "$TMP_ROOT/repo" "repos/${NWO}" || die 3 "reading ${NWO} failed: $(head -c 300 "$TMP_ROOT/repo.err")"
   jq -e '.permissions.push == true' "$TMP_ROOT/repo.out" >/dev/null 2>&1 || die 4 "the account has no push access to ${NWO}, so no screenshot is written"
+  if [[ "$(jq -r '.regression' <<<"$capture")" == true ]]; then
+    local branch
+    branch="$(jq -er '.default_branch | select(test("^[A-Za-z0-9._/-]{1,100}$"))' "$TMP_ROOT/repo.out")" || die 1 "the default branch is unavailable"
+    gh_api "$TMP_ROOT/base" "repos/${NWO}/commits/$branch" || die 1 "the regression baseline is unavailable"
+    [[ "$(jq -r '.sha' "$TMP_ROOT/base.out")" == "$(jq -r '.baseline' <<<"$capture")" ]] || die 1 "the regression baseline changed"
+  fi
 
   ensure_branch
 
@@ -241,8 +274,8 @@ write_stub_gh() {
 #!/usr/bin/env bash
 S="$STUB_DIR"
 printf '%s\n' "$*" >>"$S/calls.log"
-[[ "${1:-}" == api ]] || exit 99
-shift
+[[ "${1:-} ${2:-} ${3:-}" == "api --hostname github.com" ]] || exit 99
+shift 3
 method=GET
 endpoint=""
 input=""
@@ -332,12 +365,17 @@ SHIM
     (cd "$repo" && PATH="$base/bin:$PATH" STUB_DIR="$stub" AUDIT_TRAIL_FILE="$audit" AUDIT_TRAIL_ROLE=leonardo \
       bash "$HERE/upload-review-asset.sh" "$@" 2>"$base/err")
   }
-  local test_digest canonical="$base/canonical.png"
+  local test_digest approval evidence="$repo/.claude/run/demo.screenshot-evidence.json" canonical="$base/canonical.png"
   php "$HERE/../../_shared/sanitize-png.php" "$png" "$canonical" 2>/dev/null
   test_digest="$(shasum -a 256 <"$canonical" | cut -d' ' -f1)"
+  jq -n --arg pr "$pr" --arg head "$head" --arg id "$finding" --arg file "$png" --arg digest "$test_digest" '
+    {target:$pr,reviewed_head:$head,captures:[{finding_id:$id,state:"head",file:$file,sha256:$digest,revision:$head,
+      kind:"ui",step:"Save",viewport:"desktop",verdict:"failed",finding_type:"bug",regression:false,
+      visually_verified:true,own_pixels:true,secret_free:true,do_not_file_publicly:false}]}' >"$evidence"
+  approval="$(shasum -a 256 <"$evidence" | cut -d' ' -f1)"
   export EXPECTED_HEAD="$head" EXPECTED_TEST_BLOB
   EXPECTED_TEST_BLOB="$(git hash-object "$canonical")"
-  upload() { run upload "$pr" --head-sha "$head" --slug demo --finding "$finding" --state head --sha256 "$test_digest" "${1:-$png}"; }
+  upload() { run upload "$pr" --head-sha "$head" --slug demo --finding "$finding" --state head --evidence "$evidence" --qa-sha256 "$approval" "${1:-$png}"; }
   want_url="https://github.com/o/r/blob/$(printf '%040d' 99)/pr-7/0123456789ab-${finding}-head.png?raw=true"
 
   reset
@@ -402,6 +440,13 @@ SHIM
   out="$(run upload "$pr" --head-sha "$head" --slug demo --finding 'f-../x' --state head "$png")" && rc=0 || rc=$?
   check 'a finding id that is not a finding id is refused' "$([[ $rc -eq 1 ]] && echo yes || echo no)"
 
+  reset
+  out="$(run upload "$pr" --head-sha "$head" --slug demo --finding "$finding" --state head "$png")" && rc=0 || rc=$?
+  check 'a direct upload without an authorized QA proof is refused before any API call' "$([[ $rc -eq 1 && ! -s "$stub/calls.log" ]] && echo yes || echo no)"
+  printf '\n' >>"$evidence"
+  out="$(upload)" && rc=0 || rc=$?
+  check 'a changed QA proof never authorizes a direct upload' "$([[ $rc -eq 1 && ! -s "$stub/calls.log" ]] && echo yes || echo no)"
+
   # The verify command: the one allowed URL shape, this repository, this pull request, a commit that cr-assets holds.
   reset; touch "$stub/commit_ok"
   good="https://github.com/o/r/blob/$(printf '%040d' 99)/pr-7/0123456789ab-${finding}-head.png?raw=true"
@@ -422,6 +467,7 @@ SHIM
   out="$(run verify "$pr" "$good")" && rc=0 || rc=$?
   check 'verify refuses a path that is missing in the commit' "$([[ $rc -eq 3 ]] && echo yes || echo no)"
 
+  approval="$(shasum -a 256 <"$evidence" | cut -d' ' -f1)"
   reset; touch "$stub/ref_race"
   out="$(upload)" && rc=0 || rc=$?
   check 'a branch that another run creates first is used when it carries the marker' "$([[ $rc -eq 0 ]] && echo yes || echo no)"

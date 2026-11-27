@@ -1,6 +1,7 @@
 """Exercise public upsert with actual Wiki/media tooling and offline tracker responses."""
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 import hashlib
 import http.client
 import json
@@ -78,8 +79,10 @@ class Connection:
     def get(self, path):
         if path == "/rest/api/3/myself":
             return Response(200, {"accountId": "other" if self.mode == "actor" else ACTOR})
-        if path == ISSUE_PATH + "?fields=key":
-            return Response(200, issue_result("456" if self.mode == "issue" else ISSUE))
+        if path == ISSUE_PATH + "?fields=project":
+            project = {"platform": "software", "platform-edit": "business", "unknown-project": "unknown"}.get(self.mode, "service_desk")
+            return Response(200, {**issue_result("456" if self.mode == "issue" else ISSUE),
+                                  "fields": {"project": {"projectTypeKey": project}}})
         if path == ISSUE_PATH + "?fields=attachment":
             return Response(200, {**issue_result(), "fields": {"attachment": read(self.root / "attachments")}})
         if path.startswith(ISSUE_PATH + "/comment?"):
@@ -92,7 +95,13 @@ class Connection:
         assert content, path
         number, redirect = content.groups()
         if redirect == "false":
-            return Response(200, (self.root / ("attachment-" + number)).read_bytes())
+            record = self.root / ("attachment-" + number)
+            if self.mode == "late-base" and number == "40":
+                observed = self.root / "baseline-observed"
+                if observed.exists():
+                    return Response(200, b"")
+                observed.touch()
+            return Response(200, record.read_bytes())
         return Response(303, b"", "https://api.media.atlassian.com/file/" + media_id(number) + "/binary?token=redacted-in-tests")
 
     def mutate(self, method, path, body):
@@ -117,6 +126,8 @@ class Connection:
         document = json.loads(body)
         assert set(document) == {"body"}
         saved = stored_comment(document["body"])
+        if self.mode in ("platform", "platform-edit"):
+            del saved["jsdPublic"]
         if self.mode == "mismatched-readback":
             saved["body"]["content"][0]["content"][0]["text"] = "Edited between write and confirmation."
         save(self.root / "comments", [saved])
@@ -147,7 +158,7 @@ def fake_github(args):
         previous.touch()
         print(json.dumps({"url": PULL, "headRefOid": head, "isCrossRepository": False, "title": f"{KEY} Save deliveries"}))
         return
-    assert args[0] == "api" and "-X" not in args, args
+    assert args[:3] == ["api", "--hostname", "github.com"] and "-X" not in args, args
     endpoint = next(a for a in args[1:] if a.startswith("repos/example/project"))
     if "/reviews?" in endpoint:
         review = read(root / "review")
@@ -182,7 +193,7 @@ def fake_python(script, args):
     if Path(script).name != "jira_comment_api.py":
         os.execv(sys.executable, [sys.executable, "-B", script, *args])
     http.client.HTTPSConnection = Connection
-    if os.environ["JIRA_TEST_MODE"] == "sync":
+    if os.environ["JIRA_TEST_MODE"] in ("sync", "sync-edit"):
         def unsynced(fd):
             raise OSError("fixture fsync failed")
         os.fsync = unsynced
@@ -201,7 +212,7 @@ def wiki(save_word="Save", send_word="Send"):
 {{expand}}
 {{expand:⚠️ Findings from the code review}}
 * *(bug):* Saving a delivery fails. Keep the completed fields and let staff save again. {links[0]}
-* *(bug):* Sending a delivery fails. Keep the previous way to send it. {links[1]}
+* *(bug):* Sending a delivery is a regression against the default branch. Keep the previous way to send it. {links[1]}
 {{expand}}
 {{expand:⚠️ Test scenarios}}
 # ⚠️ {save_word} a complete delivery. It should appear on the list.
@@ -213,7 +224,7 @@ def wiki(save_word="Save", send_word="Send"):
 """.encode()
 
 
-def build_review(root, captured, legacy):
+def build_review(root, captured, legacy, *, include_baseline=True):
     report = f"""# Code Review
 
 **Status:** needs-fix
@@ -268,7 +279,7 @@ def build_review(root, captured, legacy):
         fid = findings[step]
         entry = dict(file=str(image), finding_id=fid, finding_type="bug", state=state, do_not_file_publicly=False)
         evidence.append(dict(entry, step=step, viewport="desktop", kind="ui", verdict="passed" if state == "base" else "failed",
-                             own_pixels=True, visually_verified=True, secret_free=True,
+                             own_pixels=True, visually_verified=True, secret_free=True, regression=step == "Send",
                              revision=BASE if state == "base" else HEAD, sha256=digest(image.read_bytes())))
         manifest.append(dict(entry, crop="element", masking="none", masked_in_capture_session=False, not_error_page=True,
                              own_data_only=True, default_branch="release" if state == "base" else None))
@@ -278,7 +289,7 @@ def build_review(root, captured, legacy):
         images.append(f"![{label}](https://github.com/example/project/blob/{ASSET}/{key}?raw=true)")
     run = root / ".codex/run"
     save(root / "assets", assets)
-    save(run / "fixture.screenshots.json", manifest if captured else [])
+    save(run / "fixture.screenshots.json", [entry for entry in manifest if include_baseline or entry["state"] != "base"] if captured else [])
     save(run / "fixture.screenshot-evidence.json", {"jira_source": URL, "target": PULL, "reviewed_head": HEAD, "captures": evidence})
     encoded = report.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").rstrip()
     body = "\n".join([*images, "<!-- cr-review-meta", encoded, "-->", "<!-- cr-comment:actor=qa -->"])
@@ -300,8 +311,8 @@ def launch(root, mode, command):
                                            "AUDIT_TRAIL_FILE": str(root / ".codex/run/fixture.audit"), "AUDIT_TRAIL_ROLE": "april"})
 
 
-def scenario(mode):
-    with tempfile.TemporaryDirectory(prefix="jira-publication-") as temp:
+def scenario(mode, receipt=None):
+    with (tempfile.TemporaryDirectory(prefix="jira-publication-") if receipt is None else nullcontext(receipt)) as temp:
         root = Path(temp).resolve()
         run = root / ".codex/run"
         run.mkdir(parents=True)
@@ -334,7 +345,8 @@ esac
         manifest = run / "fixture.screenshots.json"
         context = run / "fixture.jira-publication.json"
         editing = mode in ("edit", "historical", "edit-lost", "mismatched-readback", "target", "actor", "issue",
-                           "previous", "foreign-comment", "visibility", "no-context", "wiki-change", "manual")
+                           "previous", "foreign-comment", "visibility", "no-context", "wiki-change", "manual",
+                           "platform-edit", "jsm-unknown", "unknown-project", "sync-edit")
         plan = dict(mode="operator-edit" if editing else "create", actor=ACTOR, issue=URL, issue_id=ISSUE,
                     criteria="present", review_author="none", repository="example/project", revision=HEAD,
                     pull_requests=["7"], wiki_sha256=digest(source.read_bytes()))
@@ -351,13 +363,24 @@ esac
                 old["body"]["content"][0]["content"][0]["text"] += " The operator edited the note."
             if mode == "visibility":
                 old["jsdPublic"] = False
+            if mode in ("platform-edit", "jsm-unknown"):
+                del old["jsdPublic"]
             save(root / "comments", [old])
             arguments = ["--operator-edit", "--comment-id", "17", "--previous-adf", str(previous)]
         else:
             legacy = mode == "legacy-review"
-            review_sha = build_review(root, captured=mode not in ("create-lost", "text", "concurrent"), legacy=legacy)
-            plan.update(review_pr=PULL, review_id="10" if legacy else "9",
+            review_sha = build_review(root, captured=mode not in ("create-lost", "text", "concurrent"),
+                                      legacy=legacy, include_baseline=mode != "no-base")
+            proof = run / "fixture.screenshot-evidence.json"
+            plan.update(review_pr=PULL, review_id="10" if legacy else "9", qa_sha256=digest(proof.read_bytes()),
                         review_home="comment" if legacy else "review", review_body_sha256=review_sha)
+            if mode == "qa-flip":
+                changed = read(proof)
+                capture = changed["captures"][0]
+                image = Path(capture["file"])
+                image.write_bytes(Path(changed["captures"][1]["file"]).read_bytes())
+                capture["sha256"] = digest(image.read_bytes())
+                save(proof, changed)
             arguments = ["--create", "--screenshots", str(manifest), "--slug", "fixture"]
         if mode != "no-context":
             save(context, plan)
@@ -376,7 +399,10 @@ esac
         calls = (root / "calls").read_text().splitlines()
         mutations = [call for call in calls if not call.startswith("GET ")]
 
-        if mode in ("edit", "historical", "edit-lost", "media", "legacy-review", "text", "concurrent"):
+        if receipt is not None:
+            save(root / "result.json", {"exit": result.returncode, "stdout": result.stdout, "stderr": result.stderr, "requests": calls})
+        if mode in ("edit", "historical", "edit-lost", "media", "legacy-review", "text", "concurrent",
+                    "platform", "platform-edit", "qa-flip", "no-base", "late-base"):
             assert result.returncode == 0, (mode, result.stderr, calls)
             assert result.stdout.strip() == URL + "?focusedCommentId=17"
             body = read(root / "comments")[0]["body"]
@@ -384,17 +410,22 @@ esac
                 assert mutations == ["PUT " + ISSUE_PATH + "/comment/17"]
                 assert "Store a complete delivery" in json.dumps(body) and "Store and Release are available" in json.dumps(body)
                 assert sum(call == "GET " + ISSUE_PATH + "/comment/17" for call in calls) == 3
-            elif mode in ("media", "legacy-review"):
+            elif mode in ("media", "legacy-review", "platform"):
                 assert mutations == ["POST " + ISSUE_PATH + "/attachments"] * 3 + ["POST " + ISSUE_PATH + "/comment"]
                 findings = next(n for n in body["content"] if n.get("attrs", {}).get("title") == "⚠️ Findings from the code review")
                 first, second = [item["content"] for item in findings["content"][0]["content"]]
-                for item, ids, labels in ((first, ["40"], ["This change"]),
-                                           (second, ["42", "41"], ["Default branch (release)", "This change"])):
+                for item, ids, labels in ((first, ["41"], ["This change"]),
+                                           (second, ["40", "42"], ["Default branch (release)", "This change"])):
                     assert len(item) == 1 + len(ids) * 2
                     for index, (number, caption) in enumerate(zip(ids, labels), 1):
                         assert item[2 * index - 1]["content"] == [{"type": "text", "text": caption, "marks": [{"type": "strong"}]}]
                         node = item[2 * index]["content"][0]
                         assert node["type"] == "media" and node["attrs"]["id"] == media_id(number)
+            elif mode in ("no-base", "late-base"):
+                findings = next(n for n in body["content"] if n.get("attrs", {}).get("title") == "⚠️ Findings from the code review")
+                first, second = [item["content"] for item in findings["content"][0]["content"]]
+                assert len(first) == 3 and len(second) == 1 and "text only" in result.stderr
+                assert mutations == ["POST " + ISSUE_PATH + "/attachments"] * (3 if mode == "late-base" else 1) + ["POST " + ISSUE_PATH + "/comment"]
             else:
                 assert mutations == ["POST " + ISSUE_PATH + "/comment"]
                 assert "no eligible verified images" in result.stderr and "mediaSingle" not in json.dumps(body)
@@ -415,7 +446,8 @@ esac
                       "foreign-comment": "previous-comment", "review-before-comment": "review",
                       "visibility": "previous-comment", "no-context": "publication-context", "wiki-change": "approved-wiki",
                       "manual": "previous-comment", "partial": "comment-snapshot", "head-moved": "review", "review-moved": "review",
-                      "sync": "media", "mismatched-readback": "readback-body id=17"}
+                      "sync": "media", "mismatched-readback": "readback-body id=17", "sync-edit": "comment-intent",
+                      "unknown-project": "issue", "jsm-unknown": "previous-comment"}
             assert result.returncode == 3 and stages[mode] in result.stderr, (mode, result.stderr, calls)
             expected = {"mismatched-readback": ["PUT " + ISSUE_PATH + "/comment/17"],
                         "review-before-comment": ["POST " + ISSUE_PATH + "/attachments"] * 3}
@@ -429,4 +461,4 @@ if __name__ == "__main__":
     elif sys.argv[1] == "--python":
         fake_python(sys.argv[2], sys.argv[3:])
     else:
-        scenario(sys.argv[1])
+        scenario(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else None)

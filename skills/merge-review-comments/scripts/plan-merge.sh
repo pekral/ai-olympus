@@ -152,7 +152,8 @@ load_item() {
       jq -e '(.comments | type) == "array"' "$raw" >/dev/null || { printf '%s\n' "$PROG: the loader returned no comment list" >&2; exit 3; }
       [[ "$(jq -r '.commentsComplete' "$raw")" == "true" ]] || complete=false
       unpublished_allowed=true
-      jq -L "$JQ_LIB" --arg actor "$actor" 'include "comment-reply"; .comments | jira_normalised($actor)' "$raw" >"$TMP_DIR/normalised.json"
+      jq -L "$JQ_LIB" --arg actor "$actor" --arg digest "$digest" \
+        'include "comment-reply"; .comments | jira_normalised($actor; $digest)' "$raw" >"$TMP_DIR/normalised.json"
       # The operator lines need the document body, which the loader renders to text; the delete helper reads the same view.
       if ! acli jira workitem view "$(jq -r '.key' "$raw")" --fields comment --json >"$TMP_DIR/view.json" 2>/dev/null; then
         printf '%s\n' "$PROG: the JIRA comment documents could not be read; nothing is planned" >&2
